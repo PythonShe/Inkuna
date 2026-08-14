@@ -1,0 +1,12 @@
+# Linguist: language stats show only Rust, Swift, and Kotlin.
+scripts/** linguist-vendored
+*.sh linguist-vendored
+gradlew linguist-vendored
+gradlew.bat linguist-vendored
+apps/android/gradle/** linguist-vendored
+*.yml linguist-detectable=false
+*.yaml linguist-detectable=false
+*.xml linguist-detectable=false
+*.toml linguist-detectable=false
+*.properties linguist-detectable=false
+*.kts linguist-language=Kotlin

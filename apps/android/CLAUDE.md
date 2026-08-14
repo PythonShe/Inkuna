@@ -8,20 +8,19 @@ defaults.
 
 | Layer | Technology | Notes |
 |------|------|------|
-| UI | Jetpack Compose + Material 3 | single-activity |
-| Language | Kotlin 2.1 (JVM target 17) | AGP 8.7, Gradle 8.11 wrapper |
-| Core | UniFFI Kotlin bindings + JNA | generated into `app/src/generated/kotlin` by `../../scripts/build-core-android.sh` |
+| UI | Jetpack Compose + Material 3, latest BOM | single-activity |
+| Language | Kotlin (built into AGP 9+ — no standalone kotlin.android plugin) | latest stable AGP + Gradle wrapper |
+| Core | UniFFI Kotlin bindings + JNA | generated into `app/src/generated/kotlin` by `../../scripts/build-core-android.sh`; core methods are `suspend` |
 | Rendering (planned) | Readium Kotlin Toolkit | |
-| Targets | minSdk 33, compile/target 35 | application id `app.inkuna.android` |
+| Targets | minSdk 33, compile/target = latest SDK | application id `app.inkuna.android` |
 
 ```bash
 ../../scripts/build-core-android.sh   # after any core/FFI change
 ./gradlew assembleDebug               # must pass
 ```
 
-`gradle.properties` pins `org.gradle.java.home` to Homebrew `openjdk@21`
-(system Java is too new for AGP); `local.properties` is machine-local and
-gitignored.
+`gradle.properties` pins `org.gradle.java.home` to the latest Homebrew
+OpenJDK; `local.properties` is machine-local and gitignored.
 
 ## 1. Architecture
 

@@ -6,7 +6,7 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    SWIFT_VERSION: "5.9"
+    SWIFT_VERSION: "6.0"
     # The Rust core ships arm64-only simulator slices.
     "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
     MARKETING_VERSION: "0.1.0"
