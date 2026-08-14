@@ -1,26 +1,54 @@
 import UIKit
 
-/// The reading screen: horizontally paged prose on the selected page
-/// theme, chrome bars that fade away on tap, a bookmark toast, and the
-/// Theme & type sheet.
+/// The reading screen: horizontally paged prose on the selected page theme
+/// under floating glass chrome — an always-visible back button and page
+/// line, and a more button that fans out the reading menu (contents,
+/// theme & type, in-book search, bookmark).
 ///
 /// TODO(core): page content, pagination, and positions come from the Rust
 /// core + Readium's `EPUBNavigatorViewController` once rendering lands;
 /// this screen reads the placeholder chapter so the experience is real
 /// end to end.
-final class ReaderViewController: UIViewController, UIScrollViewDelegate {
+final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGestureRecognizerDelegate {
     private let book: PlaceholderBook
 
     private let scrollView = UIScrollView()
     private let pageStack = UIStackView()
     private var pageLabels: [UILabel] = []
     private let dimView = UIView()
-    private let topBar = ReaderChromeBar()
-    private let bottomBar = ReaderChromeBar()
     private let pageInfoLabel = InkLabel()
-    private var chromeVisible = true
     private var pageIndex = 0
     private let bookmarkFeedback = UIImpactFeedbackGenerator(style: .light)
+
+    // MARK: Floating chrome
+
+    private lazy var backButton = ReaderGlassButton(symbol: "arrow.backward", accessibilityLabel: "Back") { [weak self] in
+        self?.navigationController?.popViewController(animated: true)
+    }
+    private lazy var menuButton = ReaderGlassButton(symbol: "ellipsis", pointSize: 19, accessibilityLabel: "Reading menu") { [weak self] in
+        guard let self else { return }
+        self.setMenu(visible: !self.menuVisible)
+    }
+    private lazy var menuView = ReaderMenuView(
+        onContents: { [weak self] in
+            self?.setMenu(visible: false)
+            self?.presentContents()
+        },
+        onTheme: { [weak self] in
+            self?.setMenu(visible: false)
+            self?.presentThemeSheet()
+        },
+        onSearch: { [weak self] in
+            self?.setMenu(visible: false)
+            self?.showSearch()
+        },
+        onBookmark: { [weak self] in
+            self?.placeBookmark()
+        }
+    )
+    private var menuVisible = false
+    private var menuAnimator: UIViewPropertyAnimator?
+    private var searchPanel: ReaderSearchPanel?
 
     init(book: PlaceholderBook) {
         self.book = book
@@ -60,7 +88,7 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
             pageStack.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
         ])
 
-        for pageNumber in 0..<PlaceholderLibrary.samplePages.count {
+        for _ in 0..<PlaceholderLibrary.samplePages.count {
             let page = UIView()
             let label = InkLabel()
             label.numberOfLines = 0
@@ -68,14 +96,14 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
             page.addSubview(label)
             pageStack.addArrangedSubview(page)
             NSLayoutConstraint.activate([
-                // Below the chrome bar regardless of device safe areas.
+                // Clear of the floating back button on any device.
                 label.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 64),
                 label.centerXAnchor.constraint(equalTo: page.centerXAnchor),
                 label.leadingAnchor.constraint(greaterThanOrEqualTo: page.leadingAnchor, constant: 26),
                 label.widthAnchor.constraint(lessThanOrEqualToConstant: InkFont.readingMeasure),
             ])
-            // High, not required: overrunning prose extends beneath the
-            // translucent bottom bar instead of clipping mid-sentence.
+            // High, not required: overrunning prose extends toward the page
+            // edge instead of clipping mid-sentence.
             // TODO(core): real pagination via Readium removes overflow.
             let bottom = label.bottomAnchor.constraint(
                 lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor,
@@ -85,7 +113,6 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
             bottom.isActive = true
             pageLabels.append(label)
             page.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor).isActive = true
-            _ = pageNumber
         }
         renderPages()
 
@@ -103,50 +130,57 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
         ])
         applyBrightness(settings.brightness)
 
-        // MARK: Chrome
+        // MARK: Floating chrome
 
-        // TODO(l10n): localize once the strings pass lands.
-        let backButton = InkIconButton(symbol: "chevron.backward", accessibilityLabel: "Back") { [weak self] in
-            self?.navigationController?.popViewController(animated: true)
-        }
-        let chapterLabel = InkLabel()
-        chapterLabel.text = PlaceholderLibrary.pagesLeftText
-        chapterLabel.font = InkFont.caption
-        chapterLabel.textColor = InkColor.textTertiary
-        let bookmarkButton = InkIconButton(symbol: "bookmark", accessibilityLabel: "Bookmark") { [weak self] in
-            self?.placeBookmark()
-        }
-        topBar.fill(leading: backButton, center: chapterLabel, trailing: bookmarkButton)
-
-        let contentsButton = InkIconButton(symbol: "list.bullet", accessibilityLabel: "Contents") { [weak self] in
-            self?.showContents()
-        }
         pageInfoLabel.font = InkFont.caption
-        pageInfoLabel.textColor = InkColor.textTertiary
-        let typeButton = InkIconButton(symbol: "textformat.size", accessibilityLabel: "Theme and type") { [weak self] in
-            self?.presentThemeSheet()
-        }
-        bottomBar.fill(leading: contentsButton, center: pageInfoLabel, trailing: typeButton)
-        updatePageInfo()
+        pageInfoLabel.textColor = settings.readingTheme.dimmedForeground
+        pageInfoLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(pageInfoLabel)
 
-        for bar in [topBar, bottomBar] {
-            bar.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview(bar)
+        menuView.alpha = 0
+        menuView.transform = CGAffineTransform(translationX: 0, y: 10)
+        menuView.isUserInteractionEnabled = false
+        for chrome in [backButton, menuButton, menuView] {
+            chrome.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(chrome)
         }
         NSLayoutConstraint.activate([
-            topBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            topBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            topBar.topAnchor.constraint(equalTo: view.topAnchor),
-            bottomBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bottomBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bottomBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: InkSpacing.space4),
+            backButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
+            menuButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -InkSpacing.space4),
+            menuButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -26),
+            menuView.trailingAnchor.constraint(equalTo: menuButton.trailingAnchor),
+            menuView.bottomAnchor.constraint(equalTo: menuButton.topAnchor, constant: -12),
+            pageInfoLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            pageInfoLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
         ])
+        updatePageInfo()
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+        tap.delegate = self
         view.addGestureRecognizer(tap)
 
         bookmarkFeedback.prepare()
     }
+
+    #if DEBUG
+    // Deep-launch a chrome state for the screenshot loop:
+    // `-inkuna.debugScreen reader -inkuna.debugReaderUI menu|search|contents|theme`
+    private var didRunDebugRoute = false
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard !didRunDebugRoute else { return }
+        didRunDebugRoute = true
+        switch UserDefaults.standard.string(forKey: "inkuna.debugReaderUI") {
+        case "menu": setMenu(visible: true)
+        case "search": showSearch()
+        case "contents": presentContents()
+        case "theme": presentThemeSheet()
+        default: break
+        }
+    }
+    #endif
 
     // MARK: Prose
 
@@ -201,18 +235,48 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
         }
     }
 
-    // MARK: Chrome behavior
+    // MARK: Reading menu
+
+    private func setMenu(visible: Bool) {
+        guard menuVisible != visible else { return }
+        menuVisible = visible
+        menuButton.setSymbol(visible ? "xmark" : "ellipsis")
+        // TODO(l10n): localize once the strings pass lands.
+        menuButton.accessibilityLabel = visible ? "Close reading menu" : "Reading menu"
+        menuView.isUserInteractionEnabled = visible
+
+        menuAnimator?.stopAnimation(true)
+        let animator = InkMotion.quietAnimator(duration: 0.24)
+        animator.addAnimations {
+            self.menuView.alpha = visible ? 1 : 0
+            self.menuView.transform = visible ? .identity : CGAffineTransform(translationX: 0, y: 10)
+        }
+        animator.startAnimation()
+        menuAnimator = animator
+
+        if visible {
+            UIAccessibility.post(notification: .layoutChanged, argument: menuView)
+        }
+    }
 
     @objc private func handleTap() {
-        chromeVisible.toggle()
-        let visible = chromeVisible
-        for bar in [topBar, bottomBar] {
-            bar.isUserInteractionEnabled = visible
+        if let searchPanel, searchPanel.alpha > 0 {
+            hideSearch()
+        } else {
+            setMenu(visible: false)
         }
-        InkMotion.runQuiet {
-            self.topBar.alpha = visible ? 1 : 0
-            self.bottomBar.alpha = visible ? 1 : 0
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // Bare page taps only — chrome and overlays handle their own touches.
+        var candidate = touch.view
+        while let current = candidate, current !== view {
+            if current === menuView || current === backButton || current === menuButton || current === searchPanel {
+                return false
+            }
+            candidate = current.superview
         }
+        return true
     }
 
     private func placeBookmark() {
@@ -226,17 +290,13 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
         )
     }
 
-    private func showContents() {
-        guard let navigationController else { return }
-        if let detail = navigationController.viewControllers.last(where: { $0 is BookDetailViewController }) {
-            navigationController.popToViewController(detail, animated: true)
-        } else {
-            // Keep the reader beneath so backing out of the contents
-            // returns to the open page.
-            let detail = BookDetailViewController(book: book)
-            detail.hidesBottomBarWhenPushed = true
-            navigationController.pushViewController(detail, animated: true)
+    private func presentContents() {
+        let sheet = ContentsSheetViewController(book: book, pageInfoText: pageInfoText())
+        sheet.onSelectChapter = { _ in
+            // TODO(core): jump to the chapter position via Readium; the
+            // placeholder chapter has nowhere to go yet.
         }
+        present(sheet, animated: true)
     }
 
     private func presentThemeSheet() {
@@ -246,6 +306,7 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
             guard let self else { return }
             InkMotion.runQuiet {
                 self.view.backgroundColor = theme.background
+                self.pageInfoLabel.textColor = theme.dimmedForeground
             }
             self.renderPages()
         }
@@ -260,19 +321,76 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
         present(sheet, animated: true)
     }
 
+    // MARK: In-book search
+
+    private func showSearch() {
+        let panel: ReaderSearchPanel
+        if let existing = searchPanel {
+            panel = existing
+        } else {
+            panel = ReaderSearchPanel(basePage: book.currentPage)
+            panel.onClose = { [weak self] in self?.hideSearch() }
+            panel.onJump = { [weak self] index in
+                guard let self else { return }
+                self.scrollView.setContentOffset(
+                    CGPoint(x: CGFloat(index) * self.scrollView.bounds.width, y: 0),
+                    animated: false
+                )
+                self.pageIndex = index
+                self.updatePageInfo()
+                self.hideSearch()
+            }
+            panel.alpha = 0
+            panel.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(panel)
+            NSLayoutConstraint.activate([
+                panel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+                panel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+                panel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            ])
+            searchPanel = panel
+        }
+        InkMotion.runQuiet {
+            panel.alpha = 1
+        }
+        panel.focus()
+        UIAccessibility.post(notification: .layoutChanged, argument: panel)
+    }
+
+    private func hideSearch() {
+        guard let panel = searchPanel else { return }
+        panel.reset()
+        InkMotion.runQuiet {
+            panel.alpha = 0
+        }
+    }
+
+    // MARK: Position
+
     private func applyBrightness(_ brightness: Double) {
         // The design's veil: alpha ramps up as brightness drops below 78%.
         dimView.alpha = max(0, 0.78 - brightness) / 1.7
     }
 
-    private func updatePageInfo() {
-        // TODO(core): live position from the core's progress tracking.
+    private func pageInfoText() -> String {
         let page = book.currentPage + pageIndex
         let percent = Int((Double(page) / Double(book.pageCount) * 100).rounded())
-        pageInfoLabel.text = "p. \(page) of \(book.pageCount) · \(percent)%"
+        return "p. \(page) of \(book.pageCount) · \(percent)%"
+    }
+
+    private func updatePageInfo() {
+        // TODO(core): live position from the core's progress tracking.
+        pageInfoLabel.text = pageInfoText()
+        let page = book.currentPage + pageIndex
+        let percent = Int((Double(page) / Double(book.pageCount) * 100).rounded())
+        menuView.contentsPill.text = "Contents · \(percent)%"
     }
 
     // MARK: UIScrollViewDelegate
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        setMenu(visible: false)
+    }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         syncPageIndex()
@@ -304,50 +422,6 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
                 animated: false
             )
         }
-    }
-}
-
-/// Translucent chrome bar for the reader: surface-tinted material with a
-/// three-slot layout.
-private final class ReaderChromeBar: UIView {
-    private let effectView = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
-    private let tint = UIView()
-
-    init() {
-        super.init(frame: .zero)
-        effectView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(effectView)
-        tint.backgroundColor = InkColor.bgSurface.withAlphaComponent(0.6)
-        tint.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(tint)
-        NSLayoutConstraint.activate([
-            effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            effectView.topAnchor.constraint(equalTo: topAnchor),
-            effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            tint.leadingAnchor.constraint(equalTo: leadingAnchor),
-            tint.trailingAnchor.constraint(equalTo: trailingAnchor),
-            tint.topAnchor.constraint(equalTo: topAnchor),
-            tint.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    func fill(leading: UIView, center: UIView, trailing: UIView) {
-        let row = UIStackView(arrangedSubviews: [leading, UIView(), center, UIView(), trailing])
-        row.axis = .horizontal
-        row.alignment = .center
-        row.distribution = .equalCentering
-        row.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(row)
-        NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: InkSpacing.space3),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -InkSpacing.space3),
-            row.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 10),
-            row.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -10),
-        ])
     }
 }
 
