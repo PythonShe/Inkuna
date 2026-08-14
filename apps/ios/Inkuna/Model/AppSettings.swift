@@ -14,6 +14,7 @@ final class AppSettings {
         static let onboarded = "inkuna.onboarded"
         static let readingTheme = "inkuna.readingTheme"
         static let textSize = "inkuna.textSize"
+        static let textSizeStep = "inkuna.textSizeStep"
         static let brightness = "inkuna.brightness"
     }
 
@@ -35,8 +36,19 @@ final class AppSettings {
     }
 
     var textSize: ReadingTextSize {
-        get { defaults.string(forKey: Key.textSize).flatMap(ReadingTextSize.init) ?? .medium }
-        set { defaults.set(newValue.rawValue, forKey: Key.textSize) }
+        get {
+            if let step = defaults.object(forKey: Key.textSizeStep) as? Int,
+               let size = ReadingTextSize(rawValue: step) {
+                return size
+            }
+            // Migrate the pre-stepper S/M/L value onto the five-step scale.
+            switch defaults.string(forKey: Key.textSize) {
+            case "S": return .small
+            case "L": return .large
+            default: return .medium
+            }
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.textSizeStep) }
     }
 
     /// Reader page brightness, 0…1. Below the default the reader dims the

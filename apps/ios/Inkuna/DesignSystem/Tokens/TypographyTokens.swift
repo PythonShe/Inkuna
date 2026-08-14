@@ -73,17 +73,25 @@ enum InkFont {
     }
 }
 
-/// Reader body-text sizes (the S / M / L control in the Theme & type sheet).
-enum ReadingTextSize: String, CaseIterable {
-    case small = "S"
-    case medium = "M"
-    case large = "L"
+/// Reader body-text sizes (the A− / A+ stepper in the Theme & type sheet):
+/// five steps matching the design's 0.9–1.25rem scale.
+enum ReadingTextSize: Int, CaseIterable {
+    case xSmall
+    case small
+    case medium
+    case large
+    case xLarge
 
     var pointSize: CGFloat {
         switch self {
-        case .small: 15
+        case .xSmall: 14.4
+        case .small: 15.6
         case .medium: 17
-        case .large: 19
+        case .large: 18.4
+        case .xLarge: 20
         }
     }
+
+    var smaller: ReadingTextSize? { ReadingTextSize(rawValue: rawValue - 1) }
+    var larger: ReadingTextSize? { ReadingTextSize(rawValue: rawValue + 1) }
 }
