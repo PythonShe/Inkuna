@@ -37,8 +37,6 @@ const alternates = localizedPath
     }))
   : [];
 
-const favicon =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%231a1a1e'/%3E%3Ccircle cx='66' cy='38' r='26' fill='%23f5f2ea'/%3E%3C/svg%3E";
 ---
 
 <html lang={lang}>
@@ -72,7 +70,9 @@ const favicon =
         />
       )
     }
-    <link rel="icon" href={favicon} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   </head>
   <body class:list={{ centered }}>
     <slot />

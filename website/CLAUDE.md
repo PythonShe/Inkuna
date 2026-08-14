@@ -61,7 +61,8 @@ Astro's built-in i18n routing (no third-party plugin): locales `en`
 
 - **Zero client-side requests beyond the page itself**: no CDN scripts, web
   fonts, analytics, remote images, or shipped JavaScript. Everything is
-  inlined at build time or in-repo; favicons are data URIs. This keeps the
+  inlined at build time or in-repo; favicons are static files in `public/`,
+  regenerated from `assets/brand/` via `scripts/gen-icons.sh`. This keeps the
   site fast, private, and dependency-light. Astro's static build satisfies
   this by default — don't add integrations or client islands that break it.
 - **No UI or CSS framework**: no React (nothing here is interactive) and no
