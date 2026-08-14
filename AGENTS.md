@@ -42,6 +42,9 @@ the Rust core never renders.
   then each affected component's rules. After any `core/crates/inkuna-ffi`
   change, regenerate bindings via BOTH `scripts/build-core-*.sh` before
   building the shells.
+- Each `AGENTS.md` is a verbatim copy of its sibling `CLAUDE.md` (for Codex).
+  After editing any `CLAUDE.md`, re-copy it over the sibling `AGENTS.md` in
+  the same commit.
 
 ## Documentation Priority
 
