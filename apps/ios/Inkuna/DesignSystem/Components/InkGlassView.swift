@@ -6,27 +6,34 @@ import UIKit
 /// raised surface color.
 ///
 /// The view is non-interactive: embed it as the background layer of a
-/// control so touches fall through to the control itself.
+/// control so touches fall through to the control itself (which carries the
+/// press feedback).
 final class InkGlassView: UIView {
     private let effectView: UIVisualEffectView
     private let fixedCornerRadius: CGFloat?
 
-    /// - Parameters:
-    ///   - cornerRadius: fixed corner radius, or `nil` for a capsule.
-    ///   - interactive: on iOS 26, lets the glass react to touch.
-    init(cornerRadius: CGFloat? = nil, interactive: Bool = false) {
+    /// - Parameter cornerRadius: fixed corner radius, or `nil` for a capsule.
+    init(cornerRadius: CGFloat? = nil) {
         fixedCornerRadius = cornerRadius
         if #available(iOS 26.0, *) {
-            let glass = UIGlassEffect()
-            glass.isInteractive = interactive
-            effectView = UIVisualEffectView(effect: glass)
+            effectView = UIVisualEffectView(effect: UIGlassEffect())
         } else {
             effectView = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
         }
         super.init(frame: .zero)
 
         isUserInteractionEnabled = false
-        effectView.clipsToBounds = true
+        if #available(iOS 26.0, *) {
+            // Glass ignores layer.cornerRadius; shape it via the corner
+            // configuration instead.
+            if let cornerRadius {
+                effectView.cornerConfiguration = .uniformCorners(radius: .fixed(cornerRadius))
+            } else {
+                effectView.cornerConfiguration = .capsule()
+            }
+        } else {
+            effectView.clipsToBounds = true
+        }
         effectView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(effectView)
         NSLayoutConstraint.activate([
@@ -57,6 +64,8 @@ final class InkGlassView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        effectView.layer.cornerRadius = fixedCornerRadius ?? bounds.height / 2
+        if #unavailable(iOS 26.0) {
+            effectView.layer.cornerRadius = fixedCornerRadius ?? bounds.height / 2
+        }
     }
 }

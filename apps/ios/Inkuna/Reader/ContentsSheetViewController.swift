@@ -124,7 +124,7 @@ final class ContentsSheetViewController: UIViewController {
         page.setContentHuggingPriority(.required, for: .horizontal)
         page.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-        let row = ChapterRowControl { [weak self] in
+        let row = ChapterRowControl(isCurrent: isCurrent) { [weak self] in
             self?.onSelectChapter?(index)
             self?.dismiss(animated: true)
         }
@@ -151,12 +151,14 @@ final class ContentsSheetViewController: UIViewController {
         return row
     }
 
-    /// Tappable chapter row with a soft pressed wash.
+    /// Tappable chapter row with a soft pressed wash. The current chapter
+    /// already rests on the accent wash, so it dims instead.
     private final class ChapterRowControl: UIControl {
-        private var pressedWash: UIColor { InkColor.accentSoft }
+        private let isCurrent: Bool
         private var restingColor: UIColor?
 
-        init(handler: @escaping @MainActor () -> Void) {
+        init(isCurrent: Bool, handler: @escaping @MainActor () -> Void) {
+            self.isCurrent = isCurrent
             super.init(frame: .zero)
             addAction(UIAction { _ in handler() }, for: .touchUpInside)
         }
@@ -167,9 +169,11 @@ final class ContentsSheetViewController: UIViewController {
         override var isHighlighted: Bool {
             didSet {
                 guard isHighlighted != oldValue else { return }
-                if isHighlighted {
+                if isCurrent {
+                    alpha = isHighlighted ? 0.7 : 1
+                } else if isHighlighted {
                     restingColor = backgroundColor
-                    backgroundColor = pressedWash
+                    backgroundColor = InkColor.accentSoft
                 } else {
                     backgroundColor = restingColor
                 }

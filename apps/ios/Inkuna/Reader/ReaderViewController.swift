@@ -156,6 +156,8 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
             menuButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -26),
             menuView.trailingAnchor.constraint(equalTo: menuButton.trailingAnchor),
             menuView.bottomAnchor.constraint(equalTo: menuButton.topAnchor, constant: -12),
+            // Pills reflow at accessibility sizes instead of overflowing.
+            menuView.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: InkSpacing.space4),
             pageInfoLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             pageInfoLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
         ])
@@ -369,15 +371,24 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
                 self.hideSearch()
             }
             panel.alpha = 0
+            // The panel owns the screen while it is up: VoiceOver must not
+            // land on the chrome buried beneath the glass.
+            panel.accessibilityViewIsModal = true
             panel.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(panel)
             NSLayoutConstraint.activate([
                 panel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
                 panel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
                 panel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+                // Results scroll inside the panel instead of running under
+                // the keyboard.
+                panel.bottomAnchor.constraint(lessThanOrEqualTo: view.keyboardLayoutGuide.topAnchor, constant: -12),
             ])
             searchPanel = panel
         }
+        // The back button sits right beneath the panel's glass — tuck the
+        // chrome away so it neither shows through nor stays tappable.
+        setChrome(visible: false)
         InkMotion.runQuiet {
             panel.alpha = 1
         }
@@ -387,10 +398,19 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
 
     private func hideSearch() {
         guard let panel = searchPanel else { return }
-        panel.reset()
-        InkMotion.runQuiet {
+        // Drop the keyboard with the fade; the content reset waits for it.
+        panel.endEditing(true)
+        let animator = InkMotion.quietAnimator(duration: InkMotion.fast)
+        animator.addAnimations {
             panel.alpha = 0
         }
+        // Reset after the fade: collapsing the results mid-fade snaps the
+        // panel's height.
+        animator.addCompletion { _ in
+            panel.reset()
+        }
+        animator.startAnimation()
+        setChrome(visible: true)
     }
 
     // MARK: Position

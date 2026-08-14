@@ -3,7 +3,7 @@ import UIKit
 /// 46pt floating circular glass button — the reader's back button, menu
 /// button, and the round entries of the speed-dial menu.
 final class ReaderGlassButton: UIControl {
-    private let glass = InkGlassView(interactive: true)
+    private let glass = InkGlassView()
     private let iconView = UIImageView()
     private let symbolPointSize: CGFloat
     private var pressAnimator: UIViewPropertyAnimator?
@@ -78,7 +78,7 @@ final class ReaderGlassButton: UIControl {
 /// Pill-shaped row of the reader's speed-dial menu: label on the left,
 /// glyph on the right, glass beneath.
 final class ReaderMenuPill: UIControl {
-    private let glass = InkGlassView(interactive: true)
+    private let glass = InkGlassView()
     private let titleLabel = InkLabel()
     private var pressAnimator: UIViewPropertyAnimator?
 
@@ -99,6 +99,8 @@ final class ReaderMenuPill: UIControl {
         titleLabel.text = text
         titleLabel.font = InkFont.ui
         titleLabel.textColor = InkColor.textDisplay
+        // Wrap at accessibility sizes instead of running off the screen.
+        titleLabel.numberOfLines = 0
 
         let iconView = UIImageView(
             image: UIImage(

@@ -13,6 +13,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
     private let glass = InkGlassView(cornerRadius: InkRadius.lg)
     private let field = UITextField()
     private let resultsSection = UIStackView()
+    private let resultsScroll = UIScrollView()
     private let resultsStack = UIStackView()
     private let emptyLabel = InkLabel()
     /// Page number of the first sample page ("p. 564").
@@ -65,6 +66,19 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         ])
 
         resultsStack.axis = .vertical
+        // Results scroll when the panel is capped by the keyboard.
+        resultsStack.translatesAutoresizingMaskIntoConstraints = false
+        resultsScroll.addSubview(resultsStack)
+        let scrollFit = resultsScroll.heightAnchor.constraint(equalTo: resultsScroll.contentLayoutGuide.heightAnchor)
+        scrollFit.priority = .defaultHigh
+        NSLayoutConstraint.activate([
+            resultsStack.leadingAnchor.constraint(equalTo: resultsScroll.contentLayoutGuide.leadingAnchor),
+            resultsStack.trailingAnchor.constraint(equalTo: resultsScroll.contentLayoutGuide.trailingAnchor),
+            resultsStack.topAnchor.constraint(equalTo: resultsScroll.contentLayoutGuide.topAnchor),
+            resultsStack.bottomAnchor.constraint(equalTo: resultsScroll.contentLayoutGuide.bottomAnchor),
+            resultsStack.widthAnchor.constraint(equalTo: resultsScroll.frameLayoutGuide.widthAnchor),
+            scrollFit,
+        ])
 
         emptyLabel.text = "Nothing found in this book."
         emptyLabel.font = InkFont.serif(15, weight: .regular, style: .subheadline)
@@ -75,7 +89,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         resultsSection.axis = .vertical
         resultsSection.spacing = 4
         resultsSection.addArrangedSubview(hairline)
-        resultsSection.addArrangedSubview(resultsStack)
+        resultsSection.addArrangedSubview(resultsScroll)
         resultsSection.addArrangedSubview(emptyLabel)
         resultsSection.setCustomSpacing(10, after: hairline)
         resultsSection.isHidden = true
@@ -147,8 +161,12 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         }
 
         resultsSection.isHidden = false
-        resultsStack.isHidden = found == 0
+        resultsScroll.isHidden = found == 0
         emptyLabel.isHidden = found > 0
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: found == 0 ? "No results" : "\(found) result\(found == 1 ? "" : "s")"
+        )
     }
 
     private func makeResultRow(snippet: String, pageNumber: Int, pageIndex: Int) -> UIView {
