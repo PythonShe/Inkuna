@@ -1,9 +1,10 @@
 import UIKit
 
 /// The reading screen: horizontally paged prose on the selected page theme
-/// under floating glass chrome — an always-visible back button and page
-/// line, and a more button that fans out the reading menu (contents,
-/// theme & type, in-book search, bookmark).
+/// under floating glass chrome — a back button, the page line, and a more
+/// button that fans out the reading menu (contents, theme & type, in-book
+/// search, bookmark). The chrome shows on entry, tucks away when a page is
+/// turned, and comes back on tap.
 ///
 /// TODO(core): page content, pagination, and positions come from the Rust
 /// core + Readium's `EPUBNavigatorViewController` once rendering lands;
@@ -49,6 +50,10 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
     private var menuVisible = false
     private var menuAnimator: UIViewPropertyAnimator?
     private var searchPanel: ReaderSearchPanel?
+    /// Chrome shows on entry and on page taps, and gets out of the way
+    /// while reading (page swipes hide it, taps toggle it).
+    private var chromeVisible = true
+    private var chromeAnimator: UIViewPropertyAnimator?
 
     init(book: PlaceholderBook) {
         self.book = book
@@ -177,6 +182,7 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
         case "search": showSearch()
         case "contents": presentContents()
         case "theme": presentThemeSheet()
+        case "immersed": setChrome(visible: false)
         default: break
         }
     }
@@ -259,11 +265,33 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
         }
     }
 
+    private func setChrome(visible: Bool) {
+        guard chromeVisible != visible else { return }
+        chromeVisible = visible
+        if !visible {
+            setMenu(visible: false)
+        }
+        for control in [backButton, menuButton] {
+            control.isUserInteractionEnabled = visible
+        }
+        chromeAnimator?.stopAnimation(true)
+        let animator = InkMotion.quietAnimator(duration: 0.24)
+        animator.addAnimations {
+            for chrome in [self.backButton, self.menuButton, self.pageInfoLabel] {
+                chrome.alpha = visible ? 1 : 0
+            }
+        }
+        animator.startAnimation()
+        chromeAnimator = animator
+    }
+
     @objc private func handleTap() {
         if let searchPanel, searchPanel.alpha > 0 {
             hideSearch()
-        } else {
+        } else if menuVisible {
             setMenu(visible: false)
+        } else {
+            setChrome(visible: !chromeVisible)
         }
     }
 
@@ -389,7 +417,8 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
     // MARK: UIScrollViewDelegate
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        setMenu(visible: false)
+        // Reading takes the page: turning it tucks the chrome away.
+        setChrome(visible: false)
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
