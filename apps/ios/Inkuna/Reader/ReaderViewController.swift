@@ -66,15 +66,16 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
             label.numberOfLines = 0
             label.translatesAutoresizingMaskIntoConstraints = false
             page.addSubview(label)
+            pageStack.addArrangedSubview(page)
             NSLayoutConstraint.activate([
-                label.topAnchor.constraint(equalTo: page.topAnchor, constant: 96),
+                // Below the chrome bar regardless of device safe areas.
+                label.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 64),
                 label.centerXAnchor.constraint(equalTo: page.centerXAnchor),
                 label.leadingAnchor.constraint(greaterThanOrEqualTo: page.leadingAnchor, constant: 26),
                 label.widthAnchor.constraint(lessThanOrEqualToConstant: InkFont.readingMeasure),
-                label.bottomAnchor.constraint(lessThanOrEqualTo: page.bottomAnchor, constant: -84),
+                label.bottomAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -70),
             ])
             pageLabels.append(label)
-            pageStack.addArrangedSubview(page)
             page.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor).isActive = true
             _ = pageNumber
         }
