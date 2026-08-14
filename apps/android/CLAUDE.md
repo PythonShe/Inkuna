@@ -25,7 +25,7 @@ machine-local and gitignored.
 
 Release signing reads `key.properties` + `app/upload-keystore.jks` (both
 gitignored; CI materializes them from `ANDROID_*` secrets, local copies live
-in `~/Keys/inkuna/`). Without them `assembleRelease` falls back to debug
+in `~/Documents/Dev/inkuna/`). Without them `assembleRelease` falls back to debug
 signing.
 
 ## 1. Architecture

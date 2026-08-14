@@ -69,7 +69,7 @@ the Rust core never renders.
   [--tag]` — the release workflows fail on tag/file version mismatch.
 - Secrets and signing material never enter git history: Android signing comes
   from `ANDROID_*` secrets (keystore + credentials also live locally in
-  `~/Keys/inkuna/`), iOS from `APPSTORE_*`/`IOS_*`/`APPLE_TEAM_ID` secrets
+  `~/Documents/Dev/inkuna/`), iOS from `APPSTORE_*`/`IOS_*`/`APPLE_TEAM_ID` secrets
   (ExportOptions.plist is generated at CI time), website deploys from
   `CLOUDFLARE_*` secrets, notes from `OPENAI_API_KEY`.
 
