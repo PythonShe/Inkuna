@@ -4,6 +4,13 @@ options:
   deploymentTarget:
     iOS: "18.0"
   createIntermediateGroups: true
+  # Treat Icon Composer .icon packages as single files; without this XcodeGen
+  # expands the package contents and Xcode no longer recognizes the icon
+  # (https://github.com/yonaskolb/XcodeGen/issues/1556).
+  fileTypes:
+    icon:
+      file: true
+      buildPhase: resources
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -17,6 +24,9 @@ targets:
     platform: iOS
     sources:
       - Inkuna
+      # Liquid Glass icon (iOS 26+); Assets.xcassets carries the flat
+      # fallback for iOS 18-25, where .icon back-deployment is unreliable.
+      - path: AppIcon.icon
       - path: Generated
         optional: true
     dependencies:
@@ -25,6 +35,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.inkuna.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_UILaunchScreen_Generation: true
