@@ -1,0 +1,31 @@
+# Logs
+logs
+*.log
+
+# Editor / agents
+.vscode/
+.cursor/
+.gemini/
+.codex/
+.claude/
+.shared/
+.alma-snapshots/
+.agents/
+.factory/
+.kiro/
+.antigravitycli/
+.idea/
+.mcp.json
+
+# Miscellaneous
+.DS_Store
+*.swp
+.history
+
+# Credentials
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+*.provisionprofile
