@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Canonical Inkuna mark: ink disc + paper moon (website Home.astro geometry x10.24). -->
+  <circle cx="512" cy="512" r="430" fill="#1a1a1e"/>
+  <circle cx="676" cy="389" r="266" fill="#f5f2ea"/>
+</svg>

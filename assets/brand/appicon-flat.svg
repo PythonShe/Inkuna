@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Flat full-bleed icon tile: legacy iOS fallback, apple-touch-icon, Play Store. -->
+  <rect width="1024" height="1024" fill="#26262b"/>
+  <circle cx="512" cy="512" r="430" fill="#1a1a1e"/>
+  <circle cx="676" cy="389" r="266" fill="#f5f2ea"/>
+</svg>

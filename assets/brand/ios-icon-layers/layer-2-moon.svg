@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Ghost of the disc (0.4% alpha): equalizes this layer's content bounds with
+       layer-1 so Icon Composer's trim-and-center keeps the two in registration. -->
+  <circle cx="512" cy="512" r="430" fill="#f5f2ea" fill-opacity="0.004"/>
+  <circle cx="676" cy="389" r="266" fill="#f5f2ea"/>
+</svg>
