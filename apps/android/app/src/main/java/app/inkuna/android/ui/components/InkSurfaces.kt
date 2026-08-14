@@ -22,8 +22,8 @@ import app.inkuna.android.ui.theme.InkType
 
 /**
  * Floating chrome surface: near-opaque raised background standing in for
- * the design's backdrop blur (Compose has no cheap cross-surface blur;
- * 95% opacity over paper reads the same at this size).
+ * the design's backdrop blur (Compose has no cheap cross-surface blur, so
+ * legibility wins over translucency).
  */
 @Composable
 fun glassModifier(shape: Shape = InkRadius.pillShape): Modifier {
@@ -31,7 +31,7 @@ fun glassModifier(shape: Shape = InkRadius.pillShape): Modifier {
     return Modifier
         .shadow(6.dp, shape)
         .clip(shape)
-        .background(ink.bgRaised.copy(alpha = 0.95f))
+        .background(ink.bgRaised.copy(alpha = 0.97f))
 }
 
 /** Transient confirmation pill ("Bookmark placed."). Ink-dark in both themes. */

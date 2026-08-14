@@ -140,7 +140,10 @@ fun ReaderScreen(
                 .pointerInput(Unit) {
                     detectTapGestures {
                         when {
-                            searchOpen -> searchOpen = false
+                            searchOpen -> {
+                                searchOpen = false
+                                chromeVisible = true
+                            }
                             menuOpen -> menuOpen = false
                             else -> chromeVisible = !chromeVisible
                         }
@@ -291,8 +294,12 @@ fun ReaderScreen(
                 onJump = { pageIndex ->
                     scope.launch { pagerState.scrollToPage(pageIndex) }
                     searchOpen = false
+                    chromeVisible = true
                 },
-                onClose = { searchOpen = false },
+                onClose = {
+                    searchOpen = false
+                    chromeVisible = true
+                },
             )
         }
 

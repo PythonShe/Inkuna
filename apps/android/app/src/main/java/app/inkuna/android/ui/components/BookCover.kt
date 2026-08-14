@@ -57,6 +57,9 @@ fun BookCover(
             .padding(pad),
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
     ) {
+        // Below ~48dp the typographic cover degrades into overflow noise;
+        // a thumbnail is just the palette.
+        if (width < 48.dp) return@Column
         Text(
             text = title,
             fontFamily = InkSerif,

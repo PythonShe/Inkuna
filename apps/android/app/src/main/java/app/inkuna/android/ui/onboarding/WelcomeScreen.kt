@@ -62,7 +62,12 @@ fun WelcomeScreen(onBegin: () -> Unit) {
     }
 }
 
-/** The crescent brand mark: an ink disc bitten by a moon of app-background. */
+/**
+ * The canonical Inkuna mark (assets/brand/inkuna-mark.svg): an ink disc
+ * with a paper moon floating inside, tangent to the rim at the upper
+ * right — scaled from the 1024 canvas to 44dp and drawn in theme ink so
+ * it reads in both day and night.
+ */
 @Composable
 private fun BrandMark() {
     val ink = InkTheme.colors
@@ -75,8 +80,8 @@ private fun BrandMark() {
         )
         Box(
             Modifier
-                .offset(x = 11.dp, y = (-3).dp)
-                .size(44.dp)
+                .offset(x = 16.8.dp, y = 2.1.dp)
+                .size(27.2.dp)
                 .clip(CircleShape)
                 .background(ink.bgApp)
         )

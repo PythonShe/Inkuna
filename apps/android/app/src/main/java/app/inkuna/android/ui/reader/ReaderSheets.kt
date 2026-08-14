@@ -2,6 +2,7 @@ package app.inkuna.android.ui.reader
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +66,9 @@ import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
 import app.inkuna.android.ui.theme.ReadingTheme
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+private val sheetShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
 
 /** Small recessed circular close control shared by the reader overlays. */
 @Composable
@@ -102,6 +106,7 @@ fun ThemeTypeSheet(
         onDismissRequest = onDismiss,
         containerColor = ink.bgSurface,
         scrimColor = ink.scrim,
+        shape = sheetShape,
     ) {
         Column(
             Modifier.padding(
@@ -214,6 +219,7 @@ private fun StepperHalf(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BrightnessRow(brightness: Float, onChange: (Float) -> Unit) {
     val ink = InkTheme.colors
@@ -229,17 +235,39 @@ private fun BrightnessRow(brightness: Float, onChange: (Float) -> Unit) {
             tint = ink.textTertiary,
             modifier = Modifier.size(18.dp),
         )
+        // Quiet thin track — the expressive default M3 slider is far too
+        // heavy for a reading surface.
+        val interaction = remember { MutableInteractionSource() }
+        val colors = SliderDefaults.colors(
+            thumbColor = ink.accent,
+            activeTrackColor = ink.accent,
+            inactiveTrackColor = ink.bgRecessed,
+        )
         Slider(
             value = value,
             onValueChange = {
                 value = it
                 onChange(it)
             },
-            colors = SliderDefaults.colors(
-                thumbColor = ink.accent,
-                activeTrackColor = ink.accent,
-                inactiveTrackColor = ink.bgRecessed,
-            ),
+            interactionSource = interaction,
+            thumb = {
+                Box(
+                    Modifier
+                        .size(18.dp)
+                        .clip(InkRadius.pillShape)
+                        .background(ink.accent)
+                )
+            },
+            track = { state ->
+                SliderDefaults.Track(
+                    sliderState = state,
+                    colors = colors,
+                    thumbTrackGapSize = 0.dp,
+                    trackInsideCornerSize = 2.dp,
+                    drawStopIndicator = null,
+                    modifier = Modifier.height(4.dp),
+                )
+            },
             modifier = Modifier
                 .weight(1f)
                 .semantics { contentDescription = a11yLabel },
@@ -323,6 +351,7 @@ fun ContentsSheet(
         onDismissRequest = onDismiss,
         containerColor = ink.bgSurface,
         scrimColor = ink.scrim,
+        shape = sheetShape,
     ) {
         Column {
             Row(
