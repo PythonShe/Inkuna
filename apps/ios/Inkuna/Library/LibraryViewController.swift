@@ -1,54 +1,95 @@
 import UIKit
 
-/// The shelf. Currently a plain list fed by the Rust core; the crafted
-/// Apple Books-style presentation replaces this once Readium lands.
-final class LibraryViewController: UITableViewController {
-    private var publications: [Publication] = []
+/// The Library tab: search, the Reading/Finished/Wishlist segments, and
+/// the book list.
+///
+/// TODO(core): rows come from `LibraryStore.shared.library` (`Bookshelf`)
+/// once import lands — including real shelves for Finished and Wishlist;
+/// the list then moves to a diffable collection view.
+final class LibraryViewController: ScrollScreenViewController {
+    private let listStack = UIStackView()
+    private var segment = "Reading"
+    private var query = ""
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Inkuna"
-        navigationController?.navigationBar.prefersLargeTitles = true
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "publication")
-        reload()
-    }
 
-    private func reload() {
-        Task {
-            publications = (try? await LibraryStore.shared.library.list()) ?? []
-            tableView.reloadData()
-            updateEmptyState()
+        // TODO(l10n): localize once the strings pass lands.
+        let title = displayTitle("Library")
+        contentStack.addArrangedSubview(title)
+        contentStack.setCustomSpacing(InkSpacing.space5, after: title)
+
+        let searchField = InkSearchField(placeholder: "Search your library")
+        searchField.onTextChange = { [weak self] text in
+            self?.query = text
+            self?.reloadList()
         }
+        contentStack.addArrangedSubview(searchField)
+        contentStack.setCustomSpacing(InkSpacing.space4, after: searchField)
+
+        let segmented = InkSegmentedControl(options: ["Reading", "Finished", "Wishlist"], selected: segment)
+        segmented.onChange = { [weak self] option in
+            self?.segment = option
+            self?.reloadList()
+        }
+        let segmentRow = UIStackView(arrangedSubviews: [segmented, UIView()])
+        segmentRow.axis = .horizontal
+        contentStack.addArrangedSubview(segmentRow)
+        contentStack.setCustomSpacing(InkSpacing.space2, after: segmentRow)
+
+        listStack.axis = .vertical
+        contentStack.addArrangedSubview(listStack)
+        reloadList()
     }
 
-    private func updateEmptyState() {
-        guard publications.isEmpty else {
-            tableView.backgroundView = nil
+    private func reloadList() {
+        listStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        // TODO(core): Finished and Wishlist shelves don't exist yet.
+        guard segment == "Reading" else {
+            let message = segment == "Finished"
+                ? "Nothing finished yet. No hurry."
+                : "Nothing on the nightstand yet."
+            listStack.addArrangedSubview(paddedEmptyState(message))
             return
         }
-        let label = UILabel()
-        label.text = "Where ink meets moonlight.\ncore \(coreVersion())"
-        label.numberOfLines = 0
-        label.textAlignment = .center
-        label.textColor = .secondaryLabel
-        label.font = .preferredFont(forTextStyle: .callout)
-        tableView.backgroundView = label
+
+        let trimmed = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let books = PlaceholderLibrary.books.filter { book in
+            trimmed.isEmpty || "\(book.title) \(book.author)".lowercased().contains(trimmed)
+        }
+        guard !books.isEmpty else {
+            listStack.addArrangedSubview(paddedEmptyState("Nothing found in the stacks."))
+            return
+        }
+        for book in books {
+            let row = BookListRowView()
+            row.configure(
+                title: book.title,
+                author: book.author,
+                progress: book.progress,
+                seed: book.coverSeed,
+                downloaded: book.downloaded
+            )
+            let tap = UITapGestureRecognizer(target: self, action: #selector(openRow(_:)))
+            row.addGestureRecognizer(tap)
+            row.tag = book.id
+            listStack.addArrangedSubview(row)
+        }
     }
 
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        publications.count
+    private func paddedEmptyState(_ text: String) -> UIView {
+        let label = emptyStateLabel(text)
+        let wrapper = UIStackView(arrangedSubviews: [label])
+        wrapper.axis = .vertical
+        wrapper.isLayoutMarginsRelativeArrangement = true
+        wrapper.layoutMargins = UIEdgeInsets(top: InkSpacing.space12, left: 0, bottom: InkSpacing.space12, right: 0)
+        return wrapper
     }
 
-    override func tableView(
-        _ tableView: UITableView,
-        cellForRowAt indexPath: IndexPath
-    ) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "publication", for: indexPath)
-        let publication = publications[indexPath.row]
-        var content = cell.defaultContentConfiguration()
-        content.text = publication.title
-        content.secondaryText = publication.authors.joined(separator: ", ")
-        cell.contentConfiguration = content
-        return cell
+    @objc private func openRow(_ recognizer: UITapGestureRecognizer) {
+        guard let id = recognizer.view?.tag,
+              let book = PlaceholderLibrary.books.first(where: { $0.id == id }) else { return }
+        openBook(book)
     }
 }
