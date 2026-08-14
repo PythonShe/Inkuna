@@ -11,6 +11,7 @@ License: AGPL-3.0. Website: `inkuna.app`.
 | `apps/ios/` | Inkuna iOS | UIKit + XcodeGen | Native iOS shell (`app.inkuna.ios`), min iOS 18 |
 | `apps/android/` | Inkuna Android | Kotlin + Jetpack Compose | Native Android shell (`app.inkuna.android`), minSdk 33 |
 | `scripts/` | Build scripts | bash | Core cross-builds + UniFFI bindings generation |
+| `website/` | Inkuna Website | Static HTML/CSS | Marketing site for `inkuna.app`, deployed via Cloudflare Pages (no build step) |
 
 Rendering will live in the shells on Readium's native toolkits (Swift/Kotlin);
 the Rust core never renders.
@@ -36,8 +37,8 @@ the Rust core never renders.
 
 - These root rules cover only monorepo-level constraints, not component
   implementation details.
-- For a task within `core/`, `apps/ios/`, or `apps/android/`, also follow that
-  directory's `CLAUDE.md`.
+- For a task within `core/`, `apps/ios/`, `apps/android/`, or `website/`, also
+  follow that directory's `CLAUDE.md`.
 - For tasks spanning components (e.g. an FFI change), follow this file first,
   then each affected component's rules. After any `core/crates/inkuna-ffi`
   change, regenerate bindings via BOTH `scripts/build-core-*.sh` before
@@ -64,6 +65,7 @@ the Rust core never renders.
 | `core` | Changes within `core/` |
 | `ios` | Changes within `apps/ios/` |
 | `android` | Changes within `apps/android/` |
+| `website` | Changes within `website/` |
 | `docs` | Changes under `docs/` |
 | `workspace` | Repo-root-level changes (`CLAUDE.md`, `scripts/`, etc.) |
 

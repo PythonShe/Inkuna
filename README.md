@@ -18,8 +18,9 @@ core/           Rust workspace
   crates/inkuna-core/   pure-Rust domain: library, import, formats
   crates/inkuna-ffi/    UniFFI surface -> Swift + Kotlin bindings
 apps/ios/       UIKit shell (min iOS 18, Liquid Glass gated on iOS 26)
-apps/android/   Jetpack Compose shell (minSdk 33, targetSdk 35)
+apps/android/   Jetpack Compose shell (minSdk 33, targetSdk 37)
 scripts/        core cross-build + bindings generation
+website/        static site for inkuna.app (Cloudflare Pages)
 docs/           project documentation
 ```
 
@@ -45,6 +46,13 @@ cd apps/ios && xcodegen generate && open Inkuna.xcodeproj
 ./scripts/build-core-android.sh
 cd apps/android && ./gradlew assembleDebug
 ```
+
+## Website
+
+[inkuna.app](https://inkuna.app) is a hand-written static site in `website/`
+(no framework, no build step) deployed via Cloudflare Pages: root directory
+`website`, empty build command, output directory `.`. Pushes to `main` that
+touch `website/` deploy automatically.
 
 ## License
 
