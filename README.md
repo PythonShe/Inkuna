@@ -50,9 +50,17 @@ cd apps/android && ./gradlew assembleDebug
 ## Website
 
 [inkuna.app](https://inkuna.app) is a hand-written static site in `website/`
-(no framework, no build step) deployed via Cloudflare Pages: root directory
-`website`, empty build command, output directory `.`. Pushes to `main` that
-touch `website/` deploy automatically.
+(no framework, no build step) on Cloudflare Pages. Pushes to `main` that touch
+`website/` deploy automatically via GitHub Actions.
+
+## Releases
+
+Releases are tag-driven, one tag per platform: `ios-vX.Y.Z+N` and
+`android-vX.Y.Z+N` (X.Y.Z marketing version, N monotonic build number).
+`scripts/bump-version.sh <component> <major|minor|patch> [--tag]` bumps a
+component's version and mints the tag; pushing the tag builds the Rust core
+and shell in CI, generates release notes from the commit log, and publishes
+(TestFlight for iOS, a GitHub release with the APK for Android).
 
 ## License
 

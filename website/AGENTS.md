@@ -8,11 +8,12 @@ You are working inside `website/`, the static marketing site for
 | Layer | Technology | Notes |
 |------|------|------|
 | Site | Hand-written static HTML/CSS | no framework, no build step — minimalism is the point |
-| Hosting | Cloudflare Pages (git integration) | root directory `website`, build command empty, output directory `.` |
+| Hosting | Cloudflare Pages (direct upload) | project `inkuna`; deployed by `.github/workflows/deploy-website.yml` via `wrangler pages deploy` |
 | Headers | `_headers` | Cloudflare Pages header rules (security headers) |
 
-Every push to `main` that touches `website/` deploys automatically once the
-Pages project is connected to this repository.
+Every push to `main` that touches `website/` (or the deploy workflow) deploys
+automatically. Manual deploy from this machine:
+`npx wrangler pages deploy website --project-name inkuna --branch main`.
 
 ## Conventions
 

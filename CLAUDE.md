@@ -52,6 +52,27 @@ the Rust core never renders.
 - `docs/dev/architecture.md` — architecture decision record (why Rust core +
   native shells, version targets, roadmap). Read before structural changes.
 
+## CI/CD (GitHub Actions)
+
+- `deploy-website.yml` — deploys `website/` to Cloudflare Pages (project
+  `inkuna`, direct upload) on every `main` push touching `website/`.
+- `release-ios.yml` / `release-android.yml` — tag-driven releases
+  (`ios-vX.Y.Z+N` / `android-vX.Y.Z+N`): core tests gate the build; iOS
+  archives with manual signing and uploads to TestFlight, Android builds a
+  signed APK attached to a GitHub release.
+- `release-notes.yml` — standalone/reusable AI release-notes generation
+  (OpenAI chat completions; model/endpoint overridable via the `LLM_MODEL` /
+  `LLM_BASE_URL` repo variables), called by both release workflows.
+- Versions live in the component files (`core/Cargo.toml` workspace version,
+  `apps/ios/project.yml`, `apps/android/app/build.gradle.kts`); bump them ONLY
+  via `scripts/bump-version.sh <core|ios|android> <major|minor|patch|X.Y.Z>
+  [--tag]` — the release workflows fail on tag/file version mismatch.
+- Secrets and signing material never enter git history: Android signing comes
+  from `ANDROID_*` secrets (keystore + credentials also live locally in
+  `~/Keys/inkuna/`), iOS from `APPSTORE_*`/`IOS_*`/`APPLE_TEAM_ID` secrets
+  (ExportOptions.plist is generated at CI time), website deploys from
+  `CLOUDFLARE_*` secrets, notes from `OPENAI_API_KEY`.
+
 ## Git Conventions
 
 - Commit and push in logical groups as work completes; the owner has granted
