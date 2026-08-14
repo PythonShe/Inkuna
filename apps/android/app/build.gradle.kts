@@ -68,6 +68,10 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    // Material Symbols equivalents for the design system's icon set.
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
+    implementation("androidx.navigation:navigation-compose:2.9.8")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
     // UniFFI-generated bindings load the Rust core through JNA.
     implementation("net.java.dev.jna:jna:5.19.1@aar")
 }

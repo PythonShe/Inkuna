@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- bg-app, night: keeps night launches from flashing light -->
+    <color name="bg_app">#191713</color>
+</resources>

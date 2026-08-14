@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inkuna</string>
+
+    <!-- Onboarding -->
+    <string name="welcome_tagline">A minimalist book reader where ink meets moonlight.</string>
+    <string name="welcome_begin">Begin</string>
+    <string name="themepick_eyebrow">One small ritual</string>
+    <string name="themepick_title">Read by day, or by night</string>
+    <string name="themepick_sample">The lamp burned low, and the moon took over the work of lighting the page.</string>
+    <string name="themepick_hint">You can change this anytime while reading.</string>
+    <string name="themepick_continue">Continue</string>
+
+    <!-- Reading themes -->
+    <string name="theme_paper">Paper</string>
+    <string name="theme_paper_subtitle">Warm daylight reading</string>
+    <string name="theme_calm">Calm</string>
+    <string name="theme_calm_subtitle">Soft parchment</string>
+    <string name="theme_quiet">Quiet</string>
+    <string name="theme_quiet_subtitle">Low graphite</string>
+    <string name="theme_moon">Moon</string>
+    <string name="theme_moon_subtitle">Lamplight for late hours</string>
+
+    <!-- Tabs -->
+    <string name="tab_tonight">Tonight</string>
+    <string name="tab_library">Library</string>
+    <string name="tab_search">Search</string>
+    <string name="tab_stats">Stats</string>
+
+    <!-- Tonight -->
+    <string name="tonight_eyebrow">Tonight</string>
+    <string name="tonight_title">Pick up where you left off</string>
+    <string name="tonight_pages_left">Fifteen pages left in this chapter</string>
+    <string name="tonight_keep_reading">Keep reading</string>
+    <string name="tonight_nightstand">On the nightstand</string>
+
+    <!-- Library -->
+    <string name="library_title">Library</string>
+    <string name="library_search_placeholder">Search your library</string>
+    <string name="library_seg_reading">Reading</string>
+    <string name="library_seg_finished">Finished</string>
+    <string name="library_seg_wishlist">Wishlist</string>
+    <string name="library_empty_finished">Nothing finished yet. No hurry.</string>
+    <string name="library_empty_wishlist">Nothing on the nightstand yet.</string>
+    <string name="library_empty_query">Nothing found in the stacks.</string>
+
+    <!-- Search -->
+    <string name="search_title">Search</string>
+    <string name="search_placeholder">Titles, authors</string>
+    <string name="search_new_this_week">New this week</string>
+
+    <!-- Stats -->
+    <string name="stats_title">Reading</string>
+    <string name="stats_in_progress">In progress</string>
+
+    <!-- Book detail -->
+    <string name="detail_contents">Contents</string>
+
+    <!-- Reader -->
+    <string name="reader_menu_contents">Contents · %1$d%%</string>
+    <string name="reader_menu_theme_type">Theme &amp; type</string>
+    <string name="reader_search_placeholder">Search this book</string>
+    <string name="reader_search_empty">Nothing found in this book.</string>
+    <string name="reader_bookmark_placed">Bookmark placed.</string>
+    <string name="reader_page_info">p. %1$d of %2$d · %3$d%%</string>
+    <string name="reader_chapter_page">p. %1$d</string>
+    <string name="reader_percent">%1$d%%</string>
+
+    <!-- Accessibility -->
+    <string name="a11y_back">Back</string>
+    <string name="a11y_close">Close</string>
+    <string name="a11y_reading_menu">Reading menu</string>
+    <string name="a11y_close_reading_menu">Close reading menu</string>
+    <string name="a11y_search_book">Search this book</string>
+    <string name="a11y_place_bookmark">Place bookmark</string>
+    <string name="a11y_smaller_text">Smaller text</string>
+    <string name="a11y_larger_text">Larger text</string>
+    <string name="a11y_page_brightness">Page brightness</string>
+    <string name="a11y_not_downloaded">Not downloaded</string>
+    <string name="a11y_book_row">%1$s, %2$s</string>
+    <string name="a11y_chapter_row">Chapter %1$s, %2$s, page %3$d</string>
+    <string name="a11y_theme_tile">%1$s. %2$s</string>
+    <string name="a11y_no_results">No results</string>
+    <plurals name="a11y_result_count">
+        <item quantity="one">%d result</item>
+        <item quantity="other">%d results</item>
+    </plurals>
+</resources>

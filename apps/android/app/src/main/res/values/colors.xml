@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- bg-app (paper-1): launch window background, day -->
+    <color name="bg_app">#F6F1E8</color>
+</resources>
