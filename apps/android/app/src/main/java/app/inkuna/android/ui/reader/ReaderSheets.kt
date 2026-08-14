@@ -1,0 +1,418 @@
+package app.inkuna.android.ui.reader
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BrightnessHigh
+import androidx.compose.material.icons.outlined.BrightnessLow
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.inkuna.android.R
+import app.inkuna.android.model.AppSettings
+import app.inkuna.android.model.PlaceholderBook
+import app.inkuna.android.model.PlaceholderLibrary
+import app.inkuna.android.ui.components.BookCover
+import app.inkuna.android.ui.components.InkIconButton
+import app.inkuna.android.ui.stats.hairlineThickness
+import app.inkuna.android.ui.theme.InkRadius
+import app.inkuna.android.ui.theme.InkSerif
+import app.inkuna.android.ui.theme.InkSpace
+import app.inkuna.android.ui.theme.InkTheme
+import app.inkuna.android.ui.theme.InkType
+import app.inkuna.android.ui.theme.ReadingTheme
+import kotlinx.coroutines.launch
+
+/** Small recessed circular close control shared by the reader overlays. */
+@Composable
+fun SheetCloseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val ink = InkTheme.colors
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .clip(InkRadius.pillShape)
+            .background(ink.bgRecessed)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Outlined.Close,
+            contentDescription = stringResource(R.string.a11y_close),
+            tint = ink.textSecondary,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ThemeTypeSheet(
+    snapshot: AppSettings.Snapshot,
+    settings: AppSettings,
+    onDismiss: () -> Unit,
+) {
+    val ink = InkTheme.colors
+    val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = ink.bgSurface,
+        scrimColor = ink.scrim,
+    ) {
+        Column(
+            Modifier.padding(
+                start = InkSpace.pageMargin,
+                end = InkSpace.pageMargin,
+                bottom = InkSpace.s6,
+            )
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    stringResource(R.string.reader_menu_theme_type),
+                    style = InkType.heading,
+                    color = ink.textDisplay,
+                    modifier = Modifier.weight(1f),
+                )
+                SheetCloseButton(onClick = onDismiss)
+            }
+            Spacer(Modifier.height(InkSpace.s4))
+            TextSizeStepper(
+                step = snapshot.textSizeStep,
+                onStep = { newStep ->
+                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    scope.launch { settings.setTextSizeStep(newStep) }
+                },
+            )
+            Spacer(Modifier.height(14.dp))
+            BrightnessRow(
+                brightness = snapshot.brightness,
+                onChange = { value -> scope.launch { settings.setBrightness(value) } },
+            )
+            Spacer(Modifier.height(InkSpace.s4))
+            ThemeGrid(
+                selected = snapshot.readingTheme,
+                onPick = { theme ->
+                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    scope.launch { settings.setReadingTheme(theme) }
+                },
+            )
+        }
+    }
+}
+
+/** Split A− / A+ stepper over the five-step reading scale. */
+@Composable
+private fun TextSizeStepper(step: Int, onStep: (Int) -> Unit) {
+    val ink = InkTheme.colors
+    val canShrink = step > 0
+    val canGrow = step < AppSettings.TEXT_SIZE_STEPS.lastIndex
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .clip(InkRadius.pillShape)
+            .background(ink.bgRecessed),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StepperHalf(
+            fontSize = 13.5f,
+            enabled = canShrink,
+            label = stringResource(R.string.a11y_smaller_text),
+            onClick = { if (canShrink) onStep(step - 1) },
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            Modifier
+                .padding(vertical = 8.dp)
+                .width(hairlineThickness())
+                .height(24.dp)
+                .background(ink.borderHairline)
+        )
+        StepperHalf(
+            fontSize = 19f,
+            enabled = canGrow,
+            label = stringResource(R.string.a11y_larger_text),
+            onClick = { if (canGrow) onStep(step + 1) },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun StepperHalf(
+    fontSize: Float,
+    enabled: Boolean,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val ink = InkTheme.colors
+    Box(
+        modifier = modifier
+            .height(40.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .clearAndSetSemantics {
+                contentDescription = label
+                role = Role.Button
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            "A",
+            fontFamily = InkSerif,
+            fontWeight = FontWeight.Medium,
+            fontSize = fontSize.sp,
+            color = if (enabled) ink.textDisplay else ink.textTertiary,
+        )
+    }
+}
+
+@Composable
+private fun BrightnessRow(brightness: Float, onChange: (Float) -> Unit) {
+    val ink = InkTheme.colors
+    var value by remember { mutableFloatStateOf(brightness) }
+    val a11yLabel = stringResource(R.string.a11y_page_brightness)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(InkSpace.s3),
+    ) {
+        Icon(
+            Icons.Outlined.BrightnessLow,
+            contentDescription = null,
+            tint = ink.textTertiary,
+            modifier = Modifier.size(18.dp),
+        )
+        Slider(
+            value = value,
+            onValueChange = {
+                value = it
+                onChange(it)
+            },
+            colors = SliderDefaults.colors(
+                thumbColor = ink.accent,
+                activeTrackColor = ink.accent,
+                inactiveTrackColor = ink.bgRecessed,
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .semantics { contentDescription = a11yLabel },
+        )
+        Icon(
+            Icons.Outlined.BrightnessHigh,
+            contentDescription = null,
+            tint = ink.textTertiary,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@Composable
+private fun ThemeGrid(selected: ReadingTheme, onPick: (ReadingTheme) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ReadingTheme.entries.chunked(2).forEach { rowThemes ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                rowThemes.forEach { theme ->
+                    ThemeTile(
+                        theme = theme,
+                        chosen = theme == selected,
+                        onPick = onPick,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeTile(
+    theme: ReadingTheme,
+    chosen: Boolean,
+    onPick: (ReadingTheme) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val ink = InkTheme.colors
+    val name = stringResource(theme.nameRes)
+    val tileLabel = stringResource(R.string.a11y_theme_tile, name, stringResource(theme.subtitleRes))
+    Row(
+        modifier = modifier
+            .shadow(2.dp, InkRadius.mdShape)
+            .clip(InkRadius.mdShape)
+            .background(theme.background)
+            .border(2.dp, if (chosen) ink.accent else Color.Transparent, InkRadius.mdShape)
+            .clickable(role = Role.Button) { onPick(theme) }
+            .semantics {
+                contentDescription = tileLabel
+                selected = chosen
+            }
+            .padding(horizontal = InkSpace.s4, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(
+            "Aa",
+            fontFamily = InkSerif,
+            fontWeight = FontWeight.Medium,
+            fontSize = 21.5.sp,
+            color = theme.foreground,
+        )
+        Text(
+            name,
+            style = InkType.caption,
+            color = theme.foreground.copy(alpha = 0.75f),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ContentsSheet(
+    book: PlaceholderBook,
+    pageInfo: String,
+    onDismiss: () -> Unit,
+) {
+    val ink = InkTheme.colors
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = ink.bgSurface,
+        scrimColor = ink.scrim,
+    ) {
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(13.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = InkSpace.s4, end = InkSpace.s4, bottom = InkSpace.s3),
+            ) {
+                BookCover(
+                    title = book.title,
+                    author = book.author,
+                    width = 34.dp,
+                    seed = book.coverSeed,
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        book.title,
+                        style = InkType.heading.copy(fontSize = 15.sp, lineHeight = 19.sp),
+                        color = ink.textDisplay,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        pageInfo,
+                        style = InkType.caption,
+                        color = ink.textTertiary,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                SheetCloseButton(onClick = onDismiss)
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(hairlineThickness())
+                    .background(ink.borderHairline)
+            )
+            LazyColumn(
+                modifier = Modifier.padding(horizontal = InkSpace.s4),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    top = 6.dp,
+                    bottom = 14.dp,
+                ),
+            ) {
+                itemsIndexed(PlaceholderLibrary.chapters) { index, chapter ->
+                    val current = index == PlaceholderLibrary.currentChapterIndex
+                    val rowLabel = stringResource(
+                        R.string.a11y_chapter_row, chapter.numeral, chapter.title, chapter.page,
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(InkSpace.s3),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(InkRadius.smShape)
+                            .background(if (current) ink.accentSoft else Color.Transparent)
+                            // TODO(core): jump to the chapter position.
+                            .clickable(onClick = onDismiss)
+                            .clearAndSetSemantics {
+                                contentDescription = rowLabel
+                                role = Role.Button
+                                selected = current
+                            }
+                            .padding(horizontal = 10.dp, vertical = 13.dp),
+                    ) {
+                        Text(
+                            chapter.numeral,
+                            style = InkType.caption,
+                            color = if (current) ink.accent else ink.textTertiary,
+                            modifier = Modifier.widthIn(min = 22.dp),
+                        )
+                        Text(
+                            chapter.title,
+                            style = InkType.reading.copy(
+                                fontSize = 16.sp,
+                                lineHeight = 21.sp,
+                                fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
+                            ),
+                            color = if (current) ink.accent else ink.textDisplay,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            stringResource(R.string.reader_chapter_page, chapter.page),
+                            style = InkType.caption,
+                            color = ink.textTertiary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
