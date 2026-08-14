@@ -47,10 +47,12 @@ final class ShelfBookView: UIControl {
         accessibilityLabel = "\(book.title), \(book.author)"
         accessibilityTraits = .button
 
+        // .touchUpInside, not .primaryActionTriggered: plain UIControl
+        // subclasses never emit the latter.
         addAction(UIAction { [weak self] _ in
             guard let self else { return }
             self.onOpen?(self.book)
-        }, for: .primaryActionTriggered)
+        }, for: .touchUpInside)
     }
 
     @available(*, unavailable)

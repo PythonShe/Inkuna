@@ -167,8 +167,15 @@ final class BookDetailViewController: UIViewController {
     }
 
     private func openReader() {
+        guard let navigationController else { return }
+        // Reached from the reader's Contents button? Go back to the open
+        // page instead of stacking a second reader.
+        if navigationController.viewControllers.dropLast().last is ReaderViewController {
+            navigationController.popViewController(animated: true)
+            return
+        }
         let reader = ReaderViewController(book: book)
         reader.hidesBottomBarWhenPushed = true
-        navigationController?.pushViewController(reader, animated: true)
+        navigationController.pushViewController(reader, animated: true)
     }
 }

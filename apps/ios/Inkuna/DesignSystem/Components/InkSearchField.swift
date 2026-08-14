@@ -31,6 +31,10 @@ final class InkSearchField: UIView {
         textField.autocorrectionType = .no
         textField.returnKeyType = .search
         textField.addAction(
+            UIAction { [weak self] _ in self?.textField.resignFirstResponder() },
+            for: .editingDidEndOnExit
+        )
+        textField.addAction(
             UIAction { [weak self] _ in
                 guard let self else { return }
                 self.onTextChange?(self.text)

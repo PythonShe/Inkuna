@@ -144,10 +144,12 @@ private final class ThemePreviewCard: UIControl {
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (card: ThemePreviewCard, _) in
             card.restyle()
         }
+        // .touchUpInside, not .primaryActionTriggered: plain UIControl
+        // subclasses never emit the latter.
         addAction(UIAction { [weak self] _ in
             guard let self else { return }
             self.onPick?(self.theme)
-        }, for: .primaryActionTriggered)
+        }, for: .touchUpInside)
 
         restyle()
     }

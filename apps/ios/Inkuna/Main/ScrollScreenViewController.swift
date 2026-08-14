@@ -13,6 +13,7 @@ class ScrollScreenViewController: UIViewController {
 
         scrollView.alwaysBounceVertical = true
         scrollView.showsVerticalScrollIndicator = false
+        scrollView.keyboardDismissMode = .interactive
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
 

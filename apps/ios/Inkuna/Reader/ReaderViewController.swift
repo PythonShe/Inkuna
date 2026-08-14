@@ -73,8 +73,16 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
                 label.centerXAnchor.constraint(equalTo: page.centerXAnchor),
                 label.leadingAnchor.constraint(greaterThanOrEqualTo: page.leadingAnchor, constant: 26),
                 label.widthAnchor.constraint(lessThanOrEqualToConstant: InkFont.readingMeasure),
-                label.bottomAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -70),
             ])
+            // High, not required: overrunning prose extends beneath the
+            // translucent bottom bar instead of clipping mid-sentence.
+            // TODO(core): real pagination via Readium removes overflow.
+            let bottom = label.bottomAnchor.constraint(
+                lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor,
+                constant: -70
+            )
+            bottom.priority = .defaultHigh
+            bottom.isActive = true
             pageLabels.append(label)
             page.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor).isActive = true
             _ = pageNumber
@@ -221,10 +229,11 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
         if let detail = navigationController.viewControllers.last(where: { $0 is BookDetailViewController }) {
             navigationController.popToViewController(detail, animated: true)
         } else {
-            var stack = navigationController.viewControllers
-            stack.removeLast()
-            stack.append(BookDetailViewController(book: book))
-            navigationController.setViewControllers(stack, animated: true)
+            // Keep the reader beneath so backing out of the contents
+            // returns to the open page.
+            let detail = BookDetailViewController(book: book)
+            detail.hidesBottomBarWhenPushed = true
+            navigationController.pushViewController(detail, animated: true)
         }
     }
 
@@ -264,12 +273,35 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
     // MARK: UIScrollViewDelegate
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        syncPageIndex()
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate {
+            syncPageIndex()
+        }
+    }
+
+    private func syncPageIndex() {
         let width = scrollView.bounds.width
         guard width > 0 else { return }
         let index = Int((scrollView.contentOffset.x / width).rounded())
         guard index != pageIndex else { return }
         pageIndex = index
         updatePageInfo()
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: any UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        // Keep the reader on its page across rotation and window resizes.
+        let index = pageIndex
+        coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+            guard let self else { return }
+            self.scrollView.setContentOffset(
+                CGPoint(x: CGFloat(index) * self.scrollView.bounds.width, y: 0),
+                animated: false
+            )
+        }
     }
 }
 

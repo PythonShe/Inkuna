@@ -52,10 +52,12 @@ final class ThemeSwatchButton: UIControl {
         accessibilityLabel = "\(theme.displayName). \(theme.subtitle)"
         accessibilityTraits = .button
 
+        // .touchUpInside, not .primaryActionTriggered: plain UIControl
+        // subclasses never emit the latter.
         addAction(UIAction { [weak self] _ in
             guard let self else { return }
             self.onPick?(self.theme)
-        }, for: .primaryActionTriggered)
+        }, for: .touchUpInside)
 
         restyle()
     }
