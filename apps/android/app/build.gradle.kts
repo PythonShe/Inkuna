@@ -1,6 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// Release signing material lives outside git: CI (release-android.yml)
+// materializes key.properties + the keystore from repository secrets; both
+// are gitignored. Without them, release builds fall back to debug signing so
+// local `assembleRelease` still works.
+val keyProps = Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -18,6 +29,28 @@ android {
     sourceSets {
         // UniFFI bindings emitted by scripts/build-core-android.sh.
         getByName("main").kotlin.srcDir("src/generated/kotlin")
+    }
+
+    if (keyProps.isNotEmpty()) {
+        signingConfigs {
+            create("release") {
+                // storeFile resolves relative to this module (app/).
+                storeFile = file(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = if (keyProps.isNotEmpty()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
     }
 
     buildFeatures {

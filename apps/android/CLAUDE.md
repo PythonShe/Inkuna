@@ -20,7 +20,13 @@ defaults.
 ```
 
 `gradle.properties` pins `org.gradle.java.home` to the latest Homebrew
-OpenJDK; `local.properties` is machine-local and gitignored.
+OpenJDK (CI strips that line and uses its own JDK); `local.properties` is
+machine-local and gitignored.
+
+Release signing reads `key.properties` + `app/upload-keystore.jks` (both
+gitignored; CI materializes them from `ANDROID_*` secrets, local copies live
+in `~/Keys/inkuna/`). Without them `assembleRelease` falls back to debug
+signing.
 
 ## 1. Architecture
 
