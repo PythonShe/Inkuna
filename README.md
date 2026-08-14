@@ -2,9 +2,7 @@
 
 A minimalist book reader where ink meets moonlight. Crafted, quiet, literary.
 
-- Website: [inkuna.app](https://inkuna.app)
-- Contact: dev@zheng-she.com
-- Developer: [PythonShe](https://github.com/PythonShe)
+Website: [inkuna.app](https://inkuna.app)
 
 ## Architecture
 
