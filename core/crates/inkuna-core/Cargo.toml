@@ -1,0 +1,15 @@
+[package]
+name = "inkuna-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+thiserror = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+quick-xml = "0.37"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"

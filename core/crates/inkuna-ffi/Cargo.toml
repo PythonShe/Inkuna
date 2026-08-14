@@ -1,0 +1,19 @@
+[package]
+name = "inkuna-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "inkuna_ffi"
+# staticlib feeds the iOS XCFramework, cdylib the Android .so.
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+inkuna-core = { path = "../inkuna-core" }
+uniffi = { version = "0.29", features = ["cli"] }
+thiserror = "2"

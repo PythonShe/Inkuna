@@ -1,0 +1,6 @@
+[bindings.swift]
+module_name = "InkunaCore"
+
+[bindings.kotlin]
+package_name = "app.inkuna.core"
+android = true
