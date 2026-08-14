@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inkuna — a minimalist book reader</title>
+<meta name="description" content="Inkuna is a minimalist book reader where ink meets moonlight. EPUB and more, first-class CJK typography, native on iOS and Android. Open source under AGPL-3.0.">
+<meta property="og:title" content="Inkuna">
+<meta property="og:description" content="A minimalist book reader where ink meets moonlight.">
+<meta property="og:url" content="https://inkuna.app">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%231a1a1e'/%3E%3Ccircle cx='66' cy='38' r='26' fill='%23f5f2ea'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --paper: #f5f2ea;
+    --ink: #1a1a1e;
+    --ink-soft: #55524c;
+    --hairline: rgba(26, 26, 30, 0.18);
+    --accent: rgba(26, 26, 30, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #121216;
+      --ink: #e8e4da;
+      --ink-soft: #9b978e;
+      --hairline: rgba(232, 228, 218, 0.2);
+      --accent: rgba(232, 228, 218, 0.05);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino Nova", Palatino, "Songti SC", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+    line-height: 1.65;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+  }
+  main {
+    flex: 1;
+    width: 100%;
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 6rem 1.5rem 4rem;
+    position: relative;
+  }
+  .moon {
+    width: 3.25rem;
+    height: 3.25rem;
+    margin-bottom: 2.5rem;
+  }
+  h1 {
+    font-size: clamp(2.4rem, 8vw, 3.4rem);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    margin-bottom: 0.75rem;
+  }
+  .tagline {
+    font-size: 1.2rem;
+    font-style: italic;
+    color: var(--ink-soft);
+    margin-bottom: 3rem;
+  }
+  .vertical-accent {
+    position: absolute;
+    top: 6.5rem;
+    right: 1.5rem;
+    writing-mode: vertical-rl;
+    font-size: 0.95rem;
+    letter-spacing: 0.55em;
+    color: var(--ink-soft);
+    opacity: 0.6;
+    user-select: none;
+  }
+  p { margin-bottom: 1.4rem; }
+  .features {
+    list-style: none;
+    margin: 2.5rem 0 3rem;
+    border-top: 1px solid var(--hairline);
+  }
+  .features li {
+    padding: 1.1rem 0;
+    border-bottom: 1px solid var(--hairline);
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+  }
+  .features .mark {
+    flex: none;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+  .platforms {
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+    background: var(--accent);
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+  }
+  a { color: inherit; text-underline-offset: 0.2em; text-decoration-thickness: 1px; }
+  a:hover { text-decoration-thickness: 2px; }
+  footer {
+    max-width: 40rem;
+    width: 100%;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 3rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  @media (max-width: 34rem) {
+    .vertical-accent { display: none; }
+    main { padding-top: 4rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <svg class="moon" viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="42" fill="var(--ink)"/>
+    <circle cx="66" cy="38" r="26" fill="var(--paper)"/>
+  </svg>
+  <span class="vertical-accent" aria-hidden="true">墨と月のあいだ</span>
+  <h1>Inkuna</h1>
+  <p class="tagline">A minimalist book reader where ink meets moonlight.</p>
+  <p>
+    Crafted, quiet, literary. Inkuna keeps your library close and stays out of
+    the way of the page — no accounts, no noise, just reading.
+  </p>
+  <ul class="features">
+    <li><span class="mark">✦</span> EPUB, MOBI, AZW3 (DRM-free), TXT, and PDF today; CBZ/CBR comics planned.</li>
+    <li><span class="mark">✦</span> First-class CJK typography — vertical writing and CJK-aware search are core goals, not afterthoughts.</li>
+    <li><span class="mark">✦</span> Fully native on iOS and Android, sharing one Rust core.</li>
+    <li><span class="mark">✦</span> Free and open source under <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a>.</li>
+  </ul>
+  <p class="platforms">
+    Inkuna is in active development. Follow along or build it yourself on
+    <a href="https://github.com/PythonShe/Inkuna">GitHub</a> — App Store and
+    Play Store releases will land when the reading experience earns them.
+  </p>
+</main>
+<footer>
+  <span>© 2026 Inkuna</span>
+  <a href="https://github.com/PythonShe/Inkuna">Source</a>
+  <a href="https://github.com/PythonShe/Inkuna/blob/main/LICENSE">License</a>
+</footer>
+</body>
+</html>
