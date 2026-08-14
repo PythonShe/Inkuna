@@ -1,0 +1,31 @@
+name: Inkuna
+options:
+  bundleIdPrefix: app.inkuna
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    # The Rust core ships arm64-only simulator slices.
+    "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Inkuna:
+    type: application
+    platform: iOS
+    sources:
+      - Inkuna
+      - path: Generated
+        optional: true
+    dependencies:
+      - framework: Frameworks/InkunaCore.xcframework
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.inkuna.ios
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        TARGETED_DEVICE_FAMILY: "1,2"
