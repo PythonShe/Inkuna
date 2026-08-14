@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon glyph: the eclipse mark as a single shape. The moon is pulled
+     fully inside the disc (even-odd hole) so the silhouette stays clean at
+     the single color Material You renders it in. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M 24.8,54 a 29.2,29.2 0 1,0 58.4,0 a 29.2,29.2 0 1,0 -58.4,0 Z M 45.2,48.6 a 16,16 0 1,0 32,0 a 16,16 0 1,0 -32,0 Z" />
+</vector>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Inkuna mark (ink disc + paper moon) scaled so the full composition stays
+     inside the 66dp adaptive-icon safe zone of the 108dp canvas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#1A1A1E"
+        android:pathData="M 24.8,54 a 29.2,29.2 0 1,0 58.4,0 a 29.2,29.2 0 1,0 -58.4,0 Z" />
+    <path
+        android:fillColor="#F5F2EA"
+        android:pathData="M 47.07,45.64 a 18.07,18.07 0 1,0 36.14,0 a 18.07,18.07 0 1,0 -36.14,0 Z" />
+</vector>
