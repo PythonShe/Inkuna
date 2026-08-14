@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/appicon-glass-256.png" alt="Inkuna app icon" width="128">
+</p>
+
 # Inkuna
 
 A minimalist book reader where ink meets moonlight. Crafted, quiet, literary.
@@ -19,7 +23,8 @@ core/           Rust workspace
   crates/inkuna-ffi/    UniFFI surface -> Swift + Kotlin bindings
 apps/ios/       UIKit shell (min iOS 18, Liquid Glass gated on iOS 26)
 apps/android/   Jetpack Compose shell (minSdk 33, targetSdk 37)
-scripts/        core cross-build + bindings generation
+assets/         brand assets (icon sources + Icon Composer layers)
+scripts/        core cross-build + bindings generation + icon rasters
 website/        Astro static site for inkuna.app (Cloudflare Pages)
 docs/           project documentation
 ```
