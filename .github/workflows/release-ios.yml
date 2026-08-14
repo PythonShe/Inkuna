@@ -1,0 +1,527 @@
+name: Release iOS
+
+# Tag-driven iOS release: builds the Rust core + UIKit shell, archives with
+# manual signing, uploads to TestFlight, generates AI release notes
+# (release-notes.yml), pushes them into TestFlight's "What to Test", and
+# publishes a notes-only GitHub release (TestFlight/App Store is the binary
+# distribution channel).
+#
+# Tag format: ios-vX.Y.Z+N — X.Y.Z is the marketing version (must equal
+# MARKETING_VERSION) and N the monotonic build number (must equal
+# CURRENT_PROJECT_VERSION, i.e. CFBundleVersion).
+# Bump both with: scripts/bump-version.sh ios <major|minor|patch> --tag
+#
+# Required repository secrets:
+#   APPSTORE_KEY_ID / APPSTORE_ISSUER_ID / APPSTORE_PRIVATE_KEY
+#       App Store Connect API key (.p8) — used ONLY for the TestFlight upload
+#       and "What to Test". Needs the App Manager (or Admin) role: a
+#       Developer-role key can upload builds but not write TestFlight metadata.
+#   IOS_DISTRIBUTION_CERTIFICATE        base64 of an "Apple Distribution" .p12.
+#       Create once in the Apple portal and reuse forever, so the archive uses
+#       ONE certificate instead of minting a new "Created via API" cert every
+#       build (which exhausts Apple's certificate cap and fails with exit 65).
+#       Export cert+key as Certificates.p12, then: base64 -i Certificates.p12 | pbcopy
+#   IOS_DISTRIBUTION_CERTIFICATE_PASSWORD   the .p12 export password.
+#   IOS_PROVISIONING_PROFILE            base64 of the App Store provisioning
+#       profile for app.inkuna.ios, which MUST be named "Inkuna App Store"
+#       (matched in ExportOptions.plist and the archive step).
+#       base64 -i Inkuna_App_Store.mobileprovision | pbcopy
+#   APPLE_TEAM_ID                       Apple Developer team id.
+#   OPENAI_API_KEY                         for release-notes.yml.
+
+on:
+  push:
+    tags: ["ios-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. ios-v0.1.0+2)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-ios-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      build_number: ${{ steps.meta.outputs.build_number }}
+    steps:
+      - name: Resolve tag, version, build number
+        id: meta
+        shell: bash
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$DISPATCH_TAG"
+          else
+            TAG="$GITHUB_REF_NAME"
+          fi
+          # X.Y.Z is the marketing version; N becomes CFBundleVersion, so it
+          # must increase on every store-bound build.
+          if ! [[ "$TAG" =~ ^ios-v([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)$ ]]; then
+            echo "::error::Tag must match ios-vX.Y.Z+N (e.g. ios-v0.1.0+2). Got: $TAG"
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=${BASH_REMATCH[1]}"
+            echo "build_number=${BASH_REMATCH[2]}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.meta.outputs.tag }}
+          fetch-depth: 1
+
+      - name: Validate version parity with project.yml
+        shell: bash
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          PROJECT=apps/ios/project.yml
+          MARKETING=$(grep -m1 'MARKETING_VERSION' "$PROJECT" | sed 's/.*"\(.*\)".*/\1/')
+          CURRENT=$(grep -m1 'CURRENT_PROJECT_VERSION' "$PROJECT" | sed 's/.*"\(.*\)".*/\1/')
+          echo "Tag:         $VERSION ($BUILD_NUMBER)"
+          echo "project.yml: $MARKETING ($CURRENT)"
+          if [ "$MARKETING" != "$VERSION" ] || [ "$CURRENT" != "$BUILD_NUMBER" ]; then
+            echo "::error::Version mismatch. Run scripts/bump-version.sh ios $VERSION, commit, then re-tag."
+            exit 1
+          fi
+
+  # Core tests run on cheap Linux before the macOS build burns minutes on a
+  # regression that local verification missed.
+  quality_gate:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: core
+
+      - name: cargo test
+        working-directory: core
+        run: cargo test --workspace
+
+  build_ios:
+    needs: [prepare, quality_gate]
+    # Apple requires the current iOS SDK (Xcode 26+) for App Store Connect
+    # uploads; older macOS images are rejected at upload.
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Guard required iOS secrets
+        shell: bash
+        env:
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IOS_DISTRIBUTION_CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${APPSTORE_ISSUER_ID:-}" ]   || missing+=(APPSTORE_ISSUER_ID)
+          [ -n "${APPSTORE_KEY_ID:-}" ]      || missing+=(APPSTORE_KEY_ID)
+          [ -n "${APPSTORE_PRIVATE_KEY:-}" ] || missing+=(APPSTORE_PRIVATE_KEY)
+          [ -n "${APPLE_TEAM_ID:-}" ]        || missing+=(APPLE_TEAM_ID)
+          [ -n "${IOS_DISTRIBUTION_CERTIFICATE:-}" ]          || missing+=(IOS_DISTRIBUTION_CERTIFICATE)
+          [ -n "${IOS_DISTRIBUTION_CERTIFICATE_PASSWORD:-}" ] || missing+=(IOS_DISTRIBUTION_CERTIFICATE_PASSWORD)
+          [ -n "${IOS_PROVISIONING_PROFILE:-}" ]              || missing+=(IOS_PROVISIONING_PROFILE)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing iOS secrets: ${missing[*]}. See .github/workflows/release-ios.yml header for setup." >&2
+            exit 1
+          fi
+
+      - name: Select latest Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          LATEST=$(printf '%s\n' /Applications/Xcode_26*.app /Applications/Xcode.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$LATEST" ] && [ -d "$LATEST" ]; then
+            sudo xcode-select -s "$LATEST/Contents/Developer"
+          fi
+          xcodebuild -version
+
+      - name: Setup Rust for iOS
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: core
+          key: ios-cross
+
+      - name: Build Rust core + Swift bindings + xcframework
+        run: ./scripts/build-core-ios.sh
+
+      - name: Generate Xcode project
+        working-directory: apps/ios
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Install App Store Connect API key
+        shell: bash
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          # altool discovers the key by convention under ~/.appstoreconnect.
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$APPSTORE_PRIVATE_KEY" > "$HOME/.appstoreconnect/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8"
+          echo "API key installed for key id $APPSTORE_KEY_ID"
+
+      - name: Import iOS distribution certificate
+        shell: bash
+        env:
+          IOS_DISTRIBUTION_CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # Manual signing: import ONE fixed Apple Distribution cert into a
+          # throwaway keychain, so no per-run certificate is ever minted.
+          CERT_PATH="$RUNNER_TEMP/ios_distribution.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/ios-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          echo "$IOS_DISTRIBUTION_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          # Allow codesign to use the imported key without an interactive prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          if ! security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -q "Apple Distribution"; then
+            echo "::error::IOS_DISTRIBUTION_CERTIFICATE has no 'Apple Distribution' identity. App Store/TestFlight requires an Apple Distribution cert — a macOS 'Developer ID' .p12 will NOT work here." >&2
+            exit 1
+          fi
+          rm -f "$CERT_PATH"
+
+      - name: Install iOS provisioning profile
+        shell: bash
+        env:
+          IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          set -euo pipefail
+          EXPECTED_NAME="Inkuna App Store"
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+
+          RAW="$RUNNER_TEMP/inkuna.mobileprovision"
+          echo "$IOS_PROVISIONING_PROFILE" | base64 --decode > "$RAW"
+
+          PLIST="$RUNNER_TEMP/profile.plist"
+          if ! security cms -D -i "$RAW" > "$PLIST" 2>/dev/null; then
+            echo "::error::IOS_PROVISIONING_PROFILE is not a valid provisioning profile (CMS decode failed). Re-check its base64 value." >&2
+            exit 1
+          fi
+          UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$PLIST")
+          NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$PLIST")
+          APPID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$PLIST")
+
+          # Xcode resolves a manually-specified profile from this directory by
+          # UUID filename.
+          cp "$RAW" "$PROFILES_DIR/$UUID.mobileprovision"
+          echo "Installed provisioning profile: '$NAME' ($UUID) for $APPID"
+
+          if [ "$NAME" != "$EXPECTED_NAME" ]; then
+            echo "::error::Provisioning profile is named '$NAME' but the archive step and ExportOptions.plist expect '$EXPECTED_NAME'. Rename the App Store profile (or update both references)." >&2
+            exit 1
+          fi
+
+      - name: Archive (xcodebuild)
+        working-directory: apps/ios
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          # Signing settings are passed on the command line, which applies them
+          # to every target — safe here because the Inkuna app is the project's
+          # only target (the Rust core is a prebuilt xcframework, not a signed
+          # dependency target). This keeps project.yml free of signing config
+          # so local simulator builds need no cert. No -allowProvisioningUpdates
+          # => no per-run certificate minting.
+          xcodebuild archive \
+            -project Inkuna.xcodeproj \
+            -scheme Inkuna \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/Inkuna.xcarchive" \
+            -destination "generic/platform=iOS" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="Inkuna App Store"
+
+      - name: Export IPA
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          # ExportOptions is generated here rather than committed so the team
+          # id (like all other Apple identifiers) never enters git history.
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>app.inkuna.ios</key>
+              <string>Inkuna App Store</string>
+            </dict>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Inkuna.xcarchive" \
+            -exportPath "$RUNNER_TEMP/ipa" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+          ls -la "$RUNNER_TEMP/ipa"
+
+      - name: Upload to TestFlight
+        shell: bash
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          IPA=$(printf '%s\n' "$RUNNER_TEMP"/ipa/*.ipa | head -1)
+          echo "Uploading $IPA to TestFlight..."
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA" \
+            --apiKey "$APPSTORE_KEY_ID" \
+            --apiIssuer "$APPSTORE_ISSUER_ID"
+          echo "Upload submitted; processing continues in App Store Connect."
+
+      - name: Clean up API key
+        if: always()
+        run: rm -rf "$HOME/.appstoreconnect/private_keys"
+
+  # Notes run AFTER the build: they cost an LLM API call, and a release whose
+  # build failed never publishes anything, so the call would be wasted.
+  notes:
+    needs: [prepare, build_ios]
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      tag_pattern: ios-v*
+      paths: core apps/ios
+      platform: iOS
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  # Push the same notes into TestFlight as the build's "What to Test".
+  # Nothing depends on this job, so a failure here never blocks the release —
+  # the build is already in TestFlight.
+  testflight_notes:
+    needs: [prepare, build_ios, notes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download release notes
+        uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: /tmp
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Set "What to Test" on the TestFlight build
+        shell: bash
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          # Must match PRODUCT_BUNDLE_IDENTIFIER in apps/ios/project.yml.
+          BUNDLE_ID: app.inkuna.ios
+          APP_VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+          NOTES_PATH: /tmp/release_notes.md
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/testflight-notes.cjs" <<'NODE_EOF'
+          const fs = require('fs');
+          const crypto = require('crypto');
+
+          const {
+            APPSTORE_KEY_ID, APPSTORE_ISSUER_ID, APPSTORE_PRIVATE_KEY,
+            BUNDLE_ID, APP_VERSION, BUILD_NUMBER, NOTES_PATH,
+          } = process.env;
+          const LOCALE = 'en-US';
+          const API = 'https://api.appstoreconnect.apple.com';
+
+          // "What to Test" is plain text with a 4000-character ceiling, so strip
+          // the markdown headings the notes carry for the GitHub release.
+          function toPlainText(md) {
+            const text = md
+              .split('\n')
+              .map((line) => line.replace(/^#{1,6}\s*/, ''))
+              .join('\n')
+              .replace(/\n{3,}/g, '\n\n')
+              .trim();
+            return text.length > 4000 ? `${text.slice(0, 3997)}...` : text;
+          }
+
+          const b64url = (v) =>
+            Buffer.from(typeof v === 'string' ? v : JSON.stringify(v)).toString('base64url');
+
+          // Short-lived ES256 token, re-minted per request so a slow build poll
+          // can never outlive it. Node signs ECDSA as DER; JWS wants raw R||S.
+          function token() {
+            const iat = Math.floor(Date.now() / 1000);
+            const input =
+              `${b64url({ alg: 'ES256', kid: APPSTORE_KEY_ID, typ: 'JWT' })}.` +
+              `${b64url({ iss: APPSTORE_ISSUER_ID, iat, exp: iat + 900, aud: 'appstoreconnect-v1' })}`;
+            const sig = crypto.sign('sha256', Buffer.from(input), {
+              key: crypto.createPrivateKey(APPSTORE_PRIVATE_KEY),
+              dsaEncoding: 'ieee-p1363',
+            });
+            return `${input}.${sig.toString('base64url')}`;
+          }
+
+          async function api(method, path, body) {
+            const res = await fetch(`${API}${path}`, {
+              method,
+              headers: {
+                Authorization: `Bearer ${token()}`,
+                ...(body ? { 'Content-Type': 'application/json' } : {}),
+              },
+              body: body ? JSON.stringify(body) : undefined,
+            });
+            const text = await res.text();
+            if (!res.ok) throw new Error(`${method} ${path} -> HTTP ${res.status}\n${text}`);
+            return text ? JSON.parse(text) : {};
+          }
+
+          (async () => {
+            const notes = toPlainText(fs.readFileSync(NOTES_PATH, 'utf8'));
+
+            const apps = await api('GET', `/v1/apps?filter[bundleId]=${encodeURIComponent(BUNDLE_ID)}&limit=1`);
+            const app = apps.data?.[0];
+            if (!app) throw new Error(`No App Store Connect app matches bundle id ${BUNDLE_ID}`);
+
+            // altool returns as soon as the upload is accepted; the build
+            // surfaces in App Store Connect minutes later, so poll first.
+            const query =
+              `/v1/builds?filter[app]=${app.id}` +
+              `&filter[version]=${encodeURIComponent(BUILD_NUMBER)}` +
+              `&filter[preReleaseVersion.version]=${encodeURIComponent(APP_VERSION)}&limit=1`;
+            const ATTEMPTS = 40; // 40 x 30s = 20 minutes
+            let build = null;
+            for (let attempt = 1; attempt <= ATTEMPTS && !build; attempt++) {
+              build = (await api('GET', query)).data?.[0] ?? null;
+              if (build) break;
+              console.log(`Build ${APP_VERSION} (${BUILD_NUMBER}) not visible yet (${attempt}/${ATTEMPTS})`);
+              await new Promise((resolve) => setTimeout(resolve, 30_000));
+            }
+            if (!build) {
+              // The upload itself succeeded, so this is a warning, not a failure.
+              console.log(
+                `::warning::Build ${APP_VERSION} (${BUILD_NUMBER}) did not appear in App Store Connect within 20 minutes; ` +
+                  '"What to Test" was not set. Paste the release notes manually once the build finishes processing.',
+              );
+              return;
+            }
+
+            const existing = (
+              await api('GET', `/v1/builds/${build.id}/betaBuildLocalizations?limit=50`)
+            ).data?.find((l) => l.attributes?.locale === LOCALE);
+
+            if (existing) {
+              await api('PATCH', `/v1/betaBuildLocalizations/${existing.id}`, {
+                data: { type: 'betaBuildLocalizations', id: existing.id, attributes: { whatsToTest: notes } },
+              });
+            } else {
+              await api('POST', '/v1/betaBuildLocalizations', {
+                data: {
+                  type: 'betaBuildLocalizations',
+                  attributes: { locale: LOCALE, whatsToTest: notes },
+                  relationships: { build: { data: { type: 'builds', id: build.id } } },
+                },
+              });
+            }
+            console.log(`Set "What to Test" (${LOCALE}) on build ${APP_VERSION} (${BUILD_NUMBER}):`);
+            console.log(notes);
+          })().catch((err) => {
+            if (String(err.message).includes('HTTP 403')) {
+              console.error(
+                '::error::App Store Connect returned 403. The API key needs the App Manager or Admin role to write ' +
+                  'TestFlight metadata; a Developer-role key can upload builds but not set "What to Test".',
+              );
+            }
+            console.error(err.message);
+            process.exit(1);
+          });
+          NODE_EOF
+          node "$RUNNER_TEMP/testflight-notes.cjs"
+
+  # Notes-only GitHub release: it marks the version in the open-source repo;
+  # the binary ships through TestFlight/App Store.
+  publish:
+    needs: [prepare, build_ios, notes]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release notes
+        uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: /tmp
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Inkuna iOS v${{ needs.prepare.outputs.version }}
+          draft: false
+          generate_release_notes: false
+          body_path: /tmp/release_notes.md

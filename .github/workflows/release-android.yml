@@ -1,0 +1,246 @@
+name: Release Android
+
+# Tag-driven Android release: builds the Rust core + Compose shell, signs the
+# APK, generates AI release notes (release-notes.yml), and publishes a GitHub
+# release with the APK attached.
+#
+# Tag format: android-vX.Y.Z+N — X.Y.Z is the marketing version (must equal
+# versionName) and N the monotonic build number (must equal versionCode).
+# Bump both with: scripts/bump-version.sh android <major|minor|patch> --tag
+#
+# Required repository secrets:
+#   ANDROID_KEYSTORE_BASE64    base64 of the upload keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD  keystore password
+#   ANDROID_KEY_ALIAS          key alias
+#   ANDROID_KEY_PASSWORD       key password
+#   OPENAI_API_KEY                for release-notes.yml (see that file's header)
+
+on:
+  push:
+    tags: ["android-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. android-v0.1.0+2)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-android-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      build_number: ${{ steps.meta.outputs.build_number }}
+    steps:
+      - name: Resolve tag, version, build number
+        id: meta
+        shell: bash
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$DISPATCH_TAG"
+          else
+            TAG="$GITHUB_REF_NAME"
+          fi
+          # X.Y.Z is the marketing version; N becomes versionCode, so it must
+          # increase on every release build.
+          if ! [[ "$TAG" =~ ^android-v([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)$ ]]; then
+            echo "::error::Tag must match android-vX.Y.Z+N (e.g. android-v0.1.0+2). Got: $TAG"
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=${BASH_REMATCH[1]}"
+            echo "build_number=${BASH_REMATCH[2]}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.meta.outputs.tag }}
+          fetch-depth: 1
+
+      - name: Validate version parity with build.gradle.kts
+        shell: bash
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          GRADLE=apps/android/app/build.gradle.kts
+          VERSION_NAME=$(grep -m1 'versionName' "$GRADLE" | sed 's/.*"\(.*\)".*/\1/')
+          VERSION_CODE=$(grep -m1 'versionCode' "$GRADLE" | grep -oE '[0-9]+')
+          echo "Tag:    $VERSION ($BUILD_NUMBER)"
+          echo "Gradle: $VERSION_NAME ($VERSION_CODE)"
+          if [ "$VERSION_NAME" != "$VERSION" ] || [ "$VERSION_CODE" != "$BUILD_NUMBER" ]; then
+            echo "::error::Version mismatch. Run scripts/bump-version.sh android $VERSION, commit, then re-tag."
+            exit 1
+          fi
+
+  # Core tests run before the platform build wastes CI time on a regression
+  # that local verification missed.
+  quality_gate:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: core
+
+      - name: cargo test
+        working-directory: core
+        run: cargo test --workspace
+
+  build_android:
+    needs: [prepare, quality_gate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Setup Rust for Android
+        run: rustup target add aarch64-linux-android x86_64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: core
+          # Separate key from quality_gate: different target triples.
+          key: android-cross
+
+      - name: Install cargo-ndk
+        run: which cargo-ndk || cargo install cargo-ndk --locked
+
+      - name: Build Rust core + Kotlin bindings
+        run: |
+          set -euo pipefail
+          # gradle.properties pins org.gradle.java.home to a Homebrew path that
+          # only exists on the dev machine; CI uses setup-java's JDK instead.
+          sed -i '/^org\.gradle\.java\.home/d' apps/android/gradle.properties
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          ./scripts/build-core-android.sh
+
+      - name: Materialize release keystore
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::secrets.ANDROID_KEYSTORE_BASE64 is unset." >&2
+            exit 1
+          fi
+          # build.gradle.kts resolves storeFile relative to the app module dir
+          # and key.properties relative to the Gradle root project.
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > apps/android/app/upload-keystore.jks
+          cat > apps/android/key.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+          echo "Keystore materialized ($(wc -c < apps/android/app/upload-keystore.jks) bytes)"
+
+      - name: Build release APK
+        working-directory: apps/android
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=apps/android/app/build/outputs/apk/release/app-release.apk
+          BUILD_TOOLS=$(printf '%s\n' "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+          "${BUILD_TOOLS}apksigner" verify --print-certs "$APK" | head -20
+
+      - name: Rename APK
+        id: rename
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          TARGET="inkuna-v${VERSION}-android.apk"
+          mv apps/android/app/build/outputs/apk/release/app-release.apk "$TARGET"
+          echo "path=$TARGET" >> "$GITHUB_OUTPUT"
+
+      - name: Clean up signing material
+        if: always()
+        run: rm -f apps/android/key.properties apps/android/app/upload-keystore.jks
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-apk
+          path: ${{ steps.rename.outputs.path }}
+          if-no-files-found: error
+          compression-level: 0
+
+  # Notes run AFTER the build: they cost an LLM API call, and a release whose
+  # build failed never publishes anything, so the call would be wasted.
+  notes:
+    needs: [prepare, build_android]
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      tag_pattern: android-v*
+      paths: core apps/android
+      platform: Android
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  publish:
+    needs: [prepare, build_android, notes]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: android-apk
+          path: dist
+
+      - name: Download release notes
+        uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: /tmp
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Inkuna Android v${{ needs.prepare.outputs.version }}
+          draft: false
+          generate_release_notes: false
+          body_path: /tmp/release_notes.md
+          fail_on_unmatched_files: true
+          files: dist/*.apk

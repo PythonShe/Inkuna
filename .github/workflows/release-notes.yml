@@ -1,0 +1,231 @@
+name: Release Notes
+
+# Standalone AI release-notes generation, shared by both platform release
+# workflows (and runnable by hand via workflow_dispatch). Reads the commit
+# subjects between the given tag and the previous tag matching tag_pattern,
+# asks an LLM to distill user-facing notes, and uploads them as the
+# "release-notes" artifact for the caller's publish job to consume.
+#
+# The call goes to OpenAI's chat-completions API with gpt-5.6-luna at high
+# reasoning effort. The repository variables LLM_BASE_URL / LLM_MODEL can
+# override the endpoint and model without a workflow edit.
+#
+# Required repository secret: OPENAI_API_KEY (OpenAI API key).
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag the notes describe (e.g. android-v0.2.0+5)"
+        required: true
+        type: string
+      tag_pattern:
+        description: "Glob matching this platform's release tags (e.g. android-v*)"
+        required: true
+        type: string
+      paths:
+        description: "Space-separated pathspecs whose commits feed the notes (e.g. 'core apps/android')"
+        required: true
+        type: string
+      platform:
+        description: "Platform label for the prompt (iOS or Android)"
+        required: true
+        type: string
+    secrets:
+      OPENAI_API_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag the notes describe"
+        required: true
+        type: string
+      tag_pattern:
+        description: "Glob matching this platform's release tags"
+        required: true
+        type: string
+      paths:
+        description: "Space-separated pathspecs whose commits feed the notes"
+        required: true
+        type: string
+      platform:
+        description: "Platform label for the prompt"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate release notes
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-5.6-luna' }}
+          TAG: ${{ inputs.tag }}
+          TAG_PATTERN: ${{ inputs.tag_pattern }}
+          PATHS: ${{ inputs.paths }}
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::error::secrets.OPENAI_API_KEY is unset. Set it in Settings → Secrets and variables → Actions." >&2
+            exit 1
+          fi
+
+          # Previous tag of the SAME platform (every tag is a release; no
+          # preview/beta channels). Falls back to the root commit for the
+          # first release.
+          PREV_TAG=$(git tag --sort=-v:refname --list "$TAG_PATTERN" \
+            | grep -A1 -Fx "$TAG" | tail -1 || true)
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$TAG" ]; then
+            PREV_TAG=$(git tag --sort=-v:refname --list "$TAG_PATTERN" \
+              | grep -vFx "$TAG" | head -1 || true)
+          fi
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          echo "Range: $PREV_TAG..$TAG (paths: $PATHS)"
+
+          # Cap commit subjects fed to the model; each is ~10-20 tokens, so
+          # 300 covers even a first release without blowing the context.
+          # shellcheck disable=SC2086
+          COMMITS=$(git log "$PREV_TAG".."$TAG" --pretty=format:"%s" --no-merges -- $PATHS 2>/dev/null | head -300 || true)
+          if [ -z "$COMMITS" ]; then
+            # shellcheck disable=SC2086
+            COMMITS=$(git log --pretty=format:"%s" --no-merges -50 -- $PATHS || true)
+          fi
+
+          SYSTEM_PROMPT=$(cat <<SYSTEM_EOF
+          You generate release notes for the $PLATFORM release of Inkuna, a minimalist book reader (EPUB, MOBI, AZW3, TXT, PDF; comics planned) with first-class CJK typography.
+
+          Input: git commit subject lines (Conventional Commits: \`type(scope): description\`).
+
+          Output: markdown release notes using EXACTLY the following section set, in this order. The \`### Overview\` section is ALWAYS present and always first. Omit any of the OTHER sections that have zero qualifying bullets.
+
+          ### Overview
+          One sentence summarizing the release at a high level.
+
+          ### New Features
+          - A capability the user could NOT access at all before this release (one per bullet)
+
+          ### Improvements
+          - Something that already existed, now better, faster, or more convenient to use (one per bullet)
+
+          ### Bug Fixes
+          - One user-visible fix per bullet
+
+          Overview rules:
+          - ALWAYS emit \`### Overview\` first, followed by exactly one sentence (max 25 words), then a blank line. Never omit it, never use a bullet, never use more than one sentence.
+          - Decide the section bullets FIRST, then write the Overview to match them. Lead with the single most impactful user-visible change by name; do NOT write a vague abstract summary. Derive it only from changes that also appear in the detail sections.
+          - If the release contains only internal/non-user-visible commits, the Overview must read EXACTLY: This release contains minor improvements and stability fixes.
+
+          Output rules:
+          1. Output ONLY the sections and bullets above. No preamble, no closing text, no release title, no version number, no emojis.
+          2. English. Sentence case. No trailing period. Under 15 words per bullet.
+          3. Write from the user's perspective — what they gain or experience — not what a developer did. Be concrete: name the actual feature or area plus the user-facing outcome — never bare abstractions ("Faster library import for large EPUB collections", not "Improved performance"; never "Various fixes"). Use ONE consistent voice across all bullets; do not mix "You can now…", "Added…", and noun phrases in the same notes.
+          4. Consolidate aggressively. Merge commits describing the same change OR refining the same feature/area into ONE bullet stating the net outcome. At most ~6 bullets per section; if more qualify, keep the highest-impact ones and fold the rest into one themed bullet. The notes must never read as a raw commit log. Within each section, order bullets by user impact.
+          5. Never include: file paths, function/class/crate names, module names, PR numbers, issue IDs, commit hashes, scope prefixes, hedging phrases ("might", "should").
+          6. Visibility test: would a reader notice this change without inspecting logs, source code, or developer tools? If not, treat it as INTERNAL regardless of commit type. Common false positives: database schema/migration changes, FFI/bindings changes, dependency bumps, build/toolchain changes, internal format-normalization details.
+          7. Security: NEVER reveal implementation details that expose security architecture or give attackers useful information. Treat authentication, encryption, validation, and vulnerability fixes as INTERNAL; if such a change has a user-visible effect, describe only the effect, never the mechanism.
+          8. Same-release fix suppression: EVERY commit in this input belongs to the SAME upcoming release. A \`fix\` is worth reporting ONLY if it repairs behavior that shipped in a PRIOR release. If a \`fix\` targets a feature that is itself introduced in THIS input (there is a matching \`feat\`, or the feature is otherwise clearly new this release), the bug never reached any user — OMIT it entirely. Suppress ONLY with positive evidence the targeted feature is new this release; absent such evidence, KEEP the fix (still subject to rules 6 and 9).
+          9. Significance test for fixes: include a \`fix\` only if a user could plausibly have noticed the original problem AND would care that it is resolved (crash, hang, data loss, wrong or missing content, broken import, stuck UI, lost reading progress, and the like). OMIT fixes whose user-facing impact is negligible or invisible. When in doubt, treat it as INTERNAL (rule 6).
+          10. Neutral, factual tone. No marketing language, hype, or superlatives. State what changed plainly; specific is good, promotional is not.
+
+          Type-to-section mapping (primary heuristic). Rules 6 and 7 apply to EVERY commit; rules 8 and 9 apply ONLY to \`fix\` commits.
+          - feat → New Features if it adds a capability that did not exist before this release; if it extends, refines, or adds an option to an existing capability, put it under Improvements.
+          - perf → Improvements (when user-noticeable)
+          - fix → Bug Fixes (only when it repairs a PRIOR-release problem a user would notice — see rules 6, 8, 9)
+          - revert → if it cancels a commit also present in this input, omit BOTH. If it rolls back a change from a PRIOR release, report the user-visible effect. Never read the quoted subject inside a \`Revert "..."\` line as a new feature.
+          - A trailing \`!\` on the type/scope marks a BREAKING change: state the breaking/removed behavior plainly and reflect it in the Overview.
+          - refactor, chore, docs, test, style, ci, build → INTERNAL, follow catch-all rules below
+
+          Suppression taxonomy — every suppressed commit lands in exactly ONE bucket, never both:
+          - OMITTED — same-release fixes (rule 8) and clearly-negligible fixes (rule 9): dropped completely; they never trigger or contribute to a catch-all bullet.
+          - INTERNAL — refactor/chore/docs/test/style/ci/build, plus anything reclassified by rules 6, 7, or 9's in-doubt branch: these feed the catch-all rules below.
+
+          Catch-all rules for internal / non-user-visible commits:
+          - If, after applying ALL rules, no New Features, Improvements, or real Bug Fixes bullets remain, output exactly:
+            ### Overview
+            This release contains minor improvements and stability fixes.
+
+            ### Bug Fixes
+            - Minor improvements and stability fixes
+          - If the release mixes internal and user-visible commits, append this single bullet as the LAST item under Bug Fixes:
+            - Minor improvements and stability fixes
+          - Never emit more than one catch-all bullet per release.
+
+          Determinism: for identical input, produce identical output. Do not paraphrase or add flavor.
+          SYSTEM_EOF
+          )
+
+          # High reasoning effort: the notes are the release's public face and
+          # the rule set above rewards deliberation. The 128k completion cap is
+          # shared between reasoning and the answer; the notes themselves are
+          # well under 1k tokens, so it is pure reasoning headroom.
+          request_notes() {
+            curl -s --max-time 600 "${LLM_BASE_URL%/}/chat/completions" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $OPENAI_API_KEY" \
+              -d "$(jq -n \
+                --arg model "$LLM_MODEL" \
+                --arg system "$SYSTEM_PROMPT" \
+                --arg commits "$COMMITS" \
+                '{
+                  model: $model,
+                  reasoning_effort: "high",
+                  max_completion_tokens: 128000,
+                  messages: [
+                    {role: "system", content: $system},
+                    {role: "user", content: $commits}
+                  ]
+                }')" || true
+          }
+
+          # A partial changelog must never ship, so only a response carrying
+          # the mandatory `### Overview` heading is accepted; one retry covers
+          # transient API failures.
+          CHANGELOG=""
+          for ATTEMPT in 1 2; do
+            RESPONSE=$(request_notes)
+            CANDIDATE=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty' 2>/dev/null || true)
+            FINISH=$(echo "$RESPONSE" | jq -r '.choices[0].finish_reason // empty' 2>/dev/null || true)
+            if [ -n "$CANDIDATE" ] && [ "$FINISH" != "length" ] && grep -q '^### Overview' <<<"$CANDIDATE"; then
+              CHANGELOG="$CANDIDATE"
+              break
+            fi
+            API_ERROR=$(echo "$RESPONSE" | jq -r '.error.message // empty' 2>/dev/null || true)
+            echo "::warning::Release notes attempt $ATTEMPT failed (finish_reason='${FINISH:-none}'${API_ERROR:+, error: $API_ERROR})"
+          done
+
+          if [ -z "$CHANGELOG" ]; then
+            echo "::warning::Falling back to catch-all notes"
+            CHANGELOG=$'### Overview\nThis release contains minor improvements and stability fixes.\n\n### Bug Fixes\n- Minor improvements and stability fixes'
+          fi
+
+          echo "$CHANGELOG" > /tmp/release_notes.md
+          {
+            echo "## Release notes for $TAG"
+            echo
+            cat /tmp/release_notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "--- Release notes ---"
+          cat /tmp/release_notes.md
+
+      - name: Upload release notes artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: /tmp/release_notes.md
+          if-no-files-found: error

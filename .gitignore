@@ -29,3 +29,8 @@ logs
 *.keystore
 *.p12
 *.provisionprofile
+*.mobileprovision
+key.properties
+
+# Wrangler local state
+.wrangler/
