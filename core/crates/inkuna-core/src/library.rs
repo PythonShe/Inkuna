@@ -1,6 +1,5 @@
 use std::path::Path;
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 
@@ -33,18 +32,7 @@ impl Library {
         let conn = Connection::open(db_path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS publications (
-                id          TEXT PRIMARY KEY,
-                title       TEXT NOT NULL,
-                authors     TEXT NOT NULL DEFAULT '',
-                language    TEXT,
-                format      TEXT NOT NULL,
-                file_path   TEXT NOT NULL,
-                added_at    INTEGER NOT NULL,
-                progression REAL NOT NULL DEFAULT 0
-            );",
-        )?;
+        migrate(&conn)?;
         Ok(Library { conn: Mutex::new(conn) })
     }
 
@@ -59,9 +47,13 @@ impl Library {
                 let meta = epub::read_metadata(file_path)?;
                 (meta.title, meta.authors, meta.language)
             }
-            // Comics carry no standard embedded metadata; fall back to the
-            // filename until ComicInfo.xml support lands.
-            Format::Cbz | Format::Cbr => (None, Vec::new(), None),
+            // Filename fallback until each format's real support lands:
+            // MOBI/AZW3 EXTH metadata arrives with the convert-to-EPUB
+            // importer, PDF metadata with the PDF navigator, ComicInfo.xml
+            // with comics; TXT has no embedded metadata at all.
+            Format::Mobi | Format::Azw3 | Format::Txt | Format::Pdf | Format::Cbz | Format::Cbr => {
+                (None, Vec::new(), None)
+            }
         };
         let title = title
             .or_else(|| {
@@ -160,11 +152,34 @@ impl Library {
     }
 }
 
+/// Append-only versioned migrations tracked via SQLite's `user_version`
+/// pragma. Never edit a shipped entry — add a new one. (refinery would be
+/// preferred, but it currently caps rusqlite below our version; revisit.)
+const MIGRATIONS: &[&str] = &[
+    // 0001: initial schema
+    "CREATE TABLE publications (
+        id          TEXT PRIMARY KEY,
+        title       TEXT NOT NULL,
+        authors     TEXT NOT NULL DEFAULT '',
+        language    TEXT,
+        format      TEXT NOT NULL,
+        file_path   TEXT NOT NULL,
+        added_at    INTEGER NOT NULL,
+        progression REAL NOT NULL DEFAULT 0
+    );",
+];
+
+fn migrate(conn: &Connection) -> Result<(), CoreError> {
+    let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    for (index, migration) in MIGRATIONS.iter().enumerate().skip(version as usize) {
+        conn.execute_batch(migration)?;
+        conn.pragma_update(None, "user_version", (index + 1) as i64)?;
+    }
+    Ok(())
+}
+
 fn unix_now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+    chrono::Utc::now().timestamp()
 }
 
 fn join_authors(authors: &[String]) -> String {
@@ -233,6 +248,22 @@ mod tests {
         zip.finish().unwrap();
     }
 
+    /// Builds a minimal PalmDB "BOOKMOBI" file whose MOBI header carries the
+    /// given file version (6 = classic MOBI, 8 = KF8/AZW3).
+    fn write_mobi(path: &Path, version: u32) {
+        let mut bytes = vec![0u8; 78];
+        bytes[60..68].copy_from_slice(b"BOOKMOBI");
+        bytes[76..78].copy_from_slice(&1u16.to_be_bytes());
+        let record0_offset = 78 + 8;
+        bytes.extend_from_slice(&(record0_offset as u32).to_be_bytes());
+        bytes.extend_from_slice(&[0u8; 4]);
+        let mut record0 = [0u8; 40];
+        record0[16..20].copy_from_slice(b"MOBI");
+        record0[36..40].copy_from_slice(&version.to_be_bytes());
+        bytes.extend_from_slice(&record0);
+        std::fs::write(path, bytes).unwrap();
+    }
+
     #[test]
     fn detects_formats_by_content() {
         let dir = tempfile::tempdir().unwrap();
@@ -248,6 +279,31 @@ mod tests {
         let rar = dir.path().join("comic.cbr");
         std::fs::write(&rar, b"Rar!\x1a\x07\x01\x00rest").unwrap();
         assert_eq!(Format::detect(&rar).unwrap(), Format::Cbr);
+
+        let pdf = dir.path().join("paper.pdf");
+        std::fs::write(&pdf, b"%PDF-1.7\n...").unwrap();
+        assert_eq!(Format::detect(&pdf).unwrap(), Format::Pdf);
+
+        let mobi = dir.path().join("classic.mobi");
+        write_mobi(&mobi, 6);
+        assert_eq!(Format::detect(&mobi).unwrap(), Format::Mobi);
+
+        let azw3 = dir.path().join("modern.azw3");
+        write_mobi(&azw3, 8);
+        assert_eq!(Format::detect(&azw3).unwrap(), Format::Azw3);
+
+        // TXT is extension-gated (no magic exists) but rejects binary
+        // content; GB18030-style non-UTF-8 text must still pass.
+        let txt = dir.path().join("web-novel.txt");
+        std::fs::write(&txt, [0xB5, 0xDA, 0xD2, 0xBB, 0xD5, 0xC2]).unwrap();
+        assert_eq!(Format::detect(&txt).unwrap(), Format::Txt);
+
+        let fake_txt = dir.path().join("binary.txt");
+        std::fs::write(&fake_txt, b"text\x00then binary").unwrap();
+        assert!(matches!(
+            Format::detect(&fake_txt),
+            Err(CoreError::UnsupportedFormat)
+        ));
 
         let junk = dir.path().join("junk.bin");
         std::fs::write(&junk, b"not a book").unwrap();

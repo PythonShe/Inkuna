@@ -14,13 +14,11 @@ final class LibraryViewController: UITableViewController {
     }
 
     private func reload() {
-        do {
-            publications = try LibraryStore.shared.library.list()
-        } catch {
-            publications = []
+        Task {
+            publications = (try? await LibraryStore.shared.library.list()) ?? []
+            tableView.reloadData()
+            updateEmptyState()
         }
-        tableView.reloadData()
-        updateEmptyState()
     }
 
     private func updateEmptyState() {

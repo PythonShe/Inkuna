@@ -4,7 +4,7 @@ import Foundation
 
 /// Thin app-side wrapper around the Rust core's `Library`.
 /// Owns the database location; all logic stays in the core.
-final class LibraryStore {
+final class LibraryStore: Sendable {
     static let shared = LibraryStore()
 
     let library: Bookshelf

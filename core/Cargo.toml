@@ -7,6 +7,12 @@ version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 
+# Release profile is what CI and the build-core scripts ship (--release):
+# full optimization, single codegen unit for best cross-crate inlining,
+# fat LTO, debuginfo stripped. Panics stay unwinding so UniFFI can catch
+# them at the boundary instead of aborting the host app.
 [profile.release]
+opt-level = 3
+codegen-units = 1
 lto = true
 strip = "debuginfo"

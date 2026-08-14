@@ -76,7 +76,15 @@ fn parse_opf(opf_xml: &str) -> EpubMetadata {
             }
             Ok(Event::Text(t)) => {
                 if let Some(field) = current {
-                    let text = t.unescape().unwrap_or_default().trim().to_string();
+                    let decoded = match t.decode() {
+                        Ok(d) => d.into_owned(),
+                        Err(_) => continue,
+                    };
+                    let text = quick_xml::escape::unescape(&decoded)
+                        .map(|c| c.into_owned())
+                        .unwrap_or(decoded)
+                        .trim()
+                        .to_string();
                     if text.is_empty() {
                         continue;
                     }

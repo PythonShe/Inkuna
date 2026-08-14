@@ -8,11 +8,17 @@ common defaults.
 
 | Layer | Technology | Notes |
 |------|------|------|
-| Language | Rust, edition 2021 | build via rustup stable — never the Homebrew rustc (see root CLAUDE.md) |
-| Storage | rusqlite (bundled SQLite, WAL) | one DB per install, owned by `Library` |
-| Archives | `zip` (EPUB/CBZ); `unrar` planned for CBR | format detection is magic-byte based, never extension based |
-| XML | quick-xml | streaming events, no DOM |
-| FFI | UniFFI 0.29 proc-macros | Swift + Kotlin bindings from one surface |
+| Language | Rust, latest stable via rustup | never the Homebrew rustc (see root CLAUDE.md) |
+| Storage | rusqlite (bundled SQLite, WAL) | one DB per install, owned by `Library`; append-only `user_version` migrations (refinery once it supports latest rusqlite) |
+| Async | tokio, at the FFI layer only | core stays sync; `inkuna-ffi` wraps calls in `spawn_blocking` so shells get `await`/`suspend` |
+| Time | chrono | unix-seconds `i64` in the DB |
+| Archives | `zip` (EPUB/CBZ); `unrar` planned for CBR | format detection is magic-byte based (TXT is the documented extension-gated exception) |
+| XML | quick-xml | streaming events, no DOM; entity unescape via `quick_xml::escape::unescape` |
+| FFI | UniFFI proc-macros, latest | Swift + Kotlin bindings from one surface; async methods use `#[uniffi::export(async_runtime = "tokio")]` |
+
+Formats: EPUB (full metadata), MOBI/AZW3 (PalmDB header distinguishes by KF8
+version; DRM-free only), TXT (charset-aware CJK handling planned), PDF,
+CBZ/CBR. Reflowables normalize to EPUB at import; see root CLAUDE.md.
 
 ```bash
 cargo test                      # full workspace tests — must pass before commit

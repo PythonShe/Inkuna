@@ -42,6 +42,10 @@ impl From<inkuna_core::CoreError> for InkunaError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum Format {
     Epub,
+    Mobi,
+    Azw3,
+    Txt,
+    Pdf,
     Cbz,
     Cbr,
 }
@@ -50,6 +54,10 @@ impl From<inkuna_core::Format> for Format {
     fn from(f: inkuna_core::Format) -> Self {
         match f {
             inkuna_core::Format::Epub => Format::Epub,
+            inkuna_core::Format::Mobi => Format::Mobi,
+            inkuna_core::Format::Azw3 => Format::Azw3,
+            inkuna_core::Format::Txt => Format::Txt,
+            inkuna_core::Format::Pdf => Format::Pdf,
             inkuna_core::Format::Cbz => Format::Cbz,
             inkuna_core::Format::Cbr => Format::Cbr,
         }
@@ -84,30 +92,45 @@ impl From<inkuna_core::Publication> for Publication {
 }
 
 #[derive(uniffi::Object)]
-pub struct Bookshelf(inkuna_core::Library);
+pub struct Bookshelf(Arc<inkuna_core::Library>);
 
-#[uniffi::export]
+/// Methods are async on a tokio runtime: SQLite and archive I/O run on
+/// blocking threads while the shells get idiomatic Swift `await` / Kotlin
+/// `suspend` — never a blocked main thread.
+#[uniffi::export(async_runtime = "tokio")]
 impl Bookshelf {
     #[uniffi::constructor]
     pub fn open(db_path: String) -> Result<Arc<Self>, InkunaError> {
-        Ok(Arc::new(Bookshelf(inkuna_core::Library::open(&db_path)?)))
+        Ok(Arc::new(Bookshelf(Arc::new(inkuna_core::Library::open(&db_path)?))))
     }
 
-    pub fn import(&self, path: String) -> Result<Publication, InkunaError> {
-        Ok(self.0.import(&path)?.into())
+    pub async fn import(&self, path: String) -> Result<Publication, InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.import(&path)?.into())).await
     }
 
-    pub fn list(&self) -> Result<Vec<Publication>, InkunaError> {
-        Ok(self.0.list()?.into_iter().map(Into::into).collect())
+    pub async fn list(&self) -> Result<Vec<Publication>, InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.list()?.into_iter().map(Into::into).collect())).await
     }
 
-    pub fn set_progression(&self, id: String, progression: f64) -> Result<(), InkunaError> {
-        Ok(self.0.set_progression(&id, progression)?)
+    pub async fn set_progression(&self, id: String, progression: f64) -> Result<(), InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.set_progression(&id, progression)?)).await
     }
 
-    pub fn remove(&self, id: String) -> Result<(), InkunaError> {
-        Ok(self.0.remove(&id)?)
+    pub async fn remove(&self, id: String) -> Result<(), InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.remove(&id)?)).await
     }
+}
+
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, InkunaError> + Send + 'static,
+) -> Result<T, InkunaError> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|e| InkunaError::Io(format!("task join error: {e}")))?
 }
 
 #[uniffi::export]
