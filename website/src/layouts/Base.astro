@@ -2,16 +2,22 @@
 // Shared shell for every page: theme tokens (ink on paper / moonlight),
 // reset, literary serif stack with CJK fallbacks, favicon, link styles.
 // Pages bring their own scoped <style> for everything else.
+import { getAbsoluteLocaleUrl } from "astro:i18n";
+import { languages, type Lang } from "../i18n/ui";
+
 interface Props {
   title: string;
   description?: string;
   /** Page language; CJK inline text still needs its own lang= spans. */
-  lang?: string;
+  lang?: Lang;
   /** Center content in the viewport (error pages) instead of column flow. */
   centered?: boolean;
   noindex?: boolean;
   /** Render Open Graph tags with this title/description. */
   og?: { title: string; description: string };
+  /** Path (without locale prefix) this page exists at in every locale;
+      emits hreflang alternates. */
+  localizedPath?: string;
 }
 
 const {
@@ -21,7 +27,15 @@ const {
   centered = false,
   noindex = false,
   og,
+  localizedPath,
 } = Astro.props;
+
+const alternates = localizedPath
+  ? (Object.keys(languages) as Lang[]).map((code) => ({
+      code,
+      href: getAbsoluteLocaleUrl(code, localizedPath),
+    }))
+  : [];
 
 const favicon =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%231a1a1e'/%3E%3Ccircle cx='66' cy='38' r='26' fill='%23f5f2ea'/%3E%3C/svg%3E";
@@ -42,6 +56,20 @@ const favicon =
           <meta property="og:url" content={Astro.site} />
           <meta property="og:type" content="website" />
         </>
+      )
+    }
+    {
+      alternates.map((alt) => (
+        <link rel="alternate" hreflang={alt.code} href={alt.href} />
+      ))
+    }
+    {
+      alternates.length > 0 && (
+        <link
+          rel="alternate"
+          hreflang="x-default"
+          href={getAbsoluteLocaleUrl("en", localizedPath)}
+        />
       )
     }
     <link rel="icon" href={favicon} />

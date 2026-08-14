@@ -25,13 +25,37 @@ output.
 
 - `src/layouts/Base.astro` — the one shared shell: theme tokens, reset, font
   stack, favicon, link styles, and head metadata (title/description/OG/robots
-  via props). Every page uses it.
+  and hreflang alternates via props). Every page uses it.
 - `src/pages/` — one `.astro` file per route; page-specific CSS lives in the
-  page's own scoped `<style>` block.
+  page's (or its component's) scoped `<style>` block.
+- `src/components/` — markup shared across routes (e.g. `Home.astro`, the
+  homepage rendered by all three locale routes).
+- `src/i18n/` — `ui.ts` (locale list + per-locale string dictionaries) and
+  `utils.ts` (`useTranslations`).
 - `public/` — files copied verbatim to the site root (`_headers`).
-- Planned growth: a changelog/blog section (use Astro content collections)
-  and localized pages (use Astro's built-in i18n routing) — structure new
-  work so those slot in cleanly.
+- Planned growth: a changelog/blog section (use Astro content collections) —
+  structure new work so it slots in cleanly.
+
+## i18n / l10n
+
+Astro's built-in i18n routing (no third-party plugin): locales `en`
+(default, unprefixed — `/`), `ja` (`/ja/`), `zh` (`/zh/`), configured in
+`astro.config.mjs`. Conventions:
+
+- All user-facing strings live in the `src/i18n/ui.ts` dictionaries — never
+  hard-code copy in a shared component. Strings wrapping a link are split
+  into `.pre`/`.post` keys so each locale keeps its own word order.
+- Every content page should exist in all three locales: render one shared
+  component per route, pass `localizedPath` to `Base` (emits
+  hreflang/x-default alternates), and include the footer language switcher.
+  `404.astro` is the deliberate exception (single page, English).
+- Build locale URLs with `getRelativeLocaleUrl`/`getAbsoluteLocaleUrl` from
+  `astro:i18n`, never by string concatenation.
+- CJK has no true italics — pages must neutralize italic styles for CJK
+  (`:lang(ja)`, `:lang(zh)`), as `Home.astro` does for the tagline.
+- Adding a locale: extend `languages` + `ui` in `src/i18n/ui.ts`, add the
+  locale to `astro.config.mjs`, and add the one-line page stubs under
+  `src/pages/<locale>/`.
 
 ## Conventions
 
@@ -40,6 +64,10 @@ output.
   inlined at build time or in-repo; favicons are data URIs. This keeps the
   site fast, private, and dependency-light. Astro's static build satisfies
   this by default — don't add integrations or client islands that break it.
+- **No UI or CSS framework**: no React (nothing here is interactive) and no
+  Tailwind — the hand-tuned scoped CSS on shared tokens is the design. If a
+  genuinely interactive island ever becomes necessary, add a framework
+  integration for that island only and keep the rest zero-JS.
 - **Ink & moonlight theming**: light ("ink on paper") and dark ("moonlight")
   palettes via `prefers-color-scheme`, defined once as tokens in
   `Base.astro`, mirroring the app's planned reader themes. Any new page must

@@ -1,0 +1,169 @@
+---
+// The homepage, shared by every locale; strings come from src/i18n/ui.ts.
+import { getRelativeLocaleUrl } from "astro:i18n";
+import Base from "../layouts/Base.astro";
+import { languages, type Lang } from "../i18n/ui";
+import { useTranslations } from "../i18n/utils";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<Base
+  title={t("meta.title")}
+  description={t("meta.description")}
+  lang={lang}
+  og={{ title: "Inkuna", description: t("og.description") }}
+  localizedPath="/"
+>
+  <main>
+    <svg class="moon" viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="42" fill="var(--ink)"></circle>
+      <circle cx="66" cy="38" r="26" fill="var(--paper)"></circle>
+    </svg>
+    <span class="vertical-accent" lang="ja" aria-hidden="true">墨と月のあいだ</span>
+    <h1>Inkuna</h1>
+    <p class="tagline">{t("tagline")}</p>
+    <p>{t("intro")}</p>
+    <ul class="features">
+      <li><span class="mark">✦</span> {t("features.formats")}</li>
+      <li><span class="mark">✦</span> {t("features.cjk")}</li>
+      <li><span class="mark">✦</span> {t("features.native")}</li>
+      <li>
+        <span class="mark">✦</span>
+        <span>
+          {t("features.license.pre")}<a
+            href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a
+          >{t("features.license.post")}
+        </span>
+      </li>
+    </ul>
+    <p class="platforms">
+      {t("platforms.pre")}<a href="https://github.com/PythonShe/Inkuna">GitHub</a
+      >{t("platforms.post")}
+    </p>
+  </main>
+  <footer>
+    <span>© 2026 Inkuna</span>
+    <a href="https://github.com/PythonShe/Inkuna">{t("footer.source")}</a>
+    <a href="https://github.com/PythonShe/Inkuna/blob/main/LICENSE"
+      >{t("footer.license")}</a
+    >
+    <nav class="lang-switch" aria-label="Language">
+      {
+        (Object.entries(languages) as [Lang, string][]).map(([code, label]) => (
+          <a
+            href={getRelativeLocaleUrl(code, "/")}
+            lang={code}
+            aria-current={code === lang ? "page" : undefined}
+          >
+            {label}
+          </a>
+        ))
+      }
+    </nav>
+  </footer>
+</Base>
+
+<style>
+  main {
+    flex: 1;
+    width: 100%;
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 6rem 1.5rem 4rem;
+    position: relative;
+  }
+  .moon {
+    width: 3.25rem;
+    height: 3.25rem;
+    margin-bottom: 2.5rem;
+  }
+  h1 {
+    font-size: clamp(2.4rem, 8vw, 3.4rem);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    margin-bottom: 0.75rem;
+  }
+  .tagline {
+    font-size: 1.2rem;
+    font-style: italic;
+    color: var(--ink-soft);
+    margin-bottom: 3rem;
+  }
+  /* CJK has no true italics; synthetic oblique looks wrong */
+  .tagline:lang(ja),
+  .tagline:lang(zh) {
+    font-style: normal;
+  }
+  .vertical-accent {
+    position: absolute;
+    top: 6.5rem;
+    right: 1.5rem;
+    writing-mode: vertical-rl;
+    font-size: 0.95rem;
+    letter-spacing: 0.55em;
+    color: var(--ink-soft);
+    opacity: 0.6;
+    user-select: none;
+  }
+  p {
+    margin-bottom: 1.4rem;
+  }
+  .features {
+    list-style: none;
+    margin: 2.5rem 0 3rem;
+    border-top: 1px solid var(--hairline);
+  }
+  .features li {
+    padding: 1.1rem 0;
+    border-bottom: 1px solid var(--hairline);
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+  }
+  .features .mark {
+    flex: none;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+  .platforms {
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+    background: var(--accent);
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+  }
+  footer {
+    max-width: 40rem;
+    width: 100%;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 3rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .lang-switch {
+    margin-inline-start: auto;
+    display: flex;
+    gap: 1rem;
+  }
+  .lang-switch a[aria-current="page"] {
+    text-decoration: none;
+    color: var(--ink);
+  }
+  @media (max-width: 34rem) {
+    .vertical-accent {
+      display: none;
+    }
+    main {
+      padding-top: 4rem;
+    }
+  }
+</style>
