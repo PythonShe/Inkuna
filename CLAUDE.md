@@ -15,6 +15,23 @@ License: AGPL-3.0. Website: `inkuna.app`.
 Rendering will live in the shells on Readium's native toolkits (Swift/Kotlin);
 the Rust core never renders.
 
+## Stack Policy
+
+- **Latest everything**: newest stable Rust, Swift, Kotlin, Gradle, AGP, JDK,
+  SDKs, and all dependencies. When bumping, query the registries
+  (crates.io / Google Maven / Maven Central / services.gradle.org) for actual
+  latest stable — never guess from training data. A dependency that caps
+  another below latest loses (e.g. refinery is deferred because it pins
+  rusqlite below current).
+- **Mainstream crates over hand-rolling**: if a well-adopted crate exists for
+  a need, use it. Designated choices for upcoming needs: `deadpool-sqlite`
+  (concurrent DB access), `notify` (watch-folder import), `rayon` (parallel
+  batch import), `argon2` (if auth lands), `lofty` (if audio lands).
+- **Format strategy**: reflowable formats (EPUB, MOBI, AZW3, TXT) normalize
+  to EPUB in the core at import; fixed-layout (PDF, CBZ/CBR) get dedicated
+  navigators. MOBI/AZW3 support is DRM-free files only — never implement or
+  integrate DRM circumvention.
+
 ## Scope Rules
 
 - These root rules cover only monorepo-level constraints, not component
@@ -66,7 +83,11 @@ refine them (`core/epub`, `ios/reader`).
 - Two Rust installs exist: Homebrew (`/opt/homebrew/bin`, no cross targets)
   shadows rustup. The scripts pin `RUSTC` + `rustup run stable`; do the same
   for any new cargo invocation that cross-compiles.
-- System Java is too new for AGP; `apps/android/gradle.properties` pins
-  `org.gradle.java.home` to Homebrew `openjdk@21`.
+- `apps/android/gradle.properties` pins `org.gradle.java.home` to the latest
+  Homebrew OpenJDK; if a Gradle release ever lags the JDK, fall back to
+  Android Studio's JBR.
+- `rustup run stable` does NOT shadow PATH lookups here: pin `RUSTC` (and
+  `RUSTDOC` for doctests) to `rustup which --toolchain stable ...` or builds
+  silently use the Homebrew rustc, which fails cross-compiles with E0463.
 - A global cargo config redirects target-dir to `~/.sonelis/cargo-target`;
   the scripts override with `CARGO_TARGET_DIR=core/target`.

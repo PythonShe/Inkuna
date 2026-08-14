@@ -23,13 +23,15 @@ scripts/        core cross-build + bindings generation
 docs/           project documentation
 ```
 
-Supported formats: EPUB, with CBZ/CBR comics planned. CJK typography —
-including vertical writing — is a first-class goal.
+Formats: EPUB, MOBI, AZW3 (DRM-free), TXT, PDF, with CBZ/CBR comics planned —
+reflowable formats normalize to EPUB at import; fixed-layout formats get
+dedicated navigators. CJK typography — including vertical writing — is a
+first-class goal.
 
 ## Building
 
-Requires rustup (with iOS/Android targets), cargo-ndk, Xcode, XcodeGen,
-Android SDK + NDK, and JDK 17–21.
+Requires the latest stable rustup toolchain (with iOS/Android targets),
+cargo-ndk, Xcode, XcodeGen, Android SDK + NDK, and a current JDK.
 
 ```sh
 # Core (tests)

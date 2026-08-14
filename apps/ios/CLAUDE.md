@@ -9,7 +9,8 @@ below; they capture project-specific conventions and override common defaults.
 |------|------|------|
 | UI | **UIKit** (owner preference — no SwiftUI) | view controllers + programmatic layout, no storyboards |
 | Project | XcodeGen | `project.yml` is the source of truth; `Inkuna.xcodeproj` is generated and gitignored |
-| Core | `InkunaCore.xcframework` + generated Swift bindings | produced by `../../scripts/build-core-ios.sh` |
+| Language | Swift, **Swift 6 language mode** (strict concurrency) | latest Xcode/SDK |
+| Core | `InkunaCore.xcframework` + generated Swift bindings | produced by `../../scripts/build-core-ios.sh`; core methods are `async` |
 | Rendering (planned) | Readium Swift Toolkit | `EPUBNavigatorViewController` is UIKit-native |
 | Targets | min iOS 18, built with latest SDK | bundle id `app.inkuna.ios` |
 

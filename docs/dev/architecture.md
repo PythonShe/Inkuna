@@ -49,6 +49,30 @@ long-term option, not a prerequisite.
   permission model, ~78% coverage), compile/target 35.
 - IDs: `app.inkuna.ios`, `app.inkuna.android` (registered by owner).
 
+## Format strategy (2026-08-14)
+
+| Format | Import path | Rendering path |
+|--------|------------|----------------|
+| EPUB | native | Readium EPUB navigator (WebView) |
+| MOBI / AZW3 | convert to EPUB in core (DRM-free only) | Readium EPUB navigator |
+| TXT | charset detection (GB18030/Big5/Shift-JIS) + CJK chapter splitting → synthesized EPUB | Readium EPUB navigator |
+| PDF | metadata only | PDFKit (iOS) / Pdfium (Android) navigator |
+| CBZ / CBR | zip / unrar | image navigator |
+
+Everything reflowable becomes EPUB at import so there is exactly one text
+rendering pipeline; fixed-layout formats bypass it. No DRM circumvention,
+ever.
+
+## Stack policy (2026-08-14)
+
+Latest stable everything — Rust, Swift (Swift 6 language mode), Kotlin (AGP
+built-in), Gradle, AGP, JDK, compile/target SDK, and all dependencies —
+verified against the live registries at bump time. Prefer mainstream crates
+over hand-rolling; a crate that pins another dependency below latest is
+deferred (current example: refinery vs rusqlite — schema versioning is
+hand-rolled via `user_version` until refinery catches up). Reserved crates
+for upcoming needs: deadpool-sqlite, notify, rayon, argon2, lofty.
+
 ## Roadmap (next steps)
 
 1. Readium Swift + Kotlin toolkits: shelf → open EPUB → paginated reading.
