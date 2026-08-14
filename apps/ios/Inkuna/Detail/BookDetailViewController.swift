@@ -167,6 +167,8 @@ final class BookDetailViewController: UIViewController {
     }
 
     private func openReader() {
-        navigationController?.pushViewController(ReaderViewController(book: book), animated: true)
+        let reader = ReaderViewController(book: book)
+        reader.hidesBottomBarWhenPushed = true
+        navigationController?.pushViewController(reader, animated: true)
     }
 }

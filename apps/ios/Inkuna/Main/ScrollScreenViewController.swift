@@ -4,10 +4,6 @@ import UIKit
 /// scroll view, page-margin gutters, and bottom clearance for the
 /// floating tab bar.
 class ScrollScreenViewController: UIViewController {
-    /// Clearance under the last content row so nothing hides behind the
-    /// floating tab bar.
-    static let tabBarClearance: CGFloat = 110
-
     let scrollView = UIScrollView()
     let contentStack = UIStackView()
 
@@ -32,7 +28,7 @@ class ScrollScreenViewController: UIViewController {
             contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: InkSpacing.pageMargin),
             contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -InkSpacing.pageMargin),
             contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: InkSpacing.space6),
-            contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -Self.tabBarClearance),
+            contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -InkSpacing.space8),
             contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -2 * InkSpacing.pageMargin),
         ])
     }
@@ -76,11 +72,16 @@ class ScrollScreenViewController: UIViewController {
         return label
     }
 
+    /// Full-page destinations slide the native tab bar away.
     func openBook(_ book: PlaceholderBook) {
-        navigationController?.pushViewController(BookDetailViewController(book: book), animated: true)
+        let detail = BookDetailViewController(book: book)
+        detail.hidesBottomBarWhenPushed = true
+        navigationController?.pushViewController(detail, animated: true)
     }
 
     func openReader(_ book: PlaceholderBook) {
-        navigationController?.pushViewController(ReaderViewController(book: book), animated: true)
+        let reader = ReaderViewController(book: book)
+        reader.hidesBottomBarWhenPushed = true
+        navigationController?.pushViewController(reader, animated: true)
     }
 }

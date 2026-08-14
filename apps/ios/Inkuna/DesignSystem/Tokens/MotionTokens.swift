@@ -15,6 +15,7 @@ enum InkMotion {
     static let slow: TimeInterval = 0.56
 
     /// `--ease-quiet` — cubic-bezier(.4, 0, .2, 1).
+    @MainActor
     static var quiet: UITimingCurveProvider {
         UICubicTimingParameters(
             controlPoint1: CGPoint(x: 0.4, y: 0),
@@ -23,6 +24,7 @@ enum InkMotion {
     }
 
     /// `--ease-page` — cubic-bezier(.22, 1, .36, 1); settles, never bounces.
+    @MainActor
     static var page: UITimingCurveProvider {
         UICubicTimingParameters(
             controlPoint1: CGPoint(x: 0.22, y: 1),
@@ -31,11 +33,13 @@ enum InkMotion {
     }
 
     /// Interruptible animator on the quiet curve.
+    @MainActor
     static func quietAnimator(duration: TimeInterval = medium) -> UIViewPropertyAnimator {
         UIViewPropertyAnimator(duration: duration, timingParameters: quiet)
     }
 
     /// Interruptible animator on the page curve.
+    @MainActor
     static func pageAnimator(duration: TimeInterval = slow) -> UIViewPropertyAnimator {
         UIViewPropertyAnimator(duration: duration, timingParameters: page)
     }

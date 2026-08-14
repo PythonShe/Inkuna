@@ -84,7 +84,7 @@ final class ThemePickViewController: UIViewController {
         AppSettings.shared.hasCompletedOnboarding = true
         guard let window = view.window else { return }
         UIView.transition(with: window, duration: InkMotion.slow, options: .transitionCrossDissolve) {
-            window.rootViewController = RootNavigationController(rootViewController: MainViewController())
+            window.rootViewController = MainTabBarController()
         }
     }
 }
