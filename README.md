@@ -20,7 +20,7 @@ core/           Rust workspace
 apps/ios/       UIKit shell (min iOS 18, Liquid Glass gated on iOS 26)
 apps/android/   Jetpack Compose shell (minSdk 33, targetSdk 37)
 scripts/        core cross-build + bindings generation
-website/        static site for inkuna.app (Cloudflare Pages)
+website/        Astro static site for inkuna.app (Cloudflare Pages)
 docs/           project documentation
 ```
 
@@ -49,9 +49,10 @@ cd apps/android && ./gradlew assembleDebug
 
 ## Website
 
-[inkuna.app](https://inkuna.app) is a hand-written static site in `website/`
-(no framework, no build step) on Cloudflare Pages. Pushes to `main` that touch
-`website/` deploy automatically via GitHub Actions.
+[inkuna.app](https://inkuna.app) is an Astro site in `website/` (fully static
+output, zero client JS) on Cloudflare Pages. Pushes to `main` that touch
+`website/` build and deploy automatically via GitHub Actions; locally,
+`npm run dev` / `npm run build` inside `website/`.
 
 ## Releases
 

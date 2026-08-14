@@ -11,7 +11,7 @@ License: AGPL-3.0. Website: `inkuna.app`.
 | `apps/ios/` | Inkuna iOS | UIKit + XcodeGen | Native iOS shell (`app.inkuna.ios`), min iOS 18 |
 | `apps/android/` | Inkuna Android | Kotlin + Jetpack Compose | Native Android shell (`app.inkuna.android`), minSdk 33 |
 | `scripts/` | Build scripts | bash | Core cross-builds + UniFFI bindings generation |
-| `website/` | Inkuna Website | Static HTML/CSS | Marketing site for `inkuna.app`, deployed via Cloudflare Pages (no build step) |
+| `website/` | Inkuna Website | Astro (static output) | Marketing site for `inkuna.app`, built with Astro and deployed via Cloudflare Pages |
 
 Rendering will live in the shells on Readium's native toolkits (Swift/Kotlin);
 the Rust core never renders.
@@ -54,8 +54,9 @@ the Rust core never renders.
 
 ## CI/CD (GitHub Actions)
 
-- `deploy-website.yml` — deploys `website/` to Cloudflare Pages (project
-  `inkuna`, direct upload) on every `main` push touching `website/`.
+- `deploy-website.yml` — builds `website/` with Astro and deploys `dist/` to
+  Cloudflare Pages (project `inkuna`, direct upload) on every `main` push
+  touching `website/`.
 - `release-ios.yml` / `release-android.yml` — tag-driven releases
   (`ios-vX.Y.Z+N` / `android-vX.Y.Z+N`): core tests gate the build; iOS
   archives with manual signing and uploads to TestFlight, Android builds a

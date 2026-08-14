@@ -1,8 +1,8 @@
 name: Deploy Website
 
 # Deploys website/ to the Cloudflare Pages project "inkuna" (direct upload,
-# no git integration). The site is plain static HTML — no build step, the
-# directory itself is the deploy artifact.
+# no git integration). The site is built with Astro (fully static output,
+# no client JS); website/dist is the deploy artifact.
 #
 # Required repository secrets:
 #   CLOUDFLARE_API_TOKEN   API token with "Cloudflare Pages: Edit" permission
@@ -46,9 +46,23 @@ jobs:
             exit 1
           fi
 
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Build site
+        working-directory: website
+        run: |
+          npm ci
+          npm run build
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy website --project-name=inkuna --branch=main --commit-hash=${{ github.sha }}
+          workingDirectory: website
+          command: pages deploy dist --project-name=inkuna --branch=main --commit-hash=${{ github.sha }}
