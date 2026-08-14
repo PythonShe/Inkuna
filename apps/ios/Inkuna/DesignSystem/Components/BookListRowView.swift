@@ -5,10 +5,10 @@ import UIKit
 /// cloud badge when the book still lives remotely.
 final class BookListRowView: UIView {
     private let coverContainer = UIView()
-    private let titleLabel = UILabel()
-    private let authorLabel = UILabel()
+    private let titleLabel = InkLabel()
+    private let authorLabel = InkLabel()
     private let progressBar = InkProgressBar()
-    private let percentLabel = UILabel()
+    private let percentLabel = InkLabel()
     private let cloudBadge = UIImageView(
         image: UIImage(
             systemName: "icloud.and.arrow.down",
@@ -68,6 +68,10 @@ final class BookListRowView: UIView {
         titleLabel.text = title
         authorLabel.text = author
         cloudBadge.isHidden = downloaded
+
+        isAccessibilityElement = true
+        accessibilityLabel = "\(title), \(author)"
+        accessibilityTraits = .button
 
         coverContainer.subviews.forEach { $0.removeFromSuperview() }
         let cover = BookCoverView(title: title, author: author, seed: seed)

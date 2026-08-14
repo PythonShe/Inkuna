@@ -9,12 +9,12 @@ final class WelcomeViewController: UIViewController {
         let mark = BrandMarkView()
 
         // TODO(l10n): localize once the strings pass lands.
-        let nameLabel = UILabel()
+        let nameLabel = InkLabel()
         nameLabel.text = "Inkuna"
         nameLabel.font = InkFont.serif(54, weight: .light, style: .largeTitle)
         nameLabel.textColor = InkColor.textDisplay
 
-        let taglineLabel = UILabel()
+        let taglineLabel = InkLabel()
         taglineLabel.text = "A minimalist book reader where ink meets moonlight."
         taglineLabel.font = InkFont.reading()
         taglineLabel.textColor = InkColor.textSecondary

@@ -60,14 +60,14 @@ final class BookDetailViewController: UIViewController {
         let cover = BookCoverView(title: book.title, author: book.author, seed: book.coverSeed)
         cover.widthAnchor.constraint(equalToConstant: 150).isActive = true
 
-        let titleLabel = UILabel()
+        let titleLabel = InkLabel()
         titleLabel.text = book.title
         titleLabel.font = InkFont.displaySmall
         titleLabel.textColor = InkColor.textDisplay
         titleLabel.textAlignment = .center
         titleLabel.numberOfLines = 0
 
-        let authorLabel = UILabel()
+        let authorLabel = InkLabel()
         authorLabel.text = book.author
         authorLabel.font = InkFont.labelRegular
         authorLabel.textColor = InkColor.textSecondary
@@ -75,7 +75,7 @@ final class BookDetailViewController: UIViewController {
         let progressBar = InkProgressBar(progress: book.progress)
         progressBar.widthAnchor.constraint(equalToConstant: 200).isActive = true
 
-        let metaLabel = UILabel()
+        let metaLabel = InkLabel()
         metaLabel.text = book.metaText
         metaLabel.font = InkFont.caption
         metaLabel.textColor = InkColor.textTertiary
@@ -96,7 +96,7 @@ final class BookDetailViewController: UIViewController {
 
         // MARK: Contents
 
-        let contentsTitle = UILabel()
+        let contentsTitle = InkLabel()
         contentsTitle.text = "Contents"
         contentsTitle.font = InkFont.sectionTitle
         contentsTitle.textColor = InkColor.textDisplay
@@ -111,18 +111,18 @@ final class BookDetailViewController: UIViewController {
     private func chapterRow(_ chapter: PlaceholderChapter, index: Int) -> UIView {
         let isCurrent = index == PlaceholderLibrary.currentChapterIndex
 
-        let numeral = UILabel()
+        let numeral = InkLabel()
         numeral.text = chapter.numeral
         numeral.font = InkFont.caption
         numeral.textColor = isCurrent ? InkColor.accent : InkColor.textTertiary
         numeral.widthAnchor.constraint(equalToConstant: 26).isActive = true
 
-        let title = UILabel()
+        let title = InkLabel()
         title.text = chapter.title
         title.font = InkFont.serif(16, weight: isCurrent ? .semibold : .regular, style: .body)
         title.textColor = isCurrent ? InkColor.accent : InkColor.textDisplay
 
-        let page = UILabel()
+        let page = InkLabel()
         page.text = "p. \(chapter.page)"
         page.font = InkFont.caption
         page.textColor = InkColor.textTertiary
@@ -151,12 +151,15 @@ final class BookDetailViewController: UIViewController {
             separator.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            separator.heightAnchor.constraint(equalToConstant: 1),
+            separator.heightAnchor.constraint(equalToConstant: 1 / traitCollection.displayScale),
         ])
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(openReaderFromChapter))
         container.addGestureRecognizer(tap)
         container.isUserInteractionEnabled = true
+        container.isAccessibilityElement = true
+        container.accessibilityLabel = "Chapter \(chapter.numeral), \(chapter.title), page \(chapter.page)"
+        container.accessibilityTraits = .button
         return container
     }
 

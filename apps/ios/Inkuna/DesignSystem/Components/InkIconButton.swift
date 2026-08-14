@@ -49,13 +49,22 @@ final class InkIconButton: UIButton {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    private var pressAnimator: UIViewPropertyAnimator?
+
     override var isHighlighted: Bool {
         didSet {
             guard isHighlighted != oldValue else { return }
             let pressed = isHighlighted
-            InkMotion.runQuiet(duration: InkMotion.fast) {
-                self.alpha = pressed ? 0.6 : 1
-            }
+            pressAnimator?.stopAnimation(true)
+            let animator = InkMotion.quietAnimator(duration: InkMotion.fast)
+            animator.addAnimations { self.alpha = pressed ? 0.6 : 1 }
+            animator.startAnimation()
+            pressAnimator = animator
         }
+    }
+
+    // 40pt visual per the design; accept hits out to the 44pt HIG minimum.
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.insetBy(dx: -2, dy: -2).contains(point)
     }
 }

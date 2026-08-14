@@ -15,9 +15,11 @@ final class InkToastView: UIView {
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .medium)
             )
         )
-        glyph.tintColor = InkColor.accent
+        // Fixed night amber: the capsule is always dark, so the dynamic
+        // accent would drop contrast in day mode.
+        glyph.tintColor = UIColor(ink: 0xD9AE63)
 
-        let label = UILabel()
+        let label = InkLabel()
         label.text = text
         label.font = InkFont.label
         label.textColor = UIColor(ink: 0xF2EBDD)
@@ -53,6 +55,10 @@ final class InkToastView: UIView {
         topInset: CGFloat,
         duration: TimeInterval = 1.8
     ) {
+        // Replace, never stack: repeated taps refresh the toast in place.
+        for case let stale as InkToastView in view.subviews {
+            stale.removeFromSuperview()
+        }
         let toast = InkToastView(symbol: symbol, text: text)
         toast.alpha = 0
         toast.translatesAutoresizingMaskIntoConstraints = false

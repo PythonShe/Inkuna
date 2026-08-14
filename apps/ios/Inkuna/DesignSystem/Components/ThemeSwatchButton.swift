@@ -12,8 +12,8 @@ final class ThemeSwatchButton: UIControl {
 
     var onPick: ((ReadingTheme) -> Void)?
 
-    private let specimen = UILabel()
-    private let nameLabel = UILabel()
+    private let specimen = InkLabel()
+    private let nameLabel = InkLabel()
 
     init(theme: ReadingTheme, chosen: Bool = false) {
         self.theme = theme
@@ -49,6 +49,7 @@ final class ThemeSwatchButton: UIControl {
             heightAnchor.constraint(greaterThanOrEqualToConstant: 70),
         ])
 
+        isAccessibilityElement = true
         accessibilityLabel = "\(theme.displayName). \(theme.subtitle)"
         accessibilityTraits = .button
 

@@ -78,15 +78,6 @@ final class LibraryViewController: ScrollScreenViewController {
         }
     }
 
-    private func paddedEmptyState(_ text: String) -> UIView {
-        let label = emptyStateLabel(text)
-        let wrapper = UIStackView(arrangedSubviews: [label])
-        wrapper.axis = .vertical
-        wrapper.isLayoutMarginsRelativeArrangement = true
-        wrapper.layoutMargins = UIEdgeInsets(top: InkSpacing.space12, left: 0, bottom: InkSpacing.space12, right: 0)
-        return wrapper
-    }
-
     @objc private func openRow(_ recognizer: UITapGestureRecognizer) {
         guard let id = recognizer.view?.tag,
               let book = PlaceholderLibrary.books.first(where: { $0.id == id }) else { return }

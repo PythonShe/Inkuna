@@ -9,12 +9,13 @@ final class ThemePickViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = InkColor.bgApp
+        selectionFeedback.prepare()
 
         // TODO(l10n): localize once the strings pass lands.
-        let eyebrow = UILabel()
+        let eyebrow = InkLabel()
         eyebrow.attributedText = InkFont.eyebrow("One small ritual")
 
-        let title = UILabel()
+        let title = InkLabel()
         title.text = "Read by day, or by night"
         title.font = InkFont.display
         title.textColor = InkColor.textDisplay
@@ -34,10 +35,11 @@ final class ThemePickViewController: UIViewController {
         cardRow.distribution = .fillEqually
         cardRow.alignment = .top
 
-        let hint = UILabel()
+        let hint = InkLabel()
         hint.text = "You can change this anytime while reading."
         hint.font = InkFont.caption
         hint.textColor = InkColor.textTertiary
+        hint.numberOfLines = 0
 
         let continueButton = InkButton("Continue", size: .large) { [weak self] in
             self?.finishOnboarding()
@@ -61,6 +63,7 @@ final class ThemePickViewController: UIViewController {
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: InkSpacing.space6),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -InkSpacing.space6),
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: InkSpacing.space10),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: buttonRow.topAnchor, constant: -InkSpacing.space4),
             buttonRow.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             buttonRow.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             buttonRow.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -InkSpacing.space4),
@@ -108,18 +111,18 @@ private final class ThemePreviewCard: UIControl {
         layer.cornerRadius = InkRadius.lg
         layer.borderWidth = 3
 
-        let sample = UILabel()
+        let sample = InkLabel()
         sample.text = "The lamp burned low, and the moon took over the work of lighting the page."
         sample.font = InkFont.serif(13, weight: .regular, style: .footnote)
         sample.textColor = theme.foreground
         sample.numberOfLines = 0
 
-        let name = UILabel()
+        let name = InkLabel()
         name.text = theme.displayName
         name.font = InkFont.ui
         name.textColor = theme.foreground
 
-        let subtitle = UILabel()
+        let subtitle = InkLabel()
         subtitle.text = theme.subtitle
         subtitle.font = InkFont.caption
         subtitle.textColor = theme.foreground.withAlphaComponent(0.62)
@@ -138,6 +141,7 @@ private final class ThemePreviewCard: UIControl {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -InkSpacing.space4),
         ])
 
+        isAccessibilityElement = true
         accessibilityLabel = "\(theme.displayName). \(theme.subtitle)"
         accessibilityTraits = .button
 

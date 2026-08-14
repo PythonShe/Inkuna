@@ -38,5 +38,11 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
-        INFOPLIST_KEY_UILaunchScreen_Generation: true
         TARGETED_DEVICE_FAMILY: "1,2"
+    info:
+      path: Inkuna/Info.plist
+      properties:
+        # Generated launch screen with the app background color so night
+        # launches don't flash light (the generated plist can't set it).
+        UILaunchScreen:
+          UIColorName: LaunchBackground

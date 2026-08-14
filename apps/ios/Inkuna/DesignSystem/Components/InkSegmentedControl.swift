@@ -16,6 +16,7 @@ final class InkSegmentedControl: UIControl {
         super.init(frame: .zero)
 
         backgroundColor = InkColor.bgRecessed
+        selectionFeedback.prepare()
         stack.axis = .horizontal
         stack.spacing = 2
         stack.distribution = .fillEqually
@@ -67,6 +68,7 @@ final class InkSegmentedControl: UIControl {
         }
         if notify {
             selectionFeedback.selectionChanged()
+            selectionFeedback.prepare()
             onChange?(option)
             sendActions(for: .valueChanged)
         }

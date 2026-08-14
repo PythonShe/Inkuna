@@ -49,7 +49,7 @@ enum InkFont {
     static func eyebrow(_ text: String, color: UIColor = InkColor.textSecondary) -> NSAttributedString {
         let font = caption
         return NSAttributedString(
-            string: text.uppercased(),
+            string: text.uppercased(with: .current),
             attributes: [
                 .font: font,
                 .foregroundColor: color,

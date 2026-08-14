@@ -14,13 +14,13 @@ final class ShelfBookView: UIControl {
         let cover = BookCoverView(title: book.title, author: book.author, seed: book.coverSeed)
         cover.isUserInteractionEnabled = false
 
-        let titleLabel = UILabel()
+        let titleLabel = InkLabel()
         titleLabel.text = book.title
         titleLabel.font = InkFont.serif(14, weight: .medium, style: .footnote)
         titleLabel.textColor = InkColor.textDisplay
         titleLabel.numberOfLines = 2
 
-        let authorLabel = UILabel()
+        let authorLabel = InkLabel()
         authorLabel.text = book.author
         authorLabel.font = InkFont.caption
         authorLabel.textColor = InkColor.textTertiary
@@ -44,6 +44,7 @@ final class ShelfBookView: UIControl {
             stack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor),
         ])
 
+        isAccessibilityElement = true
         accessibilityLabel = "\(book.title), \(book.author)"
         accessibilityTraits = .button
 
@@ -57,4 +58,14 @@ final class ShelfBookView: UIControl {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var isHighlighted: Bool {
+        didSet {
+            guard isHighlighted != oldValue else { return }
+            let pressed = isHighlighted
+            InkMotion.runQuiet(duration: InkMotion.fast) {
+                self.alpha = pressed ? 0.7 : 1
+            }
+        }
+    }
 }

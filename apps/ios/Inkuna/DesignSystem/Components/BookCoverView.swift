@@ -19,8 +19,8 @@ final class BookCoverView: UIView {
     ]
 
     private let content = UIView()
-    private let titleLabel = UILabel()
-    private let authorLabel = UILabel()
+    private let titleLabel = InkLabel()
+    private let authorLabel = InkLabel()
 
     init(title: String, author: String, seed: Int) {
         super.init(frame: .zero)
@@ -69,12 +69,19 @@ final class BookCoverView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    private var lastLayoutWidth: CGFloat = 0
+
     override func layoutSubviews() {
         super.layoutSubviews()
+        // Rasterizing the shadow along the rounded rect avoids an offscreen
+        // blur pass per cover per frame.
+        layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: InkRadius.xs).cgPath
         // The placeholder cover's type scales with the tile, mirroring the
-        // design system's `max(11, w * .13)` rules.
+        // design system's `max(11, w * .13)` rules. Only on width changes —
+        // setting fonts every pass would churn layout from inside layout.
         let width = bounds.width
-        guard width > 0 else { return }
+        guard width > 0, width != lastLayoutWidth else { return }
+        lastLayoutWidth = width
         titleLabel.font = InkFont.serif(max(11, width * 0.13), weight: .medium, style: .caption1)
         authorLabel.font = InkFont.sans(max(8, width * 0.085), weight: .regular, style: .caption2)
     }

@@ -52,7 +52,7 @@ final class AppSettings {
         for scene in UIApplication.shared.connectedScenes {
             guard let windowScene = scene as? UIWindowScene else { continue }
             for window in windowScene.windows where window.overrideUserInterfaceStyle != style {
-                UIView.transition(with: window, duration: InkMotion.medium, options: .transitionCrossDissolve) {
+                UIView.transition(with: window, duration: InkMotion.medium, options: [.transitionCrossDissolve, .allowUserInteraction]) {
                     window.overrideUserInterfaceStyle = style
                 }
             }

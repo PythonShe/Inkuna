@@ -9,13 +9,24 @@ final class ThemeTypeSheetViewController: UIViewController {
     var onBrightnessChange: ((Double) -> Void)?
 
     private var swatches: [ThemeSwatchButton] = []
+    private var contentStack: UIStackView?
     private let selectionFeedback = UISelectionFeedbackGenerator()
 
     init() {
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .pageSheet
         if let sheet = sheetPresentationController {
-            sheet.detents = [.custom { _ in 292 }]
+            // Fit the content: at accessibility text sizes the fixed design
+            // height would clip the size control.
+            sheet.detents = [
+                .custom { [weak self] context in
+                    guard let self else { return 292 }
+                    self.loadViewIfNeeded()
+                    guard let stack = self.contentStack else { return 292 }
+                    let fitted = stack.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height + 56
+                    return min(max(fitted, 292), context.maximumDetentValue)
+                },
+            ]
             sheet.prefersGrabberVisible = true
             sheet.preferredCornerRadius = InkRadius.lg
         }
@@ -27,10 +38,11 @@ final class ThemeTypeSheetViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = InkColor.bgSurface
+        selectionFeedback.prepare()
         let settings = AppSettings.shared
 
         // TODO(l10n): localize once the strings pass lands.
-        let titleLabel = UILabel()
+        let titleLabel = InkLabel()
         titleLabel.text = "Theme & type"
         titleLabel.font = InkFont.heading
         titleLabel.textColor = InkColor.textDisplay
@@ -43,7 +55,8 @@ final class ThemeTypeSheetViewController: UIViewController {
             systemName: "xmark",
             withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
         )
-        let closeButton = UIButton(configuration: closeConfig)
+        let closeButton = ExtendedHitButton(configuration: closeConfig)
+        closeButton.accessibilityLabel = "Close"
         closeButton.addAction(UIAction { [weak self] _ in self?.dismiss(animated: true) }, for: .primaryActionTriggered)
         NSLayoutConstraint.activate([
             closeButton.widthAnchor.constraint(equalToConstant: 28),
@@ -58,6 +71,7 @@ final class ThemeTypeSheetViewController: UIViewController {
         let dimGlyph = sliderGlyph("sun.min")
         let brightGlyph = sliderGlyph("sun.max")
         let slider = UISlider()
+        slider.accessibilityLabel = "Page brightness"
         slider.minimumTrackTintColor = InkColor.accent
         slider.maximumTrackTintColor = InkColor.bgRecessed
         slider.value = Float(settings.brightness)
@@ -110,11 +124,20 @@ final class ThemeTypeSheetViewController: UIViewController {
         stack.spacing = 18
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
+        contentStack = stack
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: InkSpacing.pageMargin),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -InkSpacing.pageMargin),
             stack.topAnchor.constraint(equalTo: view.topAnchor, constant: InkSpacing.space6),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -InkSpacing.space4),
         ])
+    }
+
+    /// 28pt visual circle per the design; hits accepted out to 44pt.
+    private final class ExtendedHitButton: UIButton {
+        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+            bounds.insetBy(dx: -8, dy: -8).contains(point)
+        }
     }
 
     private func sliderGlyph(_ symbol: String) -> UIImageView {

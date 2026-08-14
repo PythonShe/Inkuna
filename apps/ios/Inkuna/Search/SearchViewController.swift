@@ -43,12 +43,7 @@ final class SearchViewController: ScrollScreenViewController {
             "\(book.title) \(book.author)".lowercased().contains(trimmed)
         }
         guard !results.isEmpty else {
-            let label = emptyStateLabel("Nothing found in the stacks.")
-            let wrapper = UIStackView(arrangedSubviews: [label])
-            wrapper.axis = .vertical
-            wrapper.isLayoutMarginsRelativeArrangement = true
-            wrapper.layoutMargins = UIEdgeInsets(top: InkSpacing.space12, left: 0, bottom: InkSpacing.space12, right: 0)
-            resultsStack.addArrangedSubview(wrapper)
+            resultsStack.addArrangedSubview(paddedEmptyState("Nothing found in the stacks."))
             return
         }
         for book in results {
@@ -74,32 +69,7 @@ final class SearchViewController: ScrollScreenViewController {
         eyebrowWrapper.isLayoutMarginsRelativeArrangement = true
         eyebrowWrapper.layoutMargins = UIEdgeInsets(top: InkSpacing.space6, left: 0, bottom: InkSpacing.space4, right: 0)
         resultsStack.addArrangedSubview(eyebrowWrapper)
-
-        let shelfScroll = UIScrollView()
-        shelfScroll.showsHorizontalScrollIndicator = false
-        shelfScroll.clipsToBounds = false
-
-        let shelf = UIStackView()
-        shelf.axis = .horizontal
-        shelf.spacing = InkSpacing.space4
-        shelf.alignment = .top
-        shelf.translatesAutoresizingMaskIntoConstraints = false
-        shelfScroll.addSubview(shelf)
-
-        for book in PlaceholderLibrary.discover {
-            let item = ShelfBookView(book: book)
-            item.onOpen = { [weak self] book in self?.openBook(book) }
-            shelf.addArrangedSubview(item)
-        }
-
-        NSLayoutConstraint.activate([
-            shelf.leadingAnchor.constraint(equalTo: shelfScroll.contentLayoutGuide.leadingAnchor),
-            shelf.trailingAnchor.constraint(equalTo: shelfScroll.contentLayoutGuide.trailingAnchor),
-            shelf.topAnchor.constraint(equalTo: shelfScroll.contentLayoutGuide.topAnchor),
-            shelf.bottomAnchor.constraint(equalTo: shelfScroll.contentLayoutGuide.bottomAnchor),
-            shelfScroll.heightAnchor.constraint(equalTo: shelf.heightAnchor),
-        ])
-        resultsStack.addArrangedSubview(shelfScroll)
+        resultsStack.addArrangedSubview(shelfRow(books: PlaceholderLibrary.discover))
     }
 
     @objc private func openRow(_ recognizer: UITapGestureRecognizer) {

@@ -17,7 +17,7 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
     private let dimView = UIView()
     private let topBar = ReaderChromeBar()
     private let bottomBar = ReaderChromeBar()
-    private let pageInfoLabel = UILabel()
+    private let pageInfoLabel = InkLabel()
     private var chromeVisible = true
     private var pageIndex = 0
     private let bookmarkFeedback = UIImpactFeedbackGenerator(style: .light)
@@ -62,7 +62,7 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
 
         for pageNumber in 0..<PlaceholderLibrary.samplePages.count {
             let page = UIView()
-            let label = UILabel()
+            let label = InkLabel()
             label.numberOfLines = 0
             label.translatesAutoresizingMaskIntoConstraints = false
             page.addSubview(label)
@@ -109,7 +109,7 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
         let backButton = InkIconButton(symbol: "chevron.backward", accessibilityLabel: "Back") { [weak self] in
             self?.navigationController?.popViewController(animated: true)
         }
-        let chapterLabel = UILabel()
+        let chapterLabel = InkLabel()
         chapterLabel.text = PlaceholderLibrary.pagesLeftText
         chapterLabel.font = InkFont.caption
         chapterLabel.textColor = InkColor.textTertiary
@@ -144,6 +144,8 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate {
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
         view.addGestureRecognizer(tap)
+
+        bookmarkFeedback.prepare()
     }
 
     // MARK: Prose

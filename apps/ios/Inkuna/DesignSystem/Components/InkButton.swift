@@ -71,13 +71,19 @@ final class InkButton: UIButton {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    private var pressAnimator: UIViewPropertyAnimator?
+
     override var isHighlighted: Bool {
         didSet {
             guard isHighlighted != oldValue else { return }
             let pressed = isHighlighted
-            InkMotion.runQuiet(duration: InkMotion.fast) {
+            pressAnimator?.stopAnimation(true)
+            let animator = InkMotion.quietAnimator(duration: InkMotion.fast)
+            animator.addAnimations {
                 self.transform = pressed ? CGAffineTransform(scaleX: 0.97, y: 0.97) : .identity
             }
+            animator.startAnimation()
+            pressAnimator = animator
         }
     }
 }

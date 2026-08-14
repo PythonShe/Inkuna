@@ -49,12 +49,12 @@ final class StatsViewController: ScrollScreenViewController {
         card.layer.cornerRadius = InkRadius.md
         card.installInkShadow(.sm)
 
-        let valueLabel = UILabel()
+        let valueLabel = InkLabel()
         valueLabel.text = value
         valueLabel.font = InkFont.displaySmall
         valueLabel.textColor = InkColor.textDisplay
 
-        let captionLabel = UILabel()
+        let captionLabel = InkLabel()
         captionLabel.text = caption
         captionLabel.font = InkFont.caption
         captionLabel.textColor = InkColor.textSecondary
@@ -88,7 +88,7 @@ final class StatsViewController: ScrollScreenViewController {
 
         let headers = UIStackView(
             arrangedSubviews: ["S", "M", "T", "W", "T", "F", "S"].map { day in
-                let label = UILabel()
+                let label = InkLabel()
                 label.text = day
                 label.font = InkFont.caption
                 label.textColor = InkColor.textTertiary
@@ -114,7 +114,7 @@ final class StatsViewController: ScrollScreenViewController {
             grid.addArrangedSubview(week)
         }
 
-        let footer = UILabel()
+        let footer = InkLabel()
         footer.text = PlaceholderLibrary.calendarCaption
         footer.font = InkFont.caption
         footer.textColor = InkColor.textTertiary
@@ -141,9 +141,9 @@ final class StatsViewController: ScrollScreenViewController {
         let cell = UIView()
         cell.backgroundColor = isToday ? InkColor.accentSoft : .clear
         cell.layer.cornerRadius = InkRadius.sm
-        cell.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        cell.heightAnchor.constraint(greaterThanOrEqualToConstant: 36).isActive = true
 
-        let number = UILabel()
+        let number = InkLabel()
         number.text = "\(day)"
         number.font = InkFont.sans(13, weight: .regular, style: .footnote)
         number.textColor = isFuture ? InkColor.textTertiary : InkColor.textDisplay
@@ -172,7 +172,7 @@ final class StatsViewController: ScrollScreenViewController {
     // MARK: In-progress rows
 
     private func progressRow(_ book: PlaceholderBook) -> UIView {
-        let title = UILabel()
+        let title = InkLabel()
         title.text = book.title
         title.font = InkFont.serif(15, weight: .medium, style: .subheadline)
         title.textColor = InkColor.textDisplay
@@ -181,12 +181,14 @@ final class StatsViewController: ScrollScreenViewController {
         let bar = InkProgressBar(progress: book.progress)
         bar.widthAnchor.constraint(equalToConstant: 92).isActive = true
 
-        let percent = UILabel()
+        let percent = InkLabel()
         percent.text = book.percentText
         percent.font = InkFont.caption
         percent.textColor = InkColor.textTertiary
         percent.textAlignment = .right
-        percent.widthAnchor.constraint(equalToConstant: 34).isActive = true
+        percent.widthAnchor.constraint(greaterThanOrEqualToConstant: 34).isActive = true
+        percent.setContentHuggingPriority(.required, for: .horizontal)
+        percent.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let row = UIStackView(arrangedSubviews: [title, bar, percent])
         row.axis = .horizontal
@@ -212,7 +214,7 @@ final class StatsViewController: ScrollScreenViewController {
             separator.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            separator.heightAnchor.constraint(equalToConstant: 1),
+            separator.heightAnchor.constraint(equalToConstant: 1 / traitCollection.displayScale),
         ])
         return container
     }

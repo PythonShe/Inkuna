@@ -39,11 +39,13 @@ final class MainTabBarController: UITabBarController {
         return RootNavigationController(rootViewController: screen)
     }
 
-    /// Programmatic tab selection (deep links, debug routes).
+    /// Programmatic tab selection (deep links, debug routes). By tab
+    /// object, not index: the search tab is positioned separately from the
+    /// ordinary tabs on iOS 26, so indexes don't line up with `allCases`.
     func select(_ tab: MainTab) {
         loadViewIfNeeded()
-        if let index = MainTab.allCases.firstIndex(of: tab) {
-            selectedIndex = index
+        selectedTab = tabs.first {
+            $0.identifier == tab.rawValue || (tab == .search && $0 is UISearchTab)
         }
     }
 }

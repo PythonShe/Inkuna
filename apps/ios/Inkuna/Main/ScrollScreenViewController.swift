@@ -38,7 +38,7 @@ class ScrollScreenViewController: UIViewController {
 
     /// Screen-level display title (`--type-display`).
     func displayTitle(_ text: String) -> UILabel {
-        let label = UILabel()
+        let label = InkLabel()
         label.text = text
         label.font = InkFont.display
         label.textColor = InkColor.textDisplay
@@ -48,29 +48,68 @@ class ScrollScreenViewController: UIViewController {
 
     /// In-screen section title (1.4rem serif).
     func sectionTitle(_ text: String) -> UILabel {
-        let label = UILabel()
+        let label = InkLabel()
         label.text = text
         label.font = InkFont.sectionTitle
         label.textColor = InkColor.textDisplay
+        label.numberOfLines = 0
         return label
     }
 
     /// Uppercase tracked eyebrow (`--type-caption` + `--tracking-caps`).
     func eyebrowLabel(_ text: String) -> UILabel {
-        let label = UILabel()
+        let label = InkLabel()
         label.attributedText = InkFont.eyebrow(text)
         return label
     }
 
     /// Centered quiet empty-state message.
     func emptyStateLabel(_ text: String) -> UILabel {
-        let label = UILabel()
+        let label = InkLabel()
         label.text = text
         label.font = InkFont.reading()
         label.textColor = InkColor.textTertiary
         label.textAlignment = .center
         label.numberOfLines = 0
         return label
+    }
+
+    /// Empty-state message with vertical breathing room, for list bodies.
+    func paddedEmptyState(_ text: String) -> UIView {
+        let wrapper = UIStackView(arrangedSubviews: [emptyStateLabel(text)])
+        wrapper.axis = .vertical
+        wrapper.isLayoutMarginsRelativeArrangement = true
+        wrapper.layoutMargins = UIEdgeInsets(top: InkSpacing.space12, left: 0, bottom: InkSpacing.space12, right: 0)
+        return wrapper
+    }
+
+    /// Horizontal cover shelf ("On the nightstand", "New this week").
+    func shelfRow(books: [PlaceholderBook]) -> UIView {
+        let shelfScroll = UIScrollView()
+        shelfScroll.showsHorizontalScrollIndicator = false
+        shelfScroll.clipsToBounds = false
+
+        let shelf = UIStackView()
+        shelf.axis = .horizontal
+        shelf.spacing = InkSpacing.space4
+        shelf.alignment = .top
+        shelf.translatesAutoresizingMaskIntoConstraints = false
+        shelfScroll.addSubview(shelf)
+
+        for book in books {
+            let item = ShelfBookView(book: book)
+            item.onOpen = { [weak self] book in self?.openBook(book) }
+            shelf.addArrangedSubview(item)
+        }
+
+        NSLayoutConstraint.activate([
+            shelf.leadingAnchor.constraint(equalTo: shelfScroll.contentLayoutGuide.leadingAnchor),
+            shelf.trailingAnchor.constraint(equalTo: shelfScroll.contentLayoutGuide.trailingAnchor),
+            shelf.topAnchor.constraint(equalTo: shelfScroll.contentLayoutGuide.topAnchor),
+            shelf.bottomAnchor.constraint(equalTo: shelfScroll.contentLayoutGuide.bottomAnchor),
+            shelfScroll.heightAnchor.constraint(equalTo: shelf.heightAnchor),
+        ])
+        return shelfScroll
     }
 
     /// Full-page destinations slide the native tab bar away.
