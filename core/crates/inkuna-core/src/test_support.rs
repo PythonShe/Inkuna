@@ -155,6 +155,42 @@ pub(crate) fn write_epub_with(
     zip.finish().unwrap();
 }
 
+/// Builds an EPUB from a caller-supplied OPF plus extra archive entries,
+/// for fixtures whose manifest/spine/TOC shape the stock builder cannot
+/// express (the parser-cap tests). Writes `mimetype` and a `container.xml`
+/// pointing at `OEBPS/content.opf`; each extra entry is an
+/// (`OEBPS/`-relative name, content) pair, deflated so oversized fixtures
+/// stay small on disk.
+pub(crate) fn write_epub_parts(path: &Path, opf: &str, entries: &[(&str, &str)]) {
+    let file = std::fs::File::create(path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let stored = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored);
+    let deflated = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    zip.start_file("mimetype", stored).unwrap();
+    zip.write_all(b"application/epub+zip").unwrap();
+
+    zip.start_file("META-INF/container.xml", stored).unwrap();
+    zip.write_all(
+        br#"<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>"#,
+    )
+    .unwrap();
+
+    zip.start_file("OEBPS/content.opf", deflated).unwrap();
+    zip.write_all(opf.as_bytes()).unwrap();
+
+    for (name, content) in entries {
+        zip.start_file(format!("OEBPS/{name}"), deflated).unwrap();
+        zip.write_all(content.as_bytes()).unwrap();
+    }
+    zip.finish().unwrap();
+}
+
 /// The default fixture: nav TOC + cover.
 pub(crate) fn write_epub(path: &Path, title: &str, author: &str, language: &str) {
     write_epub_with(path, title, author, language, TocKind::Nav, CoverKind::Png);

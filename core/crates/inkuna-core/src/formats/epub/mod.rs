@@ -23,3 +23,6 @@ mod xml;
 pub use model::{Cover, TocEntry};
 pub use package::read_package;
 pub use text::extract_spine_text;
+
+#[cfg(test)]
+pub(crate) use toc::MAX_TOC_ENTRIES;

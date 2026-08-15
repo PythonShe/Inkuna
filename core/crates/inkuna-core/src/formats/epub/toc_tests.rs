@@ -25,6 +25,53 @@ fn nav_parsing_flattens_with_depth() {
     );
 }
 
+/// A crafted NCX listing far more navPoints than any real TOC stops at
+/// the entry cap instead of materializing one `TocEntry` (and later one
+/// DB row) per navPoint.
+#[test]
+fn ncx_truncates_at_the_entry_cap() {
+    let mut xml = String::from(r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>"#);
+    for _ in 0..MAX_TOC_ENTRIES + 5 {
+        xml.push_str(
+            r#"<navPoint><navLabel><text>章</text></navLabel><content src="ch.xhtml"/></navPoint>"#,
+        );
+    }
+    xml.push_str("</navMap></ncx>");
+    let toc = parse_ncx(&xml, "OEBPS/toc.ncx");
+    assert_eq!(toc.len(), MAX_TOC_ENTRIES);
+}
+
+/// navPoints nested past the depth cap are skipped (bounding the one
+/// label `String` the parser holds per open navPoint), and self-closed
+/// `<navPoint/>`s open nothing — before the fix each one leaked a level
+/// of depth because no matching End ever popped it.
+#[test]
+fn ncx_depth_is_capped_and_empty_navpoints_do_not_leak_it() {
+    let mut xml = String::from(r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>"#);
+    for i in 0..MAX_TOC_DEPTH + 5 {
+        xml.push_str(&format!(
+            r##"<navPoint><navLabel><text>第{i}層</text></navLabel><content src="ch.xhtml#f{i}"/>"##
+        ));
+    }
+    for _ in 0..MAX_TOC_DEPTH + 5 {
+        xml.push_str("</navPoint>");
+    }
+    xml.push_str("</navMap></ncx>");
+    let toc = parse_ncx(&xml, "OEBPS/toc.ncx");
+    // One entry per level up to the cap; the five deeper ones are gone.
+    assert_eq!(toc.len(), MAX_TOC_DEPTH);
+    assert_eq!(toc.last().unwrap().depth as usize, MAX_TOC_DEPTH - 1);
+
+    // A flood of self-closed navPoints must not inflate the depth of the
+    // real entry that follows them.
+    let xml = r#"<ncx><navMap><navPoint/><navPoint/><navPoint/>
+<navPoint><navLabel><text>第一章</text></navLabel><content src="ch01.xhtml"/></navPoint>
+</navMap></ncx>"#;
+    let toc = parse_ncx(xml, "OEBPS/toc.ncx");
+    assert_eq!(toc.len(), 1);
+    assert_eq!(toc[0].depth, 0);
+}
+
 #[test]
 fn ncx_parsing_flattens_with_depth() {
     let xml = r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>

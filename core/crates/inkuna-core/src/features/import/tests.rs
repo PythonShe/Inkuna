@@ -1,4 +1,6 @@
-use crate::test_support::{imported, write_cbz, write_epub, write_epub_with, CoverKind, TocKind};
+use crate::test_support::{
+    imported, write_cbz, write_epub, write_epub_parts, write_epub_with, CoverKind, TocKind,
+};
 use crate::{CoreError, ImportOutcome, Library, Shelf, Sort};
 
 fn count(library: &Library, sql: &str, id: &str) -> i64 {
@@ -138,6 +140,46 @@ fn ncx_fallback_supplies_the_toc() {
     assert_eq!(chapters[1].title, "第一節");
     assert_eq!(chapters[1].href, "OEBPS/text/ch01.xhtml#s1");
     assert_eq!(chapters[1].depth, 1);
+}
+
+/// The worst crafted-EPUB outcome is *persistent*: before the TOC cap, a
+/// ~385 KB nav doc imported "successfully" into 2.5M `chapters` rows and
+/// a 480 MB database. The TOC is optional, so the import must still
+/// succeed — with the chapter rows truncated at the cap.
+#[test]
+fn crafted_toc_is_capped_at_max_entries_and_still_imports() {
+    use crate::formats::epub::MAX_TOC_ENTRIES;
+
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("toc-bomb.epub");
+    let opf = r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>目次爆弾</dc:title></metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#;
+    let mut nav = String::from(
+        r#"<html xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol>"#,
+    );
+    for _ in 0..MAX_TOC_ENTRIES + 500 {
+        nav.push_str(r#"<li><a href="ch01.xhtml">章</a></li>"#);
+    }
+    nav.push_str("</ol></nav></body></html>");
+    write_epub_parts(
+        &epub,
+        opf,
+        &[
+            ("nav.xhtml", nav.as_str()),
+            ("ch01.xhtml", r#"<html><body><p>本文。</p></body></html>"#),
+        ],
+    );
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), MAX_TOC_ENTRIES);
 }
 
 #[test]
