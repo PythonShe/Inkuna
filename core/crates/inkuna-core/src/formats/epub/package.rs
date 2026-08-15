@@ -9,15 +9,9 @@ use super::container::rootfile_path;
 use super::cover::image_extension;
 use super::href::{parent_dir, resolve_href};
 use super::model::{Cover, EpubPackage};
-use super::opf::{parse_opf, ManifestItem};
+use super::opf::{parse_opf, ManifestItem, MAX_AUTHORS, MAX_SPINE_ITEMS};
 use super::toc::{parse_ncx, parse_nav};
 use crate::CoreError;
-
-/// Upper bound on the `<itemref>` entries processed for one publication.
-/// Real books run to a few hundred; a crafted OPF can list millions, each
-/// costing an entry read and a DB row, so the spine is truncated here
-/// before any of that work is scheduled.
-pub(super) const MAX_SPINE_ITEMS: usize = 10_000;
 
 /// Parses everything import needs in one pass over the archive: metadata,
 /// spine, TOC, and cover bytes. Text extraction is separate
@@ -29,7 +23,14 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
     let opf_path = rootfile_path(&container)?;
     let opf_xml = read_entry(&mut archive, &opf_path)?;
     let opf_dir = parent_dir(&opf_path);
-    let opf = parse_opf(&opf_xml);
+    let opf = parse_opf(&opf_xml)?;
+    if opf.creators_seen > MAX_AUTHORS {
+        log::warn!(
+            "metadata of {} lists {} creators; keeping the first {MAX_AUTHORS}",
+            path.display(),
+            opf.creators_seen
+        );
+    }
 
     let resolve = |href: &str| resolve_href(opf_dir, href);
     // A map, not a per-idref linear scan: a crafted OPF can carry millions
@@ -42,17 +43,18 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
     }
     let item_by_id = |id: &str| items_by_id.get(id).copied();
 
-    if opf.spine_idrefs.len() > MAX_SPINE_ITEMS {
+    // The cap itself holds inside `parse_opf`, at the push site — a
+    // truncated Vec never exists here — this only reports what was cut.
+    if opf.spine_itemrefs_seen > MAX_SPINE_ITEMS {
         log::warn!(
             "spine of {} lists {} itemrefs; processing the first {MAX_SPINE_ITEMS}",
             path.display(),
-            opf.spine_idrefs.len()
+            opf.spine_itemrefs_seen
         );
     }
     let spine: Vec<String> = opf
         .spine_idrefs
         .iter()
-        .take(MAX_SPINE_ITEMS)
         .filter_map(|idref| item_by_id(idref))
         .map(|item| resolve(&item.href))
         .collect();

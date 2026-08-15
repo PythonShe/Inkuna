@@ -11,9 +11,13 @@ use crate::CoreError;
 /// declared uncompressed size is attacker-controlled and the deflate
 /// stream itself is unbounded, so the cap is enforced on the read:
 /// without it a few-hundred-KB crafted entry inflates to gigabytes and
-/// gets the app jetsam-killed on device. These parts are read one at a
-/// time, so the budget is also the transient — and a big book's OPF or
-/// NCX can legitimately run to megabytes.
+/// gets the app jetsam-killed on device. The budget bounds only the
+/// bytes, NOT the transient: what the parsers *build* from those bytes —
+/// manifest items, spine idrefs, TOC entries — runs to roughly 10x the
+/// decompressed size, so each parser enforces its own item caps at the
+/// push sites (`MAX_MANIFEST_ITEMS`, `MAX_SPINE_ITEMS`,
+/// `MAX_TOC_ENTRIES`). A big book's OPF or NCX can legitimately run to
+/// megabytes, which is why this byte budget stays generous.
 pub(super) const MAX_XML_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
 /// Per-entry budget for spine content documents, which are far tighter
 /// than the mandatory parts because they are read *concurrently*: the

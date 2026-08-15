@@ -182,6 +182,36 @@ fn crafted_toc_is_capped_at_max_entries_and_still_imports() {
     assert_eq!(library.chapters(&publication.id).unwrap().len(), MAX_TOC_ENTRIES);
 }
 
+/// The manifest is a mandatory part, so a crafted OPF listing an absurd
+/// number of items is not degraded around — it fails the import cleanly
+/// (before the cap: a 355 KB file parsed into a 616 MB resident set) and
+/// sweeps the staged copy.
+#[test]
+fn manifest_bomb_fails_the_import_cleanly() {
+    use crate::formats::epub::MAX_MANIFEST_ITEMS;
+
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("manifest-bomb.epub");
+    let items = r#"<item id="i" href="h"/>"#.repeat(MAX_MANIFEST_ITEMS + 1);
+    let opf = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>目録爆弾</dc:title></metadata>
+  <manifest>{items}</manifest>
+  <spine></spine>
+</package>"#
+    );
+    write_epub_parts(&epub, &opf, &[]);
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let err = library.import(epub.to_str().unwrap()).unwrap_err();
+    assert!(matches!(err, CoreError::InvalidPublication(_)), "got {err:?}");
+    // Nothing persisted: no publication row, no staged file left behind.
+    assert!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().is_empty());
+    assert_eq!(std::fs::read_dir(data_dir.join("books")).unwrap().count(), 0);
+}
+
 #[test]
 fn rejects_non_epub_naming_the_format() {
     let dir = tempfile::tempdir().unwrap();

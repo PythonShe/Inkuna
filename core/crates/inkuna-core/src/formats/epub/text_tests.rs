@@ -23,7 +23,8 @@ fn extracts_normalized_text_with_cjk() {
 fn repeated_spine_entries_are_extracted_once() {
     use std::io::Write;
 
-    use super::super::package::{read_package, MAX_SPINE_ITEMS};
+    use super::super::opf::MAX_SPINE_ITEMS;
+    use super::super::package::read_package;
 
     let repeats = MAX_SPINE_ITEMS + 2_000;
     let dir = tempfile::tempdir().unwrap();

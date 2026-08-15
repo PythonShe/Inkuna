@@ -5,6 +5,30 @@ use quick_xml::Reader;
 
 use super::model::EpubMetadata;
 use super::xml::{attr_value, clean_text, push_word, resolve_ref};
+use crate::CoreError;
+
+/// Upper bound on the `<itemref>` entries kept for one publication. Real
+/// books run to a few hundred; a crafted OPF can list millions, each
+/// costing an entry read and a DB row. Enforced at the push site so the
+/// idrefs beyond it are never materialized; extra ones degrade away with
+/// a warning at the caller.
+pub(crate) const MAX_SPINE_ITEMS: usize = 10_000;
+
+/// Upper bound on `<item>` manifest entries. The manifest names every
+/// asset (images, fonts, styles), so it legitimately runs larger than the
+/// spine — hence an order of magnitude more headroom than
+/// [`MAX_SPINE_ITEMS`] — but a crafted OPF can pack millions of tiny
+/// items whose parsed structs cost ~10x their bytes (measured: a 355 KB
+/// file inflating to a 616 MB resident set). The manifest is a mandatory
+/// part, and exceeding this bound means the file is not a real book, so
+/// the parse fails cleanly with `InvalidPublication`.
+pub(crate) const MAX_MANIFEST_ITEMS: usize = 100_000;
+
+/// Upper bound on `<dc:creator>` entries retained. Large anthologies
+/// credit a few hundred contributors; a crafted OPF can list millions,
+/// each a heap `String` destined for one joined DB column. Extra
+/// creators degrade: dropped, with a warning at the caller.
+pub(crate) const MAX_AUTHORS: usize = 1_000;
 
 #[derive(Debug)]
 pub(super) struct ManifestItem {
@@ -29,11 +53,23 @@ pub(super) struct Opf {
     pub(super) spine_toc: Option<String>,
     /// `<meta name="cover" content="…">`, EPUB 2 style.
     pub(super) cover_meta: Option<String>,
+    /// Total `<itemref>`s the spine listed, including any dropped at
+    /// [`MAX_SPINE_ITEMS`] — lets the caller log the truncation with the
+    /// archive path for context.
+    pub(super) spine_itemrefs_seen: usize,
+    /// Total `<dc:creator>`s listed, including any dropped at
+    /// [`MAX_AUTHORS`].
+    pub(super) creators_seen: usize,
 }
 
-pub(super) fn parse_opf(opf_xml: &str) -> Opf {
+pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
     let mut opf = Opf::default();
     let mut reader = Reader::from_str(opf_xml);
+    // quick-xml keeps a stack of open element names while validating end
+    // tags; a crafted OPF nesting millions of elements would grow it
+    // without bound, and mismatched end names are already tolerated by
+    // every other parser in this module.
+    reader.config_mut().check_end_names = false;
     let mut buf = Vec::new();
     // Tracks which dc: element we are inside so text (and entity-reference)
     // nodes accumulate into the right field, committed at the element's
@@ -50,6 +86,11 @@ pub(super) fn parse_opf(opf_xml: &str) -> Opf {
                     b"creator" if !is_empty => current = Some("creator"),
                     b"language" if !is_empty => current = Some("language"),
                     b"item" => {
+                        if opf.items.len() == MAX_MANIFEST_ITEMS {
+                            return Err(CoreError::InvalidPublication(format!(
+                                "manifest lists more than {MAX_MANIFEST_ITEMS} items"
+                            )));
+                        }
                         opf.items.push(ManifestItem {
                             id: attr_value(e, b"id").unwrap_or_default(),
                             href: attr_value(e, b"href").unwrap_or_default(),
@@ -59,7 +100,10 @@ pub(super) fn parse_opf(opf_xml: &str) -> Opf {
                     }
                     b"itemref" => {
                         if let Some(idref) = attr_value(e, b"idref") {
-                            opf.spine_idrefs.push(idref);
+                            opf.spine_itemrefs_seen += 1;
+                            if opf.spine_idrefs.len() < MAX_SPINE_ITEMS {
+                                opf.spine_idrefs.push(idref);
+                            }
                         }
                     }
                     b"spine" => opf.spine_toc = attr_value(e, b"toc"),
@@ -94,7 +138,12 @@ pub(super) fn parse_opf(opf_xml: &str) -> Opf {
                             "title" if opf.metadata.title.is_none() => {
                                 opf.metadata.title = Some(text)
                             }
-                            "creator" => opf.metadata.authors.push(text),
+                            "creator" => {
+                                opf.creators_seen += 1;
+                                if opf.metadata.authors.len() < MAX_AUTHORS {
+                                    opf.metadata.authors.push(text);
+                                }
+                            }
                             "language" if opf.metadata.language.is_none() => {
                                 opf.metadata.language = Some(text)
                             }
@@ -110,5 +159,9 @@ pub(super) fn parse_opf(opf_xml: &str) -> Opf {
         }
         buf.clear();
     }
-    opf
+    Ok(opf)
 }
+
+#[cfg(test)]
+#[path = "opf_tests.rs"]
+mod tests;

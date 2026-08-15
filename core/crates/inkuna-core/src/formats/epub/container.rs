@@ -9,6 +9,9 @@ use crate::CoreError;
 
 pub(super) fn rootfile_path(container_xml: &str) -> Result<String, CoreError> {
     let mut reader = Reader::from_str(container_xml);
+    // No end-name validation: it would grow a stack of open element names
+    // on a crafted deeply-nested document (see the note in `parse_opf`).
+    reader.config_mut().check_end_names = false;
     let mut buf = Vec::new();
     loop {
         match reader.read_event_into(&mut buf) {
