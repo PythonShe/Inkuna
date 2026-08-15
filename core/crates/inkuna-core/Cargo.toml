@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 rusqlite = { version = "0.40", features = ["bundled"] }
-chrono = "0.4"
+chrono = "0.4.45"
 thiserror = "2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 quick-xml = { version = "0.41", features = ["escape-html"] }
