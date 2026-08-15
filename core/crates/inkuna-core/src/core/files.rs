@@ -25,3 +25,12 @@ pub(crate) fn copy_and_hash(src: &Path, dest: &Path) -> Result<String, CoreError
     writer.sync_all()?;
     Ok(hasher.finalize().to_hex().to_string())
 }
+
+/// Flushes a directory's own entries to disk. Fsyncing a file only makes
+/// its *contents* durable; the name pointing at them lives in the parent
+/// directory and stays in cache until that directory is fsynced too, so a
+/// rename is not durable without this.
+pub(crate) fn sync_dir(dir: &Path) -> Result<(), CoreError> {
+    File::open(dir)?.sync_all()?;
+    Ok(())
+}

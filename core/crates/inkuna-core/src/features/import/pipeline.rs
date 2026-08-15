@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use super::budget::PersistBudget;
 use super::model::{BatchImportOutcome, ImportOutcome};
-use crate::core::files::copy_and_hash;
+use crate::core::files::{copy_and_hash, sync_dir};
 use crate::core::time::unix_now;
 use crate::features::library::{join_authors, map_publication, Library, PUB_COLUMNS};
 use crate::formats::epub;
@@ -117,9 +117,11 @@ impl Library {
         })))
     }
 
-    /// Writes the cover, renames the staged book into place **first**, then
-    /// inserts all rows in one transaction — a crash in between leaves
-    /// unreferenced files (swept at next open), never a fileless row. A
+    /// Writes the cover, renames the staged book into place and flushes
+    /// `books/` **first**, then inserts all rows in one transaction — a
+    /// crash in between leaves unreferenced files (swept at next open),
+    /// never a fileless row. The directory flush is what makes that
+    /// ordering hold across a power loss and not just a process crash. A
     /// concurrent import of the same content loses the unique-index race
     /// and resolves to `Duplicate`.
     pub(crate) fn commit_import(&self, prepared: PreparedImport) -> Result<ImportOutcome, CoreError> {
@@ -168,6 +170,20 @@ impl Library {
             let _ = std::fs::remove_file(&prepared.tmp_path);
             cleanup_files(false);
             return Err(e.into());
+        }
+        // `copy_and_hash` fsynced the bytes, but the rename that names them
+        // only lives in the directory cache, so the file-before-row
+        // ordering above is not durable until `books/` is flushed. Doing it
+        // here — before the commit — is what keeps a power loss from
+        // leaving a row whose book is gone; the reverse (an unreferenced
+        // file) is swept at the next open. One extra directory fsync per
+        // import is nothing beside the whole-file copy, hash, and parse the
+        // import already paid, and the book is the irreplaceable artifact.
+        // `covers/` deliberately gets no such flush: a cover is derived
+        // data, re-creatable from the book we just made durable.
+        if let Err(e) = sync_dir(&self.data_dir.join("books")) {
+            cleanup_files(true);
+            return Err(e);
         }
 
         let publication = Publication {
