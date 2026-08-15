@@ -12,7 +12,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, Transaction};
 
-use crate::import::copy_and_hash;
+use crate::core::files::copy_and_hash;
 use crate::CoreError;
 
 pub(crate) const SCHEMA_VERSION: i64 = 2;

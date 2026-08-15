@@ -4,18 +4,16 @@
 //! pipeline, format detection, metadata extraction, and reading progress.
 //! Rendering stays in the platform shells (Readium navigators).
 
+mod core;
 mod epub;
-mod error;
 mod format;
 mod import;
 mod library;
-mod migrate;
-mod pool;
 mod progress;
 mod settings;
 mod stats;
 
-pub use error::CoreError;
+pub use crate::core::error::CoreError;
 pub use format::Format;
 pub use import::{BatchImportOutcome, ImportOutcome};
 pub use library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};

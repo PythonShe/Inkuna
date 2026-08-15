@@ -4,8 +4,8 @@ use std::sync::Mutex;
 
 use rusqlite::Connection;
 
-use crate::migrate::migrate;
-use crate::pool::{open_connection, ReaderPool, READER_POOL_SIZE};
+use crate::core::db::{migrate, open_connection, ReaderPool, READER_POOL_SIZE};
+use crate::core::time::unix_now;
 use crate::{CoreError, Format};
 
 /// Authors are stored joined by the ASCII unit separator: it cannot appear
@@ -354,10 +354,6 @@ impl Library {
         }
         Ok(())
     }
-}
-
-pub(crate) fn unix_now() -> i64 {
-    chrono::Utc::now().timestamp()
 }
 
 pub(crate) fn join_authors(authors: &[String]) -> String {

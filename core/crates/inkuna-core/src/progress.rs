@@ -3,7 +3,7 @@
 //! `totalProgression` (0.0..=1.0), never per-resource; the locator blob is
 //! opaque — stored and returned, never parsed.
 
-use crate::library::unix_now;
+use crate::core::time::unix_now;
 use crate::{CoreError, Library};
 
 /// Readium's end-of-book `totalProgression` is not guaranteed to land on

@@ -6,7 +6,7 @@
 
 use chrono::{Datelike, Duration, FixedOffset};
 
-use crate::library::unix_now;
+use crate::core::time::unix_now;
 use crate::{CoreError, Library};
 
 #[derive(Debug, Clone, PartialEq)]

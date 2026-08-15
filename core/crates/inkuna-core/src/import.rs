@@ -4,12 +4,12 @@
 //! crash leaves an unreferenced file (swept at next open), never a fileless
 //! row. Invariant: a committed row always points at an existing file.
 
-use std::fs::File;
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+use crate::core::files::copy_and_hash;
+use crate::core::time::unix_now;
 use crate::epub;
-use crate::library::{join_authors, map_publication, unix_now, Library, PUB_COLUMNS};
+use crate::library::{join_authors, map_publication, Library, PUB_COLUMNS};
 use crate::{CoreError, Format, Publication};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -294,23 +294,4 @@ fn is_constraint_violation(e: &rusqlite::Error) -> bool {
         rusqlite::Error::SqliteFailure(err, _)
             if err.code == rusqlite::ErrorCode::ConstraintViolation
     )
-}
-
-/// Reads `src` once, hashing with BLAKE3 while writing the bytes to `dest`.
-/// The destination is fsynced so the later rename lands durable content.
-pub(crate) fn copy_and_hash(src: &Path, dest: &Path) -> Result<String, CoreError> {
-    let mut reader = File::open(src)?;
-    let mut writer = File::create(dest)?;
-    let mut hasher = blake3::Hasher::new();
-    let mut buf = vec![0u8; 128 * 1024];
-    loop {
-        let n = reader.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-        writer.write_all(&buf[..n])?;
-    }
-    writer.sync_all()?;
-    Ok(hasher.finalize().to_hex().to_string())
 }
