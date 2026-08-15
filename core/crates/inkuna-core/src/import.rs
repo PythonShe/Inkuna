@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::core::files::copy_and_hash;
 use crate::core::time::unix_now;
 use crate::formats::epub;
-use crate::library::{join_authors, map_publication, Library, PUB_COLUMNS};
+use crate::features::library::{join_authors, map_publication, Library, PUB_COLUMNS};
 use crate::{CoreError, Format, Publication};
 
 #[derive(Debug, Clone, PartialEq)]

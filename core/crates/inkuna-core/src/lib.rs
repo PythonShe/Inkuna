@@ -5,9 +5,9 @@
 //! Rendering stays in the platform shells (Readium navigators).
 
 mod core;
+mod features;
 mod formats;
 mod import;
-mod library;
 mod progress;
 mod settings;
 mod stats;
@@ -15,7 +15,7 @@ mod stats;
 pub use crate::core::error::CoreError;
 pub use formats::Format;
 pub use import::{BatchImportOutcome, ImportOutcome};
-pub use library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};
+pub use features::library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};
 pub use settings::Settings;
 pub use stats::StatsOverview;
 

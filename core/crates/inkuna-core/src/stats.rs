@@ -217,7 +217,7 @@ impl Library {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::library::tests::write_epub;
+    use crate::features::library::tests::write_epub;
     use crate::ImportOutcome;
     use chrono::TimeZone;
 
