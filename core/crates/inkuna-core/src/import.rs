@@ -234,10 +234,22 @@ impl Library {
 
         let inserted = {
             let mut conn = self.writer.lock().unwrap();
-            let tx = conn.transaction()?;
+            // The book and cover are already on disk, so every early exit
+            // from here on must sweep them or they linger unreferenced
+            // until the next Library::open.
+            let tx = match conn.transaction() {
+                Ok(tx) => tx,
+                Err(e) => {
+                    cleanup_files(true);
+                    return Err(e.into());
+                }
+            };
             match insert(&tx) {
                 Ok(()) => {
-                    tx.commit()?;
+                    if let Err(e) = tx.commit() {
+                        cleanup_files(true);
+                        return Err(e.into());
+                    }
                     true
                 }
                 Err(e) if is_constraint_violation(&e) => {
