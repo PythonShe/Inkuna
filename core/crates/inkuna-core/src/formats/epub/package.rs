@@ -59,12 +59,35 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
             opf.spine_itemrefs_seen
         );
     }
+    // MAX_HREF_BYTES is enforced again on the *resolved* href: the
+    // manifest cap sees the href as written, but resolution prepends the
+    // OPF's directory, which a crafted container.xml can push toward
+    // zip's 65,535-byte name ceiling while every per-item cap stays in
+    // bounds — and each spine row retains its own copy, so uncapped this
+    // persists spine × ~64 KiB of `resources` rows out of a
+    // few-hundred-KB archive. An oversized result degrades exactly like
+    // an unresolvable idref.
+    let mut oversized_spine_hrefs = 0usize;
     let spine: Vec<String> = opf
         .spine_idrefs
         .iter()
         .filter_map(|idref| item_by_id(idref))
-        .map(|item| resolve(&item.href))
+        .filter_map(|item| {
+            let resolved = resolve(&item.href);
+            if resolved.len() > MAX_HREF_BYTES {
+                oversized_spine_hrefs += 1;
+                None
+            } else {
+                Some(resolved)
+            }
+        })
         .collect();
+    if oversized_spine_hrefs > 0 {
+        log::warn!(
+            "spine of {} has {oversized_spine_hrefs} itemrefs whose resolved hrefs exceed {MAX_HREF_BYTES} bytes; skipped",
+            path.display()
+        );
+    }
 
     // EPUB 3 nav doc → NCX fallback. A nav doc that yields no entries
     // (present but empty or unparseable) also falls back.

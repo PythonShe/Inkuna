@@ -27,4 +27,4 @@ pub use text::extract_spine_text;
 #[cfg(test)]
 pub(crate) use opf::MAX_MANIFEST_ITEMS;
 #[cfg(test)]
-pub(crate) use toc::MAX_TOC_ENTRIES;
+pub(crate) use toc::{MAX_TOC_ENTRIES, MAX_TOC_TOTAL_BYTES};

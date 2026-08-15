@@ -182,6 +182,152 @@ fn crafted_toc_is_capped_at_max_entries_and_still_imports() {
     assert_eq!(library.chapters(&publication.id).unwrap().len(), MAX_TOC_ENTRIES);
 }
 
+/// The round-5 amplifier, pinned at the database: one navPoint whose
+/// 64 KiB label was re-cloned by each of thousands of sibling
+/// `<content>` elements — a ~2 KB archive persisting 630 MB of
+/// `chapters` rows while every per-entry cap saw in-bounds numbers. NCX
+/// fixes a navPoint to exactly one `<content>` (`navLabel+, content,
+/// navPoint*`), so only the first wins: one row.
+#[test]
+fn repeated_ncx_content_elements_yield_a_single_chapter() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("ncx-label-bomb.epub");
+    let opf = r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>複製爆弾</dc:title></metadata>
+  <manifest>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ncx"><itemref idref="c1"/></spine>
+</package>"#;
+    let label = "月".repeat(64 * 1024 / 3); // ~64 KiB of CJK
+    let mut ncx = format!(
+        r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap><navPoint><navLabel><text>{label}</text></navLabel>"#
+    );
+    for _ in 0..1000 {
+        ncx.push_str(r#"<content src="ch01.xhtml"/>"#);
+    }
+    ncx.push_str("</navPoint></navMap></ncx>");
+    write_epub_parts(
+        &epub,
+        opf,
+        &[
+            ("toc.ncx", ncx.as_str()),
+            ("ch01.xhtml", r#"<html><body><p>本文。</p></body></html>"#),
+        ],
+    );
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+    let chapters = library.chapters(&publication.id).unwrap();
+    assert_eq!(chapters.len(), 1);
+    assert_eq!(chapters[0].href, "OEBPS/ch01.xhtml");
+}
+
+/// With one `<content>` per navPoint nothing amplifies, but many
+/// navPoints with large labels still sum past any honest TOC. The
+/// aggregate byte budget bounds what reaches the `chapters` table; the
+/// import still succeeds with the honest prefix.
+#[test]
+fn crafted_ncx_toc_is_bounded_by_the_byte_budget() {
+    use crate::formats::epub::MAX_TOC_TOTAL_BYTES;
+
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("ncx-budget-bomb.epub");
+    let opf = r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>予算爆弾</dc:title></metadata>
+  <manifest>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ncx"><itemref idref="c1"/></spine>
+</package>"#;
+    let label = "書".repeat(32 * 1024 / 3); // ~32 KiB of CJK per label
+    let n = 300; // ~9.6 MiB retained if uncapped — past the 8 MiB budget
+    let mut ncx =
+        String::from(r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>"#);
+    for i in 0..n {
+        ncx.push_str(&format!(
+            r##"<navPoint><navLabel><text>{label}</text></navLabel><content src="ch01.xhtml#p{i}"/></navPoint>"##
+        ));
+    }
+    ncx.push_str("</navMap></ncx>");
+    write_epub_parts(
+        &epub,
+        opf,
+        &[
+            ("toc.ncx", ncx.as_str()),
+            ("ch01.xhtml", r#"<html><body><p>本文。</p></body></html>"#),
+        ],
+    );
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+    let chapters = library.chapters(&publication.id).unwrap();
+    assert!(!chapters.is_empty());
+    assert!(chapters.len() < n, "budget did not truncate: {} rows", chapters.len());
+    let retained: usize = chapters.iter().map(|c| c.title.len() + c.href.len()).sum();
+    assert!(retained <= MAX_TOC_TOTAL_BYTES);
+}
+
+/// MAX_HREF_BYTES is checked on the manifest href as written, but the
+/// *resolved* href is what every spine row persists — and resolution
+/// prepends the OPF's directory, which a crafted container.xml can push
+/// toward zip's 65,535-byte name ceiling. Uncapped, each itemref
+/// retained its own ~multi-KB copy in `resources`; oversized resolved
+/// hrefs must degrade away instead.
+#[test]
+fn oversized_resolved_spine_hrefs_degrade_away() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("long-dir-bomb.epub");
+    let long_dir = "d".repeat(8_000);
+    let file = std::fs::File::create(&epub).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let stored = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored);
+    let deflated = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    zip.start_file("mimetype", stored).unwrap();
+    zip.write_all(b"application/epub+zip").unwrap();
+    zip.start_file("META-INF/container.xml", deflated).unwrap();
+    zip.write_all(
+        format!(
+            r#"<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="{long_dir}/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>"#
+        )
+        .as_bytes(),
+    )
+    .unwrap();
+    zip.start_file(format!("{long_dir}/content.opf"), deflated).unwrap();
+    zip.write_all(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>深層書庫</dc:title></metadata>
+  <manifest><item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c1"/><itemref idref="c1"/><itemref idref="c1"/></spine>
+</package>"#
+            .as_bytes(),
+    )
+    .unwrap();
+    zip.finish().unwrap();
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+    // Every resolved spine href carries the ~8 KB directory: all skipped,
+    // no `resources` row retains the amplified path.
+    assert_eq!(
+        count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+        0
+    );
+    assert_eq!(publication.title, "深層書庫");
+}
+
 /// The manifest is a mandatory part, so a crafted OPF listing an absurd
 /// number of items is not degraded around — it fails the import cleanly
 /// (before the cap: a 355 KB file parsed into a 616 MB resident set) and

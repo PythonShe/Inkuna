@@ -25,6 +25,49 @@ fn nav_parsing_flattens_with_depth() {
     );
 }
 
+/// The nav-doc twin of the NCX depth cap: anchors nested past
+/// MAX_TOC_DEPTH `<ol>` levels are skipped, shallower ones still parse.
+#[test]
+fn nav_depth_is_capped() {
+    let mut xml = String::from(
+        r#"<html xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc">"#,
+    );
+    for i in 0..MAX_TOC_DEPTH + 5 {
+        xml.push_str(&format!(r##"<ol><li><a href="ch.xhtml#f{i}">第{i}層</a>"##));
+    }
+    for _ in 0..MAX_TOC_DEPTH + 5 {
+        xml.push_str("</li></ol>");
+    }
+    xml.push_str("</nav></body></html>");
+    let toc = parse_nav(&xml, "OEBPS/nav.xhtml");
+    // One entry per level up to the cap; the five deeper ones are gone.
+    assert_eq!(toc.len(), MAX_TOC_DEPTH);
+    assert_eq!(toc.last().unwrap().depth as usize, MAX_TOC_DEPTH - 1);
+}
+
+/// Each title alone passes every per-entry cap, but their sum is what
+/// the chapters table pays: the aggregate byte budget stops retention,
+/// keeping the honest prefix.
+#[test]
+fn nav_toc_stops_at_the_byte_budget() {
+    let title = "夜".repeat(64 * 1024 / 3); // ~64 KiB of CJK per title
+    let n = 140; // ~8.75 MiB retained if uncapped — past the 8 MiB budget
+    let mut xml = String::from(
+        r#"<html xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol>"#,
+    );
+    for _ in 0..n {
+        xml.push_str(&format!(r#"<li><a href="ch.xhtml">{title}</a></li>"#));
+    }
+    xml.push_str("</ol></nav></body></html>");
+    let toc = parse_nav(&xml, "OEBPS/nav.xhtml");
+    assert!(!toc.is_empty());
+    assert!(toc.len() < n, "budget did not truncate: {} entries", toc.len());
+    let retained: usize = toc.iter().map(|e| e.title.len() + e.href.len()).sum();
+    assert!(retained <= MAX_TOC_TOTAL_BYTES);
+    // Budget accounting never split a multi-byte character.
+    assert!(toc.iter().all(|e| e.title.chars().all(|c| c == '夜')));
+}
+
 /// A crafted NCX listing far more navPoints than any real TOC stops at
 /// the entry cap instead of materializing one `TocEntry` (and later one
 /// DB row) per navPoint.
