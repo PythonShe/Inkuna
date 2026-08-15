@@ -9,7 +9,10 @@ use super::container::rootfile_path;
 use super::cover::image_extension;
 use super::href::{parent_dir, resolve_href};
 use super::model::{Cover, EpubPackage};
-use super::opf::{parse_opf, ManifestItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_SPINE_ITEMS};
+use super::opf::{
+    parse_opf, ManifestItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_METADATA_VALUE_BYTES,
+    MAX_SPINE_ITEMS,
+};
 use super::toc::{parse_ncx, parse_nav};
 use crate::CoreError;
 
@@ -36,6 +39,13 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
             "metadata of {} lists {} creators; keeping the first {MAX_AUTHORS}",
             path.display(),
             opf.creators_seen
+        );
+    }
+    if opf.truncated_metadata_values > 0 {
+        log::warn!(
+            "metadata of {} has {} values over {MAX_METADATA_VALUE_BYTES} bytes; truncated",
+            path.display(),
+            opf.truncated_metadata_values
         );
     }
 

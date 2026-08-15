@@ -25,6 +25,6 @@ pub use package::read_package;
 pub use text::extract_spine_text;
 
 #[cfg(test)]
-pub(crate) use opf::MAX_MANIFEST_ITEMS;
+pub(crate) use opf::{MAX_MANIFEST_ITEMS, MAX_METADATA_VALUE_BYTES};
 #[cfg(test)]
 pub(crate) use toc::{MAX_TOC_ENTRIES, MAX_TOC_TOTAL_BYTES};

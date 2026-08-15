@@ -340,6 +340,76 @@ fn oversized_resolved_spine_hrefs_degrade_away() {
     assert_eq!(publication.title, "深層書庫");
 }
 
+/// The round-7 amplifier, pinned at the hot path's source: a crafted
+/// multi-hundred-KB `<dc:title>` (measured at 60 MiB from a 62 KB
+/// archive) used to persist whole and re-materialize on every `list()`
+/// and every search keystroke. The cap holds at the push site, and the
+/// cut must land on a `char` boundary — the fixture is CJK (3-byte
+/// chars) and the cap is not a multiple of 3, so a naive byte-offset
+/// slice would split a character.
+#[test]
+fn oversized_cjk_metadata_is_bounded_on_what_list_returns() {
+    use crate::formats::epub::MAX_METADATA_VALUE_BYTES;
+
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("title-bomb.epub");
+    let title = "書".repeat(200_000); // 600 KB, ~300x the cap
+    let creator = "著".repeat(200_000);
+    let opf = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>{title}</dc:title><dc:creator>{creator}</dc:creator>
+  </metadata>
+  <manifest><item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#
+    );
+    write_epub_parts(
+        &epub,
+        &opf,
+        &[("ch01.xhtml", r#"<html><body><p>本文。</p></body></html>"#)],
+    );
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    // Assert on what the hot path actually returns, not on parser
+    // internals.
+    let all = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
+    let publication = &all[0];
+    assert!(
+        publication.title.len() <= MAX_METADATA_VALUE_BYTES,
+        "title not bounded: {} bytes",
+        publication.title.len()
+    );
+    // Only whole characters survive the cut: a byte-offset truncation
+    // would leave a mangled trailing char (or fail UTF-8 on the way).
+    assert!(!publication.title.is_empty());
+    assert!(publication.title.chars().all(|c| c == '書'));
+    assert_eq!(publication.authors.len(), 1);
+    assert!(publication.authors[0].len() <= MAX_METADATA_VALUE_BYTES);
+    assert!(publication.authors[0].chars().all(|c| c == '著'));
+}
+
+/// Guards the metadata cap from becoming the data-loss bug it prevents:
+/// an honest book's CJK title, author, and language come back from
+/// `list()` byte-for-byte verbatim.
+#[test]
+fn honest_cjk_metadata_survives_the_cap_verbatim() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "吾輩は猫である", "夏目漱石", "ja");
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    let all = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
+    assert_eq!(all[0].title, "吾輩は猫である");
+    assert_eq!(all[0].authors, vec!["夏目漱石".to_string()]);
+    assert_eq!(all[0].language.as_deref(), Some("ja"));
+}
+
 /// The manifest is a mandatory part, so a crafted OPF listing an absurd
 /// number of items is not degraded around — it fails the import cleanly
 /// (before the cap: a 355 KB file parsed into a 616 MB resident set) and

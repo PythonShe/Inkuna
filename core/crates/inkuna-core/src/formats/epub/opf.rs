@@ -38,6 +38,18 @@ pub(crate) const MAX_HREF_BYTES: usize = 4096;
 /// creators degrade: dropped, with a warning at the caller.
 pub(crate) const MAX_AUTHORS: usize = 1_000;
 
+/// Upper bound on one retained metadata value — `<dc:title>`, each
+/// `<dc:creator>`, `<dc:language>` — in bytes. Real titles and names run
+/// under ~200 bytes even in CJK, so 2 KiB is ~10x headroom. The bound
+/// matters more than any other string cap because the title rides the two
+/// hottest reads in the app — `list()` on every launch and the per-
+/// keystroke search fold — and re-crosses the FFI boundary on each, so an
+/// uncapped 60 MiB title would be re-materialized forever after a single
+/// import. Enforced at the push site while the OPF is walked, so the
+/// oversized value is never accumulated; the tail degrades away (cut on a
+/// `char` boundary, never a byte offset) with a warning at the caller.
+pub(crate) const MAX_METADATA_VALUE_BYTES: usize = 2048;
+
 #[derive(Debug)]
 pub(super) struct ManifestItem {
     pub(super) id: String,
@@ -70,6 +82,31 @@ pub(super) struct Opf {
     pub(super) creators_seen: usize,
     /// Manifest items skipped for an href over [`MAX_HREF_BYTES`].
     pub(super) oversized_href_items: usize,
+    /// Metadata values cut at [`MAX_METADATA_VALUE_BYTES`] — lets the
+    /// caller log the truncation once with the archive path for context.
+    pub(super) truncated_metadata_values: usize,
+}
+
+/// Appends `text` to `acc` through [`push_word`], never letting `acc`
+/// grow past [`MAX_METADATA_VALUE_BYTES`]. `push_word` appends at most
+/// `text.len()` bytes (whitespace collapse only shrinks), so pushing the
+/// largest prefix that fits the remaining room keeps the bound exact —
+/// and a crafted 60 MiB title costs its decode and nothing more, because
+/// the oversized tail is never accumulated. The cut lands on a `char`
+/// boundary, never a raw byte offset: titles are routinely CJK, and a
+/// byte slice could split a character. Returns whether anything was cut.
+fn push_word_capped(acc: &mut String, text: &str) -> bool {
+    let room = MAX_METADATA_VALUE_BYTES.saturating_sub(acc.len());
+    if text.len() <= room {
+        push_word(acc, text);
+        return false;
+    }
+    let mut end = room;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    push_word(acc, &text[..end]);
+    true
 }
 
 pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
@@ -86,6 +123,9 @@ pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
     // end. Only the first title/language wins.
     let mut current: Option<&'static str> = None;
     let mut acc = String::new();
+    // Whether the value being accumulated was cut at the cap; committed
+    // into the counter with the value, so one oversized value logs once.
+    let mut acc_truncated = false;
     loop {
         let event = reader.read_event_into(&mut buf);
         match &event {
@@ -132,18 +172,26 @@ pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
                 }
                 if current.is_none() {
                     acc.clear();
+                    acc_truncated = false;
                 }
             }
             Ok(Event::Text(t)) => {
                 if current.is_some() {
                     if let Ok(text) = t.decode() {
-                        push_word(&mut acc, &text);
+                        acc_truncated |= push_word_capped(&mut acc, &text);
                     }
                 }
             }
             Ok(Event::GeneralRef(r)) => {
                 if current.is_some() {
-                    acc.push_str(&resolve_ref(r));
+                    let resolved = resolve_ref(r);
+                    // An entity resolves to one short string; past the cap
+                    // it drops whole, so no char is ever split.
+                    if acc.len() + resolved.len() <= MAX_METADATA_VALUE_BYTES {
+                        acc.push_str(&resolved);
+                    } else {
+                        acc_truncated = true;
+                    }
                 }
             }
             Ok(Event::End(_)) => {
@@ -165,7 +213,11 @@ pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
                             _ => {}
                         }
                     }
+                    if acc_truncated {
+                        opf.truncated_metadata_values += 1;
+                    }
                     acc.clear();
+                    acc_truncated = false;
                 }
             }
             Ok(Event::Eof) => break,
