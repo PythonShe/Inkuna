@@ -6,7 +6,7 @@
 
 mod core;
 mod epub;
-mod format;
+mod formats;
 mod import;
 mod library;
 mod progress;
@@ -14,7 +14,7 @@ mod settings;
 mod stats;
 
 pub use crate::core::error::CoreError;
-pub use format::Format;
+pub use formats::Format;
 pub use import::{BatchImportOutcome, ImportOutcome};
 pub use library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};
 pub use settings::Settings;
