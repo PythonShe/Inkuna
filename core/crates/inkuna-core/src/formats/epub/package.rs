@@ -1,5 +1,6 @@
 //! One pass over the archive that yields everything import needs.
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 
@@ -8,9 +9,15 @@ use super::container::rootfile_path;
 use super::cover::image_extension;
 use super::href::{parent_dir, resolve_href};
 use super::model::{Cover, EpubPackage};
-use super::opf::parse_opf;
+use super::opf::{parse_opf, ManifestItem};
 use super::toc::{parse_ncx, parse_nav};
 use crate::CoreError;
+
+/// Upper bound on the `<itemref>` entries processed for one publication.
+/// Real books run to a few hundred; a crafted OPF can list millions, each
+/// costing an entry read and a DB row, so the spine is truncated here
+/// before any of that work is scheduled.
+pub(super) const MAX_SPINE_ITEMS: usize = 10_000;
 
 /// Parses everything import needs in one pass over the archive: metadata,
 /// spine, TOC, and cover bytes. Text extraction is separate
@@ -25,11 +32,27 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
     let opf = parse_opf(&opf_xml);
 
     let resolve = |href: &str| resolve_href(opf_dir, href);
-    let item_by_id = |id: &str| opf.items.iter().find(|i| i.id == id);
+    // A map, not a per-idref linear scan: a crafted OPF can carry millions
+    // of manifest items alongside millions of itemrefs, and the scan made
+    // the pairing quadratic — a CPU hang out of a ~100 KB file.
+    let mut items_by_id: HashMap<&str, &ManifestItem> = HashMap::with_capacity(opf.items.len());
+    for item in &opf.items {
+        // First occurrence wins, matching the `find` this replaces.
+        items_by_id.entry(item.id.as_str()).or_insert(item);
+    }
+    let item_by_id = |id: &str| items_by_id.get(id).copied();
 
+    if opf.spine_idrefs.len() > MAX_SPINE_ITEMS {
+        log::warn!(
+            "spine of {} lists {} itemrefs; processing the first {MAX_SPINE_ITEMS}",
+            path.display(),
+            opf.spine_idrefs.len()
+        );
+    }
     let spine: Vec<String> = opf
         .spine_idrefs
         .iter()
+        .take(MAX_SPINE_ITEMS)
         .filter_map(|idref| item_by_id(idref))
         .map(|item| resolve(&item.href))
         .collect();

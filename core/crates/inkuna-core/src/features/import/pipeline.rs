@@ -1,6 +1,7 @@
 //! The stages themselves: stage and hash, dedupe, parse, commit.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use super::model::{BatchImportOutcome, ImportOutcome};
 use crate::core::files::copy_and_hash;
@@ -21,8 +22,9 @@ pub(crate) struct PreparedImport {
     authors: Vec<String>,
     language: Option<String>,
     /// Spine hrefs in reading order, paired with each resource's extracted
-    /// plain text (`None` = malformed resource, its text row is skipped).
-    spine: Vec<(String, Option<String>)>,
+    /// plain text (`None` = malformed or budget-skipped resource, its text
+    /// row is skipped). Repeated spine entries share one extraction.
+    spine: Vec<(String, Option<Arc<str>>)>,
     toc: Vec<epub::TocEntry>,
     cover: Option<epub::Cover>,
 }
@@ -193,7 +195,7 @@ impl Library {
                 if let Some(body) = text {
                     tx.execute(
                         "INSERT INTO resource_text (resource_id, body) VALUES (?1, ?2)",
-                        rusqlite::params![resource_id, body],
+                        rusqlite::params![resource_id, body.as_ref()],
                     )?;
                 }
             }
