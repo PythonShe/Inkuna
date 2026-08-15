@@ -12,12 +12,14 @@ mod library;
 mod migrate;
 mod pool;
 mod progress;
+mod settings;
 mod stats;
 
 pub use error::CoreError;
 pub use format::Format;
 pub use import::{BatchImportOutcome, ImportOutcome};
 pub use library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};
+pub use settings::Settings;
 pub use stats::StatsOverview;
 
 pub fn version() -> &'static str {
