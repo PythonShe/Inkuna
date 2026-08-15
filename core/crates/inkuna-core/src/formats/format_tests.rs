@@ -50,3 +50,30 @@ fn detects_formats_by_content() {
     ));
 }
 
+/// A `mimetype` entry that trims to the EPUB literal but inflates far past
+/// the detection budget must not be read whole, and must not pass as an
+/// EPUB — detection falls through exactly as a wrong mimetype string does.
+#[test]
+fn oversized_mimetype_entry_is_not_an_epub() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("bomb.epub");
+    let file = std::fs::File::create(&path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let deflated = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    // Deflates to a few KB; padding is whitespace so the pre-cap code's
+    // `trim()` comparison would still have matched the EPUB literal.
+    let mut mime = b"application/epub+zip".to_vec();
+    mime.extend(std::iter::repeat_n(b' ', 4 * 1024 * 1024));
+    zip.start_file("mimetype", deflated).unwrap();
+    zip.write_all(&mime).unwrap();
+    zip.start_file("001.jpg", deflated).unwrap();
+    zip.write_all(&[0xFF, 0xD8, 0xFF]).unwrap();
+    zip.finish().unwrap();
+
+    assert_eq!(Format::detect(&path).unwrap(), Format::Cbz);
+}
+

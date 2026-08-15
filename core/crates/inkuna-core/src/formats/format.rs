@@ -28,6 +28,12 @@ const RAR_MAGIC: &[u8] = b"Rar!\x1a\x07";
 const PDF_MAGIC: &[u8] = b"%PDF-";
 // PalmDB type+creator fields at offset 60 for Mobipocket-family files.
 const PALMDB_BOOKMOBI: &[u8] = b"BOOKMOBI";
+/// Decompression budget for the `mimetype` entry. The EPUB spec fixes its
+/// content to the literal `application/epub+zip` (20 bytes), so 256 leaves
+/// room for stray whitespace or a BOM and nothing else: the entry may be
+/// Deflated, and without a cap a crafted one inflates to gigabytes here —
+/// before any of the capped readers in `formats::epub::archive` is reached.
+const MAX_MIMETYPE_BYTES: u64 = 256;
 
 impl Format {
     pub fn detect(path: &Path) -> Result<Format, CoreError> {
@@ -48,10 +54,16 @@ impl Format {
             // A ZIP container is an EPUB iff its `mimetype` entry says so;
             // any other archive of images is treated as CBZ.
             let mut archive = zip::ZipArchive::new(File::open(path)?)?;
-            if let Ok(mut entry) = archive.by_name("mimetype") {
+            if let Ok(entry) = archive.by_name("mimetype") {
                 let mut mime = String::new();
-                let _ = entry.read_to_string(&mut mime);
-                if mime.trim() == "application/epub+zip" {
+                // One byte past the budget, so an entry that fills the cap
+                // exactly is distinguishable from one that overflows it.
+                let _ = entry
+                    .take(MAX_MIMETYPE_BYTES + 1)
+                    .read_to_string(&mut mime);
+                if mime.len() as u64 <= MAX_MIMETYPE_BYTES
+                    && mime.trim() == "application/epub+zip"
+                {
                     return Ok(Format::Epub);
                 }
             }
