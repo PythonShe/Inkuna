@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
+use std::str::FromStr;
 
 use crate::CoreError;
 
@@ -101,7 +102,24 @@ impl Format {
     /// out of the DB. An unrecognized tag — a row written by a newer core
     /// that knows a format this one does not — is
     /// `UnsupportedFormat(Some(tag))`, never a silent default.
+    ///
+    /// Kept as an inherent method so existing `Format::from_str(s)` call
+    /// sites need no `FromStr` import; it delegates to the trait impl.
+    // `should_implement_trait` fires on any inherent `from_str`, even when
+    // `FromStr` is implemented (it is, below); removing this shim would drop
+    // a public method the crate's consumers already call.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Format, CoreError> {
+        <Format as FromStr>::from_str(s)
+    }
+}
+
+impl FromStr for Format {
+    type Err = CoreError;
+
+    /// Parses the lowercase tag written by [`as_str`](Format::as_str).
+    /// See [`Format::from_str`] for the unrecognized-tag contract.
+    fn from_str(s: &str) -> Result<Format, CoreError> {
         match s {
             "epub" => Ok(Format::Epub),
             "mobi" => Ok(Format::Mobi),
