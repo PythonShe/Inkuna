@@ -610,7 +610,7 @@ dependencies = [
 
 [[package]]
 name = "inkuna-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -628,7 +628,7 @@ dependencies = [
 
 [[package]]
 name = "inkuna-ffi"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "inkuna-core",
  "thiserror",
