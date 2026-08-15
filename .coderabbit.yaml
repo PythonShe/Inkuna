@@ -151,6 +151,19 @@ reviews:
     # is the document structural changes are supposed to be checked against.
     - '!docs/repertoire/plans/**'
 
+    # Rust module roots. Per `core/CLAUDE.md` §2 a `mod.rs` may contain only a
+    # doc comment, `mod`/`pub mod` declarations, `pub use` re-exports, and
+    # module-level constants — there is no logic in them to review, so every
+    # comment they draw is churn about declaration ordering. The crate's real
+    # public contract lives in `lib.rs`, which stays reviewable.
+    #
+    # CAVEAT, per the sparse-checkout note above: excluded means *not cloned*,
+    # so CodeRabbit cannot resolve `mod`/`pub use` wiring when reading a
+    # sibling file. Accepted deliberately — the tree is shallow, the module
+    # names match their file names, and Greptile still sees the whole diff.
+    # If reviews start misattributing paths, this is the line to drop first.
+    - '!core/**/mod.rs'
+
   # ---------------------------------------------------------------------------
   # Path instructions — the hard rules from each component's CLAUDE.md that a
   # generic reviewer would not infer from the diff alone.
