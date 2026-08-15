@@ -20,6 +20,15 @@ use rayon::prelude::*;
 
 use crate::CoreError;
 
+/// Per-entry decompression budget for XML/XHTML entries (container, OPF,
+/// nav, NCX, spine resources). A zip entry's declared uncompressed size is
+/// attacker-controlled and the deflate stream itself is unbounded, so the
+/// cap is enforced on the read: without it a few-hundred-KB crafted entry
+/// inflates to gigabytes and gets the app jetsam-killed on device.
+const MAX_XML_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
+/// Same budget for cover art, which never legitimately approaches it.
+const MAX_COVER_BYTES: u64 = 16 * 1024 * 1024;
+
 #[derive(Debug, Default)]
 pub struct EpubMetadata {
     pub title: Option<String>,
@@ -154,21 +163,40 @@ pub fn extract_spine_text(path: &Path, spine: &[String]) -> Vec<Option<String>> 
 // Archive helpers
 
 fn read_entry(archive: &mut zip::ZipArchive<File>, name: &str) -> Result<String, CoreError> {
-    let mut entry = archive
-        .by_name(name)
-        .map_err(|_| CoreError::InvalidPublication(format!("missing {name}")))?;
+    let entry = open_entry(archive, name)?;
     let mut buf = String::new();
-    entry.read_to_string(&mut buf)?;
+    entry.take(MAX_XML_ENTRY_BYTES + 1).read_to_string(&mut buf)?;
+    check_cap(buf.len(), MAX_XML_ENTRY_BYTES, name)?;
     Ok(buf)
 }
 
 fn read_entry_bytes(archive: &mut zip::ZipArchive<File>, name: &str) -> Result<Vec<u8>, CoreError> {
-    let mut entry = archive
-        .by_name(name)
-        .map_err(|_| CoreError::InvalidPublication(format!("missing {name}")))?;
+    let entry = open_entry(archive, name)?;
     let mut buf = Vec::new();
-    entry.read_to_end(&mut buf)?;
+    entry.take(MAX_COVER_BYTES + 1).read_to_end(&mut buf)?;
+    check_cap(buf.len(), MAX_COVER_BYTES, name)?;
     Ok(buf)
+}
+
+fn open_entry<'a>(
+    archive: &'a mut zip::ZipArchive<File>,
+    name: &str,
+) -> Result<zip::read::ZipFile<'a, File>, CoreError> {
+    archive
+        .by_name(name)
+        .map_err(|_| CoreError::InvalidPublication(format!("missing {name}")))
+}
+
+/// Both readers above take `cap + 1` bytes: a read that stops exactly at
+/// the cap is indistinguishable from a silently truncated entry, so the
+/// extra byte is what makes the overflow detectable here.
+fn check_cap(read: usize, cap: u64, name: &str) -> Result<(), CoreError> {
+    if read as u64 > cap {
+        return Err(CoreError::InvalidPublication(format!(
+            "{name} exceeds the {cap}-byte decompression limit"
+        )));
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -727,6 +755,40 @@ mod tests {
                 TocEntry { title: "付録".into(), href: "OEBPS/nav.xhtml#landmarks".into(), depth: 0 },
             ]
         );
+    }
+
+    /// A crafted entry that inflates past the per-entry cap is rejected on
+    /// the read instead of being materialized in full — without the cap
+    /// this allocates 65 MiB from a ~65 KB archive, and a real bomb scales
+    /// that to gigabytes.
+    #[test]
+    fn oversize_entry_hits_the_decompression_cap() {
+        use std::io::Write;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bomb.epub");
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        zip.start_file(
+            "OEBPS/bomb.xhtml",
+            zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated),
+        )
+        .unwrap();
+        let chunk = vec![b' '; 1024 * 1024];
+        let mut written = 0u64;
+        while written <= MAX_XML_ENTRY_BYTES {
+            zip.write_all(&chunk).unwrap();
+            written += chunk.len() as u64;
+        }
+        zip.finish().unwrap();
+        // The whole point: the archive on disk is tiny.
+        assert!(std::fs::metadata(&path).unwrap().len() < 1024 * 1024);
+
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+        assert!(matches!(
+            read_entry(&mut archive, "OEBPS/bomb.xhtml"),
+            Err(CoreError::InvalidPublication(_))
+        ));
     }
 
     #[test]
