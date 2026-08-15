@@ -23,7 +23,8 @@ use crate::CoreError;
 ///
 /// Worst combination the parse-time caps admit: 1 publications row
 /// + `MAX_TOC_ENTRIES` (100,000) chapters + `MAX_SPINE_ITEMS` (10,000)
-/// resources + at most one `resource_text` per resource (10,000)
+///   resources + at most one `resource_text` per resource (10,000)
+///
 /// = 120,001 rows. 150,000 keeps ~25% headroom above that, so no book
 /// the caps pass — honest or not — can reach it today; tripping it means
 /// a row source the caps never saw.
@@ -42,6 +43,7 @@ pub(super) const MAX_PERSISTED_ROWS: u64 = 150_000;
 /// + text ≤ `MAX_TOTAL_TEXT_BYTES` (32 MiB)
 /// + publication metadata ≤ (1 title + `MAX_AUTHORS` (1,000) creators
 ///   + 1 language) × `MAX_METADATA_VALUE_BYTES` (2,048 B) ≈ 2 MiB
+///
 /// ≈ 81 MiB. 128 MiB keeps ~58% headroom above that, so no book the
 /// caps pass — honest or not — can reach it; tripping it means a byte
 /// source the caps never saw.
