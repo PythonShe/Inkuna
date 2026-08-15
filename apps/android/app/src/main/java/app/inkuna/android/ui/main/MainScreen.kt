@@ -60,6 +60,7 @@ enum class MainTab(
 @Composable
 fun MainScreen(
     onOpenBook: (PlaceholderBook) -> Unit,
+    onOpenPublication: (String) -> Unit,
     continueReading: CorePublication?,
     onOpenReader: (CorePublication) -> Unit,
 ) {
@@ -106,7 +107,7 @@ fun MainScreen(
                     continueReading,
                     onOpenReader,
                 )
-                MainTab.Library -> LibraryScreen(innerPadding, onOpenBook)
+                MainTab.Library -> LibraryScreen(innerPadding, onOpenPublication)
                 MainTab.Search -> SearchScreen(innerPadding, onOpenBook)
                 MainTab.Stats -> StatsScreen(innerPadding)
             }

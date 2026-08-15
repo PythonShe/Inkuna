@@ -74,7 +74,13 @@ private fun NavHostController.pushOnce(route: String) {
 /** Opens the reader for a core publication, popping back to an existing
  *  reader instead of stacking a second one (mirrors the iOS review fix). */
 private fun NavHostController.openReader(publication: CorePublication) {
-    val route = Routes.reader(publication.id)
+    openReader(publication.id)
+}
+
+/** The id-addressed form, for screens that render real core rows and so
+ *  already know which publication was tapped. */
+private fun NavHostController.openReader(publicationId: String) {
+    val route = Routes.reader(publicationId)
     if (!popBackStack(route, inclusive = false)) {
         pushOnce(route)
     }
@@ -171,6 +177,12 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
             ) {
                 MainScreen(
                     onOpenBook = { book -> nav.pushOnce(Routes.detail(book.id)) },
+                    // TODO(core): the detail screen still renders placeholder
+                    // chapters, so a real library row opens the reader
+                    // directly rather than routing through a screen that
+                    // cannot describe the book it was handed. Restore the
+                    // row -> detail -> read path when detail is wired.
+                    onOpenPublication = { id -> nav.openReader(id) },
                     continueReading = continueReading,
                     onOpenReader = { publication -> nav.openReader(publication) },
                 )

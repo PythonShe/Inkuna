@@ -46,6 +46,9 @@
     <string name="library_empty_finished">Nothing finished yet. No hurry.</string>
     <string name="library_empty_wishlist">Nothing on the nightstand yet.</string>
     <string name="library_empty_query">Nothing found in the stacks.</string>
+    <string name="library_empty_reading">Nothing here yet.</string>
+    <string name="library_empty_all">Nothing here yet.</string>
+    <string name="library_unopenable">The library couldn\'t be opened.</string>
 
     <!-- Search -->
     <string name="search_title">Search</string>
