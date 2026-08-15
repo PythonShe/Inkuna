@@ -50,6 +50,35 @@ pub struct Chapter {
     pub depth: u32,
 }
 
+/// Library shelves, filtered server-side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shelf {
+    /// Opened at least once and not finished.
+    Reading,
+    Finished,
+    All,
+}
+
+/// List orderings. (A `Title` sort is deliberately omitted — no shell
+/// affordance exists; enum variants are additive later.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sort {
+    /// Tonight's hero is the first row.
+    RecentlyOpened,
+    RecentlyAdded,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Bookmark {
+    pub id: String,
+    pub publication_id: String,
+    /// Opaque Readium locator JSON; carries the `href`/`title`/`text`
+    /// context a bookmark row renders from.
+    pub locator: String,
+    pub progression: f64,
+    pub created_at: i64,
+}
+
 /// The library facade: one SQLite DB plus core-owned book/cover storage
 /// under a single data dir. One writer connection (mutations only, each in
 /// a transaction; file I/O and parsing always happen outside the lock) and
@@ -114,14 +143,119 @@ impl Library {
         &self.data_dir
     }
 
-    pub fn list(&self) -> Result<Vec<Publication>, CoreError> {
+    pub fn list(&self, shelf: Shelf, sort: Sort) -> Result<Vec<Publication>, CoreError> {
+        let filter = match shelf {
+            Shelf::Reading => "WHERE last_opened_at IS NOT NULL AND finished_at IS NULL",
+            Shelf::Finished => "WHERE finished_at IS NOT NULL",
+            Shelf::All => "",
+        };
+        let order = match sort {
+            Sort::RecentlyOpened => {
+                "ORDER BY last_opened_at DESC NULLS LAST, added_at DESC, rowid DESC"
+            }
+            Sort::RecentlyAdded => "ORDER BY added_at DESC, rowid DESC",
+        };
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(&format!(
-                "SELECT {PUB_COLUMNS} FROM publications ORDER BY added_at DESC, rowid DESC"
+                "SELECT {PUB_COLUMNS} FROM publications {filter} {order}"
             ))?;
             let rows = stmt.query_map([], map_publication)?;
             rows.collect::<Result<_, _>>().map_err(Into::into)
         })
+    }
+
+    /// Case-folded, CJK-safe substring search over title and authors,
+    /// matched in Rust with full Unicode case folding (ICU4X) — never SQL
+    /// `LOWER`, which is ASCII-only. Metadata search only; in-book
+    /// full-text search is the search spec's engine over this spec's
+    /// corpus.
+    pub fn search_library(&self, query: &str) -> Result<Vec<Publication>, CoreError> {
+        let mapper = icu_casemap::CaseMapper::new();
+        let needle = mapper.fold_string(query.trim());
+        if needle.is_empty() {
+            return Ok(Vec::new());
+        }
+        let all = self.list(Shelf::All, Sort::RecentlyAdded)?;
+        Ok(all
+            .into_iter()
+            .filter(|p| {
+                mapper.fold_string(&p.title).contains(needle.as_ref())
+                    || p.authors
+                        .iter()
+                        .any(|a| mapper.fold_string(a).contains(needle.as_ref()))
+            })
+            .collect())
+    }
+
+    pub fn add_bookmark(
+        &self,
+        publication_id: &str,
+        locator: &str,
+        progression: f64,
+    ) -> Result<Bookmark, CoreError> {
+        let progression = if progression.is_finite() {
+            progression.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let bookmark = Bookmark {
+            id: uuid::Uuid::new_v4().to_string(),
+            publication_id: publication_id.to_string(),
+            locator: locator.to_string(),
+            progression,
+            created_at: unix_now(),
+        };
+        let conn = self.writer.lock().unwrap();
+        let exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM publications WHERE id = ?1)",
+            [publication_id],
+            |row| row.get(0),
+        )?;
+        if !exists {
+            return Err(CoreError::NotFound(publication_id.to_string()));
+        }
+        conn.execute(
+            "INSERT INTO bookmarks (id, publication_id, locator, progression, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                bookmark.id,
+                bookmark.publication_id,
+                bookmark.locator,
+                bookmark.progression,
+                bookmark.created_at,
+            ],
+        )?;
+        Ok(bookmark)
+    }
+
+    /// Bookmarks for a publication, sorted by progression through the book.
+    pub fn bookmarks(&self, publication_id: &str) -> Result<Vec<Bookmark>, CoreError> {
+        self.readers.with(|conn| {
+            let mut stmt = conn.prepare_cached(
+                "SELECT id, publication_id, locator, progression, created_at
+                 FROM bookmarks WHERE publication_id = ?1
+                 ORDER BY progression, created_at, rowid",
+            )?;
+            let rows = stmt.query_map([publication_id], |row| {
+                Ok(Bookmark {
+                    id: row.get(0)?,
+                    publication_id: row.get(1)?,
+                    locator: row.get(2)?,
+                    progression: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })
+    }
+
+    pub fn remove_bookmark(&self, bookmark_id: &str) -> Result<(), CoreError> {
+        let conn = self.writer.lock().unwrap();
+        let changed = conn.execute("DELETE FROM bookmarks WHERE id = ?1", [bookmark_id])?;
+        if changed == 0 {
+            return Err(CoreError::NotFound(bookmark_id.to_string()));
+        }
+        Ok(())
     }
 
     pub fn publication(&self, id: &str) -> Result<Publication, CoreError> {
@@ -469,20 +603,20 @@ pub(crate) mod tests {
         assert_eq!(publication.file_path, format!("books/{}.epub", publication.id));
         assert!(data_dir.join(&publication.file_path).is_file());
 
-        let listed = library.list().unwrap();
+        let listed = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
         assert_eq!(listed, vec![publication.clone()]);
         assert_eq!(library.publication(&publication.id).unwrap(), publication);
 
         library
             .update_progress(&publication.id, "{}", 0.42, None)
             .unwrap();
-        assert_eq!(library.list().unwrap()[0].progression, 0.42);
+        assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap()[0].progression, 0.42);
 
         let cover_path = publication.cover_path.clone().unwrap();
         assert!(data_dir.join(&cover_path).is_file());
 
         library.remove(&publication.id).unwrap();
-        assert!(library.list().unwrap().is_empty());
+        assert!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().is_empty());
         assert!(!data_dir.join(&publication.file_path).exists());
         assert!(!data_dir.join(&cover_path).exists());
         assert!(matches!(
@@ -611,7 +745,7 @@ pub(crate) mod tests {
             CoreError::UnsupportedFormat(Some(format)) => assert_eq!(format, "cbz"),
             other => panic!("expected UnsupportedFormat with name, got {other:?}"),
         }
-        assert!(library.list().unwrap().is_empty());
+        assert!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().is_empty());
     }
 
     #[test]
@@ -638,12 +772,101 @@ pub(crate) mod tests {
             other => panic!("expected duplicate, got {other:?}"),
         }
 
-        assert_eq!(library.list().unwrap().len(), 1);
+        assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 1);
         // No stray files: exactly one book in storage.
         let books: Vec<_> = std::fs::read_dir(data_dir.join("books"))
             .unwrap()
             .collect();
         assert_eq!(books.len(), 1);
+    }
+
+    #[test]
+    fn shelves_and_sorts_partition_the_library() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = dir.path().join("first.epub");
+        write_epub(&first, "最初の本", "著者A", "ja");
+        let second = dir.path().join("second.epub");
+        write_epub_with(&second, "Second Book", "Author B", "en", TocKind::None, false);
+
+        let library = Library::open(dir.path().join("library")).unwrap();
+        let first = imported(library.import(first.to_str().unwrap()).unwrap());
+        let second = imported(library.import(second.to_str().unwrap()).unwrap());
+
+        // Nothing opened yet: Reading and Finished are empty, All has both.
+        assert!(library.list(Shelf::Reading, Sort::RecentlyAdded).unwrap().is_empty());
+        assert!(library.list(Shelf::Finished, Sort::RecentlyAdded).unwrap().is_empty());
+        assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 2);
+
+        // Opening puts a book on the Reading shelf and makes it the
+        // recently-opened hero.
+        library.session_start(&first.id).unwrap();
+        let reading = library.list(Shelf::Reading, Sort::RecentlyOpened).unwrap();
+        assert_eq!(reading.len(), 1);
+        assert_eq!(reading[0].id, first.id);
+        let by_opened = library.list(Shelf::All, Sort::RecentlyOpened).unwrap();
+        assert_eq!(by_opened[0].id, first.id);
+        assert_eq!(by_opened[1].id, second.id);
+
+        // Finishing moves it off Reading onto Finished.
+        library.set_finished(&first.id, true).unwrap();
+        assert!(library.list(Shelf::Reading, Sort::RecentlyAdded).unwrap().is_empty());
+        let finished = library.list(Shelf::Finished, Sort::RecentlyAdded).unwrap();
+        assert_eq!(finished.len(), 1);
+        assert_eq!(finished[0].id, first.id);
+    }
+
+    #[test]
+    fn search_library_matches_cjk_and_casefolds() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = dir.path().join("a.epub");
+        write_epub(&a, "月光書房", "紫式部", "ja");
+        let b = dir.path().join("b.epub");
+        write_epub_with(&b, "Die Straße", "Hans Müller", "de", TocKind::None, false);
+
+        let library = Library::open(dir.path().join("library")).unwrap();
+        library.import(a.to_str().unwrap()).unwrap();
+        library.import(b.to_str().unwrap()).unwrap();
+
+        // CJK substring over title and author.
+        assert_eq!(library.search_library("月光").unwrap().len(), 1);
+        assert_eq!(library.search_library("紫").unwrap().len(), 1);
+        // Full Unicode case folding, not ASCII LOWER: ß ≡ ss.
+        assert_eq!(library.search_library("STRASSE").unwrap().len(), 1);
+        assert_eq!(library.search_library("müller").unwrap().len(), 1);
+        // No match, and blank queries return nothing.
+        assert!(library.search_library("存在しない").unwrap().is_empty());
+        assert!(library.search_library("   ").unwrap().is_empty());
+    }
+
+    #[test]
+    fn bookmarks_roundtrip_sorted_by_progression() {
+        let dir = tempfile::tempdir().unwrap();
+        let epub = dir.path().join("book.epub");
+        write_epub(&epub, "月光書房", "紫式部", "ja");
+
+        let library = Library::open(dir.path().join("library")).unwrap();
+        let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+        let late = library
+            .add_bookmark(&publication.id, r#"{"locations":{"totalProgression":0.8}}"#, 0.8)
+            .unwrap();
+        let early = library
+            .add_bookmark(&publication.id, r#"{"locations":{"totalProgression":0.2}}"#, 0.2)
+            .unwrap();
+
+        let listed = library.bookmarks(&publication.id).unwrap();
+        assert_eq!(listed, vec![early.clone(), late.clone()]);
+
+        library.remove_bookmark(&late.id).unwrap();
+        assert_eq!(library.bookmarks(&publication.id).unwrap(), vec![early]);
+        assert!(matches!(
+            library.remove_bookmark(&late.id),
+            Err(CoreError::NotFound(_))
+        ));
+        assert!(matches!(
+            library.add_bookmark("missing", "{}", 0.5),
+            Err(CoreError::NotFound(_))
+        ));
     }
 
     #[test]
@@ -681,7 +904,7 @@ pub(crate) mod tests {
             }
             other => panic!("expected Failed for the comic, got {other:?}"),
         }
-        assert_eq!(library.list().unwrap().len(), 1);
+        assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 1);
     }
 
     #[test]
@@ -723,7 +946,7 @@ pub(crate) mod tests {
         }
 
         let library = Library::open(&data_dir).unwrap();
-        let listed = library.list().unwrap();
+        let listed = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
         assert_eq!(listed.len(), 1);
         let adopted = &listed[0];
         assert_eq!(adopted.id, "live-id");
@@ -762,7 +985,7 @@ pub(crate) mod tests {
         assert!(!data_dir.join("covers/orphan.jpg").exists());
         // The referenced book survived.
         assert!(data_dir.join(&kept.file_path).is_file());
-        assert_eq!(library.list().unwrap().len(), 1);
+        assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 1);
     }
 
     #[test]
@@ -777,6 +1000,6 @@ pub(crate) mod tests {
         // Hold the writer lock; a read must still complete — if list()
         // touched the writer connection this would deadlock the test.
         let _writer_held = library.writer.lock().unwrap();
-        assert_eq!(library.list().unwrap().len(), 1);
+        assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 1);
     }
 }

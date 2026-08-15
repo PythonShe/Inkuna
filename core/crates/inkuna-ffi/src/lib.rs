@@ -120,7 +120,12 @@ impl Bookshelf {
 
     pub async fn list(&self) -> Result<Vec<Publication>, InkunaError> {
         let library = self.0.clone();
-        blocking(move || Ok(library.list()?.into_iter().map(Into::into).collect())).await
+        blocking(move || {
+            let publications =
+                library.list(inkuna_core::Shelf::All, inkuna_core::Sort::RecentlyAdded)?;
+            Ok(publications.into_iter().map(Into::into).collect())
+        })
+        .await
     }
 
     /// One call per page turn. `locator` is the opaque Readium locator
