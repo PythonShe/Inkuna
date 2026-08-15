@@ -46,14 +46,14 @@ pub(crate) struct PreparedImport {
 }
 
 pub(crate) enum Prepared {
-    Duplicate(Publication),
+    Duplicate(Box<Publication>),
     Fresh(Box<PreparedImport>),
 }
 
 impl Library {
     pub fn import(&self, path: &str) -> Result<ImportOutcome, CoreError> {
         match self.prepare_import(path)? {
-            Prepared::Duplicate(existing) => Ok(ImportOutcome::Duplicate(existing)),
+            Prepared::Duplicate(existing) => Ok(ImportOutcome::Duplicate(*existing)),
             Prepared::Fresh(prepared) => self.commit_import(*prepared),
         }
     }
@@ -98,7 +98,7 @@ impl Library {
 
         if let Some(existing) = self.publication_by_hash(&content_hash)? {
             let _ = std::fs::remove_file(&tmp_path);
-            return Ok(Prepared::Duplicate(existing));
+            return Ok(Prepared::Duplicate(Box::new(existing)));
         }
 
         let parsed = epub::read_package(&tmp_path).inspect_err(|_| {

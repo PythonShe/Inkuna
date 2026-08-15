@@ -37,11 +37,11 @@ impl Library {
                 [publication_id],
                 |row| row.get(0),
             )
-            .or_else(|e| match e {
+            .map_err(|e| match e {
                 rusqlite::Error::QueryReturnedNoRows => {
-                    Err(CoreError::NotFound(publication_id.to_string()))
+                    CoreError::NotFound(publication_id.to_string())
                 }
-                other => Err(other.into()),
+                other => other.into(),
             })?;
 
         tx.execute(
