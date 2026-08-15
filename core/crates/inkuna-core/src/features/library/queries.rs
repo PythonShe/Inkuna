@@ -9,10 +9,12 @@ impl Library {
     /// SQL so a shell never sorts a library client-side. Ties break on
     /// `added_at` then rowid, making the order total and stable across
     /// calls; `Reading` means opened at least once and not finished, so a
-    /// freshly imported book appears only on `All`.
+    /// freshly imported book appears on `Unfinished` and `All` but not on
+    /// `Reading`.
     pub fn list(&self, shelf: Shelf, sort: Sort) -> Result<Vec<Publication>, CoreError> {
         let filter = match shelf {
             Shelf::Reading => "WHERE last_opened_at IS NOT NULL AND finished_at IS NULL",
+            Shelf::Unfinished => "WHERE finished_at IS NULL",
             Shelf::Finished => "WHERE finished_at IS NOT NULL",
             Shelf::All => "",
         };

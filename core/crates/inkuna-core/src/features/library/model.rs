@@ -47,8 +47,13 @@ pub struct Chapter {
 /// Library shelves, filtered server-side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shelf {
-    /// Opened at least once and not finished.
+    /// Opened at least once and not finished — what "continue reading"
+    /// means. A freshly imported book is deliberately absent.
     Reading,
+    /// Everything not finished, opened or not. This is the shelf a library
+    /// screen wants: a book must be visible the moment it is imported,
+    /// which `Reading` cannot express without losing its own meaning.
+    Unfinished,
     Finished,
     All,
 }

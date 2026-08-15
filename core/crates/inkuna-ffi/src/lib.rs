@@ -68,8 +68,12 @@ impl From<inkuna_core::Format> for Format {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum Shelf {
-    /// Opened at least once and not finished.
+    /// Opened at least once and not finished — "continue reading". A
+    /// freshly imported book is deliberately absent.
     Reading,
+    /// Everything not finished, opened or not: what a library screen lists,
+    /// so an imported book is visible immediately.
+    Unfinished,
     Finished,
     All,
 }
@@ -78,6 +82,7 @@ impl From<Shelf> for inkuna_core::Shelf {
     fn from(s: Shelf) -> Self {
         match s {
             Shelf::Reading => inkuna_core::Shelf::Reading,
+            Shelf::Unfinished => inkuna_core::Shelf::Unfinished,
             Shelf::Finished => inkuna_core::Shelf::Finished,
             Shelf::All => inkuna_core::Shelf::All,
         }

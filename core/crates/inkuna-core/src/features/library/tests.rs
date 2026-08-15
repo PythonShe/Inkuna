@@ -59,6 +59,13 @@ fn shelves_and_sorts_partition_the_library() {
     assert!(library.list(Shelf::Reading, Sort::RecentlyAdded).unwrap().is_empty());
     assert!(library.list(Shelf::Finished, Sort::RecentlyAdded).unwrap().is_empty());
     assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 2);
+    // Unfinished is what a library screen lists, so an imported book is on
+    // it immediately — the distinction from Reading that makes a just-added
+    // book visible instead of belonging to no shelf at all.
+    assert_eq!(
+        library.list(Shelf::Unfinished, Sort::RecentlyAdded).unwrap().len(),
+        2
+    );
 
     // Opening puts a book on the Reading shelf and makes it the
     // recently-opened hero.
@@ -76,6 +83,10 @@ fn shelves_and_sorts_partition_the_library() {
     let finished = library.list(Shelf::Finished, Sort::RecentlyAdded).unwrap();
     assert_eq!(finished.len(), 1);
     assert_eq!(finished[0].id, first.id);
+    // ...and off Unfinished too, which keeps only the second book.
+    let unfinished = library.list(Shelf::Unfinished, Sort::RecentlyAdded).unwrap();
+    assert_eq!(unfinished.len(), 1);
+    assert_eq!(unfinished[0].id, second.id);
 }
 
 #[test]
