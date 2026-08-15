@@ -4,15 +4,23 @@
 //! pipeline, format detection, metadata extraction, and reading progress.
 //! Rendering stays in the platform shells (Readium navigators).
 
-mod epub;
-mod error;
-mod format;
-mod library;
+mod core;
+mod features;
+mod formats;
 
-pub use error::CoreError;
-pub use format::Format;
-pub use library::{Library, Publication};
+#[cfg(test)]
+mod test_support;
 
+pub use crate::core::error::CoreError;
+pub use features::import::{BatchImportOutcome, ImportOutcome};
+pub use features::library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};
+pub use features::settings::Settings;
+pub use features::stats::StatsOverview;
+pub use formats::Format;
+
+/// The core's own crate version (`CARGO_PKG_VERSION`), which the shells
+/// surface in About screens and diagnostics. It moves independently of the
+/// iOS and Android app versions.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }

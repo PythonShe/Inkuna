@@ -3,7 +3,7 @@ import UIKit
 /// The Library tab: search, the Reading/Finished/Wishlist segments, and
 /// the book list.
 ///
-/// TODO(core): rows come from `LibraryStore.shared.library` (`Bookshelf`)
+/// TODO(core): rows come from `LibraryStore.shared.library()` (`Bookshelf`)
 /// once import lands — including real shelves for Finished and Wishlist;
 /// the list then moves to a diffable collection view.
 final class LibraryViewController: ScrollScreenViewController {

@@ -24,8 +24,8 @@ xcodebuild -project Inkuna.xcodeproj -scheme Inkuna \
 ## 1. Architecture
 
 - The shell is thin: all domain logic goes through the Rust core
-  (`LibraryStore.shared.library`, a `Bookshelf`). Never duplicate core logic
-  (parsing, DB access, progress math) in Swift.
+  (`try await LibraryStore.shared.library()`, a `Bookshelf`). Never
+  duplicate core logic (parsing, DB access, progress math) in Swift.
 - The generated bindings (`Generated/InkunaCore.swift`) are compiled into the
   app target — do **not** `import InkunaCore` in app code; types are directly
   visible. Never edit generated files.

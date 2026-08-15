@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
+use std::str::FromStr;
 
 use crate::CoreError;
 
@@ -28,8 +29,21 @@ const RAR_MAGIC: &[u8] = b"Rar!\x1a\x07";
 const PDF_MAGIC: &[u8] = b"%PDF-";
 // PalmDB type+creator fields at offset 60 for Mobipocket-family files.
 const PALMDB_BOOKMOBI: &[u8] = b"BOOKMOBI";
+/// Decompression budget for the `mimetype` entry. The EPUB spec fixes its
+/// content to the literal `application/epub+zip` (20 bytes), so 256 leaves
+/// room for stray whitespace or a BOM and nothing else: the entry may be
+/// Deflated, and without a cap a crafted one inflates to gigabytes here —
+/// before any of the capped readers in `formats::epub::archive` is reached.
+const MAX_MIMETYPE_BYTES: u64 = 256;
 
 impl Format {
+    /// Detects the format of the file at `path` from its content, never
+    /// its extension — the one exception being TXT, which has no magic
+    /// bytes and needs `.txt` plus a NUL-free sample. A ZIP is an EPUB only
+    /// if its `mimetype` entry says so (read under a 256-byte cap, so a
+    /// crafted entry cannot inflate here) and any other ZIP is taken for a
+    /// CBZ. Returns `UnsupportedFormat(None)` when nothing matches, and
+    /// `Io` when the file cannot be read at all.
     pub fn detect(path: &Path) -> Result<Format, CoreError> {
         let mut file = File::open(path)?;
         let mut head = [0u8; 68];
@@ -48,10 +62,16 @@ impl Format {
             // A ZIP container is an EPUB iff its `mimetype` entry says so;
             // any other archive of images is treated as CBZ.
             let mut archive = zip::ZipArchive::new(File::open(path)?)?;
-            if let Ok(mut entry) = archive.by_name("mimetype") {
+            if let Ok(entry) = archive.by_name("mimetype") {
                 let mut mime = String::new();
-                let _ = entry.read_to_string(&mut mime);
-                if mime.trim() == "application/epub+zip" {
+                // One byte past the budget, so an entry that fills the cap
+                // exactly is distinguishable from one that overflows it.
+                let _ = entry
+                    .take(MAX_MIMETYPE_BYTES + 1)
+                    .read_to_string(&mut mime);
+                if mime.len() as u64 <= MAX_MIMETYPE_BYTES
+                    && mime.trim() == "application/epub+zip"
+                {
                     return Ok(Format::Epub);
                 }
             }
@@ -60,9 +80,12 @@ impl Format {
         if is_plain_text(path, &head[..n]) {
             return Ok(Format::Txt);
         }
-        Err(CoreError::UnsupportedFormat)
+        Err(CoreError::UnsupportedFormat(None))
     }
 
+    /// The lowercase tag persisted in the `publications.format` column.
+    /// It is a stored value, so these strings are part of the on-disk
+    /// schema: rename one and every existing row stops mapping.
     pub fn as_str(&self) -> &'static str {
         match self {
             Format::Epub => "epub",
@@ -75,7 +98,28 @@ impl Format {
         }
     }
 
+    /// Inverse of [`as_str`](Self::as_str), used when mapping a row back
+    /// out of the DB. An unrecognized tag — a row written by a newer core
+    /// that knows a format this one does not — is
+    /// `UnsupportedFormat(Some(tag))`, never a silent default.
+    ///
+    /// Kept as an inherent method so existing `Format::from_str(s)` call
+    /// sites need no `FromStr` import; it delegates to the trait impl.
+    // `should_implement_trait` fires on any inherent `from_str`, even when
+    // `FromStr` is implemented (it is, below); removing this shim would drop
+    // a public method the crate's consumers already call.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Format, CoreError> {
+        <Format as FromStr>::from_str(s)
+    }
+}
+
+impl FromStr for Format {
+    type Err = CoreError;
+
+    /// Parses the lowercase tag written by [`as_str`](Format::as_str).
+    /// See [`Format::from_str`] for the unrecognized-tag contract.
+    fn from_str(s: &str) -> Result<Format, CoreError> {
         match s {
             "epub" => Ok(Format::Epub),
             "mobi" => Ok(Format::Mobi),
@@ -84,7 +128,7 @@ impl Format {
             "pdf" => Ok(Format::Pdf),
             "cbz" => Ok(Format::Cbz),
             "cbr" => Ok(Format::Cbr),
-            _ => Err(CoreError::UnsupportedFormat),
+            _ => Err(CoreError::UnsupportedFormat(Some(s.to_string()))),
         }
     }
 }
@@ -125,3 +169,7 @@ fn is_plain_text(path: &Path, sample: &[u8]) -> bool {
         .is_some_and(|e| e.eq_ignore_ascii_case("txt"));
     is_txt_ext && !sample.contains(&0)
 }
+
+#[cfg(test)]
+#[path = "format_tests.rs"]
+mod tests;

@@ -3,7 +3,7 @@ import Foundation
 // Placeholder library content matching the design canvas, so every screen
 // renders exactly as designed before the Rust core is wired in.
 //
-// TODO(core): replace with `LibraryStore.shared.library` (`Bookshelf`)
+// TODO(core): replace with `LibraryStore.shared.library()` (`Bookshelf`)
 // queries — book list, chapters/TOC, positions, and reading stats all come
 // from the core; none of this data belongs in the shell.
 

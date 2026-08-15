@@ -40,7 +40,36 @@ cargo test                      # full workspace tests — must pass before comm
 - After ANY `inkuna-ffi` change, regenerate bindings with both build scripts
   before touching the shells.
 
-## 2. Code Quality & Robustness
+## 2. Module Layout (`inkuna-core`)
+
+| Path | Holds |
+|------|------|
+| `src/lib.rs` | crate root: module declarations plus the public `pub use` re-exports — keep it thin |
+| `src/core/` | infrastructure leaves: `error`, `db/` (connection setup, reader pool, migrations), `files`, `time`. No business logic |
+| `src/formats/` | detection (`format.rs`) and one parser module per format (`epub/`; CBZ/CBR/MOBI land beside it) |
+| `src/features/` | vertical slices — `library/`, `import/`, `progress/`, `stats/`, `settings/` — each owning its types, reads, and writes |
+| `src/test_support.rs` | shared `#[cfg(test)]` fixtures (the `write_epub` / `write_cbz` / `write_mobi` builders) |
+
+- **`mod.rs` is declarations only**: module doc comments, `mod`/`pub mod`,
+  `use`/`pub use`, and module-level constants. Never a `fn`, `struct`, `enum`,
+  `impl`, or `trait`. Canonical order: `//!` doc → `mod` declarations
+  (alphabetical) → `#[cfg(test)] mod tests;` → re-exports.
+- Group by domain, not by technical layer; files that change together live
+  together. A new capability starts in `features/` and only moves down into
+  `core/` once a second feature needs it.
+- Every module directory carries its own `mod.rs` — never the `foo.rs` +
+  `foo/` sibling style. Domain folders are singular (`library`, `import`),
+  role folders plural (`queries`, `writes`), with `model`/`store` singular.
+- Target ≤400 lines per source file, 500 as the hard ceiling; `tests.rs` /
+  `*_tests.rs` are exempt. Split along domain seams, not arbitrary ones.
+- `Library` is the shared facade: each feature contributes its own
+  `impl Library` block from its own module — inherent impls may live in any
+  module of the crate.
+- Everything public reaches consumers from the crate root: `inkuna-ffi`
+  imports `inkuna_core::Foo`, never a module path. A new public type means a
+  new `pub use` in `lib.rs`.
+
+## 3. Code Quality & Robustness
 
 - Every fallible function returns `Result<T, CoreError>`; `.unwrap()` /
   `.expect()` outside tests and lock poisoning is forbidden.
@@ -50,14 +79,14 @@ cargo test                      # full workspace tests — must pass before comm
 - `Library` guards its connection with a `Mutex` because UniFFI objects must
   be `Send + Sync`; keep lock scopes minimal.
 
-## 3. CJK Correctness (product-critical)
+## 4. CJK Correctness (product-critical)
 
 - All text handling is UTF-8-safe; never index strings by byte offset in user
-  data. Tests must include CJK fixtures (see `library.rs` tests as the
-  pattern).
+  data. Tests must include CJK fixtures (see `features/library/tests.rs` as
+  the pattern).
 - Future search work uses tantivy + jieba-style tokenization, not SQLite FTS5.
 
-## 4. Naming & FFI Conventions
+## 5. Naming & FFI Conventions
 
 - Rust standard casing; files snake_case.
 - The FFI library object is `Bookshelf`, not `Library` — UniFFI's Kotlin
@@ -66,8 +95,13 @@ cargo test                      # full workspace tests — must pass before comm
 - Bindings config lives in `crates/inkuna-ffi/uniffi.toml` (Swift module
   `InkunaCore`, Kotlin package `app.inkuna.core`).
 
-## 5. Testing
+## 6. Testing
 
-- Unit tests live beside the code (`#[cfg(test)]`), build their own fixtures
-  in `tempfile` dirs (see `write_epub` helper) — no binary fixtures in git.
+- Unit tests live beside the code but never inline: extract every
+  `#[cfg(test)]` module into its own file. A leaf module `foo.rs` gets a
+  sibling `foo_tests.rs`, wired as
+  `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`; a folder module gets
+  `tests.rs` inside it, declared from `mod.rs` as `#[cfg(test)] mod tests;`.
+- Tests build their own fixtures in `tempfile` dirs; shared builders live in
+  `src/test_support.rs` (the `write_epub` helper) — no binary fixtures in git.
 - Format detection, metadata parsing, and DB roundtrips must stay covered.
