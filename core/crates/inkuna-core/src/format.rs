@@ -60,7 +60,7 @@ impl Format {
         if is_plain_text(path, &head[..n]) {
             return Ok(Format::Txt);
         }
-        Err(CoreError::UnsupportedFormat)
+        Err(CoreError::UnsupportedFormat(None))
     }
 
     pub fn as_str(&self) -> &'static str {
@@ -84,7 +84,7 @@ impl Format {
             "pdf" => Ok(Format::Pdf),
             "cbz" => Ok(Format::Cbz),
             "cbr" => Ok(Format::Cbr),
-            _ => Err(CoreError::UnsupportedFormat),
+            _ => Err(CoreError::UnsupportedFormat(Some(s.to_string()))),
         }
     }
 }

@@ -17,8 +17,8 @@ pub enum InkunaError {
     Database(String),
     #[error("archive error: {0}")]
     Archive(String),
-    #[error("unsupported format")]
-    UnsupportedFormat,
+    #[error("unsupported format{}", .0.as_deref().map(|f| format!(": {f}")).unwrap_or_default())]
+    UnsupportedFormat(Option<String>),
     #[error("invalid publication: {0}")]
     InvalidPublication(String),
     #[error("publication not found: {0}")]
@@ -32,7 +32,7 @@ impl From<inkuna_core::CoreError> for InkunaError {
             C::Io(e) => InkunaError::Io(e.to_string()),
             C::Database(e) => InkunaError::Database(e.to_string()),
             C::Archive(m) => InkunaError::Archive(m),
-            C::UnsupportedFormat => InkunaError::UnsupportedFormat,
+            C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat(f),
             C::InvalidPublication(m) => InkunaError::InvalidPublication(m),
             C::NotFound(id) => InkunaError::NotFound(id),
         }
@@ -99,14 +99,23 @@ pub struct Bookshelf(Arc<inkuna_core::Library>);
 /// `suspend` — never a blocked main thread.
 #[uniffi::export(async_runtime = "tokio")]
 impl Bookshelf {
+    /// `data_dir` is the core-owned storage root (Application Support /
+    /// `filesDir`): the DB, imported books, and covers all live under it.
     #[uniffi::constructor]
-    pub fn open(db_path: String) -> Result<Arc<Self>, InkunaError> {
-        Ok(Arc::new(Bookshelf(Arc::new(inkuna_core::Library::open(&db_path)?))))
+    pub fn open(data_dir: String) -> Result<Arc<Self>, InkunaError> {
+        Ok(Arc::new(Bookshelf(Arc::new(inkuna_core::Library::open(&data_dir)?))))
     }
 
     pub async fn import(&self, path: String) -> Result<Publication, InkunaError> {
         let library = self.0.clone();
-        blocking(move || Ok(library.import(&path)?.into())).await
+        blocking(move || {
+            let publication = match library.import(&path)? {
+                inkuna_core::ImportOutcome::Imported(p)
+                | inkuna_core::ImportOutcome::Duplicate(p) => p,
+            };
+            Ok(publication.into())
+        })
+        .await
     }
 
     pub async fn list(&self) -> Result<Vec<Publication>, InkunaError> {

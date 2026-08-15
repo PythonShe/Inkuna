@@ -9,8 +9,11 @@ pub enum CoreError {
     #[error("archive error: {0}")]
     Archive(String),
 
-    #[error("unsupported format")]
-    UnsupportedFormat,
+    /// Carries the detected format name when one was recognized but is not
+    /// yet importable ("mobi"), so shells can say "MOBI support is coming"
+    /// instead of a bare error; `None` means nothing recognizable at all.
+    #[error("unsupported format{}", .0.as_deref().map(|f| format!(": {f}")).unwrap_or_default())]
+    UnsupportedFormat(Option<String>),
 
     #[error("invalid publication: {0}")]
     InvalidPublication(String),

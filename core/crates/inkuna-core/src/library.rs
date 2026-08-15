@@ -1,15 +1,20 @@
-use std::path::Path;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use rusqlite::Connection;
 
-use crate::epub;
+use crate::migrate::migrate;
+use crate::pool::{open_connection, ReaderPool, READER_POOL_SIZE};
 use crate::{CoreError, Format};
 
 /// Authors are stored joined by the ASCII unit separator: it cannot appear
 /// in real names, unlike commas or semicolons (common in CJK author lists).
 const AUTHOR_SEP: char = '\u{1f}';
 
+/// A library publication. `file_path` and `cover_path` are relative to the
+/// library's data dir (iOS container paths change across installs, so
+/// absolute paths are never persisted); the FFI layer absolutizes on read.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Publication {
     pub id: String,
@@ -18,120 +23,110 @@ pub struct Publication {
     pub language: Option<String>,
     pub format: Format,
     pub file_path: String,
+    pub cover_path: Option<String>,
     pub added_at: i64,
-    /// Overall reading progress in [0, 1].
+    /// Book-wide `totalProgression` in [0, 1] — never per-resource.
     pub progression: f64,
+    /// Current position: opaque Readium locator JSON, stored and returned,
+    /// never parsed.
+    pub locator: Option<String>,
+    /// Readium synthetic position count, reported by the shell's navigator.
+    pub position_count: Option<u32>,
+    /// Non-NULL = on the Finished shelf; powers "books this year".
+    pub finished_at: Option<i64>,
+    pub last_opened_at: Option<i64>,
 }
 
+/// The library facade: one SQLite DB plus core-owned book/cover storage
+/// under a single data dir. One writer connection (mutations only, each in
+/// a transaction; file I/O and parsing always happen outside the lock) and
+/// a fixed reader pool so reads never queue behind an import.
 pub struct Library {
-    conn: Mutex<Connection>,
+    pub(crate) data_dir: PathBuf,
+    pub(crate) writer: Mutex<Connection>,
+    pub(crate) readers: ReaderPool,
+}
+
+pub(crate) const PUB_COLUMNS: &str = "id, title, authors, language, format, file_path, \
+     cover_path, added_at, progression, locator, position_count, finished_at, last_opened_at";
+
+pub(crate) fn map_publication(row: &rusqlite::Row) -> rusqlite::Result<Publication> {
+    let format_str: String = row.get(4)?;
+    let format = Format::from_str(&format_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+    let authors: String = row.get(2)?;
+    Ok(Publication {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        authors: split_authors(&authors),
+        language: row.get(3)?,
+        format,
+        file_path: row.get(5)?,
+        cover_path: row.get(6)?,
+        added_at: row.get(7)?,
+        progression: row.get(8)?,
+        locator: row.get(9)?,
+        position_count: row.get(10)?,
+        finished_at: row.get(11)?,
+        last_opened_at: row.get(12)?,
+    })
 }
 
 impl Library {
-    pub fn open(db_path: &str) -> Result<Library, CoreError> {
-        let conn = Connection::open(db_path)?;
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
-        migrate(&conn)?;
-        Ok(Library { conn: Mutex::new(conn) })
+    /// Opens (creating if needed) the library rooted at `data_dir`:
+    /// `inkuna.db`, `books/`, and `covers/` all live under it and are owned
+    /// by the core. Runs pending migrations, then sweeps files unreferenced
+    /// by any row (crash-recovery for interrupted imports).
+    pub fn open(data_dir: impl AsRef<Path>) -> Result<Library, CoreError> {
+        let data_dir = data_dir.as_ref().to_path_buf();
+        std::fs::create_dir_all(data_dir.join("books"))?;
+        std::fs::create_dir_all(data_dir.join("covers"))?;
+
+        let db_path = data_dir.join("inkuna.db");
+        let mut writer = open_connection(&db_path)?;
+        migrate(&mut writer, &data_dir)?;
+        let readers = ReaderPool::open(&db_path, READER_POOL_SIZE)?;
+
+        let library = Library {
+            data_dir,
+            writer: Mutex::new(writer),
+            readers,
+        };
+        library.sweep()?;
+        Ok(library)
     }
 
-    /// Registers a publication file in the library. The file itself stays
-    /// where it is; copying into app storage is the shell's responsibility.
-    pub fn import(&self, path: &str) -> Result<Publication, CoreError> {
-        let file_path = Path::new(path);
-        let format = Format::detect(file_path)?;
-
-        let (title, authors, language) = match format {
-            Format::Epub => {
-                let meta = epub::read_metadata(file_path)?;
-                (meta.title, meta.authors, meta.language)
-            }
-            // Filename fallback until each format's real support lands:
-            // MOBI/AZW3 EXTH metadata arrives with the convert-to-EPUB
-            // importer, PDF metadata with the PDF navigator, ComicInfo.xml
-            // with comics; TXT has no embedded metadata at all.
-            Format::Mobi | Format::Azw3 | Format::Txt | Format::Pdf | Format::Cbz | Format::Cbr => {
-                (None, Vec::new(), None)
-            }
-        };
-        let title = title
-            .or_else(|| {
-                file_path
-                    .file_stem()
-                    .map(|s| s.to_string_lossy().into_owned())
-            })
-            .ok_or_else(|| CoreError::InvalidPublication("untitled".into()))?;
-
-        let publication = Publication {
-            id: uuid::Uuid::new_v4().to_string(),
-            title,
-            authors,
-            language,
-            format,
-            file_path: path.to_string(),
-            added_at: unix_now(),
-            progression: 0.0,
-        };
-
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "INSERT INTO publications
-                (id, title, authors, language, format, file_path, added_at, progression)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            rusqlite::params![
-                publication.id,
-                publication.title,
-                join_authors(&publication.authors),
-                publication.language,
-                publication.format.as_str(),
-                publication.file_path,
-                publication.added_at,
-                publication.progression,
-            ],
-        )?;
-        Ok(publication)
+    pub fn data_dir(&self) -> &Path {
+        &self.data_dir
     }
 
     pub fn list(&self) -> Result<Vec<Publication>, CoreError> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, title, authors, language, format, file_path, added_at, progression
-             FROM publications ORDER BY added_at DESC, rowid DESC",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, Option<String>>(3)?,
-                row.get::<_, String>(4)?,
-                row.get::<_, String>(5)?,
-                row.get::<_, i64>(6)?,
-                row.get::<_, f64>(7)?,
-            ))
-        })?;
+        self.readers.with(|conn| {
+            let mut stmt = conn.prepare_cached(&format!(
+                "SELECT {PUB_COLUMNS} FROM publications ORDER BY added_at DESC, rowid DESC"
+            ))?;
+            let rows = stmt.query_map([], map_publication)?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })
+    }
 
-        let mut publications = Vec::new();
-        for row in rows {
-            let (id, title, authors, language, format, file_path, added_at, progression) = row?;
-            publications.push(Publication {
-                id,
-                title,
-                authors: split_authors(&authors),
-                language,
-                format: Format::from_str(&format)?,
-                file_path,
-                added_at,
-                progression,
-            });
-        }
-        Ok(publications)
+    pub fn publication(&self, id: &str) -> Result<Publication, CoreError> {
+        self.readers.with(|conn| {
+            let mut stmt = conn.prepare_cached(&format!(
+                "SELECT {PUB_COLUMNS} FROM publications WHERE id = ?1"
+            ))?;
+            let mut rows = stmt.query_map([id], map_publication)?;
+            match rows.next().transpose()? {
+                Some(publication) => Ok(publication),
+                None => Err(CoreError::NotFound(id.to_string())),
+            }
+        })
     }
 
     pub fn set_progression(&self, id: &str, progression: f64) -> Result<(), CoreError> {
         let progression = progression.clamp(0.0, 1.0);
-        let conn = self.conn.lock().unwrap();
+        let conn = self.writer.lock().unwrap();
         let changed = conn.execute(
             "UPDATE publications SET progression = ?1 WHERE id = ?2",
             rusqlite::params![progression, id],
@@ -142,47 +137,65 @@ impl Library {
         Ok(())
     }
 
+    /// Removes the publication row (child tables cascade), its book file,
+    /// and its cover. File deletion is idempotent — missing files are not
+    /// an error — and always confined to the data dir because DB paths are
+    /// relative by construction.
     pub fn remove(&self, id: &str) -> Result<(), CoreError> {
-        let conn = self.conn.lock().unwrap();
-        let changed = conn.execute("DELETE FROM publications WHERE id = ?1", [id])?;
-        if changed == 0 {
-            return Err(CoreError::NotFound(id.to_string()));
+        let publication = self.publication(id)?;
+        {
+            let conn = self.writer.lock().unwrap();
+            conn.execute("DELETE FROM publications WHERE id = ?1", [id])?;
+        }
+        let _ = std::fs::remove_file(self.data_dir.join(&publication.file_path));
+        if let Some(cover) = &publication.cover_path {
+            let _ = std::fs::remove_file(self.data_dir.join(cover));
+        }
+        Ok(())
+    }
+
+    /// Deletes files under `books/` and `covers/` that no publication row
+    /// references — leftovers of imports interrupted between the file
+    /// rename and the DB commit — plus stray `.tmp` staging files.
+    fn sweep(&self) -> Result<(), CoreError> {
+        let referenced: HashSet<String> = self.readers.with(|conn| {
+            let mut stmt =
+                conn.prepare("SELECT file_path, cover_path FROM publications")?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+            })?;
+            let mut set = HashSet::new();
+            for row in rows {
+                let (file_path, cover_path) = row?;
+                set.insert(file_path);
+                if let Some(cover) = cover_path {
+                    set.insert(cover);
+                }
+            }
+            Ok(set)
+        })?;
+
+        for sub in ["books", "covers"] {
+            for entry in std::fs::read_dir(self.data_dir.join(sub))? {
+                let entry = entry?;
+                if !entry.file_type()?.is_file() {
+                    continue;
+                }
+                let rel = format!("{sub}/{}", entry.file_name().to_string_lossy());
+                if !referenced.contains(&rel) {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
         }
         Ok(())
     }
 }
 
-/// Append-only versioned migrations tracked via SQLite's `user_version`
-/// pragma. Never edit a shipped entry — add a new one. (refinery would be
-/// preferred, but it currently caps rusqlite below our version; revisit.)
-const MIGRATIONS: &[&str] = &[
-    // 0001: initial schema
-    "CREATE TABLE publications (
-        id          TEXT PRIMARY KEY,
-        title       TEXT NOT NULL,
-        authors     TEXT NOT NULL DEFAULT '',
-        language    TEXT,
-        format      TEXT NOT NULL,
-        file_path   TEXT NOT NULL,
-        added_at    INTEGER NOT NULL,
-        progression REAL NOT NULL DEFAULT 0
-    );",
-];
-
-fn migrate(conn: &Connection) -> Result<(), CoreError> {
-    let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    for (index, migration) in MIGRATIONS.iter().enumerate().skip(version as usize) {
-        conn.execute_batch(migration)?;
-        conn.pragma_update(None, "user_version", (index + 1) as i64)?;
-    }
-    Ok(())
-}
-
-fn unix_now() -> i64 {
+pub(crate) fn unix_now() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
-fn join_authors(authors: &[String]) -> String {
+pub(crate) fn join_authors(authors: &[String]) -> String {
     authors.join(&AUTHOR_SEP.to_string())
 }
 
@@ -195,12 +208,13 @@ fn split_authors(joined: &str) -> Vec<String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+    use crate::ImportOutcome;
     use std::io::Write;
 
     /// Builds a minimal but valid EPUB with the given Dublin Core fields.
-    fn write_epub(path: &Path, title: &str, author: &str, language: &str) {
+    pub(crate) fn write_epub(path: &Path, title: &str, author: &str, language: &str) {
         let file = std::fs::File::create(path).unwrap();
         let mut zip = zip::ZipWriter::new(file);
         let stored = zip::write::SimpleFileOptions::default()
@@ -264,6 +278,13 @@ mod tests {
         std::fs::write(path, bytes).unwrap();
     }
 
+    fn imported(outcome: ImportOutcome) -> Publication {
+        match outcome {
+            ImportOutcome::Imported(p) => p,
+            ImportOutcome::Duplicate(p) => panic!("expected fresh import, got duplicate of {}", p.id),
+        }
+    }
+
     #[test]
     fn detects_formats_by_content() {
         let dir = tempfile::tempdir().unwrap();
@@ -302,14 +323,14 @@ mod tests {
         std::fs::write(&fake_txt, b"text\x00then binary").unwrap();
         assert!(matches!(
             Format::detect(&fake_txt),
-            Err(CoreError::UnsupportedFormat)
+            Err(CoreError::UnsupportedFormat(None))
         ));
 
         let junk = dir.path().join("junk.bin");
         std::fs::write(&junk, b"not a book").unwrap();
         assert!(matches!(
             Format::detect(&junk),
-            Err(CoreError::UnsupportedFormat)
+            Err(CoreError::UnsupportedFormat(None))
         ));
     }
 
@@ -319,37 +340,174 @@ mod tests {
         let epub = dir.path().join("moonlight.epub");
         write_epub(&epub, "月光書房", "紫式部", "ja");
 
-        let library = Library::open(dir.path().join("library.db").to_str().unwrap()).unwrap();
-        let imported = library.import(epub.to_str().unwrap()).unwrap();
-        assert_eq!(imported.title, "月光書房");
-        assert_eq!(imported.authors, vec!["紫式部"]);
-        assert_eq!(imported.language.as_deref(), Some("ja"));
-        assert_eq!(imported.format, Format::Epub);
+        let data_dir = dir.path().join("library");
+        let library = Library::open(&data_dir).unwrap();
+        let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+        assert_eq!(publication.title, "月光書房");
+        assert_eq!(publication.authors, vec!["紫式部"]);
+        assert_eq!(publication.language.as_deref(), Some("ja"));
+        assert_eq!(publication.format, Format::Epub);
+
+        // The file was copied into core-owned storage under a relative path.
+        assert_eq!(publication.file_path, format!("books/{}.epub", publication.id));
+        assert!(data_dir.join(&publication.file_path).is_file());
 
         let listed = library.list().unwrap();
-        assert_eq!(listed, vec![imported.clone()]);
+        assert_eq!(listed, vec![publication.clone()]);
+        assert_eq!(library.publication(&publication.id).unwrap(), publication);
 
-        library.set_progression(&imported.id, 0.42).unwrap();
+        library.set_progression(&publication.id, 0.42).unwrap();
         assert_eq!(library.list().unwrap()[0].progression, 0.42);
 
-        library.remove(&imported.id).unwrap();
+        library.remove(&publication.id).unwrap();
         assert!(library.list().unwrap().is_empty());
+        assert!(!data_dir.join(&publication.file_path).exists());
         assert!(matches!(
-            library.remove(&imported.id),
+            library.remove(&publication.id),
             Err(CoreError::NotFound(_))
         ));
     }
 
     #[test]
-    fn comic_title_falls_back_to_filename() {
+    fn rejects_non_epub_naming_the_format() {
         let dir = tempfile::tempdir().unwrap();
         let cbz = dir.path().join("鬼滅の刃 第1巻.cbz");
         write_cbz(&cbz);
 
-        let library = Library::open(dir.path().join("library.db").to_str().unwrap()).unwrap();
-        let imported = library.import(cbz.to_str().unwrap()).unwrap();
-        assert_eq!(imported.title, "鬼滅の刃 第1巻");
-        assert_eq!(imported.format, Format::Cbz);
-        assert!(imported.authors.is_empty());
+        let library = Library::open(dir.path().join("library")).unwrap();
+        let err = library.import(cbz.to_str().unwrap()).unwrap_err();
+        match err {
+            CoreError::UnsupportedFormat(Some(format)) => assert_eq!(format, "cbz"),
+            other => panic!("expected UnsupportedFormat with name, got {other:?}"),
+        }
+        assert!(library.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn import_is_idempotent_by_content_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let epub = dir.path().join("book.epub");
+        write_epub(&epub, "月光書房", "紫式部", "ja");
+
+        let data_dir = dir.path().join("library");
+        let library = Library::open(&data_dir).unwrap();
+        let first = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+        // Same file again.
+        match library.import(epub.to_str().unwrap()).unwrap() {
+            ImportOutcome::Duplicate(p) => assert_eq!(p.id, first.id),
+            other => panic!("expected duplicate, got {other:?}"),
+        }
+
+        // Byte-identical copy under another name.
+        let copy = dir.path().join("renamed-copy.epub");
+        std::fs::copy(&epub, &copy).unwrap();
+        match library.import(copy.to_str().unwrap()).unwrap() {
+            ImportOutcome::Duplicate(p) => assert_eq!(p.id, first.id),
+            other => panic!("expected duplicate, got {other:?}"),
+        }
+
+        assert_eq!(library.list().unwrap().len(), 1);
+        // No stray files: exactly one book in storage.
+        let books: Vec<_> = std::fs::read_dir(data_dir.join("books"))
+            .unwrap()
+            .collect();
+        assert_eq!(books.len(), 1);
+    }
+
+    #[test]
+    fn migration_adopts_live_rows_and_drops_dead_ones() {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().join("library");
+        std::fs::create_dir_all(&data_dir).unwrap();
+
+        let alive = dir.path().join("alive.epub");
+        write_epub(&alive, "生きてる本", "著者", "ja");
+
+        // Hand-build a v1 database: external absolute paths, schema v1.
+        {
+            let conn = Connection::open(data_dir.join("inkuna.db")).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE publications (
+                    id          TEXT PRIMARY KEY,
+                    title       TEXT NOT NULL,
+                    authors     TEXT NOT NULL DEFAULT '',
+                    language    TEXT,
+                    format      TEXT NOT NULL,
+                    file_path   TEXT NOT NULL,
+                    added_at    INTEGER NOT NULL,
+                    progression REAL NOT NULL DEFAULT 0
+                );",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO publications VALUES ('live-id', '生きてる本', '著者', 'ja', 'epub', ?1, 100, 0.5)",
+                [alive.to_str().unwrap()],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO publications VALUES ('dead-id', 'Gone', '', NULL, 'epub', '/no/such/file.epub', 200, 0.0)",
+                [],
+            )
+            .unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+        }
+
+        let library = Library::open(&data_dir).unwrap();
+        let listed = library.list().unwrap();
+        assert_eq!(listed.len(), 1);
+        let adopted = &listed[0];
+        assert_eq!(adopted.id, "live-id");
+        assert_eq!(adopted.title, "生きてる本");
+        assert_eq!(adopted.progression, 0.5);
+        // Adopted: copied in, relativized, hashed (dedupe now works on it).
+        assert_eq!(adopted.file_path, "books/live-id.epub");
+        assert!(data_dir.join("books/live-id.epub").is_file());
+        match library.import(alive.to_str().unwrap()).unwrap() {
+            ImportOutcome::Duplicate(p) => assert_eq!(p.id, "live-id"),
+            other => panic!("expected duplicate of adopted row, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn open_sweeps_unreferenced_and_tmp_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().join("library");
+
+        let epub = dir.path().join("book.epub");
+        write_epub(&epub, "Kept", "A", "en");
+        let kept = {
+            let library = Library::open(&data_dir).unwrap();
+            imported(library.import(epub.to_str().unwrap()).unwrap())
+        };
+
+        // Simulate a crash between file rename and DB commit, plus staging
+        // leftovers and an orphaned cover.
+        std::fs::write(data_dir.join("books/orphan.epub"), b"orphan").unwrap();
+        std::fs::write(data_dir.join("books/half.epub.tmp"), b"partial").unwrap();
+        std::fs::write(data_dir.join("covers/orphan.jpg"), b"img").unwrap();
+
+        let library = Library::open(&data_dir).unwrap();
+        assert!(!data_dir.join("books/orphan.epub").exists());
+        assert!(!data_dir.join("books/half.epub.tmp").exists());
+        assert!(!data_dir.join("covers/orphan.jpg").exists());
+        // The referenced book survived.
+        assert!(data_dir.join(&kept.file_path).is_file());
+        assert_eq!(library.list().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn reads_do_not_queue_behind_the_writer() {
+        let dir = tempfile::tempdir().unwrap();
+        let epub = dir.path().join("book.epub");
+        write_epub(&epub, "T", "A", "en");
+
+        let library = Library::open(dir.path().join("library")).unwrap();
+        library.import(epub.to_str().unwrap()).unwrap();
+
+        // Hold the writer lock; a read must still complete — if list()
+        // touched the writer connection this would deadlock the test.
+        let _writer_held = library.writer.lock().unwrap();
+        assert_eq!(library.list().unwrap().len(), 1);
     }
 }
