@@ -24,6 +24,12 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+
+        // minSdk 33 rules out 32-bit-only devices, so the core is built for
+        // arm64-v8a alone; this also drops JNA's other bundled .so files.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     sourceSets {

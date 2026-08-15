@@ -12,7 +12,7 @@ defaults.
 | Language | Kotlin (built into AGP 9+ — no standalone kotlin.android plugin) | latest stable AGP + Gradle wrapper |
 | Core | UniFFI Kotlin bindings + JNA | generated into `app/src/generated/kotlin` by `../../scripts/build-core-android.sh`; core methods are `suspend` |
 | Rendering (planned) | Readium Kotlin Toolkit | |
-| Targets | minSdk 33, compile/target = latest SDK | application id `app.inkuna.android` |
+| Targets | minSdk 33, compile/target = latest SDK, `arm64-v8a` only | application id `app.inkuna.android`; use an arm64 AVD |
 
 ```bash
 ../../scripts/build-core-android.sh   # after any core/FFI change

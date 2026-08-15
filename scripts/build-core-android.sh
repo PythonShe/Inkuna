@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds the Rust core for Android (arm64 device + x86_64 emulator),
-# generates Kotlin bindings, and drops .so files into the app's jniLibs.
+# Builds the Rust core for Android (arm64-v8a only), generates Kotlin
+# bindings, and drops .so files into the app's jniLibs.
+# Changing the ABI list means changing abiFilters in build.gradle.kts too.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,7 +24,7 @@ fi
 
 cd "$CORE"
 rm -rf "$JNI_LIBS" "$GENERATED"
-cargo ndk -t arm64-v8a -t x86_64 -o "$JNI_LIBS" build -p inkuna-ffi --release
+cargo ndk -t arm64-v8a -o "$JNI_LIBS" build -p inkuna-ffi --release
 
 cargo run -p inkuna-ffi --bin uniffi-bindgen --release -- generate \
   --library "$CARGO_TARGET_DIR/aarch64-linux-android/release/libinkuna_ffi.so" \
