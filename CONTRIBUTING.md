@@ -18,13 +18,18 @@ The signing form asks for your name, your e-mail address and country of
 residence, and whether you are signing personally or binding an employer.
 Section 16 covers how that record is stored and for how long.
 
-You can sign under a pseudonym or a username. The form asks whether the name you
-gave is your legal one — answer it honestly and that is the end of it;
-pseudonymous contributions are welcome and saying so is not held against you. For
-a substantial contribution I may ask for a legal name first, and you will hear
-that before you start work, not after you have submitted it. Signing on behalf of
-a company is the exception: the entity has to be identified by name (Section 10),
-and so should whoever is binding it.
+**Your username is fine.** For a bug fix, a translation, a documentation change
+or an ordinary feature — which is very nearly everything — you do not need to
+give a legal name, and a pseudonymous signature is a perfectly normal thing to
+have on file. The form asks whether the name you gave is your legal one; answer
+it honestly and you are done. Saying "no" is not held against you.
+
+There are two narrow exceptions. If a contribution is large enough to stand on
+its own — a whole subsystem, a rewrite — I may ask for a legal name before it is
+merged; because that kind of work starts with an issue anyway (see below), you
+would hear it there rather than after writing the code. And if you are signing on
+behalf of a company, that is different by construction: the entity has to be
+identified by name (Section 10), and so should whoever is binding it.
 
 Please read it rather than clicking through. In short:
 
