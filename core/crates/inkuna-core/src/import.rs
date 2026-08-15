@@ -18,6 +18,15 @@ pub enum ImportOutcome {
     Duplicate(Publication),
 }
 
+/// Per-item outcome of a batch import: failures are reported in place of
+/// throwing so one bad file never aborts the rest of a multi-selection.
+#[derive(Debug)]
+pub enum BatchImportOutcome {
+    Imported(Publication),
+    Duplicate(Publication),
+    Failed { path: String, error: CoreError },
+}
+
 /// A fully parsed import, ready to commit: the file already sits at
 /// `tmp_path` and every DB value is computed. Parsing happens outside any
 /// lock; committing takes the writer.
@@ -47,6 +56,26 @@ impl Library {
             Prepared::Duplicate(existing) => Ok(ImportOutcome::Duplicate(existing)),
             Prepared::Fresh(prepared) => self.commit_import(*prepared),
         }
+    }
+
+    /// Imports many files, parallelizing the copy/hash/parse stage with
+    /// rayon; DB commits serialize per-item on the writer, which is fine
+    /// because parsing dominates. Reuses the single-import pipeline
+    /// verbatim; outcomes come back in input order. Two identical files in
+    /// one batch resolve to Imported + Duplicate via the unique-index race.
+    pub fn import_batch(&self, paths: &[String]) -> Vec<BatchImportOutcome> {
+        use rayon::prelude::*;
+        paths
+            .par_iter()
+            .map(|path| match self.import(path) {
+                Ok(ImportOutcome::Imported(p)) => BatchImportOutcome::Imported(p),
+                Ok(ImportOutcome::Duplicate(p)) => BatchImportOutcome::Duplicate(p),
+                Err(error) => BatchImportOutcome::Failed {
+                    path: path.clone(),
+                    error,
+                },
+            })
+            .collect()
     }
 
     /// Streams the source into a `.tmp` under `books/` while hashing,

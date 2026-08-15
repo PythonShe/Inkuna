@@ -658,6 +658,44 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn batch_import_reports_per_item_outcomes_in_order() {
+        use crate::BatchImportOutcome;
+
+        let dir = tempfile::tempdir().unwrap();
+        let good = dir.path().join("good.epub");
+        write_epub(&good, "月光書房", "紫式部", "ja");
+        let comic = dir.path().join("comic.cbz");
+        write_cbz(&comic);
+        let copy = dir.path().join("copy.epub");
+        std::fs::copy(&good, &copy).unwrap();
+
+        let library = Library::open(dir.path().join("library")).unwrap();
+        let outcomes = library.import_batch(&[
+            good.to_str().unwrap().to_string(),
+            comic.to_str().unwrap().to_string(),
+            copy.to_str().unwrap().to_string(),
+        ]);
+
+        assert_eq!(outcomes.len(), 3);
+        // Identical content in one batch: exactly one Imported, the copy a
+        // Duplicate of it (whichever parallel branch wins the race).
+        let (imported, duplicate) = match (&outcomes[0], &outcomes[2]) {
+            (BatchImportOutcome::Imported(a), BatchImportOutcome::Duplicate(b))
+            | (BatchImportOutcome::Duplicate(b), BatchImportOutcome::Imported(a)) => (a, b),
+            other => panic!("expected one Imported + one Duplicate, got {other:?}"),
+        };
+        assert_eq!(imported.id, duplicate.id);
+        match &outcomes[1] {
+            BatchImportOutcome::Failed { path, error } => {
+                assert_eq!(path, comic.to_str().unwrap());
+                assert!(matches!(error, CoreError::UnsupportedFormat(Some(f)) if f == "cbz"));
+            }
+            other => panic!("expected Failed for the comic, got {other:?}"),
+        }
+        assert_eq!(library.list().unwrap().len(), 1);
+    }
+
+    #[test]
     fn migration_adopts_live_rows_and_drops_dead_ones() {
         let dir = tempfile::tempdir().unwrap();
         let data_dir = dir.path().join("library");
