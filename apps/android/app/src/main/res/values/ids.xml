@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stable view id for the FragmentContainerView hosting Readium's EPUB
+         navigator inside Compose; FragmentManager addresses containers by
+         id, so it cannot be generated at runtime. -->
+    <item type="id" name="reader_navigator_host" />
+</resources>

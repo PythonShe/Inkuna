@@ -72,6 +72,8 @@
     <string name="reader_page_info">p. %1$d of %2$d · %3$d%%</string>
     <string name="reader_chapter_page">p. %1$d</string>
     <string name="reader_percent">%1$d%%</string>
+    <string name="reader_open_failed">This book could not be opened.</string>
+    <string name="reader_retry">Try again</string>
 
     <!-- Accessibility -->
     <string name="a11y_back">Back</string>
@@ -86,6 +88,7 @@
     <string name="a11y_not_downloaded">Not downloaded</string>
     <string name="a11y_book_row">%1$s, %2$s</string>
     <string name="a11y_chapter_row">Chapter %1$s, %2$s, page %3$d</string>
+    <string name="a11y_chapter_row_no_page">Chapter %1$s, %2$s</string>
     <string name="a11y_theme_tile">%1$s. %2$s</string>
     <string name="a11y_no_results">No results</string>
     <string name="a11y_toggle_reader_controls">Show or hide reading controls</string>

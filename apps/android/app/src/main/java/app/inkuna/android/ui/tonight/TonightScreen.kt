@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import app.inkuna.android.R
 import app.inkuna.android.model.PlaceholderBook
 import app.inkuna.android.model.PlaceholderLibrary
+import app.inkuna.core.Publication as CorePublication
 import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkButtonSize
@@ -51,7 +52,8 @@ import app.inkuna.android.ui.theme.InkType
 fun TonightScreen(
     innerPadding: PaddingValues,
     onOpenBook: (PlaceholderBook) -> Unit,
-    onOpenReader: (PlaceholderBook) -> Unit,
+    continueReading: CorePublication?,
+    onOpenReader: (CorePublication) -> Unit,
 ) {
     // TODO(core): chips become real collection filters once collections land.
     var selectedChip by rememberSaveable { mutableStateOf(0) }
@@ -64,6 +66,7 @@ fun TonightScreen(
         HeroCard(
             book = PlaceholderLibrary.heroBook,
             onOpenBook = onOpenBook,
+            continueReading = continueReading,
             onOpenReader = onOpenReader,
         )
         Spacer(Modifier.height(InkSpace.s8))
@@ -83,11 +86,15 @@ fun TonightScreen(
     }
 }
 
+// TODO(core): the hero card's cover, title, and progress still render the
+// placeholder book; only the "Keep reading" affordance is core-backed. The
+// library wiring workstream replaces the visuals with `continueReading`.
 @Composable
 private fun HeroCard(
     book: PlaceholderBook,
     onOpenBook: (PlaceholderBook) -> Unit,
-    onOpenReader: (PlaceholderBook) -> Unit,
+    continueReading: CorePublication?,
+    onOpenReader: (CorePublication) -> Unit,
 ) {
     val ink = InkTheme.colors
     val titleLabel = stringResource(R.string.a11y_book_row, book.title, book.author)
@@ -140,9 +147,12 @@ private fun HeroCard(
             Spacer(Modifier.height(14.dp))
             InkButton(
                 text = stringResource(R.string.tonight_keep_reading),
-                onClick = { onOpenReader(book) },
+                // Reading needs a real book: until an import UI exists the
+                // library can be empty, and then there is nothing to open.
+                onClick = { continueReading?.let(onOpenReader) },
                 size = InkButtonSize.Small,
                 icon = Icons.Outlined.AutoStories,
+                enabled = continueReading != null,
             )
         }
     }

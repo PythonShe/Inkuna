@@ -18,12 +18,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.inkuna.android.model.AppSettings
+import app.inkuna.android.model.LibraryStore
 import app.inkuna.android.model.PlaceholderLibrary
+import app.inkuna.core.Publication as CorePublication
+import app.inkuna.core.Shelf
+import app.inkuna.core.Sort
 import app.inkuna.android.ui.detail.BookDetailScreen
 import app.inkuna.android.ui.main.MainScreen
 import app.inkuna.android.ui.onboarding.ThemePickScreen
@@ -38,10 +47,12 @@ private object Routes {
     const val THEME_PICK = "themepick"
     const val MAIN = "main"
     const val DETAIL = "detail/{bookId}"
-    const val READER = "reader/{bookId}"
+
+    /** The reader is core-addressed: the argument is a `Publication` id. */
+    const val READER = "reader/{publicationId}"
 
     fun detail(bookId: Int) = "detail/$bookId"
-    fun reader(bookId: Int) = "reader/$bookId"
+    fun reader(publicationId: String) = "reader/$publicationId"
 }
 
 private fun bookFrom(route: androidx.navigation.NavBackStackEntry) =
@@ -60,10 +71,10 @@ private fun NavHostController.pushOnce(route: String) {
     navigate(route) { launchSingleTop = true }
 }
 
-/** Opens the reader for [bookId], popping back to an existing reader
- *  instead of stacking a second one (mirrors the iOS review fix). */
-private fun NavHostController.openReader(bookId: Int) {
-    val route = Routes.reader(bookId)
+/** Opens the reader for a core publication, popping back to an existing
+ *  reader instead of stacking a second one (mirrors the iOS review fix). */
+private fun NavHostController.openReader(publication: CorePublication) {
+    val route = Routes.reader(publication.id)
     if (!popBackStack(route, inclusive = false)) {
         pushOnce(route)
     }
@@ -95,6 +106,22 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
     InkTheme(night = night) {
         val nav = rememberNavController()
         val pageEasing = InkMotion.easePage
+
+        // The reader is core-addressed, but the shelves still render
+        // PlaceholderLibrary rows — so every "keep reading" affordance
+        // carries the most recently opened core publication instead.
+        // Refreshed on every navigation so a finished sitting moves the
+        // hero. TODO(core): dissolve once the shelves themselves run on
+        // Bookshelf queries and each row carries its own publication.
+        var continueReading by remember { mutableStateOf<CorePublication?>(null) }
+        val navEntry by nav.currentBackStackEntryAsState()
+        LaunchedEffect(navEntry) {
+            continueReading = runCatching {
+                LibraryStore.bookshelf(context)
+                    .list(Shelf.ALL, Sort.RECENTLY_OPENED)
+                    .firstOrNull()
+            }.getOrNull() ?: continueReading
+        }
         NavHost(
             navController = nav,
             startDestination = if (initial.onboarded) Routes.MAIN else Routes.WELCOME,
@@ -144,20 +171,21 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
             ) {
                 MainScreen(
                     onOpenBook = { book -> nav.pushOnce(Routes.detail(book.id)) },
-                    onOpenReader = { book -> nav.openReader(book.id) },
+                    continueReading = continueReading,
+                    onOpenReader = { publication -> nav.openReader(publication) },
                 )
             }
             composable(Routes.DETAIL) { entry ->
-                val book = bookFrom(entry)
                 BookDetailScreen(
-                    book = book,
+                    book = bookFrom(entry),
+                    publication = continueReading,
                     onBack = { nav.popBackStack() },
-                    onRead = { nav.openReader(book.id) },
+                    onRead = { publication -> nav.openReader(publication) },
                 )
             }
             composable(Routes.READER) { entry ->
                 ReaderScreen(
-                    book = bookFrom(entry),
+                    publicationId = entry.arguments?.getString("publicationId").orEmpty(),
                     settings = settings,
                     snapshot = snapshot,
                     onBack = { nav.popBackStack() },

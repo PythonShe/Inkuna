@@ -1,0 +1,290 @@
+package app.inkuna.android.ui.reader
+
+import android.app.Application
+import android.util.Log
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.lifecycle.viewModelScope
+import app.inkuna.android.model.LibraryStore
+import app.inkuna.core.Bookshelf
+import app.inkuna.core.Chapter
+import app.inkuna.core.Publication as CorePublication
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import org.readium.r2.navigator.epub.EpubNavigatorFactory
+import org.readium.r2.shared.publication.Link
+import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.publication.services.positionsByReadingOrder
+import org.readium.r2.shared.util.Url
+import org.readium.r2.shared.util.asset.AssetRetriever
+import org.readium.r2.shared.util.getOrElse
+import org.readium.r2.shared.util.http.DefaultHttpClient
+import org.readium.r2.shared.util.toUrl
+import org.readium.r2.streamer.PublicationOpener
+import org.readium.r2.streamer.parser.DefaultPublicationParser
+
+/**
+ * Owns one open book: fetches the core [CorePublication], opens the EPUB at
+ * its `filePath` through Readium, and drives the whole core contract —
+ * position count, per-page-turn progress, sessions, bookmarks, TOC jumps.
+ * Rendering itself belongs to the navigator fragment; storage and progress
+ * math belong to the Rust core; this class only ferries between them.
+ *
+ * Scoped to the reader's back-stack entry, so the opened publication
+ * survives configuration changes; only the fragment is rebuilt.
+ */
+class ReaderViewModel(
+    private val app: Application,
+    private val publicationId: String,
+) : AndroidViewModel(app) {
+
+    sealed interface UiState {
+        data object Opening : UiState
+
+        /** Recoverable: the screen offers a retry. */
+        data object Failed : UiState
+
+        data class Ready(val book: ReaderBook) : UiState
+    }
+
+    /** Everything the reader needs once the book is open. */
+    class ReaderBook(
+        val core: CorePublication,
+        val publication: Publication,
+        val navigatorFactory: EpubNavigatorFactory,
+        /** The core's saved position, if any — hand it to the navigator. */
+        val initialLocator: Locator?,
+        /** Readium synthetic position count; 0 until computable. */
+        val positionCount: Int,
+        val chapters: List<ReaderChapter>,
+    )
+
+    /** A core TOC entry resolved against Readium's synthetic positions. */
+    data class ReaderChapter(
+        val chapter: Chapter,
+        /** 1-based position where the chapter's resource begins, if known. */
+        val position: Int?,
+    )
+
+    private val stateFlow = MutableStateFlow<UiState>(UiState.Opening)
+    val state: StateFlow<UiState> = stateFlow.asStateFlow()
+
+    private var bookshelf: Bookshelf? = null
+    private var openJob: Job? = null
+
+    // Page turns arrive faster than writes need to land; a StateFlow
+    // conflates them so a fast flick persists the settled page, not a queue
+    // of intermediate ones. The core expects one `updateProgress` per turn.
+    private val pendingProgress = MutableStateFlow<Locator?>(null)
+    private var lastPersisted: Locator? = null
+
+    private var sessionId: String? = null
+    private val sessionLock = Mutex()
+
+    init {
+        open()
+        viewModelScope.launch {
+            pendingProgress.filterNotNull().collect { locator -> persistProgress(locator) }
+        }
+    }
+
+    /** Starts (or after a failure, restarts) opening the book. */
+    fun open() {
+        if (openJob?.isActive == true || stateFlow.value is UiState.Ready) return
+        stateFlow.value = UiState.Opening
+        openJob = viewModelScope.launch {
+            stateFlow.value = try {
+                UiState.Ready(doOpen())
+            } catch (e: Exception) {
+                Log.w(TAG, "opening $publicationId failed", e)
+                UiState.Failed
+            }
+        }
+    }
+
+    private suspend fun doOpen(): ReaderBook {
+        val shelf = LibraryStore.bookshelf(app)
+        bookshelf = shelf
+        val core = shelf.publication(publicationId)
+
+        val httpClient = DefaultHttpClient()
+        val assetRetriever = AssetRetriever(app.contentResolver, httpClient)
+        val asset = assetRetriever
+            .retrieve(File(core.filePath).toUrl(isDirectory = false))
+            .getOrElse { error -> throw ReaderOpenException(error.message) }
+        val opener = PublicationOpener(
+            publicationParser = DefaultPublicationParser(
+                app,
+                httpClient = httpClient,
+                assetRetriever = assetRetriever,
+                pdfFactory = null,
+            ),
+        )
+        val publication = opener
+            .open(asset, allowUserInteraction = false)
+            .getOrElse { error ->
+                asset.close()
+                throw ReaderOpenException(error.message)
+            }
+
+        // Synthetic positions are the honest substitute for page numbers.
+        // Reported once so the core can answer "p. N of M" everywhere.
+        val positionsByResource = publication.positionsByReadingOrder()
+        val positionCount = positionsByResource.sumOf { it.size }
+        if (positionCount > 0 && core.positionCount != positionCount.toUInt()) {
+            shelf.reportPositionCount(core.id, positionCount.toUInt())
+        }
+
+        val chapters = shelf.chapters(core.id).map { chapter ->
+            ReaderChapter(chapter, chapterStartPosition(publication, positionsByResource, chapter))
+        }
+
+        // The locator blob is opaque to the core; only Readium parses it.
+        // A blob this navigator cannot read (corrupt, or from a future
+        // format) degrades to opening at the start, never to a crash.
+        val initialLocator = core.locator?.let { raw ->
+            runCatching { Locator.fromJSON(JSONObject(raw)) }.getOrNull()
+        }
+
+        return ReaderBook(
+            core = core,
+            publication = publication,
+            navigatorFactory = EpubNavigatorFactory(publication),
+            initialLocator = initialLocator,
+            positionCount = positionCount,
+            chapters = chapters,
+        )
+    }
+
+    /**
+     * The synthetic position at which [chapter]'s resource begins — the
+     * chapter-to-resource mapping is href-minus-fragment, per the core spec.
+     */
+    private fun chapterStartPosition(
+        publication: Publication,
+        positionsByResource: List<List<Locator>>,
+        chapter: Chapter,
+    ): Int? {
+        val target = Url(chapter.href)?.removeFragment()?.normalize() ?: return null
+        val index = publication.readingOrder.indexOfFirst { link ->
+            link.url().normalize().removeFragment() == target
+        }
+        if (index < 0) return null
+        return positionsByResource.getOrNull(index)?.firstOrNull()?.locations?.position
+    }
+
+    /** Resolves a core chapter's href into a navigator jump target. */
+    fun chapterLocator(chapter: Chapter): Locator? {
+        val book = (stateFlow.value as? UiState.Ready)?.book ?: return null
+        val url = Url(chapter.href) ?: return null
+        return book.publication.locatorFromLink(Link(href = url))
+    }
+
+    /** One call per page turn, from the navigator's locator flow. */
+    fun onLocatorChanged(locator: Locator) {
+        pendingProgress.value = locator
+    }
+
+    private suspend fun persistProgress(locator: Locator) {
+        val shelf = bookshelf ?: return
+        // The book-wide totalProgression, never the per-resource one.
+        val progression = locator.locations.totalProgression ?: return
+        lastPersisted = locator
+        withContext(NonCancellable + Dispatchers.Default) {
+            runCatching {
+                shelf.updateProgress(
+                    publicationId,
+                    locator.toJSON().toString(),
+                    progression,
+                    locator.locations.position?.toUInt(),
+                )
+            }.onFailure { Log.w(TAG, "updateProgress failed", it) }
+        }
+    }
+
+    /**
+     * Reading sessions bracket the reader's visible lifetime — entered /
+     * left / backgrounded — and power the Stats screen. Writes run on the
+     * application scope so popping the reader never cancels the closing
+     * write; a session lost to a crash is closed retroactively by the
+     * core at the next `sessionStart`.
+     */
+    fun onReaderVisible() {
+        LibraryStore.writes.launch {
+            sessionLock.withLock {
+                if (sessionId != null) return@withLock
+                val shelf = bookshelf ?: return@withLock
+                sessionId = runCatching { shelf.sessionStart(publicationId) }
+                    .onFailure { Log.w(TAG, "sessionStart failed", it) }
+                    .getOrNull()
+            }
+        }
+    }
+
+    fun onReaderHidden() {
+        LibraryStore.writes.launch {
+            sessionLock.withLock {
+                val id = sessionId ?: return@withLock
+                sessionId = null
+                val shelf = bookshelf ?: return@withLock
+                runCatching { shelf.sessionEnd(id) }
+                    .onFailure { Log.w(TAG, "sessionEnd failed", it) }
+            }
+        }
+    }
+
+    /** Persists a bookmark at [locator]; [onPlaced] confirms on success. */
+    fun addBookmark(locator: Locator, onPlaced: () -> Unit) {
+        val shelf = bookshelf ?: return
+        viewModelScope.launch {
+            runCatching {
+                shelf.addBookmark(
+                    publicationId,
+                    locator.toJSON().toString(),
+                    locator.locations.totalProgression ?: 0.0,
+                )
+            }.onSuccess { onPlaced() }
+                .onFailure { Log.w(TAG, "addBookmark failed", it) }
+        }
+    }
+
+    override fun onCleared() {
+        // The last page turn may still sit unconsumed in the conflated
+        // flow; flush it on the application scope so it always lands.
+        pendingProgress.value?.let { last ->
+            if (last !== lastPersisted) {
+                LibraryStore.writes.launch { persistProgress(last) }
+            }
+        }
+        onReaderHidden()
+        (stateFlow.value as? UiState.Ready)?.book?.publication?.close()
+        super.onCleared()
+    }
+
+    private class ReaderOpenException(message: String) : Exception(message)
+
+    companion object {
+        private const val TAG = "InkunaReader"
+
+        fun factory(publicationId: String) = viewModelFactory {
+            initializer {
+                val application = this[AndroidViewModelFactory.APPLICATION_KEY]!!
+                ReaderViewModel(application, publicationId)
+            }
+        }
+    }
+}

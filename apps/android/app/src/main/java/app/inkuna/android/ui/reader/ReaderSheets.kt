@@ -57,9 +57,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.inkuna.android.R
 import app.inkuna.android.model.AppSettings
-import app.inkuna.android.model.PlaceholderBook
-import app.inkuna.android.model.PlaceholderLibrary
 import app.inkuna.android.ui.components.BookCover
+import app.inkuna.core.Chapter as CoreChapter
+import app.inkuna.core.Publication as CorePublication
+import kotlin.math.abs
 import app.inkuna.android.ui.components.inkShadow
 import app.inkuna.android.ui.stats.hairlineThickness
 import app.inkuna.android.ui.theme.InkRadius
@@ -380,11 +381,20 @@ private fun ThemeTile(
     }
 }
 
+/**
+ * The core's flattened TOC. Rows are numbered by TOC order and indented by
+ * depth; the trailing "p. N" is the chapter resource's first synthetic
+ * position — honest numbers, never invented pages — and is simply absent
+ * until positions are known.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContentsSheet(
-    book: PlaceholderBook,
+    publication: CorePublication,
+    chapters: List<ReaderViewModel.ReaderChapter>,
+    currentChapterIndex: Int?,
     pageInfo: String,
+    onSelect: (CoreChapter) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val ink = InkTheme.colors
@@ -406,14 +416,14 @@ fun ContentsSheet(
                     .padding(start = InkSpace.s4, end = InkSpace.s4, bottom = InkSpace.s3),
             ) {
                 BookCover(
-                    title = book.title,
-                    author = book.author,
+                    title = publication.title,
+                    author = publication.authors.joinToString(", "),
                     width = 34.dp,
-                    seed = book.coverSeed,
+                    seed = abs(publication.id.hashCode()),
                 )
                 Column(Modifier.weight(1f)) {
                     Text(
-                        book.title,
+                        publication.title,
                         style = InkType.heading.copy(fontSize = 15.sp, lineHeight = 19.sp),
                         color = ink.textDisplay,
                         maxLines = 1,
@@ -442,13 +452,19 @@ fun ContentsSheet(
                 ),
             ) {
                 itemsIndexed(
-                    PlaceholderLibrary.chapters,
-                    key = { _, chapter -> chapter.numeral },
-                ) { index, chapter ->
-                    val current = index == PlaceholderLibrary.currentChapterIndex
-                    val rowLabel = stringResource(
-                        R.string.a11y_chapter_row, chapter.numeral, chapter.title, chapter.page,
-                    )
+                    chapters,
+                    key = { _, entry -> entry.chapter.id },
+                ) { index, entry ->
+                    val chapter = entry.chapter
+                    val current = index == currentChapterIndex
+                    val numeral = (chapter.idx + 1u).toString()
+                    val rowLabel = if (entry.position != null) {
+                        stringResource(
+                            R.string.a11y_chapter_row, numeral, chapter.title, entry.position,
+                        )
+                    } else {
+                        stringResource(R.string.a11y_chapter_row_no_page, numeral, chapter.title)
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(InkSpace.s3),
@@ -456,8 +472,10 @@ fun ContentsSheet(
                             .fillMaxWidth()
                             .clip(InkRadius.smShape)
                             .background(if (current) ink.accentSoft else Color.Transparent)
-                            // TODO(core): jump to the chapter position.
-                            .clickable(onClick = dismiss)
+                            .clickable {
+                                onSelect(chapter)
+                                dismiss()
+                            }
                             .clearAndSetSemantics {
                                 contentDescription = rowLabel
                                 role = Role.Button
@@ -466,10 +484,12 @@ fun ContentsSheet(
                             .padding(horizontal = 10.dp, vertical = 13.dp),
                     ) {
                         Text(
-                            chapter.numeral,
+                            numeral,
                             style = InkType.caption,
                             color = if (current) ink.accentText else ink.textTertiary,
-                            modifier = Modifier.widthIn(min = 22.dp),
+                            modifier = Modifier
+                                .padding(start = (chapter.depth.toInt() * 12).dp)
+                                .widthIn(min = 22.dp),
                         )
                         Text(
                             chapter.title,
@@ -481,11 +501,13 @@ fun ContentsSheet(
                             color = if (current) ink.accentText else ink.textDisplay,
                             modifier = Modifier.weight(1f),
                         )
-                        Text(
-                            stringResource(R.string.reader_chapter_page, chapter.page),
-                            style = InkType.caption,
-                            color = ink.textTertiary,
-                        )
+                        if (entry.position != null) {
+                            Text(
+                                stringResource(R.string.reader_chapter_page, entry.position),
+                                style = InkType.caption,
+                                color = ink.textTertiary,
+                            )
+                        }
                     }
                 }
             }
