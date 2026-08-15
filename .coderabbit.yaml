@@ -17,12 +17,12 @@ early_access: false
 enable_free_tier: true
 
 reviews:
-  # CodeRabbit is the ONLY automated reviewer on this repo's PRs — there is no
-  # Greptile or Codex connector to cross-check it, and Codex/Claude review
-  # passes happen locally before the PR exists. `assertive` is the right
-  # trade here: broader coverage matters more than comment volume when nothing
-  # else is watching. Flip to `chill` if a second bot is ever added.
-  profile: assertive
+  # Greptile also reviews these PRs (it commented on #1), and Codex/Claude
+  # passes run locally before the PR exists. With a second bot on the same
+  # diff, `assertive` triples overlapping comments for little added signal —
+  # same trade as the Sonelis config. Flip to `assertive` only if Greptile is
+  # removed and CodeRabbit becomes the sole reviewer.
+  profile: chill
   # CodeRabbit must never gate the merge box: `main` requires `license/cla`,
   # and a bot "changes requested" would compound that into a second blocker.
   request_changes_workflow: false
