@@ -11,22 +11,31 @@ Cloudflare Pages.
 | Site | Astro (static output, zero client JS) | `src/pages/*.astro` + shared `src/layouts/Base.astro`; latest Astro per the workspace "latest everything" policy |
 | Hosting | Cloudflare Pages (direct upload) | project `inkuna`; deployed by `.github/workflows/deploy-website.yml`: `pnpm install --frozen-lockfile && pnpm run build`, then `wrangler pages deploy dist` |
 | Packages | pnpm (only supported package manager) | version pinned by `packageManager` in `package.json`; `pnpm-lock.yaml` is committed, settings live in `pnpm-workspace.yaml` |
+| Deploy CLI | wrangler, a pinned devDependency | so `wrangler-action` reuses the lockfile version instead of installing one at deploy time |
 | Headers | `public/_headers` | Cloudflare Pages header rules (security headers), copied verbatim into `dist/` |
 
 Every push to `main` that touches `website/` (or the deploy workflow) deploys
 automatically. Local commands (run inside `website/`): `pnpm install` once,
 then `pnpm dev` for a dev server and `pnpm build` for the production `dist/`.
-Manual deploy from this machine: `pnpm build && pnpm dlx wrangler pages deploy
+Manual deploy from this machine: `pnpm build && pnpm exec wrangler pages deploy
 dist --project-name inkuna --branch main`.
 
 Never use `npm`/`npx`/`yarn` here: they would resolve outside `pnpm-lock.yaml`
-and leave a stray `package-lock.json`. Adding a dependency is `pnpm add <pkg>`;
-bumping is `pnpm update --latest` (the workspace "latest everything" policy
-applies to pnpm and Astro themselves too — bump the `packageManager` pin when
-pnpm releases a new stable). pnpm blocks dependency install scripts by default;
-if a new dependency genuinely needs one, allow exactly it in
-`pnpm-workspace.yaml` under `allowBuilds` (only `esbuild`, Astro's bundler, is
-allowed today).
+and leave a stray `package-lock.json` (both foreign lockfiles are gitignored as
+a backstop). Adding a dependency is `pnpm add <pkg>`; bumping is `pnpm update
+--latest` (the workspace "latest everything" policy applies to pnpm, Astro and
+wrangler themselves too — bump the `packageManager` pin when pnpm releases a
+new stable). Two pnpm behaviours to know about:
+
+- **Install scripts are blocked by default.** If a new dependency genuinely
+  needs one, allow exactly it in `pnpm-workspace.yaml` under `allowBuilds` —
+  today that is `esbuild` (Astro's bundler) and `workerd` (wrangler's runtime),
+  both of which postinstall a platform binary. A missing entry fails the
+  install with `ERR_PNPM_IGNORED_BUILDS`, in CI too.
+- **Freshly published versions are rejected.** pnpm verifies the lockfile
+  against a minimum-release-age policy, so a dependency published in the last
+  couple of days fails resolution (`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`)
+  until it ages out. Wait it out rather than relaxing the policy.
 
 `node_modules/`, `dist/`, and `.astro/` are gitignored — never commit build
 output. `pnpm-lock.yaml` is not: commit it with every dependency change.

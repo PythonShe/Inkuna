@@ -1,5 +1,7 @@
 # pnpm settings for the website package (pnpm reads settings from here, not
-# from a "pnpm" field in package.json). esbuild is Astro's bundler and needs
-# its postinstall to place the platform binary; nothing else may run scripts.
+# from a "pnpm" field in package.json). Dependency install scripts are blocked
+# by default; only these two are allowed to run. esbuild is Astro's bundler and
+# workerd is wrangler's runtime — both postinstall their platform binary.
 allowBuilds:
   esbuild: true
+  workerd: true
