@@ -6,24 +6,61 @@ use std::io::Read;
 
 use crate::CoreError;
 
-/// Per-entry decompression budget for XML/XHTML entries (container, OPF,
-/// nav, NCX, spine resources). A zip entry's declared uncompressed size is
-/// attacker-controlled and the deflate stream itself is unbounded, so the
-/// cap is enforced on the read: without it a few-hundred-KB crafted entry
-/// inflates to gigabytes and gets the app jetsam-killed on device.
+/// Per-entry decompression budget for the XML parts import cannot do
+/// without: `container.xml`, the OPF, the nav doc, the NCX. A zip entry's
+/// declared uncompressed size is attacker-controlled and the deflate
+/// stream itself is unbounded, so the cap is enforced on the read:
+/// without it a few-hundred-KB crafted entry inflates to gigabytes and
+/// gets the app jetsam-killed on device. These parts are read one at a
+/// time, so the budget is also the transient — and a big book's OPF or
+/// NCX can legitimately run to megabytes.
 pub(super) const MAX_XML_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
-/// Same budget for cover art, which never legitimately approaches it.
+/// Per-entry budget for spine content documents, which are far tighter
+/// than the mandatory parts because they are read *concurrently*: the
+/// transient peak is `rayon threads × this`, so the 64 MiB above would
+/// put a 6-core phone around 384 MB — inside jetsam range — no matter
+/// what aggregate budget the corpus keeps, since many reads are already
+/// in flight when it trips. A whole large novel's text is a few MB, so
+/// 8 MiB for one chapter keeps orders of magnitude of headroom over any
+/// honest content while bounding the peak to ~48 MB.
+pub(super) const MAX_SPINE_ENTRY_BYTES: u64 = 8 * 1024 * 1024;
+/// Same idea for cover art, which never legitimately approaches it.
 const MAX_COVER_BYTES: u64 = 16 * 1024 * 1024;
 
+/// Reads a mandatory XML part under [`MAX_XML_ENTRY_BYTES`].
 pub(super) fn read_entry(
     archive: &mut zip::ZipArchive<File>,
     name: &str,
 ) -> Result<String, CoreError> {
+    read_entry_capped(archive, name, MAX_XML_ENTRY_BYTES)
+}
+
+/// Reads a spine content document under the much tighter
+/// [`MAX_SPINE_ENTRY_BYTES`]. Callers degrade on the error (skip the
+/// resource's text and keep importing) — a content document is optional
+/// as far as import is concerned.
+pub(super) fn read_spine_entry(
+    archive: &mut zip::ZipArchive<File>,
+    name: &str,
+) -> Result<String, CoreError> {
+    read_entry_capped(archive, name, MAX_SPINE_ENTRY_BYTES)
+}
+
+fn read_entry_capped(
+    archive: &mut zip::ZipArchive<File>,
+    name: &str,
+    cap: u64,
+) -> Result<String, CoreError> {
     let entry = open_entry(archive, name)?;
-    let mut buf = String::new();
-    entry.take(MAX_XML_ENTRY_BYTES + 1).read_to_string(&mut buf)?;
-    check_cap(buf.len(), MAX_XML_ENTRY_BYTES, name)?;
-    Ok(buf)
+    let mut buf = Vec::new();
+    entry.take(cap + 1).read_to_end(&mut buf)?;
+    // Cap first, decode second. The capped prefix routinely ends inside a
+    // multi-byte character — for CJK content that is the normal case, not
+    // an exotic one — and that must surface as the cap rejection it is,
+    // not as invalid UTF-8, because the shells route on the variant.
+    check_cap(buf.len(), cap, name)?;
+    String::from_utf8(buf)
+        .map_err(|e| CoreError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))
 }
 
 pub(super) fn read_entry_bytes(
@@ -46,7 +83,7 @@ fn open_entry<'a>(
         .map_err(|_| CoreError::InvalidPublication(format!("missing {name}")))
 }
 
-/// Both readers above take `cap + 1` bytes: a read that stops exactly at
+/// Every reader above takes `cap + 1` bytes: a read that stops exactly at
 /// the cap is indistinguishable from a silently truncated entry, so the
 /// extra byte is what makes the overflow detectable here.
 fn check_cap(read: usize, cap: u64, name: &str) -> Result<(), CoreError> {

@@ -11,7 +11,7 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 use rayon::prelude::*;
 
-use super::archive::read_entry;
+use super::archive::read_spine_entry;
 use super::xml::{push_word, resolve_ref};
 use crate::CoreError;
 
@@ -67,8 +67,27 @@ pub fn extract_spine_text(path: &Path, spine: &[String]) -> Vec<Option<Arc<str>>
                     warn_truncated(&warned, path);
                     return None;
                 }
-                let archive = archive.as_mut().ok()?;
-                let xml = read_entry(archive, href).ok()?;
+                let archive = match archive.as_mut() {
+                    Ok(archive) => archive,
+                    Err(e) => {
+                        log::warn!("cannot reopen {} for text extraction: {e}", path.display());
+                        return None;
+                    }
+                };
+                // Skip *and log*: a resource dropped here — missing,
+                // unreadable, or past the per-entry cap — is text the
+                // search corpus will never have, and a silent drop leaves
+                // no way to tell a hostile chapter from an honest one.
+                let xml = match read_spine_entry(archive, href) {
+                    Ok(xml) => xml,
+                    Err(e) => {
+                        log::warn!(
+                            "skipping text extraction for {href} in {}: {e}",
+                            path.display()
+                        );
+                        return None;
+                    }
+                };
                 let Some(text) = extract_text(&xml) else {
                     log::warn!("skipping text extraction for malformed resource {href}");
                     return None;

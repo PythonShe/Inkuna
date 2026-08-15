@@ -33,3 +33,39 @@ fn oversize_entry_hits_the_decompression_cap() {
         Err(CoreError::InvalidPublication(_))
     ));
 }
+
+/// An over-cap entry stays a cap rejection even when the capped prefix
+/// ends mid-character. For CJK that is the normal case, not an exotic
+/// one — every codepoint is multi-byte, so a byte-aligned cut almost
+/// always splits one — and the shells route on the variant, so it must
+/// not surface as an I/O decode error.
+#[test]
+fn oversize_cjk_entry_cut_mid_character_is_still_invalid_publication() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cjk-bomb.epub");
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+    zip.start_file(
+        "OEBPS/bomb.xhtml",
+        zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated),
+    )
+    .unwrap();
+    // Three bytes per character, and the cap + 1 boundary is not a
+    // multiple of three, so the prefix necessarily ends inside one.
+    let chunk = "書".repeat(1024 * 1024);
+    let mut written = 0u64;
+    while written <= MAX_XML_ENTRY_BYTES {
+        zip.write_all(chunk.as_bytes()).unwrap();
+        written += chunk.len() as u64;
+    }
+    zip.finish().unwrap();
+
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+    match read_entry(&mut archive, "OEBPS/bomb.xhtml") {
+        Err(CoreError::InvalidPublication(_)) => {}
+        Err(other) => panic!("expected InvalidPublication, got {other:?}"),
+        Ok(_) => panic!("expected the cap to reject the entry"),
+    }
+}
