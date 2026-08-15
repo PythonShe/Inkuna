@@ -60,6 +60,15 @@ fn insert_session(
     .unwrap();
 }
 
+fn set_finished_at(library: &Library, publication_id: &str, finished_at: i64) {
+    let conn = library.writer.lock().unwrap();
+    conn.execute(
+        "UPDATE publications SET finished_at = ?1 WHERE id = ?2",
+        rusqlite::params![finished_at, publication_id],
+    )
+    .unwrap();
+}
+
 #[test]
 fn session_lifecycle_snapshots_and_crash_recovery() {
     let (_dir, library, id) = library_with_book();
@@ -152,7 +161,11 @@ fn stats_attribute_sessions_to_local_buckets() {
         None, None,
     );
 
-    library.set_finished(&id, true).unwrap();
+    // Finished in January of the simulated year. Stamped directly, like
+    // the sessions above: `set_finished` would stamp the *machine* clock,
+    // so the year bucket would only hold while the runner's date is at or
+    // past 2026-01-01 Tokyo.
+    set_finished_at(&library, &id, ts(2026, 1, 9, 23, 0));
 
     let monday = library
         .stats_overview_at(at(now), TOKYO_MINUTES, true)
