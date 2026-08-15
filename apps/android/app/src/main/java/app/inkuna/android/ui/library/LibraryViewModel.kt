@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /** Which segment of the library is on screen. */
 enum class LibrarySegment { Reading, Finished, Wishlist }
@@ -140,7 +141,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         id = publication.id,
         title = publication.title,
         author = publication.authors.joinToString(", ").ifEmpty { null } ?: UNKNOWN_AUTHOR,
-        progress = publication.progression.takeIf { it > 0.0 }?.let { (it * 100).toInt() },
+        // Rounded, not truncated — iOS rounds, and the same book must not
+        // read 1% on one shell and 2% on the other.
+        progress = publication.progression.takeIf { it > 0.0 }?.let { (it * 100).roundToInt() },
         seed = coverSeed(publication.id),
     )
 

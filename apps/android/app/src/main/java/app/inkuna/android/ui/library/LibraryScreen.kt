@@ -1,12 +1,15 @@
 package app.inkuna.android.ui.library
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -15,7 +18,9 @@ import app.inkuna.android.R
 import app.inkuna.android.ui.components.BookListRow
 import app.inkuna.android.ui.components.InkSearchField
 import app.inkuna.android.ui.components.InkSegmentedControl
-import app.inkuna.android.ui.importing.ImportBooks
+import app.inkuna.android.ui.importing.AddBooksButton
+import app.inkuna.android.ui.importing.EmptyLibraryInvite
+import app.inkuna.android.ui.importing.ImportBooksHost
 import app.inkuna.android.ui.main.DisplayTitle
 import app.inkuna.android.ui.main.EmptyState
 import app.inkuna.android.ui.main.ScrollScreen
@@ -60,49 +65,51 @@ fun LibraryScreen(
     // label round-trip would then pick the wrong one.
     val segmentLabels = segments.map { stringResource(SEGMENT_LABELS.getValue(it)) }
 
-    ScrollScreen(innerPadding) {
-        DisplayTitle(stringResource(R.string.library_title))
-        Spacer(Modifier.height(InkSpace.s5))
-        InkSearchField(
-            value = state.query,
-            onValueChange = model::setQuery,
-            placeholder = stringResource(R.string.library_search_placeholder),
-        )
-        Spacer(Modifier.height(InkSpace.s4))
-        InkSegmentedControl(
-            options = segmentLabels,
-            selectedIndex = segments.indexOf(state.segment),
-            onSelect = { index -> model.setSegment(segments[index]) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(InkSpace.s2))
-        // An empty library gets the invitation to import; otherwise this is
-        // the plain "Add books" affordance. Either way it refreshes the list
-        // itself, so an import from any source lands without polling.
-        ImportBooks(
-            libraryIsEmpty = state.rows.isEmpty() && state.emptiness is LibraryEmptiness.WholeLibrary,
-            onLibraryChanged = model::reload,
-        )
-        Spacer(Modifier.height(InkSpace.s2))
-        if (state.rows.isEmpty()) {
-            // The whole-library case is already spoken for by the import
-            // invitation above; repeating it as an empty state would say the
-            // same thing twice.
-            if (state.emptiness !is LibraryEmptiness.WholeLibrary) {
-                EmptyState(stringResource(emptyMessage(state.emptiness)))
+    ImportBooksHost(onLibraryChanged = model::reload) { onAdd ->
+        ScrollScreen(innerPadding) {
+            // The "+" rides beside the title, as it does on iOS — one
+            // affordance in one place across both shells.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    DisplayTitle(stringResource(R.string.library_title))
+                }
+                AddBooksButton(onAdd = onAdd)
             }
-        } else {
-            state.rows.forEach { row ->
-                BookListRow(
-                    title = row.title,
-                    author = row.author,
-                    progress = row.progress,
-                    seed = row.seed,
-                    // The core owns every book's file, so a listed book is
-                    // always on disk — no cloud-only state to badge.
-                    downloaded = true,
-                    onClick = { onOpenBook(row.id) },
-                )
+            Spacer(Modifier.height(InkSpace.s5))
+            InkSearchField(
+                value = state.query,
+                onValueChange = model::setQuery,
+                placeholder = stringResource(R.string.library_search_placeholder),
+            )
+            Spacer(Modifier.height(InkSpace.s4))
+            InkSegmentedControl(
+                options = segmentLabels,
+                selectedIndex = segments.indexOf(state.segment),
+                onSelect = { index -> model.setSegment(segments[index]) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(InkSpace.s2))
+            if (state.rows.isEmpty()) {
+                // An empty library gets the invitation to import — the one
+                // place a full block earns its space over the "+" above.
+                if (state.emptiness is LibraryEmptiness.WholeLibrary) {
+                    EmptyLibraryInvite(onAdd = onAdd)
+                } else {
+                    EmptyState(stringResource(emptyMessage(state.emptiness)))
+                }
+            } else {
+                state.rows.forEach { row ->
+                    BookListRow(
+                        title = row.title,
+                        author = row.author,
+                        progress = row.progress,
+                        seed = row.seed,
+                        // The core owns every book's file, so a listed book
+                        // is always on disk — no cloud-only state to badge.
+                        downloaded = true,
+                        onClick = { onOpenBook(row.id) },
+                    )
+                }
             }
         }
     }

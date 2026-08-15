@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,8 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.inkuna.android.R
@@ -29,31 +31,30 @@ import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
 
 /**
- * The whole EPUB import experience, as one composable.
+ * The whole EPUB import experience, wrapped around a library surface.
  *
- * Drop it anywhere a library surface wants an "add books" affordance; it
- * owns the document picker, the `content://` → cache bridge, the core call,
- * the progress sheet, and the report. Nothing else has to be wired.
+ * Owns the document picker, the `content://` → cache bridge, the core call,
+ * the progress sheet, and the report; [content] receives the one lambda that
+ * starts a run, so the host screen decides where the affordance lives
+ * instead of this layer dictating a button.
  *
  * ```kotlin
- * ImportBooks(libraryIsEmpty = books.isEmpty(), onLibraryChanged = { reload() })
+ * ImportBooksHost(onLibraryChanged = model::reload) { onAdd ->
+ *     // …place the "+" wherever the screen's design puts it
+ * }
  * ```
  *
  * The `Bookshelf` comes from
  * [app.inkuna.android.model.LibraryStore] by way of
  * [ImportEngine] — this layer never opens one.
  *
- * @param libraryIsEmpty renders the first-import invitation instead of a
- *   plain button. The empty shelf is where an import matters most, so it
- *   gets the full block rather than a button hiding under a title.
  * @param onLibraryChanged called once per run that actually added a book.
  *   The core is the source of truth; reload the shelf from it.
  */
 @Composable
-fun ImportBooks(
-    modifier: Modifier = Modifier,
-    libraryIsEmpty: Boolean = false,
+fun ImportBooksHost(
     onLibraryChanged: () -> Unit = {},
+    content: @Composable (onAdd: () -> Unit) -> Unit,
 ) {
     val context = LocalContext.current
     val state by ImportEngine.state.collectAsStateWithLifecycle()
@@ -67,22 +68,31 @@ fun ImportBooks(
         if (report?.changedLibrary == true) notify()
     }
 
-    if (libraryIsEmpty) {
-        EmptyLibraryInvite(onAdd = pick, modifier = modifier)
-    } else {
-        val label = stringResource(R.string.a11y_import_add_books)
-        InkButton(
-            text = stringResource(R.string.import_add_books),
-            onClick = pick,
-            modifier = modifier.semantics { contentDescription = label },
-        )
-    }
+    content(pick)
 
     ImportSheet(
         state = state,
         onCancel = ImportEngine::cancel,
         onDismiss = ImportEngine::dismiss,
     )
+}
+
+/**
+ * The "+" that starts an import, matching the iOS shell's placement beside
+ * the screen title rather than sitting in the content as a filled button.
+ */
+@Composable
+fun AddBooksButton(
+    onAdd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    IconButton(onClick = onAdd, modifier = modifier) {
+        Icon(
+            Icons.Outlined.Add,
+            contentDescription = stringResource(R.string.a11y_import_add_books),
+            tint = InkTheme.colors.textDisplay,
+        )
+    }
 }
 
 /**
