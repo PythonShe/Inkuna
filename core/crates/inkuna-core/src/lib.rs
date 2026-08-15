@@ -11,6 +11,7 @@ mod import;
 mod library;
 mod migrate;
 mod pool;
+mod progress;
 
 pub use error::CoreError;
 pub use format::Format;

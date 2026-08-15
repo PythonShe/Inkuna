@@ -163,19 +163,6 @@ impl Library {
         Ok(chapters)
     }
 
-    pub fn set_progression(&self, id: &str, progression: f64) -> Result<(), CoreError> {
-        let progression = progression.clamp(0.0, 1.0);
-        let conn = self.writer.lock().unwrap();
-        let changed = conn.execute(
-            "UPDATE publications SET progression = ?1 WHERE id = ?2",
-            rusqlite::params![progression, id],
-        )?;
-        if changed == 0 {
-            return Err(CoreError::NotFound(id.to_string()));
-        }
-        Ok(())
-    }
-
     /// Removes the publication row (child tables cascade), its book file,
     /// and its cover. File deletion is idempotent — missing files are not
     /// an error — and always confined to the data dir because DB paths are
@@ -486,7 +473,9 @@ pub(crate) mod tests {
         assert_eq!(listed, vec![publication.clone()]);
         assert_eq!(library.publication(&publication.id).unwrap(), publication);
 
-        library.set_progression(&publication.id, 0.42).unwrap();
+        library
+            .update_progress(&publication.id, "{}", 0.42, None)
+            .unwrap();
         assert_eq!(library.list().unwrap()[0].progression, 0.42);
 
         let cover_path = publication.cover_path.clone().unwrap();

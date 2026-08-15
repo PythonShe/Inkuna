@@ -123,9 +123,18 @@ impl Bookshelf {
         blocking(move || Ok(library.list()?.into_iter().map(Into::into).collect())).await
     }
 
-    pub async fn set_progression(&self, id: String, progression: f64) -> Result<(), InkunaError> {
+    /// One call per page turn. `locator` is the opaque Readium locator
+    /// JSON; `progression` is the book-wide totalProgression;
+    /// `position` the synthetic position, once the navigator knows it.
+    pub async fn update_progress(
+        &self,
+        id: String,
+        locator: String,
+        progression: f64,
+        position: Option<u32>,
+    ) -> Result<(), InkunaError> {
         let library = self.0.clone();
-        blocking(move || Ok(library.set_progression(&id, progression)?)).await
+        blocking(move || Ok(library.update_progress(&id, &locator, progression, position)?)).await
     }
 
     pub async fn remove(&self, id: String) -> Result<(), InkunaError> {
