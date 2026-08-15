@@ -149,7 +149,7 @@ fun ReaderSearchPanel(
                     onValueChange = { query = it },
                     textStyle = textStyle,
                     singleLine = true,
-                    cursorBrush = SolidColor(ink.accent),
+                    cursorBrush = SolidColor(ink.accentText),
                     keyboardOptions = KeyboardOptions(
                         imeAction = ImeAction.Search,
                         autoCorrectEnabled = false,

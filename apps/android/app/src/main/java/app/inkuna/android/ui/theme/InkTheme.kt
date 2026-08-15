@@ -35,6 +35,8 @@ private fun lerp(a: InkColors, b: InkColors, t: Float): InkColors {
         textSecondary = c(a.textSecondary, b.textSecondary),
         textTertiary = c(a.textTertiary, b.textTertiary),
         accent = c(a.accent, b.accent),
+        accentFill = c(a.accentFill, b.accentFill),
+        accentText = c(a.accentText, b.accentText),
         accentInk = c(a.accentInk, b.accentInk),
         accentSoft = c(a.accentSoft, b.accentSoft),
         moon = c(a.moon, b.moon),
@@ -61,10 +63,10 @@ fun InkTheme(night: Boolean, content: @Composable () -> Unit) {
     }
     val scheme = if (night) {
         darkColorScheme(
-            primary = ink.accent,
+            primary = ink.accentFill,
             onPrimary = ink.accentInk,
             secondaryContainer = ink.accentSoft,
-            onSecondaryContainer = ink.accent,
+            onSecondaryContainer = ink.accentText,
             background = ink.bgApp,
             onBackground = ink.textBody,
             surface = ink.bgSurface,
@@ -82,10 +84,10 @@ fun InkTheme(night: Boolean, content: @Composable () -> Unit) {
         )
     } else {
         lightColorScheme(
-            primary = ink.accent,
+            primary = ink.accentFill,
             onPrimary = ink.accentInk,
             secondaryContainer = ink.accentSoft,
-            onSecondaryContainer = ink.accent,
+            onSecondaryContainer = ink.accentText,
             background = ink.bgApp,
             onBackground = ink.textBody,
             surface = ink.bgSurface,

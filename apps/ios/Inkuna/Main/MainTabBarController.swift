@@ -8,7 +8,7 @@ final class MainTabBarController: UITabBarController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = InkColor.bgApp
-        tabBar.tintColor = InkColor.accent
+        tabBar.tintColor = InkColor.accentText
         tabBar.unselectedItemTintColor = InkColor.textSecondary
         if #available(iOS 26.0, *) {
             tabBarMinimizeBehavior = .onScrollDown

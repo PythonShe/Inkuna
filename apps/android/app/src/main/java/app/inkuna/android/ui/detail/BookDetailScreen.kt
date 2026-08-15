@@ -150,7 +150,7 @@ private fun ChapterRow(
             Text(
                 chapter.numeral,
                 style = InkType.caption,
-                color = if (current) ink.accent else ink.textTertiary,
+                color = if (current) ink.accentText else ink.textTertiary,
                 modifier = Modifier.widthIn(min = 26.dp),
             )
             Text(
@@ -160,7 +160,7 @@ private fun ChapterRow(
                     lineHeight = 21.sp,
                     fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
                 ),
-                color = if (current) ink.accent else ink.textDisplay,
+                color = if (current) ink.accentText else ink.textDisplay,
                 modifier = Modifier.weight(1f),
             )
             Text(

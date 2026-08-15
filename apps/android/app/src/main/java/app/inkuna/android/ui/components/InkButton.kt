@@ -46,8 +46,8 @@ fun InkButton(
 ) {
     val ink = InkTheme.colors
     val (container, content) = when (variant) {
-        InkButtonVariant.Primary -> ink.accent to ink.accentInk
-        InkButtonVariant.Secondary -> ink.accentSoft to ink.accent
+        InkButtonVariant.Primary -> ink.accentFill to ink.accentInk
+        InkButtonVariant.Secondary -> ink.accentSoft to ink.accentText
         InkButtonVariant.Ghost -> Color.Transparent to ink.textBody
     }
     val padding = when (size) {

@@ -36,7 +36,7 @@ final class InkIconButton: UIButton {
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
             )
             config?.image = image
-            config?.baseForegroundColor = self.isActive ? InkColor.accent : InkColor.textBody
+            config?.baseForegroundColor = self.isActive ? InkColor.accentText : InkColor.textBody
             config?.background.backgroundColor = self.isActive ? InkColor.accentSoft : .clear
             button.configuration = config
         }

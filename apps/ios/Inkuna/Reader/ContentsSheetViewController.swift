@@ -104,7 +104,7 @@ final class ContentsSheetViewController: UIViewController {
         let numeral = InkLabel()
         numeral.text = chapter.numeral
         numeral.font = InkFont.caption
-        numeral.textColor = isCurrent ? InkColor.accent : InkColor.textTertiary
+        numeral.textColor = isCurrent ? InkColor.accentText : InkColor.textTertiary
         numeral.setContentHuggingPriority(.required, for: .horizontal)
         numeral.setContentCompressionResistancePriority(.required, for: .horizontal)
         NSLayoutConstraint.activate([numeral.widthAnchor.constraint(greaterThanOrEqualToConstant: 22)])
@@ -112,7 +112,7 @@ final class ContentsSheetViewController: UIViewController {
         let title = InkLabel()
         title.text = chapter.title
         title.font = InkFont.serif(16, weight: isCurrent ? .semibold : .regular, style: .body)
-        title.textColor = isCurrent ? InkColor.accent : InkColor.textDisplay
+        title.textColor = isCurrent ? InkColor.accentText : InkColor.textDisplay
         title.numberOfLines = 0
         // The title owns the leftover width; numeral and page stay snug.
         title.setContentHuggingPriority(.defaultLow, for: .horizontal)

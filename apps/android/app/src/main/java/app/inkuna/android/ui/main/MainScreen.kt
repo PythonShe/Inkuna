@@ -85,8 +85,8 @@ fun MainScreen(
                         },
                         label = { Text(stringResource(tab.labelRes), style = InkType.label) },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = ink.accent,
-                            selectedTextColor = ink.accent,
+                            selectedIconColor = ink.accentText,
+                            selectedTextColor = ink.accentText,
                             indicatorColor = ink.accentSoft,
                             unselectedIconColor = ink.textSecondary,
                             unselectedTextColor = ink.textSecondary,

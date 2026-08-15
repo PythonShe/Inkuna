@@ -43,7 +43,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         field.font = InkFont.sans(15, weight: .regular, style: .callout)
         field.adjustsFontForContentSizeCategory = true
         field.textColor = InkColor.textDisplay
-        field.tintColor = InkColor.accent
+        field.tintColor = InkColor.accentText
         field.returnKeyType = .search
         field.autocorrectionType = .no
         field.delegate = self

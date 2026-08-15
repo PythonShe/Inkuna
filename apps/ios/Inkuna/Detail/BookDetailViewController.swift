@@ -114,13 +114,13 @@ final class BookDetailViewController: UIViewController {
         let numeral = InkLabel()
         numeral.text = chapter.numeral
         numeral.font = InkFont.caption
-        numeral.textColor = isCurrent ? InkColor.accent : InkColor.textTertiary
+        numeral.textColor = isCurrent ? InkColor.accentText : InkColor.textTertiary
         numeral.widthAnchor.constraint(equalToConstant: 26).isActive = true
 
         let title = InkLabel()
         title.text = chapter.title
         title.font = InkFont.serif(16, weight: isCurrent ? .semibold : .regular, style: .body)
-        title.textColor = isCurrent ? InkColor.accent : InkColor.textDisplay
+        title.textColor = isCurrent ? InkColor.accentText : InkColor.textDisplay
 
         let page = InkLabel()
         page.text = "p. \(chapter.page)"

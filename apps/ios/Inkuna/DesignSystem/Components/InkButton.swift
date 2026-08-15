@@ -29,11 +29,11 @@ final class InkButton: UIButton {
         config.cornerStyle = .capsule
         switch variant {
         case .primary:
-            config.baseBackgroundColor = InkColor.accent
+            config.baseBackgroundColor = InkColor.accentFill
             config.baseForegroundColor = InkColor.accentInk
         case .secondary:
             config.baseBackgroundColor = InkColor.accentSoft
-            config.baseForegroundColor = InkColor.accent
+            config.baseForegroundColor = InkColor.accentText
         case .ghost:
             config.baseBackgroundColor = .clear
             config.baseForegroundColor = InkColor.textBody

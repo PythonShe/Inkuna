@@ -23,7 +23,7 @@ final class InkSearchField: UIView {
 
         textField.font = InkFont.sans(15, weight: .regular, style: .callout)
         textField.textColor = InkColor.textBody
-        textField.tintColor = InkColor.accent
+        textField.tintColor = InkColor.accentText
         textField.attributedPlaceholder = NSAttributedString(
             string: placeholder,
             attributes: [.foregroundColor: InkColor.textTertiary]

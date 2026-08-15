@@ -46,7 +46,7 @@ fun InkChip(
 ) {
     val ink = InkTheme.colors
     val bg by animateColorAsState(
-        if (selected) ink.accent else ink.bgSurface,
+        if (selected) ink.accentFill else ink.bgSurface,
         tween(InkMotion.durFast, easing = InkMotion.easeQuiet),
         label = "chipBg",
     )
@@ -104,7 +104,7 @@ fun InkIconButton(
             contentDescription = contentDescription,
             tint = when {
                 tint != Color.Unspecified -> tint
-                active -> ink.accent
+                active -> ink.accentText
                 else -> ink.textBody
             },
             modifier = Modifier.size(iconSize),

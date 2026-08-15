@@ -21,7 +21,7 @@ final class InkChip: UIButton {
         configurationUpdateHandler = { [weak self] button in
             guard let self else { return }
             var config = button.configuration
-            config?.baseBackgroundColor = self.isChosen ? InkColor.accent : InkColor.bgSurface
+            config?.baseBackgroundColor = self.isChosen ? InkColor.accentFill : InkColor.bgSurface
             config?.baseForegroundColor = self.isChosen ? InkColor.accentInk : InkColor.textSecondary
             config?.background.strokeColor = self.isChosen ? .clear : InkColor.borderHairline
             button.configuration = config

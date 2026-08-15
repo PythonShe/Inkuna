@@ -62,7 +62,7 @@ fun InkSearchField(
             onValueChange = onValueChange,
             textStyle = textStyle,
             singleLine = true,
-            cursorBrush = SolidColor(ink.accent),
+            cursorBrush = SolidColor(ink.accentText),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
             modifier = Modifier
