@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use quick_xml::events::Event;
@@ -44,8 +44,24 @@ const BLOCK: &[&[u8]] = &[
 /// reuses the single extraction (the returned `Arc`s alias), because a
 /// resource cannot yield different text on a second reference. Results
 /// come back in spine order, one entry per `itemref`.
+///
+/// The corpus is a function of the publication alone: the same file
+/// always yields the same texts, whatever rayon's scheduling did.
 pub fn extract_spine_text(path: &Path, spine: &[String]) -> Vec<Option<Arc<str>>> {
     extract_spine_text_budgeted(path, spine, MAX_TOTAL_TEXT_BYTES)
+}
+
+/// One distinct resource's outcome from the parallel extraction pass.
+enum Extraction {
+    /// Text extracted, awaiting the budget decision.
+    Text(String),
+    /// Missing, unreadable, over the per-entry cap, or malformed. Never
+    /// contributes text, and never charges the budget.
+    Unusable,
+    /// Never read, because the work guard had already tripped. The
+    /// decision pass re-reads it if the budget still has room — which is
+    /// what keeps the retained corpus independent of the interleaving.
+    Deferred,
 }
 
 /// The real implementation, with the aggregate budget injectable so tests
@@ -67,54 +83,83 @@ fn extract_spine_text_budgeted(
         });
     }
 
-    let used = AtomicUsize::new(0);
-    let warned = AtomicBool::new(false);
-    let texts: Vec<Option<Arc<str>>> = distinct
+    // The atomic is a *work* guard, not the budget: it stops the
+    // decompression once enough text to fill the budget already exists,
+    // bounding the transient to roughly the budget plus one entry per
+    // rayon worker. It deliberately decides nothing about what is kept,
+    // because which threads win the race is not a property of the input —
+    // charging retention here made two imports of one publication produce
+    // different search corpora, and (the counter never being credited
+    // back for a rejected text) permanently poisoned the pre-read check
+    // so every later resource was dropped, however small.
+    let extracted_bytes = AtomicUsize::new(0);
+    let extracted: Vec<Extraction> = distinct
         .par_iter()
         .map_init(
             // One archive handle per rayon worker split; zip readers need
             // &mut access, so they cannot be shared across threads.
             || zip::ZipArchive::new(File::open(path)?).map_err(CoreError::from),
             |archive, href| {
-                // Checked before the read, so an exhausted budget also
-                // stops the decompression, not just the retention.
-                if used.load(Ordering::Relaxed) >= budget {
-                    warn_truncated(&warned, path, budget);
-                    return None;
+                if extracted_bytes.load(Ordering::Relaxed) >= budget {
+                    return Extraction::Deferred;
                 }
                 let archive = match archive.as_mut() {
                     Ok(archive) => archive,
                     Err(e) => {
                         log::warn!("cannot reopen {} for text extraction: {e}", path.display());
-                        return None;
+                        return Extraction::Unusable;
                     }
                 };
-                // Skip *and log*: a resource dropped here — missing,
-                // unreadable, or past the per-entry cap — is text the
-                // search corpus will never have, and a silent drop leaves
-                // no way to tell a hostile chapter from an honest one.
-                let xml = match read_spine_entry(archive, href) {
-                    Ok(xml) => xml,
-                    Err(e) => {
-                        log::warn!(
-                            "skipping text extraction for {href} in {}: {e}",
-                            path.display()
-                        );
-                        return None;
+                match extract_resource(archive, href, path) {
+                    Some(text) => {
+                        extracted_bytes.fetch_add(text.len(), Ordering::Relaxed);
+                        Extraction::Text(text)
                     }
-                };
-                let Some(text) = extract_text(&xml) else {
-                    log::warn!("skipping text extraction for malformed resource {href}");
-                    return None;
-                };
-                if used.fetch_add(text.len(), Ordering::Relaxed) + text.len() > budget {
-                    warn_truncated(&warned, path, budget);
-                    return None;
+                    None => Extraction::Unusable,
                 }
-                Some(Arc::from(text))
             },
         )
         .collect();
+
+    // The decision pass: sequential, in `distinct` order, over the real
+    // text lengths, so the retained set is a pure function of the
+    // publication. Retention stops at the first text that does not fit,
+    // the same rule the TOC budget follows — going on would mean re-reading
+    // every deferred resource behind it, which is exactly the
+    // decompression the guard above exists to stop.
+    let mut warned = false;
+    let mut deferred_archive = reopen_for_deferred(&extracted, path);
+    let mut used = 0usize;
+    let mut texts: Vec<Option<Arc<str>>> = Vec::with_capacity(distinct.len());
+    for (at, outcome) in extracted.into_iter().enumerate() {
+        let text = match outcome {
+            Extraction::Text(text) => text,
+            Extraction::Unusable => {
+                texts.push(None);
+                continue;
+            }
+            // Bounded: this runs only while the budget still has room and
+            // the loop stops at the first text that does not fit, so the
+            // bytes re-read here total at most the budget plus one entry.
+            Extraction::Deferred => {
+                let text = deferred_archive
+                    .as_mut()
+                    .and_then(|archive| extract_resource(archive, distinct[at], path));
+                let Some(text) = text else {
+                    texts.push(None);
+                    continue;
+                };
+                text
+            }
+        };
+        if used + text.len() > budget {
+            warn_truncated(&mut warned, path, budget);
+            break;
+        }
+        used += text.len();
+        texts.push(Some(Arc::from(text)));
+    }
+    texts.resize(distinct.len(), None);
 
     // Expansion back to spine order charges the budget per *retained
     // copy*, not per distinct text: every `Some` here becomes its own
@@ -127,7 +172,7 @@ fn extract_spine_text_budgeted(
         .map(|href| {
             let text = position.get(href.as_str()).and_then(|&at| texts[at].clone())?;
             if retained + text.len() > budget {
-                warn_truncated(&warned, path, budget);
+                warn_truncated(&mut warned, path, budget);
                 return None;
             }
             retained += text.len();
@@ -136,15 +181,58 @@ fn extract_spine_text_budgeted(
         .collect()
 }
 
+/// Reads one spine resource and extracts its text. Skips *and logs*: a
+/// resource dropped here — missing, unreadable, or past the per-entry
+/// cap — is text the search corpus will never have, and a silent drop
+/// leaves no way to tell a hostile chapter from an honest one.
+fn extract_resource(
+    archive: &mut zip::ZipArchive<File>,
+    href: &str,
+    path: &Path,
+) -> Option<String> {
+    let xml = match read_spine_entry(archive, href) {
+        Ok(xml) => xml,
+        Err(e) => {
+            log::warn!("skipping text extraction for {href} in {}: {e}", path.display());
+            return None;
+        }
+    };
+    let Some(text) = extract_text(&xml) else {
+        log::warn!("skipping text extraction for malformed resource {href}");
+        return None;
+    };
+    Some(text)
+}
+
+/// Reopens the archive for the decision pass, and only when the guard
+/// actually deferred something: an honest publication never spends its
+/// budget, so it never pays for this second handle.
+fn reopen_for_deferred(extracted: &[Extraction], path: &Path) -> Option<zip::ZipArchive<File>> {
+    if !extracted.iter().any(|e| matches!(e, Extraction::Deferred)) {
+        return None;
+    }
+    match File::open(path)
+        .map_err(CoreError::from)
+        .and_then(|file| zip::ZipArchive::new(file).map_err(CoreError::from))
+    {
+        Ok(archive) => Some(archive),
+        Err(e) => {
+            log::warn!(
+                "cannot reopen {} for deferred text extraction: {e}",
+                path.display()
+            );
+            None
+        }
+    }
+}
+
 /// Warns once per publication that the corpus was cut short. Exceeding the
 /// budget drops the remaining resources rather than failing: the corpus is
 /// an optional part, so this follows the parser's degrade-on-optional-part
 /// convention and the import still succeeds.
-fn warn_truncated(warned: &AtomicBool, path: &Path, budget: usize) {
-    if warned
-        .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-        .is_ok()
-    {
+fn warn_truncated(warned: &mut bool, path: &Path, budget: usize) {
+    if !*warned {
+        *warned = true;
         log::warn!(
             "text extraction budget of {budget} bytes exhausted for {}; corpus truncated",
             path.display()

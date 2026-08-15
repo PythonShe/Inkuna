@@ -47,6 +47,51 @@ fn aggregate_text_budget_drops_resources_beyond_it() {
     assert!(big[0].is_none(), "over-budget resource must be dropped");
 }
 
+/// Two imports of one publication must produce one search corpus. The
+/// budget used to be charged from the rayon workers, so *which* resources
+/// survived was decided by whichever threads happened to reach the
+/// counter first — and because the counter was never credited back for a
+/// text it rejected, the pre-read check stayed poisoned above the budget
+/// afterwards. Here 64 equal-sized CJK resources meet a budget that fits
+/// five: the answer must be the first five in spine order, every time.
+#[test]
+fn budget_truncation_is_a_deterministic_prefix() {
+    use std::io::Write;
+
+    const RESOURCES: usize = 64;
+    let body = |i: usize| format!("第{i:02}章の本文。");
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("deterministic.epub");
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    for i in 0..RESOURCES {
+        zip.start_file(format!("OEBPS/ch{i:02}.xhtml"), stored).unwrap();
+        zip.write_all(format!("<html><body><p>{}</p></body></html>", body(i)).as_bytes())
+            .unwrap();
+    }
+    zip.finish().unwrap();
+
+    // Every body is the same length (the index is always two ASCII
+    // digits), so the budget lands on an exact resource boundary.
+    let each = body(0).len();
+    let fits = 5;
+    let budget = each * fits;
+    let spine: Vec<String> = (0..RESOURCES).map(|i| format!("OEBPS/ch{i:02}.xhtml")).collect();
+    let expected: Vec<Option<String>> =
+        (0..RESOURCES).map(|i| (i < fits).then(|| body(i))).collect();
+
+    // Repeated so a scheduling-dependent answer cannot slip through by
+    // getting lucky once.
+    for _ in 0..32 {
+        let texts = extract_spine_text_budgeted(&path, &spine, budget);
+        let texts: Vec<Option<String>> =
+            texts.iter().map(|t| t.as_deref().map(str::to_owned)).collect();
+        assert_eq!(texts, expected);
+    }
+}
+
 /// Every retained copy counts: each `Some` becomes its own
 /// `resource_text` row, so a spine repeating one within-budget chapter
 /// must stop yielding copies once the aggregate budget is spent —
