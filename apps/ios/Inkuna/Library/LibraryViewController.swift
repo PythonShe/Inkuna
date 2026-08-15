@@ -1,23 +1,54 @@
 import UIKit
 
 /// The Library tab: search, the Reading/Finished/Wishlist segments, and
-/// the book list.
+/// the book list — all of it rendered from the Rust core.
 ///
-/// TODO(core): rows come from `LibraryStore.shared.library()` (`Bookshelf`)
-/// once import lands — including real shelves for Finished and Wishlist;
-/// the list then moves to a diffable collection view.
+/// Shelf membership is the core's decision, never this screen's: each
+/// segment asks for its own `Shelf` rather than fetching everything and
+/// re-deriving "reading" or "finished" in Swift, which would duplicate core
+/// logic and drift from it.
+///
+/// TODO(core): the Wishlist segment has no core shelf yet (file-less
+/// publications are deferred to their own spec), so it stays visible and
+/// empty. The list also still moves to a diffable collection view once row
+/// churn justifies it.
 final class LibraryViewController: ScrollScreenViewController {
     private let listStack = UIStackView()
     private var segment = "Reading"
     private var query = ""
+
+    /// Rows currently on screen, in the order the core returned them.
+    private var publications: [Publication] = []
+    /// The in-flight fetch. Held so a fast typist's keystrokes cancel their
+    /// predecessors instead of racing each other onto the list.
+    private var reloadTask: Task<Void, Never>?
+    /// `nonisolated(unsafe)` so the nonisolated `deinit` can unregister it.
+    /// Only ever touched on the main actor: assigned in `viewDidLoad`, read
+    /// once at deinit, when no other reference to this screen survives.
+    nonisolated(unsafe) private var libraryDidChangeObserver: NSObjectProtocol?
+
+    deinit {
+        if let libraryDidChangeObserver {
+            NotificationCenter.default.removeObserver(libraryDidChangeObserver)
+        }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
         // TODO(l10n): localize once the strings pass lands.
         let title = displayTitle("Library")
-        contentStack.addArrangedSubview(title)
-        contentStack.setCustomSpacing(InkSpacing.space5, after: title)
+        // The import affordance rides beside the title: this screen hides
+        // the navigation bar, so there is no bar button item to put it in.
+        let addButton = InkIconButton(symbol: "plus", accessibilityLabel: "Add books") { [weak self] in
+            guard let self else { return }
+            ImportFlow.presentPicker(from: self)
+        }
+        let titleRow = UIStackView(arrangedSubviews: [title, UIView(), addButton])
+        titleRow.axis = .horizontal
+        titleRow.alignment = .center
+        contentStack.addArrangedSubview(titleRow)
+        contentStack.setCustomSpacing(InkSpacing.space5, after: titleRow)
 
         let searchField = InkSearchField(placeholder: "Search your library")
         searchField.onTextChange = { [weak self] text in
@@ -39,48 +70,163 @@ final class LibraryViewController: ScrollScreenViewController {
 
         listStack.axis = .vertical
         contentStack.addArrangedSubview(listStack)
+
+        // An import from anywhere — this screen's picker, "Open with
+        // Inkuna", the share sheet — refreshes the list.
+        libraryDidChangeObserver = NotificationCenter.default.addObserver(
+            forName: .inkunaLibraryDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reloadList() }
+        }
+
         reloadList()
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Progress moves while the reader is open; the rows behind it are
+        // stale by the time the reader is popped.
+        reloadList()
+    }
+
+    /// Fetches the current segment from the core and rebuilds the list.
+    ///
+    /// Every core call is awaited, so the main thread is never blocked on
+    /// SQLite — the list simply keeps its previous rows until the new ones
+    /// arrive, which reads as instant for any realistic library.
     private func reloadList() {
+        reloadTask?.cancel()
+
+        // TODO(core): no Wishlist shelf exists yet — file-less publications
+        // are deferred to their own spec, so the segment stays empty.
+        guard segment != "Wishlist" else {
+            publications = []
+            render(rows: [], emptiness: .shelf("Nothing on the nightstand yet."))
+            return
+        }
+
+        // Unfinished, not Reading: a book must be listed the moment it is
+        // imported, and Reading deliberately means "opened at least once".
+        let shelf: Shelf = segment == "Finished" ? .finished : .unfinished
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+
+        reloadTask = Task { [weak self] in
+            do {
+                let bookshelf = try await LibraryStore.shared.library()
+                let rows: [Publication]
+                if trimmed.isEmpty {
+                    rows = try await bookshelf.list(shelf: shelf, sort: .recentlyOpened)
+                } else {
+                    // Metadata search is the core's, CJK-aware segmentation
+                    // and all. The shelf still filters the result, so a
+                    // search inside Finished stays inside Finished.
+                    let matches = try await bookshelf.searchLibrary(query: trimmed)
+                    let shelved = Set(
+                        try await bookshelf.list(shelf: shelf, sort: .recentlyOpened).map(\.id)
+                    )
+                    rows = matches.filter { shelved.contains($0.id) }
+                }
+                guard !Task.isCancelled else { return }
+
+                // Distinguish "this shelf is empty" from "there are no
+                // books at all" — only the latter earns the invitation to
+                // import, and it costs a second query only when empty.
+                var emptiness: Emptiness = .shelf(
+                    shelf == .finished ? "Nothing finished yet. No hurry." : "Nothing here yet."
+                )
+                if rows.isEmpty {
+                    if !trimmed.isEmpty {
+                        emptiness = .shelf("Nothing found in the stacks.")
+                    } else if try await bookshelf.list(shelf: .all, sort: .recentlyAdded).isEmpty {
+                        emptiness = .wholeLibrary
+                    }
+                }
+                guard !Task.isCancelled else { return }
+                self?.publications = rows
+                self?.render(rows: rows, emptiness: emptiness)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                // A library that will not open is worth saying plainly
+                // rather than showing as an empty shelf.
+                self?.publications = []
+                self?.render(rows: [], emptiness: .shelf("The library couldn't be opened."))
+            }
+        }
+    }
+
+    /// What to show when there is nothing to list.
+    private enum Emptiness {
+        /// This shelf or search has no rows, but the library has books.
+        case shelf(String)
+        /// The library holds no books at all.
+        case wholeLibrary
+    }
+
+    private func render(rows: [Publication], emptiness: Emptiness) {
         listStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
-        // TODO(core): Finished and Wishlist shelves don't exist yet.
-        guard segment == "Reading" else {
-            let message = segment == "Finished"
-                ? "Nothing finished yet. No hurry."
-                : "Nothing on the nightstand yet."
-            listStack.addArrangedSubview(paddedEmptyState(message))
+        guard !rows.isEmpty else {
+            switch emptiness {
+            case .shelf(let message):
+                listStack.addArrangedSubview(paddedEmptyState(message))
+            case .wholeLibrary:
+                let invitation = EmptyLibraryView.inviting(self)
+                listStack.addArrangedSubview(invitation)
+                invitation.appear()
+            }
             return
         }
 
-        let trimmed = query.trimmingCharacters(in: .whitespaces).lowercased()
-        let books = PlaceholderLibrary.books.filter { book in
-            trimmed.isEmpty || "\(book.title) \(book.author)".lowercased().contains(trimmed)
-        }
-        guard !books.isEmpty else {
-            listStack.addArrangedSubview(paddedEmptyState("Nothing found in the stacks."))
-            return
-        }
-        for book in books {
+        for (index, publication) in rows.enumerated() {
             let row = BookListRowView()
             row.configure(
-                title: book.title,
-                author: book.author,
-                progress: book.progress,
-                seed: book.coverSeed,
-                downloaded: book.downloaded
+                title: publication.title,
+                author: displayAuthor(publication),
+                progress: publication.progression > 0 ? CGFloat(publication.progression) : nil,
+                seed: coverSeed(for: publication),
+                // The core owns every book's file, so a listed book is
+                // always on disk — there is no cloud-only state to badge.
+                downloaded: true
             )
             let tap = UITapGestureRecognizer(target: self, action: #selector(openRow(_:)))
             row.addGestureRecognizer(tap)
-            row.tag = book.id
+            row.tag = index
             listStack.addArrangedSubview(row)
         }
     }
 
     @objc private func openRow(_ recognizer: UITapGestureRecognizer) {
-        guard let id = recognizer.view?.tag,
-              let book = PlaceholderLibrary.books.first(where: { $0.id == id }) else { return }
-        openBook(book)
+        guard let index = recognizer.view?.tag, publications.indices.contains(index) else { return }
+        // TODO(core): the detail screen still renders placeholder chapters,
+        // so a library row opens the reader directly rather than routing
+        // through a screen that cannot describe the book it was handed.
+        // Restore the row → detail → read path when detail is wired.
+        ReaderLauncher.push(publications[index], on: navigationController)
+    }
+
+    // TODO(l10n): localize once the strings pass lands.
+    private func displayAuthor(_ publication: Publication) -> String {
+        publication.authors.isEmpty ? "Unknown author" : publication.authors.joined(separator: ", ")
+    }
+
+    /// A stable per-book seed for the generated cover.
+    ///
+    /// Deliberately not `hashValue`: Swift seeds string hashing per process,
+    /// so a book would change colour on every launch.
+    ///
+    /// TODO(core): the core already extracts real cover art into
+    /// `Publication.coverPath`; render it here once `BookCoverView` accepts
+    /// an image and falls back to the generated cover.
+    private func coverSeed(for publication: Publication) -> Int {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in publication.id.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x0000_0100_0000_01b3
+        }
+        return Int(hash % UInt64(Int.max))
     }
 }

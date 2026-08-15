@@ -13,6 +13,15 @@ enum ReaderLauncher {
     /// Fetches the publication to read and pushes the reader, or explains
     /// quietly why there is nothing to open. Never blocks the main thread —
     /// the core work happens behind an `await`.
+    /// Pushes the reader on a publication the caller already holds — the
+    /// path every screen that renders real core rows should take.
+    static func push(_ publication: Publication, on navigationController: UINavigationController?) {
+        guard let navigationController else { return }
+        let reader = ReaderViewController(publication: publication)
+        reader.hidesBottomBarWhenPushed = true
+        navigationController.pushViewController(reader, animated: true)
+    }
+
     static func push(on navigationController: UINavigationController?) {
         guard let navigationController else { return }
         Task {
