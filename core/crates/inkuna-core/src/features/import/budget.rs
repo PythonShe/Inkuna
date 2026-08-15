@@ -37,12 +37,15 @@ pub(super) const MAX_PERSISTED_ROWS: u64 = 150_000;
 /// Worst combination the parse-time caps admit:
 /// chapters ≤ `MAX_TOC_TOTAL_BYTES` (8 MiB)
 /// + resource hrefs ≤ `MAX_SPINE_ITEMS` × `MAX_HREF_BYTES`
-///   (10,000 × 4,096 B ≈ 39.1 MiB)
-/// + text ≤ `MAX_TOTAL_TEXT_BYTES` (128 MiB)
-/// + publication metadata, all substrings of one OPF read under
-///   `MAX_XML_ENTRY_BYTES` (< 64 MiB)
-/// ≈ 239 MiB. 384 MiB keeps ~60% headroom above that.
-pub(super) const MAX_PERSISTED_BYTES: u64 = 384 * 1024 * 1024;
+///   (10,000 × 4,096 B ≈ 39.1 MiB — the spine dedupes on resolved href,
+///   so this now takes 10,000 *distinct* ~4 KB hrefs, not one repeated)
+/// + text ≤ `MAX_TOTAL_TEXT_BYTES` (32 MiB)
+/// + publication metadata ≤ (1 title + `MAX_AUTHORS` (1,000) creators
+///   + 1 language) × `MAX_METADATA_VALUE_BYTES` (2,048 B) ≈ 2 MiB
+/// ≈ 81 MiB. 128 MiB keeps ~58% headroom above that, so no book the
+/// caps pass — honest or not — can reach it; tripping it means a byte
+/// source the caps never saw.
+pub(super) const MAX_PERSISTED_BYTES: u64 = 128 * 1024 * 1024;
 
 /// Meter charged immediately before every row insert in `commit_import`.
 ///

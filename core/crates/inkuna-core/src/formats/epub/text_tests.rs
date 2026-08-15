@@ -80,10 +80,12 @@ fn repeated_spine_entries_charge_the_budget_per_retained_copy() {
     assert!(texts[4].is_none());
 }
 
-/// A spine may name the same resource any number of times. The parse must
-/// stay bounded (spine cap), each distinct resource must be read and
-/// extracted exactly once — the repeats sharing that one `Arc` rather than
-/// re-reading the entry — and reading order must survive deduplication.
+/// A spine may name the same resource any number of times. The parse
+/// must stay bounded (spine cap), the package must collapse the repeats
+/// to one spine entry per distinct resolved href (reading order
+/// surviving), and — defense in depth, should a repeating spine ever
+/// reach it — `extract_spine_text` must still read and extract each
+/// distinct resource exactly once, the repeats sharing one `Arc`.
 #[test]
 fn repeated_spine_entries_are_extracted_once() {
     use std::io::Write;
@@ -141,9 +143,20 @@ fn repeated_spine_entries_are_extracted_once() {
     zip.finish().unwrap();
 
     let package = read_package(&path).unwrap();
-    assert_eq!(package.spine.len(), MAX_SPINE_ITEMS);
+    // The 10k+ repeats of ch01 collapse to its first occurrence, after
+    // ch02 — reading order survives.
+    assert_eq!(
+        package.spine,
+        vec!["OEBPS/text/ch02.xhtml".to_string(), "OEBPS/text/ch01.xhtml".to_string()]
+    );
 
-    let texts = extract_spine_text(&path, &package.spine);
+    // Defense in depth below the package: hand the extractor a spine that
+    // still repeats (as a crafted caller could) and every repeat must
+    // alias one extraction.
+    let spine: Vec<String> = std::iter::once("OEBPS/text/ch02.xhtml".to_string())
+        .chain(std::iter::repeat_n("OEBPS/text/ch01.xhtml".to_string(), MAX_SPINE_ITEMS - 1))
+        .collect();
+    let texts = extract_spine_text(&path, &spine);
     assert_eq!(texts.len(), MAX_SPINE_ITEMS);
     assert_eq!(texts[0].as_deref(), Some("Second chapter text."));
 

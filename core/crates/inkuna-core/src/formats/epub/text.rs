@@ -18,10 +18,14 @@ use crate::CoreError;
 /// Aggregate budget for the text retained for one publication. The
 /// per-entry decompression cap bounds a single resource, never the corpus:
 /// a spine may reference resources without limit, and the sum is what the
-/// device actually pays. A very large real novel's full text is a few MB,
-/// so this leaves more than an order of magnitude of headroom over any
-/// honest book while a crafted spine stops here instead of at several GB.
-const MAX_TOTAL_TEXT_BYTES: usize = 128 * 1024 * 1024;
+/// device actually pays — every retained byte becomes a persistent
+/// `resource_text` row. A very large real novel's full text is a few MB,
+/// and even omnibus "complete works" editions stay under ~20 MB, so
+/// 32 MiB keeps real headroom over any honest book. The previous 128 MiB
+/// was ~25x a huge novel, and measured, it let an 18 KB crafted archive
+/// import into a 364 MB data directory; a crafted spine now stops at a
+/// quarter of that.
+const MAX_TOTAL_TEXT_BYTES: usize = 32 * 1024 * 1024;
 
 /// Elements whose entire content is invisible to a reader.
 const SKIPPED: &[&[u8]] = &[b"head", b"script", b"style", b"template"];

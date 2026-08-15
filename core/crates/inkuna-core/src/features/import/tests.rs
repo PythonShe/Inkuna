@@ -410,6 +410,47 @@ fn honest_cjk_metadata_survives_the_cap_verbatim() {
     assert_eq!(all[0].language.as_deref(), Some("ja"));
 }
 
+/// The round-8 tuning: a spine repeating one resolved href must not
+/// multiply `resources` (and `resource_text`) rows — EPUB 3 requires each
+/// itemref to reference a unique resource, so an honest book never
+/// repeats, while a crafted spine used to persist one ~4 KB href and one
+/// 8 MiB text per repeat.
+#[test]
+fn duplicate_spine_hrefs_collapse_to_one_resource_row() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("repeat-spine.epub");
+    let itemrefs = r#"<itemref idref="c1"/>"#.repeat(500);
+    let opf = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>反復爆弾</dc:title></metadata>
+  <manifest><item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine>{itemrefs}</spine>
+</package>"#
+    );
+    write_epub_parts(
+        &epub,
+        &opf,
+        &[("ch01.xhtml", r#"<html><body><p>同じ章。</p></body></html>"#)],
+    );
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(
+        count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+        1
+    );
+    assert_eq!(
+        count(
+            &library,
+            "SELECT COUNT(*) FROM resource_text WHERE resource_id IN
+                 (SELECT id FROM resources WHERE publication_id = ?1)",
+            &publication.id,
+        ),
+        1
+    );
+}
+
 /// The manifest is a mandatory part, so a crafted OPF listing an absurd
 /// number of items is not degraded around — it fails the import cleanly
 /// (before the cap: a 355 KB file parsed into a 616 MB resident set) and

@@ -1,6 +1,6 @@
 //! One pass over the archive that yields everything import needs.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::path::Path;
 
@@ -78,6 +78,14 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
     // few-hundred-KB archive. An oversized result degrades exactly like
     // an unresolvable idref.
     let mut oversized_spine_hrefs = 0usize;
+    // Deduplicated on the *resolved* href: EPUB 3 requires each itemref
+    // to reference a unique resource, so an honest spine never repeats —
+    // while a crafted spine repeating one resource thousands of times
+    // would otherwise persist its own ~4 KB `resources` row (and its own
+    // copy of the extracted text) per repeat. First occurrence wins,
+    // preserving reading order.
+    let mut duplicate_spine_hrefs = 0usize;
+    let mut seen_hrefs: HashSet<String> = HashSet::new();
     let spine: Vec<String> = opf
         .spine_idrefs
         .iter()
@@ -86,15 +94,26 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
             let resolved = resolve(&item.href);
             if resolved.len() > MAX_HREF_BYTES {
                 oversized_spine_hrefs += 1;
-                None
-            } else {
-                Some(resolved)
+                return None;
             }
+            // Cloned into the seen-set: the retained spine owns the
+            // original, and both live only for this parse.
+            if !seen_hrefs.insert(resolved.clone()) {
+                duplicate_spine_hrefs += 1;
+                return None;
+            }
+            Some(resolved)
         })
         .collect();
     if oversized_spine_hrefs > 0 {
         log::warn!(
             "spine of {} has {oversized_spine_hrefs} itemrefs whose resolved hrefs exceed {MAX_HREF_BYTES} bytes; skipped",
+            path.display()
+        );
+    }
+    if duplicate_spine_hrefs > 0 {
+        log::warn!(
+            "spine of {} repeats already-listed resources {duplicate_spine_hrefs} times; keeping the first occurrence of each",
             path.display()
         );
     }
