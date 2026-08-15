@@ -37,6 +37,19 @@ pub struct Publication {
     pub last_opened_at: Option<i64>,
 }
 
+/// One entry of the flattened TOC. `href` (which may carry a fragment) is
+/// the Readium jump target; mapping a chapter to its resource is
+/// href-minus-fragment matched against the spine, derived at query time
+/// when needed — never stored.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Chapter {
+    pub id: String,
+    pub idx: u32,
+    pub title: String,
+    pub href: String,
+    pub depth: u32,
+}
+
 /// The library facade: one SQLite DB plus core-owned book/cover storage
 /// under a single data dir. One writer connection (mutations only, each in
 /// a transaction; file I/O and parsing always happen outside the lock) and
@@ -122,6 +135,32 @@ impl Library {
                 None => Err(CoreError::NotFound(id.to_string())),
             }
         })
+    }
+
+    /// The flattened TOC in document order; empty for books without one
+    /// (the text corpus is still complete — it keys off the spine).
+    pub fn chapters(&self, id: &str) -> Result<Vec<Chapter>, CoreError> {
+        let chapters: Vec<Chapter> = self.readers.with(|conn| {
+            let mut stmt = conn.prepare_cached(
+                "SELECT id, idx, title, href, depth FROM chapters
+                 WHERE publication_id = ?1 ORDER BY idx",
+            )?;
+            let rows = stmt.query_map([id], |row| {
+                Ok(Chapter {
+                    id: row.get(0)?,
+                    idx: row.get(1)?,
+                    title: row.get(2)?,
+                    href: row.get(3)?,
+                    depth: row.get(4)?,
+                })
+            })?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })?;
+        if chapters.is_empty() {
+            // Distinguish "no TOC" from "no such publication".
+            self.publication(id)?;
+        }
+        Ok(chapters)
     }
 
     pub fn set_progression(&self, id: &str, progression: f64) -> Result<(), CoreError> {
@@ -213,8 +252,23 @@ pub(crate) mod tests {
     use crate::ImportOutcome;
     use std::io::Write;
 
-    /// Builds a minimal but valid EPUB with the given Dublin Core fields.
-    pub(crate) fn write_epub(path: &Path, title: &str, author: &str, language: &str) {
+    #[derive(Clone, Copy, PartialEq)]
+    pub(crate) enum TocKind {
+        Nav,
+        Ncx,
+        None,
+    }
+
+    /// Builds a valid EPUB exercising the full import pipeline: two CJK
+    /// spine chapters, a nested TOC (nav doc or NCX), and a cover image.
+    pub(crate) fn write_epub_with(
+        path: &Path,
+        title: &str,
+        author: &str,
+        language: &str,
+        toc: TocKind,
+        cover: bool,
+    ) {
         let file = std::fs::File::create(path).unwrap();
         let mut zip = zip::ZipWriter::new(file);
         let stored = zip::write::SimpleFileOptions::default()
@@ -232,6 +286,29 @@ pub(crate) mod tests {
         )
         .unwrap();
 
+        let mut manifest = String::from(
+            r#"<item id="c1" href="text/ch01.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="text/ch02.xhtml" media-type="application/xhtml+xml"/>"#,
+        );
+        let mut spine_attr = String::new();
+        match toc {
+            TocKind::Nav => manifest.push_str(
+                r#"<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>"#,
+            ),
+            TocKind::Ncx => {
+                manifest.push_str(
+                    r#"<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>"#,
+                );
+                spine_attr = r#" toc="ncx""#.to_string();
+            }
+            TocKind::None => {}
+        }
+        if cover {
+            manifest.push_str(
+                r#"<item id="cover-img" href="images/cover.png" media-type="image/png" properties="cover-image"/>"#,
+            );
+        }
+
         zip.start_file("OEBPS/content.opf", stored).unwrap();
         zip.write_all(
             format!(
@@ -243,13 +320,66 @@ pub(crate) mod tests {
     <dc:creator>{author}</dc:creator>
     <dc:language>{language}</dc:language>
   </metadata>
-  <manifest/><spine/>
+  <manifest>{manifest}</manifest>
+  <spine{spine_attr}><itemref idref="c1"/><itemref idref="c2"/></spine>
 </package>"#
             )
             .as_bytes(),
         )
         .unwrap();
+
+        zip.start_file("OEBPS/text/ch01.xhtml", stored).unwrap();
+        zip.write_all(
+            r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>ch01</title></head>
+<body><h1 id="s1">第一章</h1><p>月の光が窓辺に落ちていた。</p></body></html>"#.as_bytes(),
+        )
+        .unwrap();
+        zip.start_file("OEBPS/text/ch02.xhtml", stored).unwrap();
+        zip.write_all(
+            br#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>ch02</title></head>
+<body><p>Second chapter text.</p></body></html>"#,
+        )
+        .unwrap();
+
+        match toc {
+            TocKind::Nav => {
+                zip.start_file("OEBPS/nav.xhtml", stored).unwrap();
+                zip.write_all(
+                    r#"<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>
+<nav epub:type="toc"><ol>
+  <li><a href="text/ch01.xhtml">第一章</a>
+    <ol><li><a href="text/ch01.xhtml#s1">第一節</a></li></ol>
+  </li>
+  <li><a href="text/ch02.xhtml">第二章</a></li>
+</ol></nav></body></html>"#.as_bytes(),
+                )
+                .unwrap();
+            }
+            TocKind::Ncx => {
+                zip.start_file("OEBPS/toc.ncx", stored).unwrap();
+                zip.write_all(
+                    r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>
+<navPoint id="a"><navLabel><text>第一章</text></navLabel><content src="text/ch01.xhtml"/>
+  <navPoint id="b"><navLabel><text>第一節</text></navLabel><content src="text/ch01.xhtml#s1"/></navPoint>
+</navPoint>
+<navPoint id="c"><navLabel><text>第二章</text></navLabel><content src="text/ch02.xhtml"/></navPoint>
+</navMap></ncx>"#.as_bytes(),
+                )
+                .unwrap();
+            }
+            TocKind::None => {}
+        }
+
+        if cover {
+            zip.start_file("OEBPS/images/cover.png", stored).unwrap();
+            zip.write_all(b"\x89PNG\r\n\x1a\nfake png bytes").unwrap();
+        }
         zip.finish().unwrap();
+    }
+
+    /// The default fixture: nav TOC + cover.
+    pub(crate) fn write_epub(path: &Path, title: &str, author: &str, language: &str) {
+        write_epub_with(path, title, author, language, TocKind::Nav, true);
     }
 
     fn write_cbz(path: &Path) {
@@ -359,13 +489,125 @@ pub(crate) mod tests {
         library.set_progression(&publication.id, 0.42).unwrap();
         assert_eq!(library.list().unwrap()[0].progression, 0.42);
 
+        let cover_path = publication.cover_path.clone().unwrap();
+        assert!(data_dir.join(&cover_path).is_file());
+
         library.remove(&publication.id).unwrap();
         assert!(library.list().unwrap().is_empty());
         assert!(!data_dir.join(&publication.file_path).exists());
+        assert!(!data_dir.join(&cover_path).exists());
         assert!(matches!(
             library.remove(&publication.id),
             Err(CoreError::NotFound(_))
         ));
+    }
+
+    fn count(library: &Library, sql: &str, id: &str) -> i64 {
+        library
+            .readers
+            .with(|conn| conn.query_row(sql, [id], |row| row.get(0)).map_err(Into::into))
+            .unwrap()
+    }
+
+    #[test]
+    fn import_extracts_spine_toc_cover_and_corpus() {
+        let dir = tempfile::tempdir().unwrap();
+        let epub = dir.path().join("book.epub");
+        write_epub(&epub, "月光書房", "紫式部", "ja");
+
+        let data_dir = dir.path().join("library");
+        let library = Library::open(&data_dir).unwrap();
+        let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+        // Cover extracted as-is under covers/.
+        assert_eq!(
+            publication.cover_path.as_deref(),
+            Some(format!("covers/{}.png", publication.id).as_str())
+        );
+
+        // Flattened TOC with CJK titles, fragments, and depth.
+        let chapters = library.chapters(&publication.id).unwrap();
+        let brief: Vec<(&str, &str, u32)> = chapters
+            .iter()
+            .map(|c| (c.title.as_str(), c.href.as_str(), c.depth))
+            .collect();
+        assert_eq!(
+            brief,
+            vec![
+                ("第一章", "OEBPS/text/ch01.xhtml", 0),
+                ("第一節", "OEBPS/text/ch01.xhtml#s1", 1),
+                ("第二章", "OEBPS/text/ch02.xhtml", 0),
+            ]
+        );
+        assert_eq!(chapters.iter().map(|c| c.idx).collect::<Vec<_>>(), vec![0, 1, 2]);
+
+        // The spine landed in reading order with one text row per resource.
+        assert_eq!(
+            count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+            2
+        );
+        let first_body: String = library
+            .readers
+            .with(|conn| {
+                conn.query_row(
+                    "SELECT rt.body FROM resource_text rt
+                     JOIN resources r ON r.id = rt.resource_id
+                     WHERE r.publication_id = ?1 ORDER BY r.spine_idx LIMIT 1",
+                    [&publication.id],
+                    |row| row.get(0),
+                )
+                .map_err(Into::into)
+            })
+            .unwrap();
+        assert!(first_body.contains("月の光が窓辺に落ちていた。"));
+
+        // remove() cascades the children.
+        library.remove(&publication.id).unwrap();
+        assert_eq!(
+            count(&library, "SELECT COUNT(*) FROM chapters WHERE publication_id = ?1", &publication.id),
+            0
+        );
+        assert_eq!(
+            count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+            0
+        );
+    }
+
+    #[test]
+    fn no_toc_epub_still_builds_a_complete_corpus() {
+        let dir = tempfile::tempdir().unwrap();
+        let epub = dir.path().join("book.epub");
+        write_epub_with(&epub, "無目次", "作者", "ja", TocKind::None, false);
+
+        let library = Library::open(dir.path().join("library")).unwrap();
+        let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+        assert!(library.chapters(&publication.id).unwrap().is_empty());
+        assert!(publication.cover_path.is_none());
+        // The corpus keys off the spine, not the TOC.
+        let text_rows = count(
+            &library,
+            "SELECT COUNT(*) FROM resource_text WHERE resource_id IN
+                 (SELECT id FROM resources WHERE publication_id = ?1)",
+            &publication.id,
+        );
+        assert_eq!(text_rows, 2);
+    }
+
+    #[test]
+    fn ncx_fallback_supplies_the_toc() {
+        let dir = tempfile::tempdir().unwrap();
+        let epub = dir.path().join("book.epub");
+        write_epub_with(&epub, "旧式目次", "作者", "ja", TocKind::Ncx, false);
+
+        let library = Library::open(dir.path().join("library")).unwrap();
+        let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+        let chapters = library.chapters(&publication.id).unwrap();
+        assert_eq!(chapters.len(), 3);
+        assert_eq!(chapters[1].title, "第一節");
+        assert_eq!(chapters[1].href, "OEBPS/text/ch01.xhtml#s1");
+        assert_eq!(chapters[1].depth, 1);
     }
 
     #[test]

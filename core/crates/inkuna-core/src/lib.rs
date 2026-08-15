@@ -15,7 +15,7 @@ mod pool;
 pub use error::CoreError;
 pub use format::Format;
 pub use import::ImportOutcome;
-pub use library::{Library, Publication};
+pub use library::{Chapter, Library, Publication};
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
