@@ -126,7 +126,9 @@ impl Library {
         week_starts_monday: bool,
     ) -> Result<StatsOverview, CoreError> {
         // An out-of-range offset (the API bound is ±24h) falls back to UTC.
-        let tz = FixedOffset::east_opt(tz_offset_minutes * 60)
+        let tz = tz_offset_minutes
+            .checked_mul(60)
+            .and_then(FixedOffset::east_opt)
             .or_else(|| FixedOffset::east_opt(0))
             .ok_or_else(|| CoreError::NotFound("invalid utc offset".into()))?;
         let offset_seconds = i64::from(tz.local_minus_utc());
@@ -377,5 +379,22 @@ mod tests {
             .stats_overview_at(now, TOKYO_MINUTES, false)
             .unwrap();
         assert_eq!(sunday.pages_this_week, 20);
+    }
+
+    #[test]
+    fn stats_fall_back_to_utc_on_out_of_range_offset() {
+        let (_dir, library, id) = library_with_book();
+        let now = ts(2026, 3, 3, 22, 0);
+        insert_session(
+            &library, &id,
+            ts(2026, 3, 2, 10, 0), Some(ts(2026, 3, 2, 10, 30)), ts(2026, 3, 2, 10, 30),
+            Some(10), Some(25),
+        );
+
+        // An offset whose seconds conversion overflows i32 must fall back to
+        // UTC, not panic (debug) or wrap into a bogus offset (release).
+        let overflowing = library.stats_overview_at(now, i32::MAX, true).unwrap();
+        let utc = library.stats_overview_at(now, 0, true).unwrap();
+        assert_eq!(overflowing, utc);
     }
 }
