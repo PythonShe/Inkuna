@@ -1,4 +1,4 @@
-use crate::test_support::{imported, write_cbz, write_epub, write_epub_with, TocKind};
+use crate::test_support::{imported, write_cbz, write_epub, write_epub_with, CoverKind, TocKind};
 use crate::{CoreError, ImportOutcome, Library, Shelf, Sort};
 
 fn count(library: &Library, sql: &str, id: &str) -> i64 {
@@ -77,7 +77,7 @@ fn import_extracts_spine_toc_cover_and_corpus() {
 fn no_toc_epub_still_builds_a_complete_corpus() {
     let dir = tempfile::tempdir().unwrap();
     let epub = dir.path().join("book.epub");
-    write_epub_with(&epub, "無目次", "作者", "ja", TocKind::None, false);
+    write_epub_with(&epub, "無目次", "作者", "ja", TocKind::None, CoverKind::None);
 
     let library = Library::open(dir.path().join("library")).unwrap();
     let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
@@ -94,11 +94,41 @@ fn no_toc_epub_still_builds_a_complete_corpus() {
     assert_eq!(text_rows, 2);
 }
 
+/// A cover href the extension heuristic cannot make sense of degrades to
+/// no cover, exactly like unreadable cover bytes do — it must never fail
+/// the import. `img.old/cover` under an unknown media type derives the
+/// "extension" `old/cover`, and writing `covers/<id>.old/cover` fails on
+/// the missing intermediate directory.
+#[test]
+fn malformed_cover_href_still_imports_without_a_cover() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub_with(
+        &epub,
+        "壊れた表紙",
+        "作者",
+        "ja",
+        TocKind::Nav,
+        CoverKind::MalformedHref,
+    );
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    assert!(publication.cover_path.is_none());
+    // The rest of the book imported normally.
+    assert_eq!(publication.title, "壊れた表紙");
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 3);
+    // And nothing was left behind under covers/.
+    assert_eq!(std::fs::read_dir(data_dir.join("covers")).unwrap().count(), 0);
+}
+
 #[test]
 fn ncx_fallback_supplies_the_toc() {
     let dir = tempfile::tempdir().unwrap();
     let epub = dir.path().join("book.epub");
-    write_epub_with(&epub, "旧式目次", "作者", "ja", TocKind::Ncx, false);
+    write_epub_with(&epub, "旧式目次", "作者", "ja", TocKind::Ncx, CoverKind::None);
 
     let library = Library::open(dir.path().join("library")).unwrap();
     let publication = imported(library.import(epub.to_str().unwrap()).unwrap());

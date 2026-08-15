@@ -1,5 +1,5 @@
 use super::*;
-use crate::test_support::{imported, write_epub, write_epub_with, TocKind};
+use crate::test_support::{imported, write_epub, write_epub_with, CoverKind, TocKind};
 use crate::{CoreError, Format};
 
 #[test]
@@ -49,7 +49,7 @@ fn shelves_and_sorts_partition_the_library() {
     let first = dir.path().join("first.epub");
     write_epub(&first, "最初の本", "著者A", "ja");
     let second = dir.path().join("second.epub");
-    write_epub_with(&second, "Second Book", "Author B", "en", TocKind::None, false);
+    write_epub_with(&second, "Second Book", "Author B", "en", TocKind::None, CoverKind::None);
 
     let library = Library::open(dir.path().join("library")).unwrap();
     let first = imported(library.import(first.to_str().unwrap()).unwrap());
@@ -84,7 +84,7 @@ fn search_library_matches_cjk_and_casefolds() {
     let a = dir.path().join("a.epub");
     write_epub(&a, "月光書房", "紫式部", "ja");
     let b = dir.path().join("b.epub");
-    write_epub_with(&b, "Die Straße", "Hans Müller", "de", TocKind::None, false);
+    write_epub_with(&b, "Die Straße", "Hans Müller", "de", TocKind::None, CoverKind::None);
 
     let library = Library::open(dir.path().join("library")).unwrap();
     library.import(a.to_str().unwrap()).unwrap();

@@ -96,11 +96,19 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
             })
         });
     let cover = cover_item.and_then(|item| {
+        // Checked before the read: an href that yields no usable
+        // extension degrades to no cover, the same way unreadable cover
+        // bytes already do.
+        let Some(extension) = image_extension(&item.media_type, &item.href) else {
+            log::warn!(
+                "skipping cover of {}: href {} yields no usable extension",
+                path.display(),
+                item.href
+            );
+            return None;
+        };
         let bytes = read_entry_bytes(&mut archive, &resolve(&item.href)).ok()?;
-        Some(Cover {
-            bytes,
-            extension: image_extension(&item.media_type, &item.href),
-        })
+        Some(Cover { bytes, extension })
     });
 
     Ok(EpubPackage {

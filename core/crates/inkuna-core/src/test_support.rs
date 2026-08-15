@@ -13,6 +13,19 @@ pub(crate) enum TocKind {
     None,
 }
 
+/// What the fixture's manifest declares for cover art.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum CoverKind {
+    /// No cover item at all.
+    None,
+    /// A well-formed `image/png` cover.
+    Png,
+    /// An unrecognized media type paired with an href whose last dot is
+    /// followed by a path separator, so the extension derived from the
+    /// href is a path fragment rather than a suffix.
+    MalformedHref,
+}
+
 /// Builds a valid EPUB exercising the full import pipeline: two CJK
 /// spine chapters, a nested TOC (nav doc or NCX), and a cover image.
 pub(crate) fn write_epub_with(
@@ -21,7 +34,7 @@ pub(crate) fn write_epub_with(
     author: &str,
     language: &str,
     toc: TocKind,
-    cover: bool,
+    cover: CoverKind,
 ) {
     let file = std::fs::File::create(path).unwrap();
     let mut zip = zip::ZipWriter::new(file);
@@ -57,10 +70,14 @@ pub(crate) fn write_epub_with(
         }
         TocKind::None => {}
     }
-    if cover {
-        manifest.push_str(
+    match cover {
+        CoverKind::None => {}
+        CoverKind::Png => manifest.push_str(
             r#"<item id="cover-img" href="images/cover.png" media-type="image/png" properties="cover-image"/>"#,
-        );
+        ),
+        CoverKind::MalformedHref => manifest.push_str(
+            r#"<item id="cover-img" href="img.old/cover" media-type="image/x-unknown" properties="cover-image"/>"#,
+        ),
     }
 
     zip.start_file("OEBPS/content.opf", stored).unwrap();
@@ -124,16 +141,23 @@ pub(crate) fn write_epub_with(
         TocKind::None => {}
     }
 
-    if cover {
-        zip.start_file("OEBPS/images/cover.png", stored).unwrap();
-        zip.write_all(b"\x89PNG\r\n\x1a\nfake png bytes").unwrap();
+    match cover {
+        CoverKind::None => {}
+        CoverKind::Png => {
+            zip.start_file("OEBPS/images/cover.png", stored).unwrap();
+            zip.write_all(b"\x89PNG\r\n\x1a\nfake png bytes").unwrap();
+        }
+        CoverKind::MalformedHref => {
+            zip.start_file("OEBPS/img.old/cover", stored).unwrap();
+            zip.write_all(b"\x89PNG\r\n\x1a\nfake png bytes").unwrap();
+        }
     }
     zip.finish().unwrap();
 }
 
 /// The default fixture: nav TOC + cover.
 pub(crate) fn write_epub(path: &Path, title: &str, author: &str, language: &str) {
-    write_epub_with(path, title, author, language, TocKind::Nav, true);
+    write_epub_with(path, title, author, language, TocKind::Nav, CoverKind::Png);
 }
 
 pub(crate) fn write_cbz(path: &Path) {

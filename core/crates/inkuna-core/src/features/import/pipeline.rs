@@ -127,7 +127,13 @@ impl Library {
         let cover_rel = match &prepared.cover {
             Some(cover) => {
                 let rel = format!("covers/{}.{}", prepared.id, cover.extension);
-                if let Err(e) = std::fs::write(self.data_dir.join(&rel), &cover.bytes) {
+                let cover_path = self.data_dir.join(&rel);
+                if let Err(e) = std::fs::write(&cover_path, &cover.bytes) {
+                    // A write that fails part-way still leaves a partial
+                    // file, and `cover_rel` never binds, so `cleanup_files`
+                    // below could not reach it: sweep it here or it lingers
+                    // unreferenced until the next Library::open.
+                    let _ = std::fs::remove_file(&cover_path);
                     let _ = std::fs::remove_file(&prepared.tmp_path);
                     return Err(e.into());
                 }
