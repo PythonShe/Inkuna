@@ -14,6 +14,11 @@ val keyProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+val inkunaAbis = (findProperty("inkunaAbis") as String? ?: "arm64-v8a,x86_64")
+    .split(",")
+    .map(String::trim)
+    .filter(String::isNotEmpty)
+
 android {
     namespace = "app.inkuna.android"
     compileSdk = 37
@@ -25,10 +30,13 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // minSdk 33 rules out 32-bit-only devices, so the core is built for
-        // arm64-v8a alone; this also drops JNA's other bundled .so files.
+        // Mirrors ANDROID_ABIS in scripts/build-core-android.sh: local builds
+        // package the x86_64 emulator slice too, CI releases pass
+        // -PinkunaAbis=arm64-v8a. minSdk 33 has no 32-bit-only devices, so
+        // armeabi-v7a is never built — the filter also drops the armeabi-v7a
+        // and x86 slices that JNA and the AndroidX libs bundle.
         ndk {
-            abiFilters += "arm64-v8a"
+            abiFilters += inkunaAbis
         }
     }
 

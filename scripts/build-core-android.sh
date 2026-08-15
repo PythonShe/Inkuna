@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
-# Builds the Rust core for Android (arm64-v8a only), generates Kotlin
-# bindings, and drops .so files into the app's jniLibs.
-# Changing the ABI list means changing abiFilters in build.gradle.kts too.
+# Builds the Rust core for Android, generates Kotlin bindings, and drops
+# .so files into the app's jniLibs.
+#
+# ANDROID_ABIS defaults to device + x86_64 emulator so local builds run
+# anywhere; CI sets ANDROID_ABIS=arm64-v8a (with a matching -PinkunaAbis)
+# to keep the shipped APK minimal. arm64-v8a must stay in the list — the
+# bindgen step below reads the aarch64 build.
 set -euo pipefail
+
+ANDROID_ABIS="${ANDROID_ABIS:-arm64-v8a x86_64}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CORE="$ROOT/core"
@@ -22,9 +28,14 @@ if [ -z "${ANDROID_NDK_HOME:-}" ]; then
   export ANDROID_NDK_HOME
 fi
 
+NDK_TARGETS=()
+for abi in $ANDROID_ABIS; do
+  NDK_TARGETS+=(-t "$abi")
+done
+
 cd "$CORE"
 rm -rf "$JNI_LIBS" "$GENERATED"
-cargo ndk -t arm64-v8a -o "$JNI_LIBS" build -p inkuna-ffi --release
+cargo ndk "${NDK_TARGETS[@]}" -o "$JNI_LIBS" build -p inkuna-ffi --release
 
 cargo run -p inkuna-ffi --bin uniffi-bindgen --release -- generate \
   --library "$CARGO_TARGET_DIR/aarch64-linux-android/release/libinkuna_ffi.so" \

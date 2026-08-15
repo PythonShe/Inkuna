@@ -136,6 +136,11 @@ jobs:
         run: which cargo-ndk || cargo install cargo-ndk --locked
 
       - name: Build Rust core + Kotlin bindings
+        env:
+          # Releases ship the device ABI only; the x86_64 emulator slice that
+          # local builds carry would just inflate the APK. Keep in sync with
+          # -PinkunaAbis on the packaging step below.
+          ANDROID_ABIS: arm64-v8a
         run: |
           set -euo pipefail
           # gradle.properties pins org.gradle.java.home to a Homebrew path that
@@ -170,7 +175,7 @@ jobs:
 
       - name: Build release APK
         working-directory: apps/android
-        run: ./gradlew --no-daemon assembleRelease
+        run: ./gradlew --no-daemon assembleRelease -PinkunaAbis=arm64-v8a
 
       - name: Verify APK signature
         shell: bash
