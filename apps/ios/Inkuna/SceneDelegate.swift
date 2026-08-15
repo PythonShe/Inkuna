@@ -22,6 +22,28 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         #if DEBUG
         debugRoute()
         #endif
+        // A book handed to us while the app was not running ("Open with
+        // Inkuna" from Files, Mail, Safari, a share sheet) arrives here.
+        openIncomingDocuments(connectionOptions.urlContexts, in: scene)
+    }
+
+    /// The same books, when the app is already running.
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        openIncomingDocuments(URLContexts, in: scene)
+    }
+
+    /// Routes inbound documents into the import flow. It presents from the
+    /// topmost screen and waits for the window to be up, so this is safe
+    /// to call before the scene has finished connecting.
+    private func openIncomingDocuments(_ contexts: Set<UIOpenURLContext>, in scene: UIScene) {
+        #if DEBUG
+        // `-inkuna.debugScreen import` opens the import harness. It hangs
+        // off this method rather than `debugShow` so the import feature
+        // owns every line it added to this file.
+        ImportDebugLaunch.routeIfRequested(in: scene)
+        #endif
+        guard !contexts.isEmpty else { return }
+        ImportFlow.handle(contexts, presentingFrom: ImportFlow.presenter(in: scene))
     }
 
     #if DEBUG
@@ -30,9 +52,11 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     /// (launch arguments land in the UserDefaults argument domain).
     ///
     /// `-inkuna.debugImportDocuments YES` first imports every `.epub` found
-    /// in the app's Documents directory through the core — the fixture path
-    /// for exercising the reader until import UI ships (push files in with
-    /// `xcrun simctl` and the container path from `simctl get_app_container`).
+    /// in the app's Documents directory straight through the core, bypassing
+    /// the import UI — a scriptable way to seed a library for reader runs
+    /// (push files in with `xcrun simctl` and the container path from
+    /// `simctl get_app_container`). `-inkuna.debugScreen import` exercises
+    /// the import UI itself, from its own `ImportFixtures/` directory.
     private func debugRoute() {
         let wantsFixtureImport = UserDefaults.standard.bool(forKey: "inkuna.debugImportDocuments")
         let screen = UserDefaults.standard.string(forKey: "inkuna.debugScreen")

@@ -61,3 +61,23 @@ targets:
         # launches don't flash light (the generated plist can't set it).
         UILaunchScreen:
           UIColorName: LaunchBackground
+        # "Open with Inkuna" from Files, Mail, Safari, and the share sheet.
+        # `org.idpf.epub-container` is a system-declared type (UTType.epub),
+        # so no UTImportedTypeDeclarations entry is needed — declaring one
+        # would shadow the system's with a weaker definition.
+        # Rank Alternate, not Owner: Apple Books owns EPUB on a stock
+        # device, and claiming Owner would silently steal every EPUB tap
+        # from it.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: EPUB Book
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - org.idpf.epub-container
+        # Deliberately NOT opening documents in place: iOS then hands the
+        # app a copy in Documents/Inbox instead of a live reference to the
+        # reader's file. That is exactly the contract the core wants — it
+        # takes ownership of its own copy of every book — and it means an
+        # inbound document never depends on a provider staying reachable.
+        # `ImportFlow` deletes the Inbox copy once the core has its own.
+        LSSupportsOpeningDocumentsInPlace: false
