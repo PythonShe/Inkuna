@@ -78,13 +78,24 @@ pub(super) fn read_entry_bytes(
     Ok(buf)
 }
 
+/// Opens one archive entry, preserving *why* it could not be opened.
+/// Only a genuinely absent entry is an invalid publication; an unreadable
+/// file (a truncated download, a device error mid-import) is an I/O
+/// failure the shells must be able to tell apart from a broken book, and
+/// an unsupported compression method or a corrupt central directory is an
+/// archive-level fault. Collapsing all three into "missing {name}" made
+/// every one of them read as a malformed EPUB.
 fn open_entry<'a>(
     archive: &'a mut zip::ZipArchive<File>,
     name: &str,
 ) -> Result<zip::read::ZipFile<'a, File>, CoreError> {
-    archive
-        .by_name(name)
-        .map_err(|_| CoreError::InvalidPublication(format!("missing {name}")))
+    archive.by_name(name).map_err(|e| match e {
+        zip::result::ZipError::FileNotFound => {
+            CoreError::InvalidPublication(format!("missing {name}"))
+        }
+        zip::result::ZipError::Io(e) => CoreError::Io(e),
+        other => CoreError::Archive(format!("cannot read {name}: {other}")),
+    })
 }
 
 /// Every reader above takes `cap + 1` bytes: a read that stops exactly at
