@@ -4,6 +4,7 @@
 //! crash leaves an unreferenced file (swept at next open), never a fileless
 //! row. Invariant: a committed row always points at an existing file.
 
+mod budget;
 mod model;
 mod pipeline;
 

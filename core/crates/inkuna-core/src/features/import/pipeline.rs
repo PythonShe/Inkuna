@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use super::budget::PersistBudget;
 use super::model::{BatchImportOutcome, ImportOutcome};
 use crate::core::files::copy_and_hash;
 use crate::core::time::unix_now;
@@ -122,6 +123,19 @@ impl Library {
     /// concurrent import of the same content loses the unique-index race
     /// and resolves to `Duplicate`.
     pub(crate) fn commit_import(&self, prepared: PreparedImport) -> Result<ImportOutcome, CoreError> {
+        // One meter per publication: a batch never shares it.
+        self.commit_import_budgeted(prepared, PersistBudget::for_import())
+    }
+
+    /// [`commit_import`](Self::commit_import) with an explicit persistence
+    /// meter; the production path always passes
+    /// [`PersistBudget::for_import`], tests pass tiny ceilings to reach
+    /// the trip path.
+    pub(super) fn commit_import_budgeted(
+        &self,
+        prepared: PreparedImport,
+        mut budget: PersistBudget,
+    ) -> Result<ImportOutcome, CoreError> {
         let final_path = self.data_dir.join(&prepared.rel_path);
 
         let cover_rel = match &prepared.cover {
@@ -172,7 +186,19 @@ impl Library {
             last_opened_at: None,
         };
 
-        let insert = |tx: &rusqlite::Transaction| -> Result<(), rusqlite::Error> {
+        // Each row is charged against the budget *before* its insert:
+        // the transaction makes rollback free, but the WAL still grows on
+        // disk while it runs, so the meter must abort within one row of
+        // the ceiling rather than bound only the committed state.
+        let insert = |tx: &rusqlite::Transaction,
+                      budget: &mut PersistBudget|
+         -> Result<(), CoreError> {
+            let authors = join_authors(&publication.authors);
+            budget.charge(
+                publication.title.len()
+                    + authors.len()
+                    + publication.language.as_deref().map_or(0, str::len),
+            )?;
             tx.execute(
                 "INSERT INTO publications
                     (id, title, authors, language, format, file_path, cover_path,
@@ -181,7 +207,7 @@ impl Library {
                 rusqlite::params![
                     publication.id,
                     publication.title,
-                    join_authors(&publication.authors),
+                    authors,
                     publication.language,
                     publication.format.as_str(),
                     publication.file_path,
@@ -193,12 +219,14 @@ impl Library {
             )?;
             for (spine_idx, (href, text)) in prepared.spine.iter().enumerate() {
                 let resource_id = uuid::Uuid::new_v4().to_string();
+                budget.charge(href.len())?;
                 tx.execute(
                     "INSERT INTO resources (id, publication_id, spine_idx, href)
                      VALUES (?1, ?2, ?3, ?4)",
                     rusqlite::params![resource_id, publication.id, spine_idx as i64, href],
                 )?;
                 if let Some(body) = text {
+                    budget.charge(body.len())?;
                     tx.execute(
                         "INSERT INTO resource_text (resource_id, body) VALUES (?1, ?2)",
                         rusqlite::params![resource_id, body.as_ref()],
@@ -206,6 +234,7 @@ impl Library {
                 }
             }
             for (idx, entry) in prepared.toc.iter().enumerate() {
+                budget.charge(entry.title.len() + entry.href.len())?;
                 tx.execute(
                     "INSERT INTO chapters (id, publication_id, idx, title, href, depth)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -234,7 +263,7 @@ impl Library {
                     return Err(e.into());
                 }
             };
-            match insert(&tx) {
+            match insert(&tx, &mut budget) {
                 Ok(()) => {
                     if let Err(e) = tx.commit() {
                         cleanup_files(true);
@@ -242,14 +271,16 @@ impl Library {
                     }
                     true
                 }
-                Err(e) if is_constraint_violation(&e) => {
+                Err(CoreError::Database(e)) if is_constraint_violation(&e) => {
                     drop(tx);
                     false
                 }
                 Err(e) => {
+                    // Dropping the uncommitted transaction rolls every
+                    // insert back; budget trips take this path too.
                     drop(tx);
                     cleanup_files(true);
-                    return Err(e.into());
+                    return Err(e);
                 }
             }
         };

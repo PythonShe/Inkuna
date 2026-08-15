@@ -10,6 +10,18 @@ fn count(library: &Library, sql: &str, id: &str) -> i64 {
         .unwrap()
 }
 
+fn table_counts(library: &Library) -> [i64; 4] {
+    ["publications", "chapters", "resources", "resource_text"].map(|table| {
+        library
+            .readers
+            .with(|conn| {
+                conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0))
+                    .map_err(Into::into)
+            })
+            .unwrap()
+    })
+}
+
 
 #[test]
 fn import_extracts_spine_toc_cover_and_corpus() {
@@ -356,6 +368,147 @@ fn manifest_bomb_fails_the_import_cleanly() {
     // Nothing persisted: no publication row, no staged file left behind.
     assert!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().is_empty());
     assert_eq!(std::fs::read_dir(data_dir.join("books")).unwrap().count(), 0);
+}
+
+/// The whole point of the persist budget: tripping it must leave *no
+/// trace* — the transaction rolled back (every table count unchanged)
+/// and the staged book and cover swept — instead of the silent-success
+/// mangled-library outcome every previous amplification produced. Real
+/// ceilings are unreachable by anything the parse caps pass, so the trip
+/// path is exercised with tiny explicit ceilings through the same
+/// `commit_import_budgeted` the production wrapper delegates to.
+#[test]
+fn tripped_budget_rolls_back_rows_and_sweeps_staged_files() {
+    use super::budget::PersistBudget;
+    use super::pipeline::Prepared;
+
+    let dir = tempfile::tempdir().unwrap();
+    let existing = dir.path().join("existing.epub");
+    write_epub(&existing, "既存の本", "先住作家", "ja");
+    let bomb = dir.path().join("second.epub");
+    write_epub(&bomb, "予算超過", "後発作家", "ja");
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    imported(library.import(existing.to_str().unwrap()).unwrap());
+    let baseline = table_counts(&library);
+
+    let fresh = |path: &std::path::Path| match library
+        .prepare_import(path.to_str().unwrap())
+        .unwrap()
+    {
+        Prepared::Fresh(prepared) => *prepared,
+        Prepared::Duplicate(p) => panic!("unexpected duplicate of {}", p.id),
+    };
+
+    // Row ceiling.
+    let err = library
+        .commit_import_budgeted(fresh(&bomb), PersistBudget::with_limits(2, u64::MAX))
+        .unwrap_err();
+    match &err {
+        CoreError::InvalidPublication(msg) => {
+            assert!(msg.contains("2 rows"), "limit not named: {msg}")
+        }
+        other => panic!("expected InvalidPublication, got {other:?}"),
+    }
+    // Byte ceiling.
+    let err = library
+        .commit_import_budgeted(fresh(&bomb), PersistBudget::with_limits(u64::MAX, 64))
+        .unwrap_err();
+    match &err {
+        CoreError::InvalidPublication(msg) => {
+            assert!(msg.contains("64 bytes"), "limit not named: {msg}")
+        }
+        other => panic!("expected InvalidPublication, got {other:?}"),
+    }
+
+    // No trace: every table exactly at baseline, no orphan files.
+    assert_eq!(table_counts(&library), baseline);
+    assert_eq!(std::fs::read_dir(data_dir.join("books")).unwrap().count(), 1);
+    assert_eq!(std::fs::read_dir(data_dir.join("covers")).unwrap().count(), 1);
+}
+
+/// Guard against the breaker becoming the data-loss bug it prevents: an
+/// honest book — CJK, because multi-byte titles and text are where naive
+/// byte accounting would misjudge an honest book first — imports through
+/// the production ceilings completely unaffected.
+#[test]
+fn honest_cjk_book_imports_unaffected_by_the_budget() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "吾輩は猫である", "夏目漱石", "ja");
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    assert_eq!(publication.title, "吾輩は猫である");
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 3);
+    assert_eq!(
+        count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+        2
+    );
+    assert_eq!(
+        count(
+            &library,
+            "SELECT COUNT(*) FROM resource_text WHERE resource_id IN
+                 (SELECT id FROM resources WHERE publication_id = ?1)",
+            &publication.id,
+        ),
+        2
+    );
+}
+
+/// The meter is per-publication, never shared: three books of ~60,003
+/// rows each (fine individually, 180,009 combined — past the 150,000
+/// ceiling if one meter survived across commits) all import through
+/// `import_batch`, which funnels into the same `commit_import` path.
+#[test]
+fn budget_is_per_publication_across_batch_imports() {
+    use crate::BatchImportOutcome;
+
+    let dir = tempfile::tempdir().unwrap();
+    let paths: Vec<String> = (0..3)
+        .map(|i| {
+            let epub = dir.path().join(format!("volume-{i}.epub"));
+            let opf = format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>大全集 第{i}巻</dc:title></metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#
+            );
+            let mut nav = String::from(
+                r#"<html xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol>"#,
+            );
+            for _ in 0..60_000 {
+                nav.push_str(r#"<li><a href="ch01.xhtml">章</a></li>"#);
+            }
+            nav.push_str("</ol></nav></body></html>");
+            write_epub_parts(
+                &epub,
+                &opf,
+                &[
+                    ("nav.xhtml", nav.as_str()),
+                    ("ch01.xhtml", r#"<html><body><p>本文。</p></body></html>"#),
+                ],
+            );
+            epub.to_str().unwrap().to_string()
+        })
+        .collect();
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let outcomes = library.import_batch(&paths);
+    for outcome in &outcomes {
+        let publication = match outcome {
+            BatchImportOutcome::Imported(p) => p,
+            other => panic!("expected Imported, got {other:?}"),
+        };
+        assert_eq!(library.chapters(&publication.id).unwrap().len(), 60_000);
+    }
 }
 
 #[test]
