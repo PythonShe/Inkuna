@@ -1,4 +1,4 @@
-use crate::features::library::tests::write_epub;
+use crate::test_support::write_epub;
 use crate::{CoreError, ImportOutcome, Library};
 
 fn library_with_book() -> (tempfile::TempDir, Library, String) {

@@ -7,4 +7,7 @@
 mod model;
 mod pipeline;
 
+#[cfg(test)]
+mod tests;
+
 pub use model::{BatchImportOutcome, ImportOutcome};

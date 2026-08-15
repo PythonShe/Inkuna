@@ -1,6 +1,6 @@
 use chrono::{FixedOffset, TimeZone};
 
-use crate::features::library::tests::write_epub;
+use crate::test_support::write_epub;
 use crate::{ImportOutcome, Library};
 
 const TOKYO_MINUTES: i32 = 9 * 60;

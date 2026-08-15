@@ -125,3 +125,7 @@ fn is_plain_text(path: &Path, sample: &[u8]) -> bool {
         .is_some_and(|e| e.eq_ignore_ascii_case("txt"));
     is_txt_ext && !sample.contains(&0)
 }
+
+#[cfg(test)]
+#[path = "format_tests.rs"]
+mod tests;

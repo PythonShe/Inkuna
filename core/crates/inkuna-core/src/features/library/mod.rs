@@ -9,7 +9,7 @@ mod search;
 mod store;
 
 #[cfg(test)]
-pub(crate) mod tests;
+mod tests;
 
 pub use model::{Bookmark, Chapter, Publication, Shelf, Sort};
 pub(crate) use model::{join_authors, map_publication, PUB_COLUMNS};

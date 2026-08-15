@@ -8,6 +8,9 @@ mod core;
 mod features;
 mod formats;
 
+#[cfg(test)]
+mod test_support;
+
 pub use crate::core::error::CoreError;
 pub use features::import::{BatchImportOutcome, ImportOutcome};
 pub use features::library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};

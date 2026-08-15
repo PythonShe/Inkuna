@@ -4,5 +4,8 @@
 pub(crate) mod migrate;
 pub(crate) mod pool;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) use migrate::migrate;
 pub(crate) use pool::{open_connection, ReaderPool, READER_POOL_SIZE};
