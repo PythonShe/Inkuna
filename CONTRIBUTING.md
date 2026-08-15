@@ -14,10 +14,17 @@ signature covers all of your contributions, past and future (Section 11) — but
 the agreement is ever revised, CLA Assistant will ask everyone to sign the new
 version (Section 15).
 
-The signing form asks for your full legal name (not a username), your e-mail
-address and country of residence, and whether you are signing personally or
-binding an employer. Section 16 covers how that record is stored and for how
-long. If you contribute pseudonymously, this is the point to know about it.
+The signing form asks for your name, your e-mail address and country of
+residence, and whether you are signing personally or binding an employer.
+Section 16 covers how that record is stored and for how long.
+
+You can sign under a pseudonym or a username. The form asks whether the name you
+gave is your legal one — answer it honestly and that is the end of it;
+pseudonymous contributions are welcome and saying so is not held against you. For
+a substantial contribution I may ask for a legal name first, and you will hear
+that before you start work, not after you have submitted it. Signing on behalf of
+a company is the exception: the entity has to be identified by name (Section 10),
+and so should whoever is binding it.
 
 Please read it rather than clicking through. In short:
 
