@@ -56,8 +56,12 @@ cd apps/android && ./gradlew assembleDebug
 
 [inkuna.app](https://inkuna.app) is an Astro site in `website/` (fully static
 output, zero client JS) on Cloudflare Pages. Pushes to `main` that touch
-`website/` build and deploy automatically via GitHub Actions; locally,
-`npm run dev` / `npm run build` inside `website/`.
+`website/` build and deploy automatically via GitHub Actions; locally, run
+`pnpm install`, then `pnpm dev` / `pnpm build` inside `website/`. pnpm is the
+only supported package manager here — the pinned version comes from the
+`packageManager` field in `website/package.json` (`corepack enable pnpm` once,
+and the right version is fetched for you), and `pnpm-lock.yaml` is the
+committed lockfile.
 
 ## Releases
 

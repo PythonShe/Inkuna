@@ -69,6 +69,13 @@ per-platform commands. Run `cd core && cargo test` before opening a pull
 request: nothing runs it on the pull request itself, and the release workflows
 will fail on a regression that reaches them.
 
+The website (`website/`) uses **pnpm**, not npm or yarn — `pnpm install`, then
+`pnpm dev` / `pnpm build`. Run `corepack enable pnpm` once and the version
+pinned by the `packageManager` field is fetched for you. Commit
+`pnpm-lock.yaml` with any
+dependency change; a pull request that adds a `package-lock.json` or
+`yarn.lock` will be sent back.
+
 ## Project layout and local rules
 
 Each component carries its own `CLAUDE.md` with rules specific to it — read the

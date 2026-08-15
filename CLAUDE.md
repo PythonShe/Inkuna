@@ -11,7 +11,7 @@ License: AGPL-3.0. Website: `inkuna.app`.
 | `apps/ios/` | Inkuna iOS | UIKit + XcodeGen | Native iOS shell (`app.inkuna.ios`), min iOS 18 |
 | `apps/android/` | Inkuna Android | Kotlin + Jetpack Compose | Native Android shell (`app.inkuna.android`), minSdk 33 |
 | `scripts/` | Build scripts | bash | Core cross-builds + UniFFI bindings generation |
-| `website/` | Inkuna Website | Astro (static output) | Marketing site for `inkuna.app`, built with Astro and deployed via Cloudflare Pages |
+| `website/` | Inkuna Website | Astro (static output) + pnpm | Marketing site for `inkuna.app`, built with Astro and deployed via Cloudflare Pages |
 
 Rendering will live in the shells on Readium's native toolkits (Swift/Kotlin);
 the Rust core never renders.
@@ -20,10 +20,14 @@ the Rust core never renders.
 
 - **Latest everything**: newest stable Rust, Swift, Kotlin, Gradle, AGP, JDK,
   SDKs, and all dependencies. When bumping, query the registries
-  (crates.io / Google Maven / Maven Central / services.gradle.org) for actual
-  latest stable — never guess from training data. A dependency that caps
+  (crates.io / Google Maven / Maven Central / services.gradle.org / npm) for
+  actual latest stable — never guess from training data. A dependency that caps
   another below latest loses (e.g. refinery is deferred because it pins
   rusqlite below current).
+- **pnpm, never npm/yarn**: `website/` is the only JavaScript component and it
+  uses pnpm exclusively — `pnpm-lock.yaml` is the committed lockfile and the
+  pnpm version is pinned by `packageManager` in `website/package.json`. Never
+  run `npm`/`npx`/`yarn` in this repo (`pnpm dlx` replaces `npx`).
 - **Mainstream crates over hand-rolling**: if a well-adopted crate exists for
   a need, use it. Designated choices for upcoming needs: `deadpool-sqlite`
   (concurrent DB access), `notify` (watch-folder import), `rayon` (parallel
@@ -54,8 +58,9 @@ the Rust core never renders.
 
 ## CI/CD (GitHub Actions)
 
-- `deploy-website.yml` — builds `website/` with Astro and deploys `dist/` to
-  Cloudflare Pages (project `inkuna`, direct upload) on every `main` push
+- `deploy-website.yml` — builds `website/` with Astro (pnpm via
+  `pnpm/action-setup`, `pnpm install --frozen-lockfile`) and deploys `dist/`
+  to Cloudflare Pages (project `inkuna`, direct upload) on every `main` push
   touching `website/`.
 - `release-ios.yml` / `release-android.yml` — tag-driven releases
   (`ios-vX.Y.Z+N` / `android-vX.Y.Z+N`): core tests gate the build; iOS

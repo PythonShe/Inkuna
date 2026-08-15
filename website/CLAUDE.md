@@ -9,17 +9,27 @@ Cloudflare Pages.
 | Layer | Technology | Notes |
 |------|------|------|
 | Site | Astro (static output, zero client JS) | `src/pages/*.astro` + shared `src/layouts/Base.astro`; latest Astro per the workspace "latest everything" policy |
-| Hosting | Cloudflare Pages (direct upload) | project `inkuna`; deployed by `.github/workflows/deploy-website.yml`: `npm ci && npm run build`, then `wrangler pages deploy dist` |
+| Hosting | Cloudflare Pages (direct upload) | project `inkuna`; deployed by `.github/workflows/deploy-website.yml`: `pnpm install --frozen-lockfile && pnpm run build`, then `wrangler pages deploy dist` |
+| Packages | pnpm (only supported package manager) | version pinned by `packageManager` in `package.json`; `pnpm-lock.yaml` is committed, settings live in `pnpm-workspace.yaml` |
 | Headers | `public/_headers` | Cloudflare Pages header rules (security headers), copied verbatim into `dist/` |
 
 Every push to `main` that touches `website/` (or the deploy workflow) deploys
-automatically. Local commands (run inside `website/`): `npm run dev` for a dev
-server, `npm run build` for the production `dist/`. Manual deploy from this
-machine: `npm run build && npx wrangler pages deploy dist --project-name
-inkuna --branch main`.
+automatically. Local commands (run inside `website/`): `pnpm install` once,
+then `pnpm dev` for a dev server and `pnpm build` for the production `dist/`.
+Manual deploy from this machine: `pnpm build && pnpm dlx wrangler pages deploy
+dist --project-name inkuna --branch main`.
+
+Never use `npm`/`npx`/`yarn` here: they would resolve outside `pnpm-lock.yaml`
+and leave a stray `package-lock.json`. Adding a dependency is `pnpm add <pkg>`;
+bumping is `pnpm update --latest` (the workspace "latest everything" policy
+applies to pnpm and Astro themselves too — bump the `packageManager` pin when
+pnpm releases a new stable). pnpm blocks dependency install scripts by default;
+if a new dependency genuinely needs one, allow exactly it in
+`pnpm-workspace.yaml` under `allowBuilds` (only `esbuild`, Astro's bundler, is
+allowed today).
 
 `node_modules/`, `dist/`, and `.astro/` are gitignored — never commit build
-output.
+output. `pnpm-lock.yaml` is not: commit it with every dependency change.
 
 ## Structure
 

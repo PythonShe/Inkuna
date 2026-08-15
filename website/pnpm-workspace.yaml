@@ -1,0 +1,5 @@
+# pnpm settings for the website package (pnpm reads settings from here, not
+# from a "pnpm" field in package.json). esbuild is Astro's bundler and needs
+# its postinstall to place the platform binary; nothing else may run scripts.
+allowBuilds:
+  esbuild: true
