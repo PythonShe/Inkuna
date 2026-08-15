@@ -34,6 +34,41 @@ fn oversize_entry_hits_the_decompression_cap() {
     ));
 }
 
+/// One archive, one entry sized between the two budgets: the spine
+/// reader rejects it, the mandatory-XML reader accepts it — pinning that
+/// the tight concurrent-read cap and the generous mandatory-part cap are
+/// genuinely different bounds, not one constant with two names.
+#[test]
+fn spine_cap_is_tighter_than_the_mandatory_xml_cap() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("split.epub");
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+    zip.start_file(
+        "OEBPS/between.xhtml",
+        zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated),
+    )
+    .unwrap();
+    let size = MAX_SPINE_ENTRY_BYTES + 1024 * 1024; // 9 MiB: over spine, under XML
+    let chunk = vec![b' '; 1024 * 1024];
+    let mut written = 0u64;
+    while written < size {
+        zip.write_all(&chunk).unwrap();
+        written += chunk.len() as u64;
+    }
+    zip.finish().unwrap();
+
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+    assert!(matches!(
+        read_spine_entry(&mut archive, "OEBPS/between.xhtml"),
+        Err(CoreError::InvalidPublication(_))
+    ));
+    let xml = read_entry(&mut archive, "OEBPS/between.xhtml").unwrap();
+    assert_eq!(xml.len() as u64, size);
+}
+
 /// An over-cap entry stays a cap rejection even when the capped prefix
 /// ends mid-character. For CJK that is the normal case, not an exotic
 /// one — every codepoint is multi-byte, so a byte-aligned cut almost

@@ -41,6 +41,17 @@ const BLOCK: &[&[u8]] = &[
 /// resource cannot yield different text on a second reference. Results
 /// come back in spine order, one entry per `itemref`.
 pub fn extract_spine_text(path: &Path, spine: &[String]) -> Vec<Option<Arc<str>>> {
+    extract_spine_text_budgeted(path, spine, MAX_TOTAL_TEXT_BYTES)
+}
+
+/// The real implementation, with the aggregate budget injectable so tests
+/// can pin the budget's behavior without building a 128 MiB fixture.
+/// Production always passes [`MAX_TOTAL_TEXT_BYTES`].
+fn extract_spine_text_budgeted(
+    path: &Path,
+    spine: &[String],
+    budget: usize,
+) -> Vec<Option<Arc<str>>> {
     // First-occurrence order, so extraction still walks the archive
     // roughly in reading order.
     let mut distinct: Vec<&str> = Vec::new();
@@ -63,8 +74,8 @@ pub fn extract_spine_text(path: &Path, spine: &[String]) -> Vec<Option<Arc<str>>
             |archive, href| {
                 // Checked before the read, so an exhausted budget also
                 // stops the decompression, not just the retention.
-                if used.load(Ordering::Relaxed) >= MAX_TOTAL_TEXT_BYTES {
-                    warn_truncated(&warned, path);
+                if used.load(Ordering::Relaxed) >= budget {
+                    warn_truncated(&warned, path, budget);
                     return None;
                 }
                 let archive = match archive.as_mut() {
@@ -92,10 +103,8 @@ pub fn extract_spine_text(path: &Path, spine: &[String]) -> Vec<Option<Arc<str>>
                     log::warn!("skipping text extraction for malformed resource {href}");
                     return None;
                 };
-                if used.fetch_add(text.len(), Ordering::Relaxed) + text.len()
-                    > MAX_TOTAL_TEXT_BYTES
-                {
-                    warn_truncated(&warned, path);
+                if used.fetch_add(text.len(), Ordering::Relaxed) + text.len() > budget {
+                    warn_truncated(&warned, path, budget);
                     return None;
                 }
                 Some(Arc::from(text))
@@ -113,13 +122,13 @@ pub fn extract_spine_text(path: &Path, spine: &[String]) -> Vec<Option<Arc<str>>
 /// budget drops the remaining resources rather than failing: the corpus is
 /// an optional part, so this follows the parser's degrade-on-optional-part
 /// convention and the import still succeeds.
-fn warn_truncated(warned: &AtomicBool, path: &Path) {
+fn warn_truncated(warned: &AtomicBool, path: &Path, budget: usize) {
     if warned
         .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
         .is_ok()
     {
         log::warn!(
-            "text extraction budget of {MAX_TOTAL_TEXT_BYTES} bytes exhausted for {}; corpus truncated",
+            "text extraction budget of {budget} bytes exhausted for {}; corpus truncated",
             path.display()
         );
     }

@@ -15,6 +15,38 @@ fn extracts_normalized_text_with_cjk() {
     );
 }
 
+/// The aggregate corpus budget holds through the real extraction path: a
+/// CJK resource whose text alone exceeds the (injected) budget comes back
+/// `None` — dropped, import still succeeds upstream — even though it is
+/// far under the per-entry decompression cap, while a resource within
+/// the budget still extracts. Deterministic because each call names a
+/// single resource, so rayon scheduling cannot reorder budget spending.
+#[test]
+fn aggregate_text_budget_drops_resources_beyond_it() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("budget.epub");
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    zip.start_file("OEBPS/small.xhtml", stored).unwrap();
+    zip.write_all("<html><body><p>短い本文。</p></body></html>".as_bytes())
+        .unwrap();
+    zip.start_file("OEBPS/big.xhtml", stored).unwrap();
+    let big_body = "満月の夜、風が語る。".repeat(50); // ~1.5 KB of CJK text
+    zip.write_all(format!("<html><body><p>{big_body}</p></body></html>").as_bytes())
+        .unwrap();
+    zip.finish().unwrap();
+
+    let budget = 256;
+    let small = extract_spine_text_budgeted(&path, &["OEBPS/small.xhtml".into()], budget);
+    assert_eq!(small[0].as_deref(), Some("短い本文。"));
+
+    let big = extract_spine_text_budgeted(&path, &["OEBPS/big.xhtml".into()], budget);
+    assert!(big[0].is_none(), "over-budget resource must be dropped");
+}
+
 /// A spine may name the same resource any number of times. The parse must
 /// stay bounded (spine cap), each distinct resource must be read and
 /// extracted exactly once — the repeats sharing that one `Arc` rather than
