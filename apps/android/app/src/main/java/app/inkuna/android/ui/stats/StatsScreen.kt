@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,13 +19,17 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -32,6 +38,9 @@ import androidx.compose.ui.unit.sp
 import app.inkuna.android.R
 import app.inkuna.android.model.PlaceholderLibrary
 import app.inkuna.android.ui.components.InkProgressBar
+import app.inkuna.android.ui.components.inkShadow
+import java.time.format.TextStyle
+import java.time.temporal.WeekFields
 import app.inkuna.android.ui.main.DisplayTitle
 import app.inkuna.android.ui.main.ScrollScreen
 import app.inkuna.android.ui.main.SectionTitle
@@ -49,18 +58,35 @@ fun StatsScreen(innerPadding: PaddingValues) {
     val ink = InkTheme.colors
     // TODO(core): all stats derive from recorded reading sessions; the
     // calendar is prototype data, not the real date.
+    // Month and weekday names come from java.time in the reader's locale —
+    // spelling them out in English would leave the stats screen untranslated
+    // in an otherwise localized app.
+    val locale = LocalConfiguration.current.locales[0]
+    val monthName = remember(locale) {
+        PlaceholderLibrary.calendarMonth.getDisplayName(TextStyle.FULL_STANDALONE, locale)
+    }
+
     ScrollScreen(innerPadding) {
         DisplayTitle(stringResource(R.string.stats_title))
         Spacer(Modifier.height(InkSpace.s6))
-        Row(horizontalArrangement = Arrangement.spacedBy(InkSpace.s3)) {
-            PlaceholderLibrary.facts.forEach { (value, caption) ->
-                FactCard(value, caption, Modifier.weight(1f))
+        // Intrinsic height keeps the three tiles level once a caption wraps
+        // — which it does in most translations, and at any raised font scale.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(InkSpace.s3),
+            modifier = Modifier.height(IntrinsicSize.Min),
+        ) {
+            PlaceholderLibrary.facts.forEach { fact ->
+                FactCard(
+                    fact.value,
+                    stringResource(fact.captionRes),
+                    Modifier.weight(1f).fillMaxHeight(),
+                )
             }
         }
         Spacer(Modifier.height(34.dp))
-        SectionTitle(PlaceholderLibrary.calendarMonthTitle)
+        SectionTitle(monthName)
         Spacer(Modifier.height(14.dp))
-        CalendarCard()
+        CalendarCard(monthName, locale)
         Spacer(Modifier.height(34.dp))
         SectionTitle(stringResource(R.string.stats_in_progress))
         Spacer(Modifier.height(6.dp))
@@ -82,7 +108,7 @@ fun StatsScreen(innerPadding: PaddingValues) {
                 )
                 InkProgressBar(book.progress, Modifier.width(92.dp))
                 Text(
-                    book.percentText,
+                    stringResource(R.string.reader_percent, book.progress),
                     style = InkType.caption,
                     color = ink.textTertiary,
                     textAlign = TextAlign.End,
@@ -103,11 +129,15 @@ fun StatsScreen(innerPadding: PaddingValues) {
 @Composable
 private fun FactCard(value: String, caption: String, modifier: Modifier = Modifier) {
     val ink = InkTheme.colors
+    val factLabel = stringResource(R.string.a11y_fact, value, caption)
     Column(
         modifier = modifier
-            .shadow(2.dp, InkRadius.mdShape)
+            .inkShadow(2.dp, InkRadius.mdShape)
             .clip(InkRadius.mdShape)
             .background(ink.bgSurface)
+            // One fact, one stop: "214" and "pages this week" are meaningless
+            // as separate announcements.
+            .semantics(mergeDescendants = true) { contentDescription = factLabel }
             .padding(horizontal = 14.dp, vertical = InkSpace.s4),
     ) {
         Text(value, style = InkType.displaySmall, color = ink.textDisplay)
@@ -122,23 +152,31 @@ private fun FactCard(value: String, caption: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun CalendarCard() {
+private fun CalendarCard(monthName: String, locale: java.util.Locale) {
     val ink = InkTheme.colors
     val cells = buildList {
         repeat(PlaceholderLibrary.calendarLeadingBlanks) { add(null) }
         (1..PlaceholderLibrary.calendarDayCount).forEach { add(it) }
         while (size % 7 != 0) add(null)
     }
+    // The grid starts on the locale's first day of the week, with that
+    // locale's own narrow weekday initials.
+    val firstDay = remember(locale) { WeekFields.of(locale).firstDayOfWeek }
+    val weekdays = remember(locale) {
+        (0L..6L).map { offset ->
+            firstDay.plus(offset).getDisplayName(TextStyle.NARROW_STANDALONE, locale)
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(2.dp, InkRadius.lgShape)
+            .inkShadow(2.dp, InkRadius.lgShape)
             .clip(InkRadius.lgShape)
             .background(ink.bgSurface)
             .padding(horizontal = 14.dp, vertical = InkSpace.s4),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(InkSpace.s1)) {
-            PlaceholderLibrary.calendarWeekdays.forEach { day ->
+            weekdays.forEach { day ->
                 Text(
                     day,
                     style = InkType.caption,
@@ -146,7 +184,10 @@ private fun CalendarCard() {
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(bottom = InkSpace.s1),
+                        .padding(bottom = InkSpace.s1)
+                        // Column headers add nothing once each cell says its
+                        // own date.
+                        .clearAndSetSemantics {},
                 )
             }
         }
@@ -155,11 +196,11 @@ private fun CalendarCard() {
                 horizontalArrangement = Arrangement.spacedBy(InkSpace.s1),
                 modifier = Modifier.padding(top = InkSpace.s1),
             ) {
-                week.forEach { day -> DayCell(day, Modifier.weight(1f)) }
+                week.forEach { day -> DayCell(day, monthName, Modifier.weight(1f)) }
             }
         }
         Text(
-            PlaceholderLibrary.calendarCaption,
+            stringResource(R.string.stats_calendar_caption),
             style = InkType.caption,
             color = ink.textTertiary,
             modifier = Modifier.padding(top = 10.dp),
@@ -168,16 +209,25 @@ private fun CalendarCard() {
 }
 
 @Composable
-private fun DayCell(day: Int?, modifier: Modifier = Modifier) {
+private fun DayCell(day: Int?, monthName: String, modifier: Modifier = Modifier) {
     val ink = InkTheme.colors
     val isToday = day == PlaceholderLibrary.calendarToday
+    val didRead = day != null && day in PlaceholderLibrary.calendarReadDays
+    // "Read that evening" is carried only by a 4dp accent dot; without a text
+    // alternative the whole calendar is a column of bare numerals.
+    val cellLabel = when {
+        day == null -> ""
+        didRead -> stringResource(R.string.a11y_calendar_day_read, monthName, day)
+        else -> stringResource(R.string.a11y_calendar_day, monthName, day)
+    }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = modifier
             .defaultMinSize(minHeight = 36.dp)
             .clip(InkRadius.smShape)
-            .background(if (isToday) ink.accentSoft else Color.Transparent),
+            .background(if (isToday) ink.accentSoft else Color.Transparent)
+            .clearAndSetSemantics { if (day != null) contentDescription = cellLabel },
     ) {
         Text(
             day?.toString() ?: "",
@@ -193,10 +243,7 @@ private fun DayCell(day: Int?, modifier: Modifier = Modifier) {
                 .padding(top = 3.dp)
                 .size(4.dp)
                 .clip(CircleShape)
-                .background(
-                    if (day != null && day in PlaceholderLibrary.calendarReadDays) ink.accent
-                    else Color.Transparent
-                )
+                .background(if (didRead) ink.accent else Color.Transparent)
         )
     }
 }

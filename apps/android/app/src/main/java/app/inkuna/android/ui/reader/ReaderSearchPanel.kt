@@ -2,6 +2,7 @@ package app.inkuna.android.ui.reader
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
@@ -32,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.liveRegion
@@ -57,14 +61,33 @@ import app.inkuna.android.ui.theme.InkType
 private data class SearchHit(val pageIndex: Int, val snippet: String)
 
 /**
+ * A single Han, Kana or Hangul character is a whole word — 月 and 书 are
+ * real queries — so the two-character floor is a Latin rule and must not
+ * apply to CJK text.
+ */
+private fun isCjk(text: String): Boolean = text.any { char ->
+    when (Character.UnicodeScript.of(char.code)) {
+        Character.UnicodeScript.HAN,
+        Character.UnicodeScript.HIRAGANA,
+        Character.UnicodeScript.KATAKANA,
+        Character.UnicodeScript.HANGUL -> true
+        else -> false
+    }
+}
+
+/** Queries shorter than this match too much to be useful — Latin only. */
+internal fun isSearchable(query: String): Boolean {
+    val trimmed = query.trim()
+    return trimmed.length > 1 || (trimmed.isNotEmpty() && isCjk(trimmed))
+}
+
+/**
  * In-book search over the sample pages: first match per page.
- * TODO(core): route through the core's CJK-aware search index — and drop
- * the Latin-only two-character floor when it lands; single Han characters
- * must match.
+ * TODO(core): route through the core's CJK-aware search index.
  */
 private fun search(query: String): List<SearchHit> {
     val trimmed = query.trim()
-    if (trimmed.length <= 1) return emptyList()
+    if (!isSearchable(trimmed)) return emptyList()
     return PlaceholderLibrary.samplePages.mapIndexedNotNull { index, paragraphs ->
         val text = paragraphs.joinToString(" ")
         val at = text.indexOf(trimmed, ignoreCase = true)
@@ -91,14 +114,19 @@ fun ReaderSearchPanel(
     var query by rememberSaveable { mutableStateOf("") }
     val results = remember(query) { search(query) }
     val focusRequester = remember { FocusRequester() }
+    val placeholder = stringResource(R.string.reader_search_placeholder)
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
+    val focusManager = LocalFocusManager.current
     Box(
         Modifier
             .fillMaxWidth()
             .padding(start = 14.dp, end = 14.dp, top = topPadding)
             .imePadding()
+            // Taps on the panel's quiet areas stop here; without this they
+            // reach the scrim behind and dismiss the search mid-typing.
+            .pointerInput(Unit) { detectTapGestures { } }
     ) {
         Column(
             Modifier
@@ -126,17 +154,15 @@ fun ReaderSearchPanel(
                         imeAction = ImeAction.Search,
                         autoCorrectEnabled = false,
                     ),
+                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                     modifier = Modifier
                         .weight(1f)
-                        .focusRequester(focusRequester),
+                        .focusRequester(focusRequester)
+                        .semantics { contentDescription = placeholder },
                     decorationBox = { inner ->
                         Box(Modifier.padding(vertical = 8.dp)) {
                             if (query.isEmpty()) {
-                                Text(
-                                    stringResource(R.string.reader_search_placeholder),
-                                    style = textStyle,
-                                    color = ink.textTertiary,
-                                )
+                                Text(placeholder, style = textStyle, color = ink.textTertiary)
                             }
                             inner()
                         }
@@ -144,7 +170,7 @@ fun ReaderSearchPanel(
                 )
                 SheetCloseButton(onClick = onClose)
             }
-            if (query.trim().length > 1) {
+            if (isSearchable(query)) {
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -178,7 +204,7 @@ fun ReaderSearchPanel(
                             .heightInPanel()
                             .semantics { liveRegion = LiveRegionMode.Polite },
                     ) {
-                        itemsIndexed(results) { _, hit ->
+                        itemsIndexed(results, key = { _, hit -> hit.pageIndex }) { _, hit ->
                             Column(
                                 Modifier
                                     .fillMaxWidth()

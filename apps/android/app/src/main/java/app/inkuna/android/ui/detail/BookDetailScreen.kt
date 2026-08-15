@@ -94,7 +94,12 @@ fun BookDetailScreen(
             Spacer(Modifier.height(InkSpace.s5))
             InkProgressBar(book.progress, Modifier.width(200.dp))
             Text(
-                book.metaText,
+                stringResource(
+                    R.string.reader_page_info,
+                    book.currentPage,
+                    book.pageCount,
+                    book.progress,
+                ),
                 style = InkType.caption,
                 color = ink.textTertiary,
                 modifier = Modifier.padding(top = InkSpace.s2),

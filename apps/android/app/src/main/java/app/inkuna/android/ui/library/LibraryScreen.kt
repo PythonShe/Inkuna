@@ -1,5 +1,6 @@
 package app.inkuna.android.ui.library
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,7 +25,11 @@ import app.inkuna.android.ui.main.EmptyState
 import app.inkuna.android.ui.main.ScrollScreen
 import app.inkuna.android.ui.theme.InkSpace
 
-private enum class LibrarySegment { Reading, Finished, Wishlist }
+private enum class LibrarySegment(@param:StringRes val labelRes: Int) {
+    Reading(R.string.library_seg_reading),
+    Finished(R.string.library_seg_finished),
+    Wishlist(R.string.library_seg_wishlist),
+}
 
 @Composable
 fun LibraryScreen(
@@ -34,11 +39,10 @@ fun LibraryScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var segment by rememberSaveable { mutableStateOf(LibrarySegment.Reading) }
 
-    val segmentLabels = mapOf(
-        LibrarySegment.Reading to stringResource(R.string.library_seg_reading),
-        LibrarySegment.Finished to stringResource(R.string.library_seg_finished),
-        LibrarySegment.Wishlist to stringResource(R.string.library_seg_wishlist),
-    )
+    val segments = LibrarySegment.entries
+    // Addressed by index: two shelves may well share a translation, and a
+    // label round-trip would then pick the wrong one.
+    val segmentLabels = segments.map { stringResource(it.labelRes) }
 
     // TODO(core): Finished/Wishlist shelves don't exist yet; only Reading
     // has placeholder rows, matching the prototype.
@@ -60,11 +64,9 @@ fun LibraryScreen(
         )
         Spacer(Modifier.height(InkSpace.s4))
         InkSegmentedControl(
-            options = segmentLabels.values.toList(),
-            selected = segmentLabels.getValue(segment),
-            onSelect = { label ->
-                segment = segmentLabels.entries.first { it.value == label }.key
-            },
+            options = segmentLabels,
+            selectedIndex = segments.indexOf(segment),
+            onSelect = { index -> segment = segments[index] },
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(InkSpace.s2))

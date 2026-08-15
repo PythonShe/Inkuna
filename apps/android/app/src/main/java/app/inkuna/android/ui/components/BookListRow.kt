@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,7 +40,7 @@ fun BookListRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -66,7 +67,11 @@ fun BookListRow(
                     modifier = Modifier.padding(top = 8.dp),
                 ) {
                     InkProgressBar(progress, Modifier.width(72.dp))
-                    Text("$progress%", style = InkType.caption, color = ink.textTertiary)
+                    Text(
+                        stringResource(R.string.reader_percent, progress),
+                        style = InkType.caption,
+                        color = ink.textTertiary,
+                    )
                 }
             }
         }

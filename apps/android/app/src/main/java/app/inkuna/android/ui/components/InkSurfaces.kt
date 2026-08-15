@@ -15,10 +15,25 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
+
+/**
+ * Elevation shadow in ink rather than pure black, mirroring the iOS
+ * `InkShadow` tokens: a warm cast on paper, full black at night where a
+ * tinted shadow would disappear into the ground.
+ */
+@Composable
+fun Modifier.inkShadow(elevation: Dp, shape: Shape): Modifier {
+    val cast = if (InkTheme.colors.isNight) Color.Black else Color(0xFF1E1911)
+    return shadow(elevation = elevation, shape = shape, ambientColor = cast, spotColor = cast)
+}
 
 /**
  * Floating chrome surface: near-opaque raised background standing in for
@@ -29,7 +44,7 @@ import app.inkuna.android.ui.theme.InkType
 fun glassModifier(shape: Shape = InkRadius.pillShape): Modifier {
     val ink = InkTheme.colors
     return Modifier
-        .shadow(6.dp, shape)
+        .inkShadow(6.dp, shape)
         .clip(shape)
         .background(ink.bgRaised.copy(alpha = 0.97f))
 }
@@ -44,9 +59,12 @@ fun InkToast(
     val ink = InkTheme.colors
     Row(
         modifier = modifier
-            .shadow(10.dp, InkRadius.pillShape)
+            .inkShadow(10.dp, InkRadius.pillShape)
             .clip(InkRadius.pillShape)
-            .background(Color(0xFF241F17).copy(alpha = 0.92f)),
+            .background(Color(0xFF241F17).copy(alpha = 0.92f))
+            // Announced, not just shown: the confirmation is the only signal
+            // that the bookmark landed.
+            .semantics { liveRegion = LiveRegionMode.Polite },
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

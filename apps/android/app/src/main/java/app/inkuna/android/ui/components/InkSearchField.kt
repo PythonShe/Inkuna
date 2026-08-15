@@ -19,6 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -51,6 +54,9 @@ fun InkSearchField(
             tint = ink.textTertiary,
             modifier = Modifier.size(19.dp),
         )
+        // Filtering is live, so the Search key has nothing to submit — but it
+        // must still put the keyboard away rather than sit inert.
+        val focusManager = LocalFocusManager.current
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
@@ -58,8 +64,12 @@ fun InkSearchField(
             singleLine = true,
             cursorBrush = SolidColor(ink.accent),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { /* filtering is live */ }),
-            modifier = Modifier.weight(1f),
+            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+            modifier = Modifier
+                .weight(1f)
+                // The placeholder stops merging in once text is typed, so the
+                // field would otherwise announce only its own contents.
+                .semantics { contentDescription = placeholder },
             decorationBox = { inner ->
                 Box {
                     if (value.isEmpty()) {

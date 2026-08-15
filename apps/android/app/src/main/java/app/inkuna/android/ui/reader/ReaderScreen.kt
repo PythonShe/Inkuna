@@ -1,5 +1,7 @@
 package app.inkuna.android.ui.reader
 
+import android.view.accessibility.AccessibilityManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -25,6 +27,8 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.List
@@ -50,8 +54,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -89,7 +96,38 @@ fun ReaderScreen(
     var contentsSheetOpen by rememberSaveable { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var toastCount by rememberSaveable { mutableIntStateOf(0) }
+    var toastShown by rememberSaveable { mutableIntStateOf(0) }
     var toastVisible by remember { mutableStateOf(false) }
+    // A jump from a search result scrolls the pager programmatically; the
+    // auto-hide below must not read that as a page turn.
+    var jumping by remember { mutableStateOf(false) }
+    var brightnessPreview by remember { mutableStateOf<Float?>(null) }
+
+    // Under TalkBack a page-forward gesture *is* a scroll, so auto-hiding on
+    // scroll would strand an exploring reader with no way back out.
+    val context = LocalContext.current
+    val touchExploration = remember(context) {
+        context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
+    }
+    val toggleChrome = {
+        when {
+            searchOpen -> {
+                searchOpen = false
+                chromeVisible = true
+            }
+            menuOpen -> menuOpen = false
+            else -> chromeVisible = !chromeVisible
+        }
+    }
+    val closeSearch = {
+        searchOpen = false
+        chromeVisible = true
+    }
+
+    // Back closes the reader's own layers before it leaves the book.
+    BackHandler(enabled = searchOpen || menuOpen) {
+        if (searchOpen) closeSearch() else menuOpen = false
+    }
 
     val pageNumber = book.currentPage + pagerState.currentPage
     val percent = (pageNumber * 100f / book.pageCount).toInt()
@@ -107,9 +145,9 @@ fun ReaderScreen(
     )
 
     // Starting a page turn tucks the chrome away.
-    LaunchedEffect(pagerState) {
+    LaunchedEffect(pagerState, touchExploration) {
         snapshotFlow { pagerState.isScrollInProgress }.collect { scrolling ->
-            if (scrolling) {
+            if (scrolling && !jumping && !touchExploration) {
                 chromeVisible = false
                 menuOpen = false
             }
@@ -117,8 +155,11 @@ fun ReaderScreen(
     }
 
     // Toast lifecycle: repeated bookmarks replace the toast, not stack it.
+    // The shown counter is saved alongside, so a rotation doesn't replay a
+    // confirmation the reader already saw.
     LaunchedEffect(toastCount) {
-        if (toastCount > 0) {
+        if (toastCount > toastShown) {
+            toastShown = toastCount
             toastVisible = true
             delay(1800)
             toastVisible = false
@@ -133,20 +174,18 @@ fun ReaderScreen(
             .fillMaxSize()
             .background(background)
     ) {
+        val toggleLabel = stringResource(R.string.a11y_toggle_reader_controls)
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures {
-                        when {
-                            searchOpen -> {
-                                searchOpen = false
-                                chromeVisible = true
-                            }
-                            menuOpen -> menuOpen = false
-                            else -> chromeVisible = !chromeVisible
-                        }
+                .pointerInput(Unit) { detectTapGestures { toggleChrome() } }
+                // Raw pointer input carries no semantics, so TalkBack's
+                // double-tap would have no way to reach the chrome.
+                .semantics {
+                    onClick(label = toggleLabel) {
+                        toggleChrome()
+                        true
                     }
                 },
         ) { pageIndex ->
@@ -162,7 +201,10 @@ fun ReaderScreen(
         }
 
         // Ink veil standing in for brightness — never the system backlight.
-        val veil = (AppSettings.DEFAULT_BRIGHTNESS - snapshot.brightness).coerceAtLeast(0f) / 1.7f
+        // The preview keeps it tracking the slider while the drag is in
+        // flight; the persisted value takes over once it lands.
+        val brightness = brightnessPreview ?: snapshot.brightness
+        val veil = (AppSettings.DEFAULT_BRIGHTNESS - brightness).coerceAtLeast(0f) / 1.7f
         if (veil > 0f) {
             Box(
                 Modifier
@@ -247,7 +289,7 @@ fun ReaderScreen(
                         onClick = {
                             // TODO(core): persist the bookmark.
                             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                            toastCount++
+                            toastCount += 1
                         },
                     )
                 }
@@ -288,18 +330,27 @@ fun ReaderScreen(
         }
 
         if (searchOpen) {
+            // A scrim between the page and the panel: without a pointer-input
+            // node here, taps and drags aimed at the panel's quiet areas fall
+            // through and turn pages behind it.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures { closeSearch() } }
+            )
             ReaderSearchPanel(
                 book = book,
                 topPadding = statusPad + 8.dp,
                 onJump = { pageIndex ->
-                    scope.launch { pagerState.scrollToPage(pageIndex) }
+                    scope.launch {
+                        jumping = true
+                        pagerState.scrollToPage(pageIndex)
+                        jumping = false
+                        chromeVisible = true
+                    }
                     searchOpen = false
-                    chromeVisible = true
                 },
-                onClose = {
-                    searchOpen = false
-                    chromeVisible = true
-                },
+                onClose = closeSearch,
             )
         }
 
@@ -307,6 +358,7 @@ fun ReaderScreen(
             ThemeTypeSheet(
                 snapshot = snapshot,
                 settings = settings,
+                onBrightnessPreview = { brightnessPreview = it },
                 onDismiss = { themeSheetOpen = false },
             )
         }
@@ -335,9 +387,14 @@ private fun ReaderPage(
         fontSize = fontSize.sp,
         lineHeight = (fontSize * 1.65f).sp,
     )
+    // The reading step multiplies with the system font scale, so a page can
+    // outgrow its viewport. The pager clips its children, so overflow has to
+    // scroll — otherwise the tail of every page is simply unreachable.
+    // TODO(core): the Readium navigator repaginates instead of scrolling.
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(start = 26.dp, end = 26.dp, top = topPadding, bottom = 70.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

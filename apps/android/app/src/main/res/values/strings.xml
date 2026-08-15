@@ -33,6 +33,9 @@
     <string name="tonight_pages_left">Fifteen pages left in this chapter</string>
     <string name="tonight_keep_reading">Keep reading</string>
     <string name="tonight_nightstand">On the nightstand</string>
+    <string name="tonight_chip_fiction">Fiction</string>
+    <string name="tonight_chip_essays">Essays</string>
+    <string name="tonight_chip_night_reads">Night reads</string>
 
     <!-- Library -->
     <string name="library_title">Library</string>
@@ -52,6 +55,10 @@
     <!-- Stats -->
     <string name="stats_title">Reading</string>
     <string name="stats_in_progress">In progress</string>
+    <string name="stats_pages_this_week">pages this week</string>
+    <string name="stats_hours_this_month">hours this month</string>
+    <string name="stats_books_this_year">books this year</string>
+    <string name="stats_calendar_caption">Eleven evenings with a book this month.</string>
 
     <!-- Book detail -->
     <string name="detail_contents">Contents</string>
@@ -81,6 +88,11 @@
     <string name="a11y_chapter_row">Chapter %1$s, %2$s, page %3$d</string>
     <string name="a11y_theme_tile">%1$s. %2$s</string>
     <string name="a11y_no_results">No results</string>
+    <string name="a11y_toggle_reader_controls">Show or hide reading controls</string>
+    <!-- %1$s is a localized month name, %2$d the day of the month. -->
+    <string name="a11y_calendar_day">%1$s %2$d</string>
+    <string name="a11y_calendar_day_read">%1$s %2$d, read</string>
+    <string name="a11y_fact">%1$s %2$s</string>
     <plurals name="a11y_result_count">
         <item quantity="one">%d result</item>
         <item quantity="other">%d results</item>

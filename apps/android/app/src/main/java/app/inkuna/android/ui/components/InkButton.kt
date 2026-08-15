@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -64,6 +65,9 @@ fun InkButton(
     )
     Row(
         modifier = modifier
+            // Small/Medium pills measure under 48dp; the hit area is padded
+            // out to the Android floor without changing the drawn pill.
+            .minimumInteractiveComponentSize()
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale

@@ -11,12 +11,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.times
 import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkSans
 import app.inkuna.android.ui.theme.InkSerif
@@ -47,13 +49,22 @@ fun BookCover(
     val height = width * 1.5f
     val (bg, fg) = coverPalettes[seed % coverPalettes.size]
     val pad = maxOf(8.dp, width * 0.1f)
+    // Cover lettering is artwork inside a fixed-dp tile, not content: it is
+    // sized off density so it cannot outgrow the tile at large font scales,
+    // and it is bounded so long titles ellipsize instead of spilling.
+    val density = LocalDensity.current
+    val titleSize = with(density) { maxOf(11.dp, width * 0.13f).toSp() }
+    val authorSize = with(density) { maxOf(8.dp, width * 0.085f).toSp() }
     Column(
         modifier = modifier
             .width(width)
             .height(height)
-            .shadow(4.dp, InkRadius.xsShape)
+            .inkShadow(4.dp, InkRadius.xsShape)
             .clip(InkRadius.xsShape)
             .background(bg)
+            // The title and author are always repeated by the row or screen
+            // around the cover; announcing them twice is noise.
+            .clearAndSetSemantics {}
             .padding(pad),
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
     ) {
@@ -64,16 +75,20 @@ fun BookCover(
             text = title,
             fontFamily = InkSerif,
             fontWeight = FontWeight.Medium,
-            fontSize = maxOf(11f, width.value * 0.13f).sp,
-            lineHeight = maxOf(11f, width.value * 0.13f).sp * 1.25f,
+            fontSize = titleSize,
+            lineHeight = titleSize * 1.25f,
             color = fg,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = author,
             fontFamily = InkSans,
             fontWeight = FontWeight.Normal,
-            fontSize = maxOf(8f, width.value * 0.085f).sp,
+            fontSize = authorSize,
             color = fg.copy(alpha = 0.8f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

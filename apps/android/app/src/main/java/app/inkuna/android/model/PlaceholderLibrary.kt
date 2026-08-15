@@ -1,10 +1,14 @@
 package app.inkuna.android.model
 
+import androidx.annotation.StringRes
+import app.inkuna.android.R
+
 /**
  * Placeholder shelf mirroring the design prototype (and the iOS shell).
  * TODO(core): replace with `app.inkuna.core.Bookshelf` queries once the
- * reading-progress and metadata stores land; this data never localizes —
- * it is stand-in book content, not UI copy.
+ * reading-progress and metadata stores land. Book *content* (titles,
+ * authors, prose, chapter names) is stand-in and never localizes; anything
+ * that reads as UI copy carries a string resource instead.
  */
 data class PlaceholderBook(
     val id: Int,
@@ -16,10 +20,10 @@ data class PlaceholderBook(
     val pageCount: Int,
     val coverSeed: Int,
     val downloaded: Boolean,
-) {
-    val percentText: String get() = "$progress%"
-    val metaText: String get() = "p. $currentPage of $pageCount · $percentText"
-}
+)
+
+/** A stat tile: a stand-in numeral with a localized caption. */
+data class PlaceholderFact(val value: String, @param:StringRes val captionRes: Int)
 
 data class PlaceholderChapter(val numeral: String, val title: String, val page: Int)
 
@@ -83,15 +87,22 @@ object PlaceholderLibrary {
     )
 
     // Stats — hardcoded prototype data. TODO(core): derive from recorded
-    // reading sessions.
-    val facts = listOf("214" to "pages this week", "6½" to "hours this month", "12" to "books this year")
-    const val calendarMonthTitle = "August"
+    // reading sessions. Month and weekday names are formatted from
+    // java.time in the caller's locale, never spelled out here.
+    val facts = listOf(
+        PlaceholderFact("214", R.string.stats_pages_this_week),
+        PlaceholderFact("6½", R.string.stats_hours_this_month),
+        PlaceholderFact("12", R.string.stats_books_this_year),
+    )
+    val calendarMonth: java.time.Month = java.time.Month.AUGUST
     const val calendarLeadingBlanks = 6
     const val calendarDayCount = 31
     const val calendarToday = 14
     val calendarReadDays = setOf(1, 2, 3, 5, 8, 9, 10, 11, 13, 14)
-    const val calendarCaption = "Eleven evenings with a book this month."
-    val calendarWeekdays = listOf("S", "M", "T", "W", "T", "F", "S")
 
-    val tonightChips = listOf("Fiction", "Essays", "Night reads")
+    val tonightChips = listOf(
+        R.string.tonight_chip_fiction,
+        R.string.tonight_chip_essays,
+        R.string.tonight_chip_night_reads,
+    )
 }

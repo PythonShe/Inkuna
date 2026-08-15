@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,11 +32,16 @@ import app.inkuna.android.ui.theme.InkType
 @Composable
 fun WelcomeScreen(onBegin: () -> Unit) {
     val ink = InkTheme.colors
+    // Centred content overflows off *both* ends when it outgrows the
+    // viewport (large font scale, split screen), so it scrolls and the
+    // Begin button stays reachable.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(ink.bgApp)
-            .padding(horizontal = 36.dp),
+            .safeDrawingPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 36.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
     ) {

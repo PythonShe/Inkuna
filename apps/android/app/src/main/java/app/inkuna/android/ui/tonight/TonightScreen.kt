@@ -21,7 +21,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -37,6 +36,7 @@ import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkButtonSize
 import app.inkuna.android.ui.components.InkChip
 import app.inkuna.android.ui.components.InkProgressBar
+import app.inkuna.android.ui.components.inkShadow
 import app.inkuna.android.ui.main.DisplayTitle
 import app.inkuna.android.ui.main.EyebrowText
 import app.inkuna.android.ui.main.ScrollScreen
@@ -68,9 +68,9 @@ fun TonightScreen(
         )
         Spacer(Modifier.height(InkSpace.s8))
         Row(horizontalArrangement = Arrangement.spacedBy(InkSpace.s2)) {
-            PlaceholderLibrary.tonightChips.forEachIndexed { index, label ->
+            PlaceholderLibrary.tonightChips.forEachIndexed { index, labelRes ->
                 InkChip(
-                    text = label,
+                    text = stringResource(labelRes),
                     selected = index == selectedChip,
                     onClick = { selectedChip = index },
                 )
@@ -94,7 +94,7 @@ private fun HeroCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(6.dp, InkRadius.xlShape)
+            .inkShadow(6.dp, InkRadius.xlShape)
             .clip(InkRadius.xlShape)
             .background(ink.bgSurface)
             .padding(InkSpace.s5),

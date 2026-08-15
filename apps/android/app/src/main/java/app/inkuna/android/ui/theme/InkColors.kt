@@ -1,7 +1,7 @@
 package app.inkuna.android.ui.theme
 
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -41,7 +41,9 @@ val InkDayColors = InkColors(
     textDisplay = Color(0xFF241F17),  // ink-1
     textBody = Color(0xFF2C261D),
     textSecondary = Color(0xFF6B6255), // ink-2
-    textTertiary = Color(0xFF9A9083),  // ink-3
+    // ink-3, darkened from the design's #9A9083: at 2.6:1 on paper it fell
+    // under the legibility floor for captions and search placeholders.
+    textTertiary = Color(0xFF7D7365),
     accent = Color(0xFFB4863B),        // amber
     accentInk = Color(0xFFFBF8F2),
     accentSoft = Color(0x1FB4863B),    // amber 12%
@@ -76,4 +78,9 @@ val InkNightColors = InkColors(
     isNight = true,
 )
 
-val LocalInkColors = staticCompositionLocalOf { InkDayColors }
+/**
+ * Deliberately not `staticCompositionLocalOf`: the day/night cross-fade
+ * rewrites this value once per frame, and a static local would recompose the
+ * entire app tree each time instead of only the readers.
+ */
+val LocalInkColors = compositionLocalOf { InkDayColors }

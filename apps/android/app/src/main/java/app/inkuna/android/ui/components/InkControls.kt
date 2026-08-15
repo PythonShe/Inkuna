@@ -12,16 +12,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -54,10 +57,15 @@ fun InkChip(
     )
     Row(
         modifier = modifier
+            // The pill stays the design's height; the hit area grows to the
+            // 48dp Android floor around it.
+            .minimumInteractiveComponentSize()
             .clip(InkRadius.pillShape)
             .background(bg)
             .border(1.dp, if (selected) Color.Transparent else ink.borderHairline, InkRadius.pillShape)
-            .clickable(role = Role.Button, onClick = onClick)
+            // A filter reads as a choice, not a command: TalkBack must hear
+            // which chip is active.
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -84,6 +92,7 @@ fun InkIconButton(
     val ink = InkTheme.colors
     Box(
         modifier = modifier
+            .minimumInteractiveComponentSize()
             .size(size)
             .clip(InkRadius.pillShape)
             .background(if (active) ink.accentSoft else Color.Transparent)
@@ -131,12 +140,15 @@ fun InkProgressBar(
     }
 }
 
-/** Recessed pill segmented control with a raised selected segment. */
+/**
+ * Recessed pill segmented control with a raised selected segment.
+ * Addressed by index, never by label: two segments can share a translation.
+ */
 @Composable
 fun InkSegmentedControl(
     options: List<String>,
-    selected: String,
-    onSelect: (String) -> Unit,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ink = InkTheme.colors
@@ -144,11 +156,12 @@ fun InkSegmentedControl(
         modifier = modifier
             .clip(InkRadius.pillShape)
             .background(ink.bgRecessed)
-            .padding(3.dp),
+            .padding(3.dp)
+            .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        options.forEach { option ->
-            val sel = option == selected
+        options.forEachIndexed { index, option ->
+            val sel = index == selectedIndex
             val bg by animateColorAsState(
                 if (sel) ink.bgRaised else Color.Transparent,
                 tween(InkMotion.durFast, easing = InkMotion.easeQuiet),
@@ -157,10 +170,11 @@ fun InkSegmentedControl(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .then(if (sel) Modifier.shadow(1.dp, InkRadius.pillShape) else Modifier)
+                    .heightIn(min = 48.dp)
+                    .then(if (sel) Modifier.inkShadow(1.dp, InkRadius.pillShape) else Modifier)
                     .clip(InkRadius.pillShape)
                     .background(bg)
-                    .clickable(role = Role.Button) { onSelect(option) }
+                    .selectable(selected = sel, role = Role.Tab) { onSelect(index) }
                     .padding(vertical = 7.dp),
                 contentAlignment = Alignment.Center,
             ) {

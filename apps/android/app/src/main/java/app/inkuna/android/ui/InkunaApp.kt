@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -48,11 +49,23 @@ private fun bookFrom(route: androidx.navigation.NavBackStackEntry) =
         it.id == route.arguments?.getString("bookId")?.toIntOrNull()
     } ?: PlaceholderLibrary.heroBook
 
+/**
+ * Pushes [route] once. A second tap landing inside the 320ms page
+ * transition finds the source entry no longer RESUMED and is dropped, so a
+ * double-tap can't stack two copies of a screen.
+ */
+private fun NavHostController.pushOnce(route: String) {
+    val entry = currentBackStackEntry ?: return
+    if (!entry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+    navigate(route) { launchSingleTop = true }
+}
+
 /** Opens the reader for [bookId], popping back to an existing reader
  *  instead of stacking a second one (mirrors the iOS review fix). */
 private fun NavHostController.openReader(bookId: Int) {
-    if (!popBackStack(Routes.reader(bookId), inclusive = false)) {
-        navigate(Routes.reader(bookId))
+    val route = Routes.reader(bookId)
+    if (!popBackStack(route, inclusive = false)) {
+        pushOnce(route)
     }
 }
 
@@ -109,7 +122,7 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
                 Routes.WELCOME,
                 exitTransition = { fadeOut(tween(InkMotion.durMed)) },
             ) {
-                WelcomeScreen(onBegin = { nav.navigate(Routes.THEME_PICK) })
+                WelcomeScreen(onBegin = { nav.pushOnce(Routes.THEME_PICK) })
             }
             composable(Routes.THEME_PICK) {
                 ThemePickScreen(
@@ -119,6 +132,7 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
                         scope.launch { settings.setOnboarded(true) }
                         nav.navigate(Routes.MAIN) {
                             popUpTo(Routes.WELCOME) { inclusive = true }
+                            launchSingleTop = true
                         }
                     },
                 )
@@ -129,7 +143,7 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
                 enterTransition = { fadeIn(tween(InkMotion.durSlow)) },
             ) {
                 MainScreen(
-                    onOpenBook = { book -> nav.navigate(Routes.detail(book.id)) },
+                    onOpenBook = { book -> nav.pushOnce(Routes.detail(book.id)) },
                     onOpenReader = { book -> nav.openReader(book.id) },
                 )
             }

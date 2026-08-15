@@ -1,16 +1,16 @@
 package app.inkuna.android.ui.main
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
+import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.BarChart
-import androidx.compose.material.icons.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -24,7 +24,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import app.inkuna.android.R
@@ -43,7 +42,11 @@ enum class MainTab(
     val selectedIcon: ImageVector,
 ) {
     Tonight(R.string.tab_tonight, Icons.Outlined.AutoStories, Icons.Filled.AutoStories),
-    Library(R.string.tab_library, Icons.Outlined.LibraryBooks, Icons.Filled.LibraryBooks),
+    Library(
+        R.string.tab_library,
+        Icons.AutoMirrored.Outlined.LibraryBooks,
+        Icons.AutoMirrored.Filled.LibraryBooks,
+    ),
     Search(R.string.tab_search, Icons.Outlined.Search, Icons.Filled.Search),
     Stats(R.string.tab_stats, Icons.Outlined.BarChart, Icons.Filled.BarChart),
 }
@@ -64,6 +67,9 @@ fun MainScreen(
 
     Scaffold(
         containerColor = ink.bgApp,
+        // Scaffold's default insets are the system bars only; in landscape on
+        // a notched device the page gutter alone doesn't clear the cutout.
+        contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             NavigationBar(containerColor = ink.bgSurface) {
                 MainTab.entries.forEach { tab ->

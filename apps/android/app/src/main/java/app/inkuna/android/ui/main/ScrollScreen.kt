@@ -7,14 +7,17 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -31,6 +34,7 @@ import app.inkuna.android.ui.theme.InkType
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.res.stringResource
 import app.inkuna.android.R
+import kotlinx.coroutines.flow.filter
 
 /**
  * Shared scaffold for the four tab screens: vertical scroll, page-margin
@@ -41,11 +45,23 @@ fun ScrollScreen(
     innerPadding: PaddingValues,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
+    val scrollState = rememberScrollState()
+    // Edge-to-edge means the IME is an inset, not a window resize: without
+    // imePadding the last rows sit behind the keyboard and can't be scrolled
+    // into view. Scrolling also puts the keyboard away, as the search screens
+    // on iOS do.
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(scrollState) {
+        snapshotFlow { scrollState.isScrollInProgress }
+            .filter { it }
+            .collect { focusManager.clearFocus() }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(innerPadding)
-            .verticalScroll(rememberScrollState())
+            .imePadding()
+            .verticalScroll(scrollState)
             .padding(
                 start = InkSpace.pageMargin,
                 end = InkSpace.pageMargin,
