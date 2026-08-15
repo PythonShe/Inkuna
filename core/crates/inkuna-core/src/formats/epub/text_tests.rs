@@ -47,6 +47,39 @@ fn aggregate_text_budget_drops_resources_beyond_it() {
     assert!(big[0].is_none(), "over-budget resource must be dropped");
 }
 
+/// Every retained copy counts: each `Some` becomes its own
+/// `resource_text` row, so a spine repeating one within-budget chapter
+/// must stop yielding copies once the aggregate budget is spent —
+/// otherwise a tiny archive multiplies one extraction into gigabytes of
+/// persistent database while every per-entry cap holds.
+#[test]
+fn repeated_spine_entries_charge_the_budget_per_retained_copy() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("repeat-budget.epub");
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    zip.start_file("OEBPS/ch.xhtml", stored).unwrap();
+    zip.write_all("<html><body><p>満月の夜、風が語る。</p></body></html>".as_bytes())
+        .unwrap();
+    zip.finish().unwrap();
+
+    let spine: Vec<String> = vec!["OEBPS/ch.xhtml".into(); 5];
+    let budget = 80; // fits two 30-byte CJK copies, not five
+    let texts = extract_spine_text_budgeted(&path, &spine, budget);
+
+    let len = texts[0].as_deref().expect("first copy fits the budget").len();
+    assert_eq!(len, "満月の夜、風が語る。".len());
+    assert_eq!(
+        texts.iter().filter(|t| t.is_some()).count(),
+        budget / len,
+        "copies past the budget must be dropped"
+    );
+    assert!(texts[4].is_none());
+}
+
 /// A spine may name the same resource any number of times. The parse must
 /// stay bounded (spine cap), each distinct resource must be read and
 /// extracted exactly once — the repeats sharing that one `Arc` rather than

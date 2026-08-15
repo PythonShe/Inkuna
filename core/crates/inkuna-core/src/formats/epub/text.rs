@@ -112,9 +112,23 @@ fn extract_spine_text_budgeted(
         )
         .collect();
 
+    // Expansion back to spine order charges the budget per *retained
+    // copy*, not per distinct text: every `Some` here becomes its own
+    // `resource_text` row, so a spine repeating one big chapter thousands
+    // of times would otherwise multiply a within-budget extraction into
+    // gigabytes of database while every per-entry cap held.
+    let mut retained = 0usize;
     spine
         .iter()
-        .map(|href| position.get(href.as_str()).and_then(|&at| texts[at].clone()))
+        .map(|href| {
+            let text = position.get(href.as_str()).and_then(|&at| texts[at].clone())?;
+            if retained + text.len() > budget {
+                warn_truncated(&warned, path, budget);
+                return None;
+            }
+            retained += text.len();
+            Some(text)
+        })
         .collect()
 }
 

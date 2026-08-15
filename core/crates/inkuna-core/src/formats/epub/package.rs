@@ -9,7 +9,7 @@ use super::container::rootfile_path;
 use super::cover::image_extension;
 use super::href::{parent_dir, resolve_href};
 use super::model::{Cover, EpubPackage};
-use super::opf::{parse_opf, ManifestItem, MAX_AUTHORS, MAX_SPINE_ITEMS};
+use super::opf::{parse_opf, ManifestItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_SPINE_ITEMS};
 use super::toc::{parse_ncx, parse_nav};
 use crate::CoreError;
 
@@ -24,6 +24,13 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
     let opf_xml = read_entry(&mut archive, &opf_path)?;
     let opf_dir = parent_dir(&opf_path);
     let opf = parse_opf(&opf_xml)?;
+    if opf.oversized_href_items > 0 {
+        log::warn!(
+            "manifest of {} has {} items with hrefs over {MAX_HREF_BYTES} bytes; skipped",
+            path.display(),
+            opf.oversized_href_items
+        );
+    }
     if opf.creators_seen > MAX_AUTHORS {
         log::warn!(
             "metadata of {} lists {} creators; keeping the first {MAX_AUTHORS}",

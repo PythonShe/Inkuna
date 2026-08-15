@@ -24,6 +24,14 @@ pub(crate) const MAX_SPINE_ITEMS: usize = 10_000;
 /// the parse fails cleanly with `InvalidPublication`.
 pub(crate) const MAX_MANIFEST_ITEMS: usize = 100_000;
 
+/// Upper bound on one manifest item's `href` length. Real hrefs are
+/// archive paths a few dozen bytes long; a crafted OPF can attach a
+/// multi-MB href to a single item and reference it from every spine
+/// slot, paying for the string once in the archive while spine
+/// resolution would copy it thousands of times. An item with an absurd
+/// href is skipped, degrading exactly like an unresolvable idref.
+pub(crate) const MAX_HREF_BYTES: usize = 4096;
+
 /// Upper bound on `<dc:creator>` entries retained. Large anthologies
 /// credit a few hundred contributors; a crafted OPF can list millions,
 /// each a heap `String` destined for one joined DB column. Extra
@@ -60,6 +68,8 @@ pub(super) struct Opf {
     /// Total `<dc:creator>`s listed, including any dropped at
     /// [`MAX_AUTHORS`].
     pub(super) creators_seen: usize,
+    /// Manifest items skipped for an href over [`MAX_HREF_BYTES`].
+    pub(super) oversized_href_items: usize,
 }
 
 pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
@@ -91,12 +101,17 @@ pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
                                 "manifest lists more than {MAX_MANIFEST_ITEMS} items"
                             )));
                         }
-                        opf.items.push(ManifestItem {
-                            id: attr_value(e, b"id").unwrap_or_default(),
-                            href: attr_value(e, b"href").unwrap_or_default(),
-                            media_type: attr_value(e, b"media-type").unwrap_or_default(),
-                            properties: attr_value(e, b"properties").unwrap_or_default(),
-                        });
+                        let href = attr_value(e, b"href").unwrap_or_default();
+                        if href.len() > MAX_HREF_BYTES {
+                            opf.oversized_href_items += 1;
+                        } else {
+                            opf.items.push(ManifestItem {
+                                id: attr_value(e, b"id").unwrap_or_default(),
+                                href,
+                                media_type: attr_value(e, b"media-type").unwrap_or_default(),
+                                properties: attr_value(e, b"properties").unwrap_or_default(),
+                            });
+                        }
                     }
                     b"itemref" => {
                         if let Some(idref) = attr_value(e, b"idref") {
