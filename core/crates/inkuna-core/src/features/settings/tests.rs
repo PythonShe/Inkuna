@@ -30,3 +30,37 @@ fn defaults_clamping_and_roundtrip() {
     let library = Library::open(dir.path().join("library")).unwrap();
     assert!(library.settings().unwrap().onboarded);
 }
+
+/// The singleton row is seeded by the migration and nothing in the core
+/// deletes it, but the contract is "core-owned defaults, read and written
+/// whole" — so a missing row must read as the defaults and a write must
+/// restore it, never report success while discarding the values.
+#[test]
+fn a_missing_settings_row_reads_as_defaults_and_is_restored_on_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(dir.path().join("library")).unwrap();
+
+    library
+        .writer
+        .lock()
+        .unwrap()
+        .execute("DELETE FROM settings", [])
+        .unwrap();
+
+    assert_eq!(library.settings().unwrap(), Settings::default());
+
+    library
+        .set_settings(&Settings {
+            onboarded: true,
+            reading_theme: "sepia".to_string(),
+            text_size_step: 3,
+            brightness: 0.5,
+        })
+        .unwrap();
+
+    let stored = library.settings().unwrap();
+    assert!(stored.onboarded);
+    assert_eq!(stored.reading_theme, "sepia");
+    assert_eq!(stored.text_size_step, 3);
+    assert_eq!(stored.brightness, 0.5);
+}
