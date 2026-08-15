@@ -1,6 +1,6 @@
 //! The Stats screen's numbers, bucketed into the caller's local calendar.
 
-use chrono::{Datelike, Duration, FixedOffset};
+use chrono::{Datelike, Duration, FixedOffset, Offset, Utc};
 
 use crate::core::time::unix_now;
 use crate::{CoreError, Library};
@@ -19,8 +19,10 @@ pub struct StatsOverview {
 
 impl Library {
     /// The Stats screen's numbers, computed in the caller's local time
-    /// (`tz_offset_minutes` east of UTC). A session belongs wholly to the
-    /// local day/week/month of its `started_at` — one sitting, one bucket.
+    /// (`tz_offset_minutes` east of UTC, accepted range −1439..=1439). A
+    /// session belongs wholly to the local day/week/month of its
+    /// `started_at` — one sitting, one bucket. An offset outside the
+    /// accepted range is not an error: the numbers are bucketed in UTC.
     pub fn stats_overview(
         &self,
         tz_offset_minutes: i32,
@@ -35,12 +37,14 @@ impl Library {
         tz_offset_minutes: i32,
         week_starts_monday: bool,
     ) -> Result<StatsOverview, CoreError> {
-        // An out-of-range offset (the API bound is ±24h) falls back to UTC.
+        // `tz_offset_minutes` is minutes east of UTC and must land within
+        // ±1439; anything else silently buckets in UTC rather than
+        // failing an otherwise valid stats query. The UTC fallback is
+        // infallible, so there is no error path here.
         let tz = tz_offset_minutes
             .checked_mul(60)
             .and_then(FixedOffset::east_opt)
-            .or_else(|| FixedOffset::east_opt(0))
-            .ok_or_else(|| CoreError::NotFound("invalid utc offset".into()))?;
+            .unwrap_or_else(|| Utc.fix());
         let offset_seconds = i64::from(tz.local_minus_utc());
         // Local midnight of a NaiveDate, as a unix timestamp.
         let local_midnight_ts =

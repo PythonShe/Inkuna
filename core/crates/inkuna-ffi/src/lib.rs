@@ -424,8 +424,13 @@ impl Bookshelf {
         blocking(move || Ok(library.session_end(&session_id)?)).await
     }
 
-    /// Stats screen numbers in the caller's local time (`tz_offset_minutes`
-    /// east of UTC).
+    /// Stats screen numbers in the caller's local time.
+    ///
+    /// `tz_offset_minutes` is **minutes** east of UTC, accepted range
+    /// −1439..=1439 (e.g. 540 for JST, −480 for PST). An offset outside
+    /// that range is not an error — the numbers are silently bucketed in
+    /// UTC instead — so passing seconds by mistake yields plausible but
+    /// wrong buckets rather than a failure.
     pub async fn stats_overview(
         &self,
         tz_offset_minutes: i32,
