@@ -1,0 +1,485 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+#
+# CodeRabbit configuration for the Inkuna monorepo.
+#
+# IMPORTANT — why this file is written out in full:
+# CodeRabbit does NOT merge configuration sources. This file is the
+# highest-priority source, so any key it omits falls back to CodeRabbit's
+# *built-in defaults* — NOT to whatever is set in the web UI. Keys are
+# therefore stated explicitly even where they happen to match a default, so
+# that behavior is readable here rather than inferred from a dashboard.
+#
+# To verify the resolved config at any time, comment `@coderabbitai configuration`
+# on a pull request — the output annotates each key with its source.
+
+language: en-US
+early_access: false
+enable_free_tier: true
+
+reviews:
+  # CodeRabbit is the ONLY automated reviewer on this repo's PRs — there is no
+  # Greptile or Codex connector to cross-check it, and Codex/Claude review
+  # passes happen locally before the PR exists. `assertive` is the right
+  # trade here: broader coverage matters more than comment volume when nothing
+  # else is watching. Flip to `chill` if a second bot is ever added.
+  profile: assertive
+  # CodeRabbit must never gate the merge box: `main` requires `license/cla`,
+  # and a bot "changes requested" would compound that into a second blocker.
+  request_changes_workflow: false
+
+  high_level_summary: true
+  review_status: true
+  review_details: false
+  review_progress: true
+  commit_status: true
+  fail_commit_status: false
+  collapse_walkthrough: true
+  changed_files_summary: true
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  in_progress_fortune: false
+  poem: false
+  abort_on_close: true
+  disable_cache: false
+
+  # Solo-maintainer repo: reviewer suggestion and assignment are noise.
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+  # Findings are worked by hand or handed to a local agent with full repo
+  # context; the canned agent prompt block adds length without adding signal.
+  enable_prompt_for_ai_agents: false
+
+  suggested_labels: true
+  auto_apply_labels: true
+  labeling_instructions:
+    # Only labels that already exist in this repo. CodeRabbit cannot create
+    # labels; naming an absent one is a silent no-op.
+    - label: bug
+      instructions: |
+        Apply when the PR's primary purpose is fixing incorrect runtime
+        behavior — a crash, a data-loss path, a wrong result, a regression.
+        Do not apply to refactors or new features that happen to touch
+        buggy-looking code.
+    - label: enhancement
+      instructions: |
+        Apply when the PR adds a user-visible capability or a new FFI surface.
+        Do not apply to pure refactors, dependency bumps, or test-only changes.
+    - label: documentation
+      instructions: |
+        Apply only when the PR changes nothing outside `docs/`, `*.md`, or doc
+        comments. A code change with incidental doc updates is not
+        documentation. Note that every `AGENTS.md` is a generated copy of its
+        sibling `CLAUDE.md` — a PR that only re-syncs those is documentation.
+    - label: accessibility
+      instructions: |
+        Apply when the PR affects Dynamic Type, VoiceOver/TalkBack, contrast,
+        reduced-motion, or per-app language selection. Reading apps are read
+        for hours at a time; treat text-scaling and contrast regressions as
+        accessibility, not styling.
+
+  slop_detection:
+    enabled: true
+    # NOTE: this repo has no `slop` label yet, so the labeling half of this is
+    # currently a no-op — detection still comments. Create the label to
+    # activate it: `gh label create slop`.
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 5
+    drafts: false
+    # `main` is the default branch and feature work lands from `feat/*`.
+    # Values are regex.
+    base_branches:
+      - '^main$'
+      - '^feat/.*'
+
+  # ---------------------------------------------------------------------------
+  # Path filters
+  #
+  # Deliberately short. This repo is small enough that the per-PR file cap is
+  # not a live constraint, so the only exclusions are content that genuinely
+  # cannot be reviewed: machine-resolved lockfiles, binary assets, and
+  # agent-authored archival docs.
+  #
+  # CAVEAT — these patterns also drive CodeRabbit's `git sparse-checkout`, so
+  # an excluded file is not merely unreviewed, it is not cloned. That is why
+  # CLAUDE.md and AGENTS.md are deliberately NOT excluded despite AGENTS.md
+  # being duplicated churn: excluding them would starve
+  # `knowledge_base.code_guidelines` of the very files it is pointed at.
+  #
+  # Generated trees (`apps/ios/Generated/`, `apps/ios/Frameworks/`,
+  # `apps/ios/Inkuna.xcodeproj/`, `apps/android/app/src/generated/`,
+  # `apps/android/app/src/main/jniLibs/`, `core/target/`, `website/dist/`) are
+  # all gitignored and so never reach a diff — they need no entry here.
+  # ---------------------------------------------------------------------------
+  path_filters:
+    # Machine-resolved lockfiles. Both are committed and must never be
+    # hand-edited, so there is nothing for a reviewer to say about the diff.
+    - '!**/Cargo.lock'
+    - '!website/pnpm-lock.yaml'
+    # Backstops: these should never exist (pnpm is the only package manager).
+    # If one ever appears, the CLAUDE.md rule catches it, not the reviewer.
+    - '!**/package-lock.json'
+    - '!**/yarn.lock'
+
+    # Binary and vector art. Listed one per line rather than with brace
+    # expansion: these patterns feed `git sparse-checkout`, which uses
+    # gitignore-style matching and does not expand `{a,b}`.
+    - '!**/*.png'
+    - '!**/*.jpg'
+    - '!**/*.jpeg'
+    - '!**/*.gif'
+    - '!**/*.ico'
+    - '!**/*.icns'
+    - '!**/*.webp'
+    - '!**/*.svg'
+    - '!**/*.woff'
+    - '!**/*.woff2'
+    - '!**/*.ttf'
+    - '!**/*.otf'
+    # Icon Composer bundle — structured, but authored in Xcode's editor and
+    # regenerated wholesale by `scripts/gen-icons.sh`.
+    - '!apps/ios/AppIcon.icon/**'
+    - '!apps/ios/Inkuna/Assets.xcassets/**'
+
+    # Agent-authored archival docs. Live specs (`docs/repertoire/specs/`) and
+    # the architecture ADR (`docs/dev/`) stay reviewable on purpose — the ADR
+    # is the document structural changes are supposed to be checked against.
+    - '!docs/repertoire/plans/**'
+
+  # ---------------------------------------------------------------------------
+  # Path instructions — the hard rules from each component's CLAUDE.md that a
+  # generic reviewer would not infer from the diff alone.
+  # ---------------------------------------------------------------------------
+  path_instructions:
+    - path: 'core/crates/inkuna-core/**/*.rs'
+      instructions: |
+        Inkuna Rust core — all non-UI logic. Enforce these hard rules:
+        - Every fallible function returns `Result<T, CoreError>`. Stringly-typed
+          errors are forbidden; a new failure mode gets a `CoreError` variant.
+        - `.unwrap()` / `.expect()` outside tests and lock-poisoning recovery is
+          forbidden.
+        - HARD BOUNDARY: this crate is pure domain logic. Any `uniffi::*` import,
+          derive, or FFI-shaped type here is a layering violation — those belong
+          in `inkuna-ffi`. Flag them.
+        - CJK correctness is product-critical, not a nicety. Never index user
+          text by byte offset; never rely on SQL `LOWER` for case folding
+          (full Unicode folding via ICU4X is the established approach). Flag any
+          `char_indices`/slice arithmetic that could split a multi-byte
+          grapheme, and any new text path without a CJK test fixture.
+        - `Library` guards its connection with a `Mutex` because UniFFI objects
+          must be `Send + Sync`. Keep lock scopes minimal; flag a lock held
+          across an I/O or parse call, and flag anything that could let a read
+          queue behind an import.
+        - SQLite schema changes are append-only `user_version` migrations.
+          A migration that mutates or drops existing user data needs an explicit
+          justification — this is a reader's personal library; silent data loss
+          is the worst possible bug here.
+        - Prefer borrowing over moving; a needless `clone()` needs a comment
+          explaining why it is required.
+        - All comments in English; `///` doc comments on every `pub` item.
+
+    - path: 'core/crates/inkuna-ffi/**/*.rs'
+      instructions: |
+        The ONLY UniFFI surface, consumed by both shells. Enforce:
+        - Mirrors core types as `uniffi::Record`/`Enum`/`Object` with `From`
+          conversions; owned values only. Keep the boundary coarse-grained —
+          flag chatty per-field accessors, which cost a crossing each.
+        - Every new `CoreError` variant needs a mirrored `InkunaError` variant
+          plus a `From` arm. Flag a core error that can reach the boundary
+          without one.
+        - Async methods use `#[uniffi::export(async_runtime = "tokio")]`; the
+          core stays sync and is wrapped in `spawn_blocking`. Flag blocking I/O
+          on the async path.
+        - Naming collisions in generated code are a real failure mode: the
+          library object is `Bookshelf`, not `Library`, because UniFFI's Kotlin
+          output imports JNA's `com.sun.jna.Library`. Flag any new exported type
+          whose name could collide in generated Swift or Kotlin.
+        - BREAKING-CHANGE GATE: this surface has two live consumers. Any change
+          to an existing method signature, record field, or enum variant breaks
+          `apps/ios` and `apps/android` at compile time. Call it out explicitly
+          and check that both shells were updated in the same PR.
+
+    - path: 'apps/ios/**/*.swift'
+      instructions: |
+        Inkuna iOS shell — UIKit, Swift 6 language mode (strict concurrency),
+        min iOS 18. Enforce:
+        - UIKit only. SwiftUI is an owner-level ban, not a preference — flag any
+          `import SwiftUI` or SwiftUI type in app code.
+        - Programmatic Auto Layout; no storyboards or Interface Builder
+          artifacts.
+        - The shell is thin: all domain logic goes through the Rust core via
+          `LibraryStore.shared.library`. Flag any parsing, DB access, or
+          progress math reimplemented in Swift.
+        - Never edit generated bindings, and never `import InkunaCore` in app
+          code — `Generated/InkunaCore.swift` compiles into the app target, so
+          those types are already visible.
+        - iOS 26 Liquid Glass adoption must be gated behind
+          `if #available(iOS 26.0, *)` with a fallback. Flag any API use that
+          would force the deployment target above 18.
+        - Dynamic Type and dark mode are required from the first commit. Flag
+          fixed font sizes, hardcoded colors, and any layout that breaks at
+          accessibility text sizes.
+        - Swift 6 strict concurrency: flag `@unchecked Sendable`, unstructured
+          `Task` without a defined cancellation path, and UI mutation that is
+          not `@MainActor`-isolated.
+        - User-visible strings stay at view-controller level so the coming
+          localization pass stays mechanical — CJK audiences are primary. Flag
+          literals buried in helper types.
+
+    - path: 'apps/android/**/*.kt'
+      instructions: |
+        Inkuna Android shell — Jetpack Compose + Material 3, minSdk 33. Enforce:
+        - The shell is thin: all domain logic goes through
+          `app.inkuna.core.Bookshelf`. Flag parsing, DB access, or progress math
+          reimplemented in Kotlin.
+        - Never edit generated bindings under `app/src/generated/`.
+        - State flows down, events flow up. No business logic in composables and
+          no core calls inside `remember` blocks — those belong in a
+          store/repository or ViewModel layer.
+        - Design for Android idiom (predictive back, edge-to-edge). This is a
+          first-class Android app, not an iOS port — flag iOS-shaped navigation
+          or interaction patterns.
+        - System dark mode correctness is required now. Flag hardcoded colors
+          that bypass the Material 3 theme.
+        - CJK audiences are primary: all user-visible strings belong in
+          `strings.xml`. Flag hardcoded literals in composables.
+        - Flag suspend/core calls launched without a lifecycle-aware scope.
+
+    - path: 'website/**/*.{astro,ts,js,mjs}'
+      instructions: |
+        Inkuna marketing site — Astro, static output, deployed to Cloudflare
+        Pages. Enforce:
+        - ZERO client-side requests beyond the page itself: no CDN scripts, web
+          fonts, analytics, remote images, or shipped JavaScript. Flag any
+          client island, framework integration, or external URL in markup — this
+          is a privacy and performance guarantee, not a style choice.
+        - No UI or CSS framework (no React, no Tailwind). Hand-tuned scoped CSS
+          on shared tokens is the design.
+        - Both themes required: light ("ink on paper") and dark ("moonlight")
+          via `prefers-color-scheme`, tokens defined once in `Base.astro`.
+          Flag any new page or component that only works in one.
+        - i18n: every user-facing string lives in `src/i18n/ui.ts`; never
+          hardcode copy in a shared component. Content pages must exist in all
+          three locales (`en`, `ja`, `zh`) — `404.astro` is the sole documented
+          exception. Build locale URLs with `getRelativeLocaleUrl` /
+          `getAbsoluteLocaleUrl` from `astro:i18n`, never string concatenation.
+        - CJK has no true italics: flag italic styling that is not neutralized
+          for `:lang(ja)` / `:lang(zh)`.
+        - Set `lang` correctly — via the layout prop for pages, via
+          `lang="ja"`/`lang="zh"` spans for inline CJK, so fonts resolve.
+        - NO personal information (names, emails) anywhere on the site.
+        - pnpm is the only supported package manager. Flag any `npm`/`npx`/
+          `yarn` invocation in scripts, docs, or CI.
+
+    - path: '.github/workflows/**'
+      instructions: |
+        Release and CI workflows handling Apple, Google Play, Cloudflare, and
+        OpenAI secrets. Enforce:
+        - Pin third-party actions to a commit SHA, not a mutable tag.
+        - Secrets must never be echoed, written to logs, or interpolated into a
+          `run:` line where they could surface in output. Signing material
+          (keystores, p12, provisioning profiles, ExportOptions.plist) is
+          materialized at CI time and must never be committed.
+        - Check that `permissions:` is scoped to the minimum required.
+        - Watch for expensive steps (AI release-notes generation, notarization,
+          TestFlight upload) running before the test gate that should guard them.
+        - Version numbers live in component files and are bumped only via
+          `scripts/bump-version.sh`; the release workflows fail on tag/file
+          mismatch. Flag any workflow change that would weaken that check.
+
+    - path: 'scripts/**/*.sh'
+      instructions: |
+        Cross-build and release scripts. Enforce:
+        - `set -euo pipefail` and quoted expansions; an unquoted path here
+          silently corrupts a cross-build.
+        - This machine has two Rust installs and Homebrew's shadows rustup.
+          Any cargo invocation that cross-compiles MUST pin `RUSTC` (and
+          `RUSTDOC` for doctests) via `rustup which --toolchain stable ...` —
+          `rustup run stable` alone does NOT shadow PATH lookups here and
+          silently uses the Homebrew rustc, failing with E0463.
+        - A global cargo config redirects target-dir; scripts must override
+          `CARGO_TARGET_DIR`.
+        - `build-core-ios.sh` and `build-core-android.sh` must stay in sync on
+          the FFI surface they generate — flag a change to one that has no
+          counterpart in the other.
+
+    - path: '**/AGENTS.md'
+      instructions: |
+        Every `AGENTS.md` is a VERBATIM copy of its sibling `CLAUDE.md`, kept in
+        the same commit. Diff the two: if this file's content does not match the
+        `CLAUDE.md` beside it, flag it as an out-of-sync copy and say which
+        direction the fix goes. Do not review the content itself here — review
+        it on the `CLAUDE.md`.
+
+    - path: 'core/**/*.rs'
+      instructions: |
+        For `#[cfg(test)]` blocks: verify the test would genuinely fail if the
+        implementation regressed. Flag tests that assert on a value computed by
+        the same code path under test, timing-dependent assertions that will
+        flake in CI, and new text-handling tests with no CJK fixture. Fixtures
+        are built in `tempfile` dirs by helpers like `write_epub` — flag any
+        binary fixture added to git.
+
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: false
+    # Autofix commits land without a local `cargo test` / `xcodebuild` run;
+    # everything here goes through the build gates on this machine first.
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: true
+    resolve_merge_conflict:
+      enabled: true
+
+  pre_merge_checks:
+    override_requested_reviewers_only: false
+    docstrings:
+      mode: warning
+      threshold: 80
+    title:
+      mode: warning
+      requirements: |
+        The title must follow `<type>(<scope>): <description>`.
+        type: feat | fix | refactor | docs | chore | test | perf | style
+        scope: core | ios | android | website | docs | workspace
+        Cross-component changes may combine scopes (`core,ios`) and
+        sub-dimensions may refine them (`core/epub`, `ios/reader`).
+        The description is lowercase, imperative, and has no trailing period.
+    description:
+      mode: warning
+    issue_assessment:
+      mode: warning
+
+  tools:
+    ast-grep:
+      essential_rules: true
+    clippy:
+      enabled: true # core/
+    swiftlint:
+      enabled: true # apps/ios/
+    detekt:
+      enabled: true # apps/android/
+    markdownlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true # .github/workflows/
+    zizmor:
+      enabled: true # GitHub Actions security
+    shellcheck:
+      enabled: true # scripts/
+    gitleaks:
+      enabled: true
+    trufflehog:
+      enabled: true
+    osvScanner:
+      enabled: true
+    semgrep:
+      enabled: true
+    trivy:
+      enabled: true
+    eslint:
+      enabled: true # website/
+      e18e:
+        enabled: true
+    biome:
+      enabled: true
+    oxc:
+      enabled: true
+    languagetool:
+      enabled: true
+      level: default
+      enabled_only: false
+    github-checks:
+      enabled: true
+      # iOS archive + notarize + TestFlight upload runs far longer than the
+      # 90s default, so CodeRabbit would never see a release run's result.
+      # Maximum is 900000.
+      timeout_ms: 300000
+    # Off deliberately — inert or wrong-stack for this repo:
+    sqlfluff:
+      enabled: false # SQL is embedded in Rust string literals, not .sql files
+    squawk:
+      enabled: false # no Postgres
+    reactDoctor:
+      enabled: false # no React anywhere (website is zero-JS Astro)
+    presidio:
+      enabled: false
+    fbinfer:
+      enabled: false # no Java/ObjC/C sources
+
+chat:
+  art: false
+  auto_reply: true
+  # Public repo, solo maintainer: keep the bot from being driven by strangers.
+  allow_non_org_members: false
+
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+    # The layered rule files: root plus each component. Deliberately excluded
+    # from `path_filters` above so sparse-checkout still clones them.
+    filePatterns:
+      - '**/CLAUDE.md'
+      - '**/AGENTS.md'
+  learnings:
+    scope: auto
+    approval_delay: 0
+  issues:
+    scope: auto
+  pull_requests:
+    scope: auto
+  mcp:
+    usage: auto
+  automatic_repository_linking: false
+
+code_generation:
+  docstrings:
+    language: en-US
+    path_instructions:
+      - path: '**/*.rs'
+        instructions: |
+          Use `///` Rust doc comments on every `pub` item. The first line states
+          the purpose; then explain key parameters, the return value, and the
+          error conditions carried by `CoreError` (or `InkunaError` in
+          `inkuna-ffi`). English only.
+      - path: '**/*.swift'
+        instructions: |
+          Use `///` Swift doc comments on every public type, method, and
+          non-obvious property. The first line summarizes; then document
+          parameters, the return value, and any `@MainActor` or concurrency
+          requirement on the caller. English only.
+      - path: '**/*.kt'
+        instructions: |
+          Use KDoc on every public class, function, and composable. The first
+          line summarizes; then document parameters and the return value. For
+          composables, note the expected state-hoisting contract. English only.
+      - path: 'website/**/*.{ts,astro}'
+        instructions: |
+          Use JSDoc on every export. The first line states the purpose, then
+          document parameters and the return value. For Astro components,
+          document the `Props` interface. English only.
+
+issue_enrichment:
+  auto_enrich:
+    enabled: true
+  planning:
+    enabled: false
+    auto_planning:
+      enabled: false
+  labeling:
+    auto_apply_labels: false
