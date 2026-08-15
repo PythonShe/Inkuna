@@ -194,7 +194,14 @@ pub(super) fn parse_ncx(xml: &str, ncx_path: &str) -> Vec<TocEntry> {
                             }
                         }
                     }
-                    b"text" if overflow == 0 && !labels.is_empty() => in_text = true,
+                    // Only a Start opens a label, for the same reason a
+                    // Start alone opens a navPoint: `<text/>` carries no
+                    // character data and never gets the End that clears
+                    // the flag, so treating it as an opening tag left
+                    // `in_text` stuck — and every later character node,
+                    // including data outside any `<text>`, was appended to
+                    // whichever label happened to be open.
+                    b"text" if is_start && overflow == 0 && !labels.is_empty() => in_text = true,
                     // NCX (Z39.86-2005) fixes a navPoint's content model to
                     // `(navLabel+, content, navPoint*)`: exactly one
                     // <content>. Only the first wins — before the `taken`

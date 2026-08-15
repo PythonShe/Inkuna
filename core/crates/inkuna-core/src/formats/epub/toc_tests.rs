@@ -115,6 +115,26 @@ fn ncx_depth_is_capped_and_empty_navpoints_do_not_leak_it() {
     assert_eq!(toc[0].depth, 0);
 }
 
+/// `<text/>` is an `Empty` event, not a `Start`: it carries no character
+/// data and never gets the `End` that clears `in_text`. Treating it as an
+/// opening tag left the flag stuck, so every later character node — here
+/// stray data outside any `<text>` element — was appended to whichever
+/// navPoint label was open and persisted as that entry's title.
+#[test]
+fn self_closed_text_does_not_capture_later_character_data() {
+    let xml = r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>
+<navPoint><navLabel><text/></navLabel>迷子の文字列<content src="ch01.xhtml"/></navPoint>
+<navPoint><navLabel><text>第二章</text></navLabel><content src="ch02.xhtml"/></navPoint>
+</navMap></ncx>"#;
+    let toc = parse_ncx(xml, "OEBPS/toc.ncx");
+    // The first navPoint has an empty label, so it yields no entry at all;
+    // the stray text belongs to nothing and must not become its title.
+    assert_eq!(
+        toc,
+        vec![TocEntry { title: "第二章".into(), href: "OEBPS/ch02.xhtml".into(), depth: 0 }]
+    );
+}
+
 #[test]
 fn ncx_parsing_flattens_with_depth() {
     let xml = r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>
