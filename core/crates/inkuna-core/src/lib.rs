@@ -12,11 +12,13 @@ mod library;
 mod migrate;
 mod pool;
 mod progress;
+mod stats;
 
 pub use error::CoreError;
 pub use format::Format;
 pub use import::{BatchImportOutcome, ImportOutcome};
 pub use library::{Chapter, Library, Publication};
+pub use stats::StatsOverview;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
