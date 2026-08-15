@@ -5,7 +5,6 @@
 //! Rendering stays in the platform shells (Readium navigators).
 
 mod core;
-mod epub;
 mod formats;
 mod import;
 mod library;
