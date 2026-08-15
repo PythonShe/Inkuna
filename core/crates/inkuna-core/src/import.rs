@@ -108,7 +108,10 @@ impl Library {
             .metadata
             .title
             .or_else(|| src.file_stem().map(|s| s.to_string_lossy().into_owned()))
-            .ok_or_else(|| CoreError::InvalidPublication("untitled".into()))?;
+            .ok_or_else(|| {
+                let _ = std::fs::remove_file(&tmp_path);
+                CoreError::InvalidPublication("untitled".into())
+            })?;
 
         // Rayon across resources: the corpus keys off the spine, so it is
         // complete even for books with no TOC.

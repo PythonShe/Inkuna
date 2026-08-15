@@ -79,7 +79,7 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
     if let Some(nav_item) = opf.items.iter().find(|i| i.has_property("nav")) {
         let nav_path = resolve(&nav_item.href);
         if let Ok(xml) = read_entry(&mut archive, &nav_path) {
-            toc = parse_nav(&xml, parent_dir(&nav_path));
+            toc = parse_nav(&xml, &nav_path);
         }
     }
     if toc.is_empty() {
@@ -95,7 +95,7 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
         if let Some(item) = ncx_item {
             let ncx_path = resolve(&item.href);
             if let Ok(xml) = read_entry(&mut archive, &ncx_path) {
-                toc = parse_ncx(&xml, parent_dir(&ncx_path));
+                toc = parse_ncx(&xml, &ncx_path);
             }
         }
     }
@@ -178,6 +178,16 @@ fn parent_dir(path: &str) -> &str {
     path.rsplit_once('/').map(|(dir, _)| dir).unwrap_or("")
 }
 
+/// Resolves `href` against the **document** that references it (TOC hrefs
+/// are relative to the nav doc / NCX, not the package root). A
+/// fragment-only href points into the referencing document itself.
+fn resolve_relative(doc_path: &str, href: &str) -> String {
+    if let Some(fragment) = href.strip_prefix('#') {
+        return format!("{doc_path}#{fragment}");
+    }
+    resolve_href(parent_dir(doc_path), href)
+}
+
 /// Resolves `href` (relative to `base_dir`, possibly percent-encoded,
 /// possibly carrying a fragment) into a normalized package-root-relative
 /// path, keeping the fragment verbatim.
@@ -204,8 +214,6 @@ fn resolve_href(base_dir: &str, href: &str) -> String {
     }
     let mut resolved = segments.join("/");
     if let Some(fragment) = fragment {
-        // A fragment-only href points into the referencing document itself;
-        // `segments` already holds that document's path in that case.
         resolved.push('#');
         resolved.push_str(fragment);
     }
@@ -364,7 +372,7 @@ fn parse_opf(opf_xml: &str) -> Opf {
 /// Parses the `<nav epub:type="toc">` (or `role="doc-toc"`) of a nav doc
 /// into a flattened, depth-annotated list. Nesting depth follows `<ol>`
 /// levels; entries are `<a>` elements with an href.
-fn parse_nav(xml: &str, nav_dir: &str) -> Vec<TocEntry> {
+fn parse_nav(xml: &str, nav_path: &str) -> Vec<TocEntry> {
     let mut entries = Vec::new();
     let mut reader = Reader::from_str(xml);
     reader.config_mut().check_end_names = false;
@@ -423,7 +431,7 @@ fn parse_nav(xml: &str, nav_dir: &str) -> Vec<TocEntry> {
                         if let Some(title) = clean_text(Some(&title)) {
                             entries.push(TocEntry {
                                 title,
-                                href: resolve_href(nav_dir, &href),
+                                href: resolve_relative(nav_path, &href),
                                 depth: ol_depth.saturating_sub(1),
                             });
                         }
@@ -445,7 +453,7 @@ fn parse_nav(xml: &str, nav_dir: &str) -> Vec<TocEntry> {
 
 /// Parses an NCX `<navMap>`: nested `<navPoint>` elements, each with a
 /// `<navLabel><text>` title and a `<content src>` target.
-fn parse_ncx(xml: &str, ncx_dir: &str) -> Vec<TocEntry> {
+fn parse_ncx(xml: &str, ncx_path: &str) -> Vec<TocEntry> {
     let mut entries = Vec::new();
     let mut reader = Reader::from_str(xml);
     reader.config_mut().check_end_names = false;
@@ -464,7 +472,7 @@ fn parse_ncx(xml: &str, ncx_dir: &str) -> Vec<TocEntry> {
                         if let Some(title) = clean_text(Some(title)) {
                             entries.push(TocEntry {
                                 title,
-                                href: resolve_href(ncx_dir, &src),
+                                href: resolve_relative(ncx_path, &src),
                                 depth: (labels.len() as u32).saturating_sub(1),
                             });
                         }
@@ -675,8 +683,10 @@ mod tests {
         assert_eq!(resolve_href("OEBPS", "./ch01.xhtml#s1"), "OEBPS/ch01.xhtml#s1");
         assert_eq!(resolve_href("OEBPS", "ch%201.xhtml"), "OEBPS/ch 1.xhtml");
         assert_eq!(resolve_href("OEBPS", "/root.xhtml"), "root.xhtml");
-        // Fragment-only href targets the referencing document itself.
-        assert_eq!(resolve_href("OEBPS/nav.xhtml", "#pt1"), "OEBPS/nav.xhtml#pt1");
+        // Document-relative resolution: a fragment-only href targets the
+        // referencing document itself.
+        assert_eq!(resolve_relative("OEBPS/nav.xhtml", "#pt1"), "OEBPS/nav.xhtml#pt1");
+        assert_eq!(resolve_relative("OEBPS/nav.xhtml", "text/ch01.xhtml"), "OEBPS/text/ch01.xhtml");
     }
 
     #[test]
@@ -696,22 +706,25 @@ mod tests {
 
     #[test]
     fn nav_parsing_flattens_with_depth() {
-        let xml = r#"<html xmlns:epub="http://www.idpf.org/2007/ops"><body>
+        let xml = r##"<html xmlns:epub="http://www.idpf.org/2007/ops"><body>
 <nav epub:type="lot"><ol><li><a href="x.xhtml">not the toc</a></li></ol></nav>
 <nav epub:type="toc"><ol>
   <li><a href="ch01.xhtml">第一章</a>
     <ol><li><a href="ch01.xhtml#s1">第一節</a></li></ol>
   </li>
   <li><a href="ch02.xhtml">第二章</a></li>
+  <li><a href="#landmarks">付録</a></li>
 </ol></nav>
-</body></html>"#;
-        let toc = parse_nav(xml, "OEBPS");
+</body></html>"##;
+        let toc = parse_nav(xml, "OEBPS/nav.xhtml");
         assert_eq!(
             toc,
             vec![
                 TocEntry { title: "第一章".into(), href: "OEBPS/ch01.xhtml".into(), depth: 0 },
                 TocEntry { title: "第一節".into(), href: "OEBPS/ch01.xhtml#s1".into(), depth: 1 },
                 TocEntry { title: "第二章".into(), href: "OEBPS/ch02.xhtml".into(), depth: 0 },
+                // Fragment-only entries anchor inside the nav doc itself.
+                TocEntry { title: "付録".into(), href: "OEBPS/nav.xhtml#landmarks".into(), depth: 0 },
             ]
         );
     }
@@ -724,7 +737,7 @@ mod tests {
 </navPoint>
 <navPoint id="c"><navLabel><text>第二章</text></navLabel><content src="ch02.xhtml"/></navPoint>
 </navMap></ncx>"#;
-        let toc = parse_ncx(xml, "OEBPS");
+        let toc = parse_ncx(xml, "OEBPS/toc.ncx");
         assert_eq!(
             toc,
             vec![
