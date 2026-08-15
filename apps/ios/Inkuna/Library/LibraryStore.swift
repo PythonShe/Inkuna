@@ -15,9 +15,11 @@ final class LibraryStore: Sendable {
             in: .userDomainMask
         )[0]
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let databaseURL = directory.appendingPathComponent("inkuna.db")
         do {
-            library = try Bookshelf.open(dbPath: databaseURL.path)
+            // The core owns everything under this directory: inkuna.db,
+            // books/, and covers/. A pre-existing inkuna.db from the old
+            // dbPath constructor is adopted by the core's v2 migration.
+            library = try Bookshelf.open(dataDir: directory.path)
         } catch {
             fatalError("cannot open library database: \(error)")
         }
