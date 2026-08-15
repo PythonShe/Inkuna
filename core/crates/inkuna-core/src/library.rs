@@ -120,6 +120,11 @@ impl Library {
     /// `inkuna.db`, `books/`, and `covers/` all live under it and are owned
     /// by the core. Runs pending migrations, then sweeps files unreferenced
     /// by any row (crash-recovery for interrupted imports).
+    ///
+    /// One `Library` per `data_dir` is a hard requirement: because the sweep
+    /// cannot tell an abandoned staging file from a live one, opening a
+    /// second concurrent instance on the same directory deletes the first
+    /// one's in-flight import.
     pub fn open(data_dir: impl AsRef<Path>) -> Result<Library, CoreError> {
         let data_dir = data_dir.as_ref().to_path_buf();
         std::fs::create_dir_all(data_dir.join("books"))?;

@@ -259,6 +259,11 @@ pub struct Bookshelf(Arc<inkuna_core::Library>);
 impl Bookshelf {
     /// `data_dir` is the core-owned storage root (Application Support /
     /// `filesDir`): the DB, imported books, and covers all live under it.
+    ///
+    /// Hold exactly one `Bookshelf` per `data_dir` for the process lifetime:
+    /// opening sweeps files no row references, so a second concurrent
+    /// instance on the same directory deletes the first one's in-flight
+    /// import.
     #[uniffi::constructor]
     pub fn open(data_dir: String) -> Result<Arc<Self>, InkunaError> {
         Ok(Arc::new(Bookshelf(Arc::new(inkuna_core::Library::open(&data_dir)?))))
