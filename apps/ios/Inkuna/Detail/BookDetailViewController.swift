@@ -177,8 +177,9 @@ final class BookDetailViewController: UIViewController {
             navigationController.popViewController(animated: true)
             return
         }
-        let reader = ReaderViewController(book: book)
-        reader.hidesBottomBarWhenPushed = true
-        navigationController.pushViewController(reader, animated: true)
+        // TODO(core): this placeholder row has no core identity yet, so
+        // which book to read is decided by `ReaderLauncher`; library wiring
+        // will pass this detail screen's own `Publication`.
+        ReaderLauncher.push(on: navigationController)
     }
 }

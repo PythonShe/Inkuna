@@ -71,7 +71,7 @@ final class TonightViewController: ScrollScreenViewController {
         leftLabel.textColor = InkColor.textTertiary
 
         let readButton = InkButton("Keep reading", size: .small, symbol: "book") { [weak self] in
-            self?.openReader(PlaceholderLibrary.heroBook)
+            self?.openReader()
         }
         let buttonRow = UIStackView(arrangedSubviews: [readButton, UIView()])
         buttonRow.axis = .horizontal

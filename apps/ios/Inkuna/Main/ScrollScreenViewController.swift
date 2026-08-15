@@ -119,9 +119,12 @@ class ScrollScreenViewController: UIViewController {
         navigationController?.pushViewController(detail, animated: true)
     }
 
-    func openReader(_ book: PlaceholderBook) {
-        let reader = ReaderViewController(book: book)
-        reader.hidesBottomBarWhenPushed = true
-        navigationController?.pushViewController(reader, animated: true)
+    /// Opens the reader on the core library's current book.
+    ///
+    /// TODO(core): placeholder rows carry no core identity yet, so which
+    /// book to read is decided by `ReaderLauncher`; library wiring will
+    /// make this take the tapped row's `Publication`.
+    func openReader() {
+        ReaderLauncher.push(on: navigationController)
     }
 }
