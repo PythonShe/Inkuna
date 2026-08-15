@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Window theme for ImportIntentActivity. Its own file rather than an entry
+  in themes.xml so the import work stays self-contained.
+
+  The activity is a sheet over whatever the reader was already looking at
+  (Files, a mail client), so the window itself is transparent and floating;
+  the scrim is drawn in Compose, where it can follow the reading theme
+  rather than the system's night qualifier.
+-->
+<resources>
+    <style name="Theme.Inkuna.Import" parent="Theme.Inkuna">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Translucent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+</resources>

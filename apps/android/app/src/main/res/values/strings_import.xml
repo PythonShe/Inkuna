@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings for the EPUB import flow. Kept in their own file rather than
+  appended to strings.xml so the import work and the reader work can land
+  without stepping on each other; they share one resource namespace.
+-->
+<resources>
+    <!-- Entry points -->
+    <string name="import_add_books">Add books</string>
+    <string name="import_empty_title">Nothing on the shelf yet</string>
+    <string name="import_empty_body">Add an EPUB from your files and it will be waiting here.</string>
+    <string name="import_empty_action">Add your first book</string>
+    <string name="a11y_import_add_books">Add books to your library</string>
+
+    <!-- Progress -->
+    <string name="import_progress_eyebrow">Adding to your library</string>
+    <string name="import_phase_copying">Copying the file</string>
+    <string name="import_phase_reading">Reading the book</string>
+    <string name="import_progress_count">%1$d of %2$d</string>
+    <string name="import_cancel">Cancel</string>
+    <string name="a11y_import_progress">Importing, %1$d of %2$d</string>
+
+    <!-- Report -->
+    <string name="import_done">Done</string>
+    <string name="import_result_cancelled">Import stopped</string>
+    <string name="import_result_nothing">Nothing was added</string>
+    <string name="import_result_already">Already in your library</string>
+    <plurals name="import_result_added">
+        <item quantity="one">Added one book</item>
+        <item quantity="other">Added %d books</item>
+    </plurals>
+    <string name="import_section_added">Added</string>
+    <string name="import_section_duplicates">Already in your library</string>
+    <string name="import_section_failures">Not added</string>
+    <string name="import_unknown_author">Unknown author</string>
+    <!-- Shown when a file provider exposes no name for what it handed over. -->
+    <string name="import_unnamed_file">This file</string>
+
+    <!-- Failure reasons. The core names the format it detected, so a comic
+         or a Kindle file is told what it is rather than called an error. -->
+    <string name="import_fail_unsupported">%1$s files aren\'t supported yet</string>
+    <string name="import_fail_unknown_format">Inkuna couldn\'t tell what this file is</string>
+    <string name="import_fail_broken">This EPUB is missing something it needs</string>
+    <string name="import_fail_archive">This file is damaged</string>
+    <string name="import_fail_unreadable">This file couldn\'t be read</string>
+    <string name="import_fail_library">Your library couldn\'t be written to</string>
+
+    <!-- Inbound ACTION_VIEW / ACTION_SEND -->
+    <string name="import_intent_label">Add to Inkuna</string>
+    <string name="import_intent_open_library">Open library</string>
+    <string name="import_intent_nothing">There was nothing to add.</string>
+</resources>
