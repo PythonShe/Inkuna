@@ -1,31 +1,13 @@
-//! Import pipeline: one streaming pass copies the source into core-owned
-//! storage while hashing it (BLAKE3), dedupes on the hash, parses the copy,
-//! then commits atomically — rename first, DB transaction second, so a
-//! crash leaves an unreferenced file (swept at next open), never a fileless
-//! row. Invariant: a committed row always points at an existing file.
+//! The stages themselves: stage and hash, dedupe, parse, commit.
 
 use std::path::{Path, PathBuf};
 
+use super::model::{BatchImportOutcome, ImportOutcome};
 use crate::core::files::copy_and_hash;
 use crate::core::time::unix_now;
-use crate::formats::epub;
 use crate::features::library::{join_authors, map_publication, Library, PUB_COLUMNS};
+use crate::formats::epub;
 use crate::{CoreError, Format, Publication};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ImportOutcome {
-    Imported(Publication),
-    Duplicate(Publication),
-}
-
-/// Per-item outcome of a batch import: failures are reported in place of
-/// throwing so one bad file never aborts the rest of a multi-selection.
-#[derive(Debug)]
-pub enum BatchImportOutcome {
-    Imported(Publication),
-    Duplicate(Publication),
-    Failed { path: String, error: CoreError },
-}
 
 /// A fully parsed import, ready to commit: the file already sits at
 /// `tmp_path` and every DB value is computed. Parsing happens outside any

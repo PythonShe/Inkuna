@@ -7,17 +7,13 @@
 mod core;
 mod features;
 mod formats;
-mod import;
-mod progress;
-mod settings;
-mod stats;
 
 pub use crate::core::error::CoreError;
-pub use formats::Format;
-pub use import::{BatchImportOutcome, ImportOutcome};
+pub use features::import::{BatchImportOutcome, ImportOutcome};
 pub use features::library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};
-pub use settings::Settings;
-pub use stats::StatsOverview;
+pub use features::settings::Settings;
+pub use features::stats::StatsOverview;
+pub use formats::Format;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
