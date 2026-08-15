@@ -36,6 +36,13 @@ const PALMDB_BOOKMOBI: &[u8] = b"BOOKMOBI";
 const MAX_MIMETYPE_BYTES: u64 = 256;
 
 impl Format {
+    /// Detects the format of the file at `path` from its content, never
+    /// its extension — the one exception being TXT, which has no magic
+    /// bytes and needs `.txt` plus a NUL-free sample. A ZIP is an EPUB only
+    /// if its `mimetype` entry says so (read under a 256-byte cap, so a
+    /// crafted entry cannot inflate here) and any other ZIP is taken for a
+    /// CBZ. Returns `UnsupportedFormat(None)` when nothing matches, and
+    /// `Io` when the file cannot be read at all.
     pub fn detect(path: &Path) -> Result<Format, CoreError> {
         let mut file = File::open(path)?;
         let mut head = [0u8; 68];
@@ -75,6 +82,9 @@ impl Format {
         Err(CoreError::UnsupportedFormat(None))
     }
 
+    /// The lowercase tag persisted in the `publications.format` column.
+    /// It is a stored value, so these strings are part of the on-disk
+    /// schema: rename one and every existing row stops mapping.
     pub fn as_str(&self) -> &'static str {
         match self {
             Format::Epub => "epub",
@@ -87,6 +97,10 @@ impl Format {
         }
     }
 
+    /// Inverse of [`as_str`](Self::as_str), used when mapping a row back
+    /// out of the DB. An unrecognized tag — a row written by a newer core
+    /// that knows a format this one does not — is
+    /// `UnsupportedFormat(Some(tag))`, never a silent default.
     pub fn from_str(s: &str) -> Result<Format, CoreError> {
         match s {
             "epub" => Ok(Format::Epub),

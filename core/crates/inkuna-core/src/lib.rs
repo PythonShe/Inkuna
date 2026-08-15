@@ -18,6 +18,9 @@ pub use features::settings::Settings;
 pub use features::stats::StatsOverview;
 pub use formats::Format;
 
+/// The core's own crate version (`CARGO_PKG_VERSION`), which the shells
+/// surface in About screens and diagnostics. It moves independently of the
+/// iOS and Android app versions.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }

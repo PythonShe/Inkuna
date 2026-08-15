@@ -49,6 +49,11 @@ impl Library {
         Ok(library)
     }
 
+    /// The storage root this library was opened on. Every path a
+    /// publication carries is relative to it — iOS container paths change
+    /// across installs, so absolute paths are never persisted — which
+    /// makes this the only correct base for absolutizing `file_path` and
+    /// `cover_path` on the way out to a shell.
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }

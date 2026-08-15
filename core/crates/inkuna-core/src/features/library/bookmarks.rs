@@ -6,6 +6,12 @@ use crate::core::time::unix_now;
 use crate::CoreError;
 
 impl Library {
+    /// Pins `locator` (opaque Readium locator JSON, stored verbatim and
+    /// never parsed) to a publication. `progression` is the book-wide
+    /// position the list sorts by: it is clamped to 0.0..=1.0, and a
+    /// non-finite value becomes 0.0 rather than failing, because a bad
+    /// number from a navigator must not cost the reader the bookmark.
+    /// Returns `NotFound` if no publication has that id.
     pub fn add_bookmark(
         &self,
         publication_id: &str,
@@ -68,6 +74,9 @@ impl Library {
         })
     }
 
+    /// Deletes one bookmark by its own id. Deliberately not idempotent:
+    /// removing a bookmark that is not there returns `NotFound`, so a
+    /// shell swiping a stale row learns its list is out of date.
     pub fn remove_bookmark(&self, bookmark_id: &str) -> Result<(), CoreError> {
         let conn = self.writer.lock().unwrap();
         let changed = conn.execute("DELETE FROM bookmarks WHERE id = ?1", [bookmark_id])?;

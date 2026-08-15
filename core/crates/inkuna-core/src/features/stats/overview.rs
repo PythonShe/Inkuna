@@ -4,12 +4,19 @@ use chrono::{DateTime, Datelike, Duration, FixedOffset, Offset, Utc};
 
 use crate::{CoreError, Library};
 
+/// The Stats screen's numbers for one caller-local calendar. Numbers only
+/// — shells own formatting and localization — and every bucket is derived
+/// from the sessions table at call time, nothing is precomputed.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StatsOverview {
     /// Σ over this week's sessions of max(0, end_position −
     /// start_position); sessions with NULL positions contribute 0 pages.
     pub pages_this_week: u32,
+    /// Σ over this month's sessions of their duration, where an unclosed
+    /// session ends at its last heartbeat (`updated_at`), so an in-flight
+    /// or crashed sitting still counts.
     pub minutes_this_month: u32,
+    /// Publications whose `finished_at` falls in the current local year.
     pub books_finished_this_year: u32,
     /// Day-of-month numbers (current local month) having at least one
     /// session.

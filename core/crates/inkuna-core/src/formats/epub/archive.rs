@@ -67,6 +67,10 @@ fn read_entry_capped(
         .map_err(|e| CoreError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))
 }
 
+/// Reads a binary entry — cover art, the only one today — under
+/// [`MAX_COVER_BYTES`]. Unlike the text readers this one does not decode:
+/// the bytes are written to `covers/` exactly as the archive stored them.
+/// Callers degrade on the error (import keeps going without a cover).
 pub(super) fn read_entry_bytes(
     archive: &mut zip::ZipArchive<File>,
     name: &str,

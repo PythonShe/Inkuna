@@ -62,6 +62,9 @@ pub enum Sort {
     RecentlyAdded,
 }
 
+/// A reader-placed mark in a publication. The core stores the locator and
+/// the position it sorts by; what the row *shows* comes out of the locator,
+/// which the core never interprets.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bookmark {
     pub id: String,

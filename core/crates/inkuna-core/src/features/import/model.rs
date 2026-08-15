@@ -2,9 +2,15 @@
 
 use crate::{CoreError, Publication};
 
+/// What importing one file resolved to. Only these two outcomes are
+/// non-exceptional; anything else is a `CoreError`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ImportOutcome {
+    /// The file was copied into core-owned storage and its rows committed.
     Imported(Publication),
+    /// Content-hash dedupe matched an existing publication: nothing was
+    /// added, the staged copy was discarded, and the carried publication is
+    /// the one already in the library.
     Duplicate(Publication),
 }
 

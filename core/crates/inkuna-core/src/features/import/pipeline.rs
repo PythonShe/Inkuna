@@ -36,6 +36,19 @@ pub(crate) enum Prepared {
 }
 
 impl Library {
+    /// Imports one file at `path`: detect the format, copy it into
+    /// core-owned storage while hashing (BLAKE3), dedupe on that hash,
+    /// parse the copy for metadata, spine, TOC, cover, and text, then
+    /// commit. The source file is never modified or moved.
+    ///
+    /// A crafted or damaged book degrades rather than failing wherever the
+    /// missing part is optional — an oversized TOC is truncated, an
+    /// unreadable chapter loses only its text row, an unusable cover is
+    /// dropped. It fails with `UnsupportedFormat` for anything but EPUB
+    /// today, and with `InvalidPublication` when a mandatory part is
+    /// missing, no title can be derived, or the per-publication
+    /// persistence budget trips (in which case the transaction rolls back
+    /// and the staged file is swept).
     pub fn import(&self, path: &str) -> Result<ImportOutcome, CoreError> {
         match self.prepare_import(path)? {
             Prepared::Duplicate(existing) => Ok(ImportOutcome::Duplicate(*existing)),

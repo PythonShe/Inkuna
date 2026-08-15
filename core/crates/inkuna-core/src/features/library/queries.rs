@@ -5,6 +5,11 @@ use super::Library;
 use crate::CoreError;
 
 impl Library {
+    /// One shelf's publications in `sort` order, filtered and ordered in
+    /// SQL so a shell never sorts a library client-side. Ties break on
+    /// `added_at` then rowid, making the order total and stable across
+    /// calls; `Reading` means opened at least once and not finished, so a
+    /// freshly imported book appears only on `All`.
     pub fn list(&self, shelf: Shelf, sort: Sort) -> Result<Vec<Publication>, CoreError> {
         let filter = match shelf {
             Shelf::Reading => "WHERE last_opened_at IS NOT NULL AND finished_at IS NULL",
@@ -26,6 +31,9 @@ impl Library {
         })
     }
 
+    /// One publication by id, including its current progress state.
+    /// Returns `NotFound` when the row is gone (removed on another screen,
+    /// or a stale id a shell held across a delete).
     pub fn publication(&self, id: &str) -> Result<Publication, CoreError> {
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(&format!(
