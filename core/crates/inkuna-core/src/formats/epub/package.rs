@@ -157,14 +157,15 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
             })
         });
     let cover = cover_item.and_then(|item| {
-        // Checked before the read: an href that yields no usable
-        // extension degrades to no cover, the same way unreadable cover
-        // bytes already do.
+        // Checked before the read: an item that is not an image, or whose
+        // href yields no usable extension, degrades to no cover the same
+        // way unreadable cover bytes already do.
         let Some(extension) = image_extension(&item.media_type, &item.href) else {
             log::warn!(
-                "skipping cover of {}: href {} yields no usable extension",
+                "skipping cover of {}: {} ({}) is not a usable image",
                 path.display(),
-                item.href
+                item.href,
+                item.media_type
             );
             return None;
         };
