@@ -85,6 +85,19 @@ pub(super) struct Opf {
     /// Metadata values cut at [`MAX_METADATA_VALUE_BYTES`] — lets the
     /// caller log the truncation once with the archive path for context.
     pub(super) truncated_metadata_values: usize,
+    /// The reader error that cut the walk short, with the byte offset it
+    /// happened at — everything after it was never seen, so the title,
+    /// the authors and the whole tail of the spine may be missing.
+    ///
+    /// The OPF is a mandatory part, which argues for failing cleanly the
+    /// way `rootfile_path` does. It stays a degradation because the errors
+    /// quick-xml actually raises here are dominated by sloppiness real
+    /// books ship with — a bare `&` in a title is an unclosed reference —
+    /// and those files import correctly today. What is not defensible is
+    /// doing it silently, so the caller logs this once with the archive
+    /// path; a walk that died early enough to lose the title still fails
+    /// cleanly downstream, where import rejects an untitled publication.
+    pub(super) parse_error: Option<String>,
 }
 
 /// Appends `text` to `acc` through [`push_word`], never letting `acc`
@@ -221,7 +234,15 @@ pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
                 }
             }
             Ok(Event::Eof) => break,
-            Err(_) => break,
+            // Not a cap break: every cap in this walk holds at its own
+            // push site (and `MAX_MANIFEST_ITEMS` returns above), so the
+            // only way out of the loop other than EOF is the reader
+            // giving up. Record it for the caller to log rather than
+            // returning a partially-walked OPF as if it were complete.
+            Err(e) => {
+                opf.parse_error = Some(format!("{e} at byte {}", reader.error_position()));
+                break;
+            }
             _ => {}
         }
         buf.clear();

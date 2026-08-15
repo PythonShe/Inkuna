@@ -27,6 +27,12 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
     let opf_xml = read_entry(&mut archive, &opf_path)?;
     let opf_dir = parent_dir(&opf_path);
     let opf = parse_opf(&opf_xml)?;
+    if let Some(error) = &opf.parse_error {
+        log::warn!(
+            "OPF {opf_path} of {} is not well-formed ({error}); everything after it was skipped — metadata and spine may be incomplete",
+            path.display()
+        );
+    }
     if opf.oversized_href_items > 0 {
         log::warn!(
             "manifest of {} has {} items with hrefs over {MAX_HREF_BYTES} bytes; skipped",
