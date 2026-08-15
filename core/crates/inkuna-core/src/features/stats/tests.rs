@@ -1,4 +1,4 @@
-use chrono::{FixedOffset, TimeZone};
+use chrono::{DateTime, FixedOffset, TimeZone, Utc};
 
 use crate::test_support::write_epub;
 use crate::{ImportOutcome, Library};
@@ -11,6 +11,12 @@ fn ts(y: i32, m: u32, d: u32, h: u32, min: u32) -> i64 {
         .with_ymd_and_hms(y, m, d, h, min, 0)
         .unwrap()
         .timestamp()
+}
+
+/// A simulated clock reading for `stats_overview_at`, which buckets
+/// against a `DateTime` rather than the DB's unix seconds.
+fn at(unix_seconds: i64) -> DateTime<Utc> {
+    DateTime::from_timestamp(unix_seconds, 0).unwrap()
 }
 
 fn library_with_book() -> (tempfile::TempDir, Library, String) {
@@ -149,7 +155,7 @@ fn stats_attribute_sessions_to_local_buckets() {
     library.set_finished(&id, true).unwrap();
 
     let monday = library
-        .stats_overview_at(now, TOKYO_MINUTES, true)
+        .stats_overview_at(at(now), TOKYO_MINUTES, true)
         .unwrap();
     assert_eq!(monday.pages_this_week, 15);
     assert_eq!(monday.minutes_this_month, 20 + 30 + 10 + 10);
@@ -158,7 +164,7 @@ fn stats_attribute_sessions_to_local_buckets() {
 
     // With a Sunday week start, Mar 1's 5 pages join the week.
     let sunday = library
-        .stats_overview_at(now, TOKYO_MINUTES, false)
+        .stats_overview_at(at(now), TOKYO_MINUTES, false)
         .unwrap();
     assert_eq!(sunday.pages_this_week, 20);
 }
@@ -175,7 +181,7 @@ fn stats_fall_back_to_utc_on_out_of_range_offset() {
 
     // An offset whose seconds conversion overflows i32 must fall back to
     // UTC, not panic (debug) or wrap into a bogus offset (release).
-    let overflowing = library.stats_overview_at(now, i32::MAX, true).unwrap();
-    let utc = library.stats_overview_at(now, 0, true).unwrap();
+    let overflowing = library.stats_overview_at(at(now), i32::MAX, true).unwrap();
+    let utc = library.stats_overview_at(at(now), 0, true).unwrap();
     assert_eq!(overflowing, utc);
 }

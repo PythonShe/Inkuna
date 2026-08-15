@@ -1,8 +1,7 @@
 //! The Stats screen's numbers, bucketed into the caller's local calendar.
 
-use chrono::{Datelike, Duration, FixedOffset, Offset, Utc};
+use chrono::{DateTime, Datelike, Duration, FixedOffset, Offset, Utc};
 
-use crate::core::time::unix_now;
 use crate::{CoreError, Library};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,12 +27,18 @@ impl Library {
         tz_offset_minutes: i32,
         week_starts_monday: bool,
     ) -> Result<StatsOverview, CoreError> {
-        self.stats_overview_at(unix_now(), tz_offset_minutes, week_starts_monday)
+        self.stats_overview_at(Utc::now(), tz_offset_minutes, week_starts_monday)
     }
 
+    /// [`stats_overview`](Self::stats_overview) against an explicit clock
+    /// reading. `now` is a `DateTime`, not the crate's usual unix-seconds
+    /// `i64`, because it is a clock reading rather than a stored value:
+    /// carrying it already-converted is what keeps the bucketing total —
+    /// an `i64` would have to be converted here, and every out-of-range
+    /// `i64` would need an error the public entry point can never produce.
     pub(crate) fn stats_overview_at(
         &self,
-        now: i64,
+        now: DateTime<Utc>,
         tz_offset_minutes: i32,
         week_starts_monday: bool,
     ) -> Result<StatsOverview, CoreError> {
@@ -50,10 +55,7 @@ impl Library {
         let local_midnight_ts =
             |date: chrono::NaiveDate| date.and_time(chrono::NaiveTime::MIN).and_utc().timestamp() - offset_seconds;
 
-        let today = match chrono::DateTime::from_timestamp(now, 0) {
-            Some(dt) => dt.with_timezone(&tz).date_naive(),
-            None => return Err(CoreError::NotFound("timestamp out of range".into())),
-        };
+        let today = now.with_timezone(&tz).date_naive();
         let days_into_week = if week_starts_monday {
             today.weekday().num_days_from_monday()
         } else {
