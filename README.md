@@ -68,6 +68,11 @@ component's version and mints the tag; pushing the tag builds the Rust core
 and shell in CI, generates release notes from the commit log, and publishes
 (TestFlight for iOS, a GitHub release with the APK for Android).
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Pull requests require a signed
+[Contributor License Agreement](https://gist.github.com/PythonShe/3c97ab17f679a42d675ffbebf62f42a2).
+
 ## License
 
 [AGPL-3.0](LICENSE)
