@@ -76,6 +76,8 @@ class ReaderViewModel(
     /** A core TOC entry resolved against Readium's synthetic positions. */
     data class ReaderChapter(
         val chapter: Chapter,
+        /** Index of the chapter's resource in the reading order, if found. */
+        val resourceIndex: Int?,
         /** 1-based position where the chapter's resource begins, if known. */
         val position: Int?,
     )
@@ -178,7 +180,19 @@ class ReaderViewModel(
         }
 
         val chapters = shelf.chapters(core.id).map { chapter ->
-            ReaderChapter(chapter, chapterStartPosition(publication, positionsByResource, chapter))
+            // The chapter-to-resource mapping is href-minus-fragment, per
+            // the core spec; the reading-order index it yields is what both
+            // the position and the "you are here" highlight are built on.
+            val resourceIndex = Url(chapter.href)?.let { readingOrderIndex(publication, it) }
+            ReaderChapter(
+                chapter = chapter,
+                resourceIndex = resourceIndex,
+                position = resourceIndex
+                    ?.let { positionsByResource.getOrNull(it) }
+                    ?.firstOrNull()
+                    ?.locations
+                    ?.position,
+            )
         }
 
         // The locator blob is opaque to the core; only Readium parses it.
@@ -198,21 +212,33 @@ class ReaderViewModel(
         )
     }
 
+    /** Where [href] sits in the reading order, ignoring any fragment. */
+    private fun readingOrderIndex(publication: Publication, href: Url): Int? {
+        val target = href.removeFragment().normalize()
+        return publication.readingOrder
+            .indexOfFirst { link -> link.url().normalize().removeFragment() == target }
+            .takeIf { it >= 0 }
+    }
+
     /**
-     * The synthetic position at which [chapter]'s resource begins — the
-     * chapter-to-resource mapping is href-minus-fragment, per the core spec.
+     * The TOC entry to mark as "you are here" for [locator].
+     *
+     * Highlights the last chapter whose resource starts at or before the
+     * current resource, resolving a tie — several chapters sharing one
+     * XHTML file, which is how many EPUBs are built — to the first of them.
+     * A resource with no TOC entry of its own therefore keeps the preceding
+     * chapter lit rather than clearing the highlight. Matching is on
+     * reading-order indices, never on href strings, so an entry whose href
+     * merely spells the current one differently still counts.
      */
-    private fun chapterStartPosition(
-        publication: Publication,
-        positionsByResource: List<List<Locator>>,
-        chapter: Chapter,
-    ): Int? {
-        val target = Url(chapter.href)?.removeFragment()?.normalize() ?: return null
-        val index = publication.readingOrder.indexOfFirst { link ->
-            link.url().normalize().removeFragment() == target
-        }
-        if (index < 0) return null
-        return positionsByResource.getOrNull(index)?.firstOrNull()?.locations?.position
+    fun currentChapterIndex(locator: Locator?): Int? {
+        val book = (stateFlow.value as? UiState.Ready)?.book ?: return null
+        val here = locator?.let { readingOrderIndex(book.publication, it.href) } ?: return null
+        val chapterResource = book.chapters
+            .mapNotNull { it.resourceIndex }
+            .filter { it <= here }
+            .maxOrNull() ?: return null
+        return book.chapters.indexOfFirst { it.resourceIndex == chapterResource }.takeIf { it >= 0 }
     }
 
     /** Resolves a core chapter's href into a navigator jump target. */

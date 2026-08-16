@@ -77,7 +77,6 @@ import org.readium.r2.navigator.util.DirectionalNavigationAdapter
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
-import org.readium.r2.shared.util.Url
 
 /**
  * The reader: Readium's EPUB navigator rendering the core-owned file, with
@@ -482,14 +481,7 @@ private fun ReaderContent(
 
     if (contentsSheetOpen) {
         val currentChapterIndex = remember(locator, book) {
-            val here = locator?.href?.normalize()
-            if (here == null) {
-                null
-            } else {
-                book.chapters.indexOfFirst { entry ->
-                    Url(entry.chapter.href)?.removeFragment()?.normalize() == here
-                }.takeIf { it >= 0 }
-            }
+            viewModel.currentChapterIndex(locator)
         }
         ContentsSheet(
             publication = book.core,
