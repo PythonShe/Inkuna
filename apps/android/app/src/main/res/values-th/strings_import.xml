@@ -44,4 +44,28 @@
     <string name="import_intent_label">เพิ่มลงใน Inkuna</string>
     <string name="import_intent_open_library">เปิดชั้นหนังสือ</string>
     <string name="import_intent_nothing">ไม่มีสิ่งที่สามารถเพิ่มได้</string>
+    <string name="import_dismiss">ตกลง</string>
+    <string name="import_fail_library_unavailable">ไม่สามารถเปิดชั้นหนังสือได้ จึงไม่มีการเพิ่มรายการใดๆ</string>
+    <string name="import_fail_not_found">หนังสือหายไปจากชั้นระหว่างการนำเข้า</string>
+    <string name="import_fail_storage">ไม่สามารถอ่านไฟล์ได้ โปรดตรวจสอบว่าไฟล์ยังมีอยู่และอุปกรณ์มีพื้นที่ว่างเพียงพอ</string>
+    <string name="import_fail_unknown">เกิดข้อผิดพลาด: %1$s</string>
+    <string name="import_fail_unsupported_generic">Inkuna ไม่รู้จักรูปแบบไฟล์หนังสือนี้</string>
+    <string name="import_format_cbr">การ์ตูน CBR</string>
+    <string name="import_format_cbz">การ์ตูน CBZ</string>
+    <string name="import_format_plain_text">ข้อความธรรมดา</string>
+    <string name="import_progress_title_many">กำลังเพิ่ม %1$s ไปยังห้องสมุด</string>
+    <string name="import_progress_title_one">กำลังเพิ่มไปยังห้องสมุด</string>
+    <string name="import_status_added">เพิ่มลงในชั้นหนังสือแล้ว</string>
+    <string name="import_status_duplicate">มีอยู่ในชั้นหนังสือแล้ว</string>
+    <string name="import_subtitle_cancelled">คุณหยุดส่วนที่เหลือแล้ว</string>
+    <string name="import_subtitle_duplicate_many">%1$d เล่มมีอยู่ในชั้นแล้ว</string>
+    <string name="import_subtitle_duplicate_one">1 เล่มมีอยู่ในชั้นแล้ว</string>
+    <string name="import_subtitle_failure_many">%1$d เล่มไม่สามารถเพิ่มได้</string>
+    <string name="import_subtitle_failure_one">1 เล่มไม่สามารถเพิ่มได้</string>
+    <string name="import_toast_added_one">เพิ่ม %1$s แล้ว</string>
+    <string name="import_toast_already">%1$s มีอยู่ในชั้นหนังสือแล้ว</string>
+    <string name="import_toast_could_not_add">ไม่สามารถเพิ่ม %1$s ได้</string>
+    <plurals name="import_books_count">
+        <item quantity="other">%d เล่ม</item>
+    </plurals>
 </resources>

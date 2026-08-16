@@ -52,4 +52,29 @@
     <string name="import_intent_label">Add to Inkuna</string>
     <string name="import_intent_open_library">Open library</string>
     <string name="import_intent_nothing">There was nothing to add.</string>
+    <string name="import_dismiss">OK</string>
+    <string name="import_fail_library_unavailable">Your library wouldn\'t open, so nothing was added.</string>
+    <string name="import_fail_not_found">The book went missing from the library mid-import.</string>
+    <string name="import_fail_storage">The file couldn\'t be read. Check that it\'s still available and that this device has room.</string>
+    <string name="import_fail_unknown">Something went wrong: %1$s</string>
+    <string name="import_fail_unsupported_generic">This isn\'t a book file Inkuna recognizes.</string>
+    <string name="import_format_cbr">CBR comic</string>
+    <string name="import_format_cbz">CBZ comic</string>
+    <string name="import_format_plain_text">Plain text</string>
+    <string name="import_progress_title_many">Adding %1$s to your library</string>
+    <string name="import_progress_title_one">Adding to your library</string>
+    <string name="import_status_added">Added to your library</string>
+    <string name="import_status_duplicate">Already in your library</string>
+    <string name="import_subtitle_cancelled">you stopped the rest</string>
+    <string name="import_subtitle_duplicate_many">%1$d were already in your library</string>
+    <string name="import_subtitle_duplicate_one">1 was already in your library</string>
+    <string name="import_subtitle_failure_many">%1$d couldn\'t be added</string>
+    <string name="import_subtitle_failure_one">1 couldn\'t be added</string>
+    <string name="import_toast_added_one">Added %1$s</string>
+    <string name="import_toast_already">%1$s is already in your library</string>
+    <string name="import_toast_could_not_add">Couldn\'t add %1$s</string>
+    <plurals name="import_books_count">
+        <item quantity="one">1 book</item>
+        <item quantity="other">%d books</item>
+    </plurals>
 </resources>

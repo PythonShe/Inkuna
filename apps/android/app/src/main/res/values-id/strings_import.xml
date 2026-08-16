@@ -40,4 +40,28 @@
     <string name="import_intent_label">Tambahkan ke Inkuna</string>
     <string name="import_intent_open_library">Buka perpustakaan</string>
     <string name="import_intent_nothing">Tidak ada yang bisa ditambahkan.</string>
+    <string name="import_dismiss">OK</string>
+    <string name="import_fail_library_unavailable">Perpustakaan Anda tidak dapat dibuka, jadi tidak ada yang ditambahkan.</string>
+    <string name="import_fail_not_found">Buku hilang dari perpustakaan saat proses impor.</string>
+    <string name="import_fail_storage">Berkas tidak dapat dibaca. Periksa apakah berkas masih tersedia dan perangkat ini memiliki ruang penyimpanan.</string>
+    <string name="import_fail_unknown">Terjadi kesalahan: %1$s</string>
+    <string name="import_fail_unsupported_generic">Ini bukan berkas buku yang dikenali Inkuna.</string>
+    <string name="import_format_cbr">Komik CBR</string>
+    <string name="import_format_cbz">Komik CBZ</string>
+    <string name="import_format_plain_text">Teks biasa</string>
+    <string name="import_progress_title_many">Menambahkan %1$s ke perpustakaan Anda</string>
+    <string name="import_progress_title_one">Menambahkan ke perpustakaan Anda</string>
+    <string name="import_status_added">Ditambahkan ke perpustakaan Anda</string>
+    <string name="import_status_duplicate">Sudah ada di perpustakaan Anda</string>
+    <string name="import_subtitle_cancelled">Anda menghentikan sisanya</string>
+    <string name="import_subtitle_duplicate_many">%1$d sudah ada di perpustakaan Anda</string>
+    <string name="import_subtitle_duplicate_one">1 sudah ada di perpustakaan Anda</string>
+    <string name="import_subtitle_failure_many">%1$d tidak dapat ditambahkan</string>
+    <string name="import_subtitle_failure_one">1 tidak dapat ditambahkan</string>
+    <string name="import_toast_added_one">Ditambahkan %1$s</string>
+    <string name="import_toast_already">%1$s sudah ada di perpustakaan Anda</string>
+    <string name="import_toast_could_not_add">Tidak dapat menambahkan %1$s</string>
+    <plurals name="import_books_count">
+        <item quantity="other">%d buku</item>
+    </plurals>
 </resources>

@@ -47,4 +47,31 @@
     <string name="import_intent_label">Добавить в Inkuna</string>
     <string name="import_intent_open_library">Открыть библиотеку</string>
     <string name="import_intent_nothing">Нечего добавить.</string>
+    <string name="import_dismiss">ОК</string>
+    <string name="import_fail_library_unavailable">Библиотека не открылась, ничего не было добавлено.</string>
+    <string name="import_fail_not_found">Книга исчезла из библиотеки во время импорта.</string>
+    <string name="import_fail_storage">Не удалось прочитать файл. Проверьте его доступность и наличие свободного места на устройстве.</string>
+    <string name="import_fail_unknown">Произошла ошибка: %1$s</string>
+    <string name="import_fail_unsupported_generic">Inkuna не распознает этот формат книги.</string>
+    <string name="import_format_cbr">Комикс CBR</string>
+    <string name="import_format_cbz">Комикс CBZ</string>
+    <string name="import_format_plain_text">Простой текст</string>
+    <string name="import_progress_title_many">Добавление %1$s в медиатеку</string>
+    <string name="import_progress_title_one">Добавление в медиатеку</string>
+    <string name="import_status_added">Добавлено в библиотеку</string>
+    <string name="import_status_duplicate">Уже в библиотеке</string>
+    <string name="import_subtitle_cancelled">остальные были отменены вами</string>
+    <string name="import_subtitle_duplicate_many">%1$d уже были в библиотеке</string>
+    <string name="import_subtitle_duplicate_one">1 уже была в библиотеке</string>
+    <string name="import_subtitle_failure_many">%1$d не удалось добавить</string>
+    <string name="import_subtitle_failure_one">1 не удалось добавить</string>
+    <string name="import_toast_added_one">Добавлено: %1$s</string>
+    <string name="import_toast_already">%1$s уже есть в вашей библиотеке</string>
+    <string name="import_toast_could_not_add">Не удалось добавить %1$s</string>
+    <plurals name="import_books_count">
+        <item quantity="one">%d книга</item>
+        <item quantity="other">%d книг</item>
+        <item quantity="few">%d книги</item>
+        <item quantity="many">%d книг</item>
+    </plurals>
 </resources>

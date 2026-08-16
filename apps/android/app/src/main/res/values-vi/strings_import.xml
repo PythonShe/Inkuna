@@ -44,4 +44,28 @@
     <string name="import_intent_label">Thêm vào Inkuna</string>
     <string name="import_intent_open_library">Mở thư viện</string>
     <string name="import_intent_nothing">Không có nội dung nào để thêm.</string>
+    <string name="import_dismiss">OK</string>
+    <string name="import_fail_library_unavailable">Không thể mở thư viện nên không có sách nào được thêm.</string>
+    <string name="import_fail_not_found">Sách bị mất khỏi thư viện trong lúc đang nhập.</string>
+    <string name="import_fail_storage">Không thể đọc tệp. Vui lòng kiểm tra tệp còn tồn tại và thiết bị còn đủ dung lượng.</string>
+    <string name="import_fail_unknown">Đã xảy ra lỗi: %1$s</string>
+    <string name="import_fail_unsupported_generic">Inkuna không nhận dạng được định dạng tệp sách này.</string>
+    <string name="import_format_cbr">Truyện tranh CBR</string>
+    <string name="import_format_cbz">Truyện tranh CBZ</string>
+    <string name="import_format_plain_text">Văn bản thuần túy</string>
+    <string name="import_progress_title_many">Đang thêm %1$s vào thư viện</string>
+    <string name="import_progress_title_one">Đang thêm vào thư viện</string>
+    <string name="import_status_added">Đã thêm vào thư viện</string>
+    <string name="import_status_duplicate">Đã có trong thư viện</string>
+    <string name="import_subtitle_cancelled">bạn đã dừng các mục còn lại</string>
+    <string name="import_subtitle_duplicate_many">%1$d cuốn đã có trong thư viện</string>
+    <string name="import_subtitle_duplicate_one">1 cuốn đã có trong thư viện</string>
+    <string name="import_subtitle_failure_many">%1$d cuốn không thể thêm</string>
+    <string name="import_subtitle_failure_one">1 cuốn không thể thêm</string>
+    <string name="import_toast_added_one">Đã thêm %1$s</string>
+    <string name="import_toast_already">%1$s đã có trong thư viện của bạn</string>
+    <string name="import_toast_could_not_add">Không thể thêm %1$s</string>
+    <plurals name="import_books_count">
+        <item quantity="other">%d cuốn sách</item>
+    </plurals>
 </resources>

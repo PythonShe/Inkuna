@@ -44,4 +44,28 @@
     <string name="import_intent_label">Inkuna에 추가</string>
     <string name="import_intent_open_library">서재 열기</string>
     <string name="import_intent_nothing">추가할 내용이 없습니다.</string>
+    <string name="import_dismiss">확인</string>
+    <string name="import_fail_library_unavailable">서재를 열 수 없어 아무것도 추가되지 않았습니다.</string>
+    <string name="import_fail_not_found">가져오는 도중에 도서를 찾을 수 없게 되었습니다.</string>
+    <string name="import_fail_storage">파일을 읽을 수 없습니다. 파일이 유효하고 기기 저장 공간이 충분한지 확인하세요.</string>
+    <string name="import_fail_unknown">문제가 발생했습니다: %1$s</string>
+    <string name="import_fail_unsupported_generic">Inkuna가 지원하는 파일 형식이 아닙니다.</string>
+    <string name="import_format_cbr">CBR 만화</string>
+    <string name="import_format_cbz">CBZ 만화</string>
+    <string name="import_format_plain_text">일반 텍스트</string>
+    <string name="import_progress_title_many">%1$s을(를) 서재에 추가하는 중</string>
+    <string name="import_progress_title_one">서재에 추가하는 중</string>
+    <string name="import_status_added">서재에 추가되었습니다</string>
+    <string name="import_status_duplicate">이미 서재에 있습니다</string>
+    <string name="import_subtitle_cancelled">나머지 항목 가져오기를 중단했습니다</string>
+    <string name="import_subtitle_duplicate_many">%1$d권은 이미 서재에 있습니다</string>
+    <string name="import_subtitle_duplicate_one">1권은 이미 서재에 있습니다</string>
+    <string name="import_subtitle_failure_many">%1$d권을 추가하지 못했습니다</string>
+    <string name="import_subtitle_failure_one">1권을 추가하지 못했습니다</string>
+    <string name="import_toast_added_one">%1$s 추가됨</string>
+    <string name="import_toast_already">%1$s은(는) 이미 서재에 있습니다</string>
+    <string name="import_toast_could_not_add">%1$s을(를) 추가할 수 없습니다</string>
+    <plurals name="import_books_count">
+        <item quantity="other">%d권</item>
+    </plurals>
 </resources>

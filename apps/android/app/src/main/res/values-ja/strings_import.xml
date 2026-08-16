@@ -44,4 +44,28 @@
     <string name="import_intent_label">Inkunaに追加</string>
     <string name="import_intent_open_library">本棚を開く</string>
     <string name="import_intent_nothing">追加できる本がありませんでした。</string>
+    <string name="import_dismiss">OK</string>
+    <string name="import_fail_library_unavailable">ライブラリを開けなかったため、何も追加されませんでした。</string>
+    <string name="import_fail_not_found">インポート中に書籍が見つからなくなりました。</string>
+    <string name="import_fail_storage">ファイルを読み込めませんでした。ファイルが存在し、端末に空き容量があるか確認してください。</string>
+    <string name="import_fail_unknown">エラーが発生しました：%1$s</string>
+    <string name="import_fail_unsupported_generic">Inkunaが対応している形式ではありません。</string>
+    <string name="import_format_cbr">CBRコミック</string>
+    <string name="import_format_cbz">CBZコミック</string>
+    <string name="import_format_plain_text">テキスト</string>
+    <string name="import_progress_title_many">%1$sをライブラリに追加中</string>
+    <string name="import_progress_title_one">ライブラリに追加中</string>
+    <string name="import_status_added">本棚に追加しました</string>
+    <string name="import_status_duplicate">既に本棚にあります</string>
+    <string name="import_subtitle_cancelled">残りのインポートを中止しました</string>
+    <string name="import_subtitle_duplicate_many">%1$d冊は既に本棚にあります</string>
+    <string name="import_subtitle_duplicate_one">1冊は既に本棚にあります</string>
+    <string name="import_subtitle_failure_many">%1$d冊を追加できませんでした</string>
+    <string name="import_subtitle_failure_one">1冊を追加できませんでした</string>
+    <string name="import_toast_added_one">「%1$s」を追加しました</string>
+    <string name="import_toast_already">「%1$s」は既に本棚にあります</string>
+    <string name="import_toast_could_not_add">「%1$s」を追加できませんでした</string>
+    <plurals name="import_books_count">
+        <item quantity="other">%d 冊</item>
+    </plurals>
 </resources>

@@ -45,4 +45,29 @@
     <string name="import_intent_label">Ajouter à Inkuna</string>
     <string name="import_intent_open_library">Ouvrir la bibliothèque</string>
     <string name="import_intent_nothing">Il n\'y avait rien à ajouter.</string>
+    <string name="import_dismiss">OK</string>
+    <string name="import_fail_library_unavailable">Votre bibliothèque ne s\'est pas ouverte, rien n\'a été ajouté.</string>
+    <string name="import_fail_not_found">Le livre a disparu de la bibliothèque pendant l\'importation.</string>
+    <string name="import_fail_storage">Impossible de lire le fichier. Vérifiez qu\'il est toujours disponible et que l\'appareil dispose d\'assez d\'espace.</string>
+    <string name="import_fail_unknown">Un problème est survenu : %1$s</string>
+    <string name="import_fail_unsupported_generic">Ce format de fichier de livre n\'est pas reconnu par Inkuna.</string>
+    <string name="import_format_cbr">Bande dessinée CBR</string>
+    <string name="import_format_cbz">Bande dessinée CBZ</string>
+    <string name="import_format_plain_text">Texte brut</string>
+    <string name="import_progress_title_many">Ajout de %1$s à la bibliothèque</string>
+    <string name="import_progress_title_one">Ajout à la bibliothèque</string>
+    <string name="import_status_added">Ajouté à votre bibliothèque</string>
+    <string name="import_status_duplicate">Déjà dans votre bibliothèque</string>
+    <string name="import_subtitle_cancelled">vous avez arrêté le reste</string>
+    <string name="import_subtitle_duplicate_many">%1$d étaient déjà dans votre bibliothèque</string>
+    <string name="import_subtitle_duplicate_one">1 était déjà dans votre bibliothèque</string>
+    <string name="import_subtitle_failure_many">%1$d n\'ont pas pu être ajoutés</string>
+    <string name="import_subtitle_failure_one">1 n\'a pas pu être ajouté</string>
+    <string name="import_toast_added_one">%1$s ajouté</string>
+    <string name="import_toast_already">%1$s est déjà dans votre bibliothèque</string>
+    <string name="import_toast_could_not_add">Impossible d\'ajouter %1$s</string>
+    <plurals name="import_books_count">
+        <item quantity="one">%d livre</item>
+        <item quantity="other">%d livres</item>
+    </plurals>
 </resources>

@@ -41,4 +41,29 @@
     <string name="import_intent_label">Zu Inkuna hinzufügen</string>
     <string name="import_intent_open_library">Bibliothek öffnen</string>
     <string name="import_intent_nothing">Es gab nichts hinzuzufügen.</string>
+    <string name="import_dismiss">OK</string>
+    <string name="import_fail_library_unavailable">Ihre Bibliothek ließ sich nicht öffnen, daher wurde nichts hinzugefügt.</string>
+    <string name="import_fail_not_found">Das Buch ist während des Imports aus der Bibliothek verschwunden.</string>
+    <string name="import_fail_storage">Die Datei konnte nicht gelesen werden. Prüfen Sie, ob sie noch verfügbar ist und ob auf diesem Gerät genügend Speicherplatz vorhanden ist.</string>
+    <string name="import_fail_unknown">Etwas ist schiefgelaufen: %1$s</string>
+    <string name="import_fail_unsupported_generic">Das ist keine Buchdatei, die Inkuna erkennt.</string>
+    <string name="import_format_cbr">CBR-Comic</string>
+    <string name="import_format_cbz">CBZ-Comic</string>
+    <string name="import_format_plain_text">Reiner Text</string>
+    <string name="import_progress_title_many">„%1$s“ wird zu Ihrer Bibliothek hinzugefügt</string>
+    <string name="import_progress_title_one">Zur Bibliothek hinzufügen</string>
+    <string name="import_status_added">Zu Ihrer Bibliothek hinzugefügt</string>
+    <string name="import_status_duplicate">Bereits in Ihrer Bibliothek</string>
+    <string name="import_subtitle_cancelled">Sie haben den Rest abgebrochen</string>
+    <string name="import_subtitle_duplicate_many">%1$d waren bereits in Ihrer Bibliothek</string>
+    <string name="import_subtitle_duplicate_one">1 war bereits in Ihrer Bibliothek</string>
+    <string name="import_subtitle_failure_many">%1$d konnten nicht hinzugefügt werden</string>
+    <string name="import_subtitle_failure_one">1 konnte nicht hinzugefügt werden</string>
+    <string name="import_toast_added_one">„%1$s“ hinzugefügt</string>
+    <string name="import_toast_already">„%1$s“ ist bereits in Ihrer Bibliothek</string>
+    <string name="import_toast_could_not_add">„%1$s“ konnte nicht hinzugefügt werden</string>
+    <plurals name="import_books_count">
+        <item quantity="one">1 Buch</item>
+        <item quantity="other">%d Bücher</item>
+    </plurals>
 </resources>

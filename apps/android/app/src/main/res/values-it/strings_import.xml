@@ -45,4 +45,29 @@
     <string name="import_intent_label">Aggiungi a Inkuna</string>
     <string name="import_intent_open_library">Apri libreria</string>
     <string name="import_intent_nothing">Non c\'era nulla da aggiungere.</string>
+    <string name="import_dismiss">OK</string>
+    <string name="import_fail_library_unavailable">La libreria non si è aperta, quindi non è stato aggiunto nulla.</string>
+    <string name="import_fail_not_found">Il libro è andato perso durante l\'importazione.</string>
+    <string name="import_fail_storage">Impossibile leggere il file. Verifica che sia ancora disponibile e che il dispositivo abbia spazio.</string>
+    <string name="import_fail_unknown">Si è verificato un errore: %1$s</string>
+    <string name="import_fail_unsupported_generic">Inkuna non riconosce questo formato di libro.</string>
+    <string name="import_format_cbr">Fumetto CBR</string>
+    <string name="import_format_cbz">Fumetto CBZ</string>
+    <string name="import_format_plain_text">Testo normale</string>
+    <string name="import_progress_title_many">Aggiunta di %1$s alla libreria</string>
+    <string name="import_progress_title_one">Aggiunta alla libreria</string>
+    <string name="import_status_added">Aggiunto alla libreria</string>
+    <string name="import_status_duplicate">Già nella libreria</string>
+    <string name="import_subtitle_cancelled">hai interrotto i restanti</string>
+    <string name="import_subtitle_duplicate_many">%1$d erano già nella libreria</string>
+    <string name="import_subtitle_duplicate_one">1 era già nella libreria</string>
+    <string name="import_subtitle_failure_many">%1$d non è stato possibile aggiungere</string>
+    <string name="import_subtitle_failure_one">1 non è stato possibile aggiungere</string>
+    <string name="import_toast_added_one">Aggiunto %1$s</string>
+    <string name="import_toast_already">%1$s è già nella tua libreria</string>
+    <string name="import_toast_could_not_add">Impossibile aggiungere %1$s</string>
+    <plurals name="import_books_count">
+        <item quantity="one">1 libro</item>
+        <item quantity="other">%d libri</item>
+    </plurals>
 </resources>

@@ -44,4 +44,28 @@
     <string name="import_intent_label">添加到 Inkuna</string>
     <string name="import_intent_open_library">打开书架</string>
     <string name="import_intent_nothing">没有可添加的内容。</string>
+    <string name="import_dismiss">好</string>
+    <string name="import_fail_library_unavailable">书库未能打开，因此未添加任何内容。</string>
+    <string name="import_fail_not_found">导入过程中书籍从书库中遗失。</string>
+    <string name="import_fail_storage">无法读取文件。请检查文件是否存在且设备存储空间充足。</string>
+    <string name="import_fail_unknown">出现问题：%1$s</string>
+    <string name="import_fail_unsupported_generic">这不是 Inkuna 可识别的书籍文件。</string>
+    <string name="import_format_cbr">CBR 漫画</string>
+    <string name="import_format_cbz">CBZ 漫画</string>
+    <string name="import_format_plain_text">纯文本</string>
+    <string name="import_progress_title_many">正在将%1$s添加到书库</string>
+    <string name="import_progress_title_one">正在添加到书库</string>
+    <string name="import_status_added">已添加到书架</string>
+    <string name="import_status_duplicate">已存在于书架中</string>
+    <string name="import_subtitle_cancelled">您中止了其余导入</string>
+    <string name="import_subtitle_duplicate_many">%1$d 本已在书架中</string>
+    <string name="import_subtitle_duplicate_one">1 本已在书架中</string>
+    <string name="import_subtitle_failure_many">%1$d 本未能添加</string>
+    <string name="import_subtitle_failure_one">1 本未能添加</string>
+    <string name="import_toast_added_one">已添加 %1$s</string>
+    <string name="import_toast_already">《%1$s》已在书架中</string>
+    <string name="import_toast_could_not_add">未能添加 %1$s</string>
+    <plurals name="import_books_count">
+        <item quantity="other">%d 本书</item>
+    </plurals>
 </resources>
