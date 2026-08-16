@@ -58,7 +58,9 @@ output. `pnpm-lock.yaml` is not: commit it with every dependency change.
 ## i18n / l10n
 
 Astro's built-in i18n routing (no third-party plugin): locales `en`
-(default, unprefixed — `/`), `ja` (`/ja/`), `zh` (`/zh/`), configured in
+(`/en/`), `ja` (`/ja/`), `zh` (`/zh/`) — every locale, English included, is
+prefixed via `routing.prefixDefaultLocale`; `/` is a static 301 to `/en/`
+(the old unprefixed English home), defined in the `redirects` block of
 `astro.config.mjs`. Conventions:
 
 - All user-facing strings live in the `src/i18n/ui.ts` dictionaries — never

@@ -51,7 +51,7 @@ const alternates = localizedPath
         <>
           <meta property="og:title" content={og.title} />
           <meta property="og:description" content={og.description} />
-          <meta property="og:url" content={Astro.site} />
+          <meta property="og:url" content={new URL(Astro.url.pathname, Astro.site).href} />
           <meta property="og:type" content="website" />
         </>
       )

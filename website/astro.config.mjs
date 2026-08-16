@@ -6,6 +6,14 @@ export default defineConfig({
   i18n: {
     locales: ["en", "ja", "zh"],
     defaultLocale: "en",
-    // default locale stays unprefixed: / is English, /ja/ and /zh/ localized
+    routing: {
+      // every locale, English included, lives under its own prefix: /en/, /ja/, /zh/
+      prefixDefaultLocale: true,
+    },
+  },
+  // / served the English homepage before every locale was prefixed; keep it
+  // working with a static 301 to the canonical /en/ home.
+  redirects: {
+    "/": { destination: "/en/", status: 301 },
   },
 });
