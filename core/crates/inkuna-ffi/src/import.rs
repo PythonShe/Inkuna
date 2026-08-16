@@ -171,4 +171,13 @@ impl Bookshelf {
         })
         .await
     }
+
+    /// Re-encodes covers persisted before import-time normalization
+    /// existed into the bounded WebP form, returning how many changed.
+    /// Idempotent and cheap when there is nothing to do — fire it once
+    /// in the background after startup, never on the critical path.
+    pub async fn optimize_covers(&self) -> Result<u32, InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.optimize_covers()?)).await
+    }
 }

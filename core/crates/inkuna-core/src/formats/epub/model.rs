@@ -31,7 +31,8 @@ pub struct TocEntry {
 /// Cover art read out of the archive, held in memory only between the
 /// parse and the commit that writes it under `covers/`.
 pub struct Cover {
-    /// The image as stored in the archive; never re-encoded.
+    /// The image as stored in the archive. Extraction never re-encodes;
+    /// the import pipeline's cover normalization does, downstream.
     pub bytes: Vec<u8>,
     /// Lowercase filename extension derived from the media type.
     pub extension: String,

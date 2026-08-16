@@ -40,6 +40,13 @@ actor LibraryStore {
         // dbPath constructor is adopted by the core's v2 migration.
         let bookshelf = try Bookshelf.open(dataDir: directory.path)
         opened = bookshelf
+        // Covers imported by older cores are full-resolution originals;
+        // normalize them into the core's bounded WebP form off the
+        // critical path. Idempotent and cheap when there is nothing to
+        // do; failing only means covers stay big until the next open.
+        Task.detached(priority: .utility) {
+            _ = try? await bookshelf.optimizeCovers()
+        }
         return bookshelf
     }
 }

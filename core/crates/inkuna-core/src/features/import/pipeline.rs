@@ -249,7 +249,9 @@ impl Library {
             language: parsed.metadata.language,
             spine,
             toc: parsed.toc,
-            cover: parsed.cover,
+            // Normalized here, in the parallel parse stage, so the commit
+            // under the writer lock only ever writes display-sized bytes.
+            cover: parsed.cover.map(super::cover::normalize_cover),
         })))
     }
 

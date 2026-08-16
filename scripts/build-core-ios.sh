@@ -17,6 +17,12 @@ export CARGO_TARGET_DIR="$CORE/target"
 # RUSTC must be pinned too: cargo resolves rustc via PATH, where Homebrew's
 # rustc shadows the rustup one.
 export RUSTC="$(rustup which --toolchain stable rustc)"
+
+# The app's deployment floor (apps/ios/project.yml). Without this, cc-built
+# C dependencies (libwebp) compile against the bare SDK while rustc links
+# for the Rust target's ancient default (iOS 10), and newer libSystem
+# symbols like ___chkstk_darwin fail to resolve at link time.
+export IPHONEOS_DEPLOYMENT_TARGET=18.0
 cargo() { rustup run stable cargo "$@"; }
 
 cd "$CORE"

@@ -12,6 +12,9 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 quick-xml = { version = "0.41", features = ["escape-html"] }
 uuid = { version = "1", features = ["v4"] }
 blake3 = "1"
+# Cover normalization: pure-Rust decode/resize, libwebp for lossy encode.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "webp", "rayon"] }
+webp = { version = "0.3", default-features = false }
 rayon = "1"
 percent-encoding = "2"
 log = "0.4"
