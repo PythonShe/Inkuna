@@ -3,71 +3,71 @@
     <string name="app_name">Inkuna</string>
 
     
-    <string name="welcome_tagline">墨水与月光相遇的极简阅读器。</string>
+    <string name="welcome_tagline">极简纯粹的电子书阅读器。</string>
     <string name="welcome_begin">开始</string>
-    <string name="themepick_eyebrow">开卷仪式</string>
-    <string name="themepick_title">无论白昼，亦或深夜</string>
-    <string name="themepick_sample">灯火微熹，月色接替了照亮书页的微光。</string>
+    <string name="themepick_eyebrow">偏好设置</string>
+    <string name="themepick_title">选择日间或夜间阅读模式</string>
+    <string name="themepick_sample">灯光渐暗，月光洒在书页上。</string>
     <string name="themepick_hint">阅读时可随时更改。</string>
     <string name="themepick_continue">继续</string>
 
     
     <string name="theme_paper">纸白</string>
-    <string name="theme_paper_subtitle">明朗日光</string>
-    <string name="theme_calm">恬淡</string>
-    <string name="theme_calm_subtitle">温润羊皮纸</string>
-    <string name="theme_quiet">沉寂</string>
-    <string name="theme_quiet_subtitle">低调石墨</string>
-    <string name="theme_moon">暗月</string>
-    <string name="theme_moon_subtitle">夜读灯火</string>
+    <string name="theme_paper_subtitle">适合日间阅读</string>
+    <string name="theme_calm">羊皮纸</string>
+    <string name="theme_calm_subtitle">柔和护眼</string>
+    <string name="theme_quiet">深灰</string>
+    <string name="theme_quiet_subtitle">低对比度深色</string>
+    <string name="theme_moon">暗黑</string>
+    <string name="theme_moon_subtitle">适合夜间阅读</string>
 
     
-    <string name="tab_tonight">今夕</string>
+    <string name="tab_tonight">今晚</string>
     <string name="tab_library">书架</string>
-    <string name="tab_search">检索</string>
-    <string name="tab_stats">阅历</string>
+    <string name="tab_search">搜索</string>
+    <string name="tab_stats">统计</string>
 
     
-    <string name="tonight_eyebrow">今夕</string>
-    <string name="tonight_title">重拾未完的书卷</string>
-    <string name="tonight_pages_left">本章剩余十五页</string>
+    <string name="tonight_eyebrow">今晚</string>
+    <string name="tonight_title">继续上次的阅读</string>
+    <string name="tonight_pages_left">本章还剩 15 页</string>
     <string name="tonight_percent_read">已读 %1$d%%</string>
     <string name="tonight_keep_reading">继续阅读</string>
-    <string name="tonight_nightstand">案头闲卷</string>
+    <string name="tonight_nightstand">待读书单</string>
     <string name="tonight_chip_fiction">小说</string>
     <string name="tonight_chip_essays">随笔</string>
     <string name="tonight_chip_night_reads">夜读</string>
 
     
     <string name="library_title">书架</string>
-    <string name="library_search_placeholder">在书架中检索</string>
+    <string name="library_search_placeholder">搜索书架</string>
     <string name="library_seg_reading">在读</string>
     <string name="library_seg_finished">已读完</string>
     <string name="library_seg_wishlist">愿望单</string>
-    <string name="library_empty_finished">尚无已读完的书籍。不必匆忙。</string>
-    <string name="library_empty_wishlist">案头尚无书卷。</string>
-    <string name="library_empty_query">在书库中未找到相关内容。</string>
-    <string name="library_empty_reading">此处尚无书籍。</string>
-    <string name="library_empty_all">此处尚无书籍。</string>
+    <string name="library_empty_finished">暂无已读完的书籍。</string>
+    <string name="library_empty_wishlist">心愿单中暂无书籍。</string>
+    <string name="library_empty_query">未找到相关书籍。</string>
+    <string name="library_empty_reading">暂无正在阅读的书籍。</string>
+    <string name="library_empty_all">书架上暂无书籍。</string>
     <string name="library_unopenable">无法打开书架。</string>
     <string name="unknown_author">未知作者</string>
 
     
-    <string name="search_title">检索</string>
+    <string name="search_title">搜索</string>
     <string name="search_placeholder">书名、作者</string>
     <string name="search_recently_added">最近添加</string>
 
     
-    <string name="stats_title">阅读</string>
+    <string name="stats_title">阅读统计</string>
     <string name="stats_in_progress">正在阅读</string>
     <string name="stats_pages_this_week">本周阅读页数</string>
-    <string name="stats_hours_this_month">本月阅读小时</string>
-    <string name="stats_books_this_year">今年读完本数</string>
+    <string name="stats_hours_this_month">本月阅读时长</string>
+    <string name="stats_books_this_year">今年已读完</string>
     <string name="stats_hours_half">%1$s½</string>
     <string name="stats_hours_half_only">½</string>
     <string name="stats_in_progress_empty">暂无正在阅读的书籍。</string>
     <plurals name="stats_evenings">
-        <item quantity="other">本月有 %d 个夜晚与书相伴。</item>
+        <item quantity="other">本月有 %d 天在夜间阅读。</item>
     </plurals>
 
     
@@ -77,8 +77,8 @@
     
     <string name="reader_menu_contents">目录 · %1$d%%</string>
     <string name="reader_menu_theme_type">版式与主题</string>
-    <string name="reader_search_placeholder">在本书中搜索</string>
-    <string name="reader_search_empty">本书中未找到相关内容。</string>
+    <string name="reader_search_placeholder">搜索本书内容</string>
+    <string name="reader_search_empty">未在本书中找到相关内容。</string>
     <string name="reader_bookmark_placed">书签已添加。</string>
     <string name="reader_link_failed">无法打开此链接。</string>
     <string name="reader_page_info">第 %1$d 页，共 %2$d 页 · %3$d%%</string>

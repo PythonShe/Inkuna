@@ -2,7 +2,7 @@
 <resources>
     
     <string name="import_add_books">加入書籍</string>
-    <string name="import_empty_title">書架上尚無書籍</string>
+    <string name="import_empty_title">書架上暫無書籍</string>
     <string name="import_empty_body">從檔案中加入 EPUB 電子書，書籍將在此等候。Inkuna 會保留獨立複本，不影響原始檔案。</string>
     <string name="import_empty_footnote">目前支援 EPUB。漫畫及更多格式即將推出。</string>
     <string name="import_empty_action">加入您的第一本書</string>

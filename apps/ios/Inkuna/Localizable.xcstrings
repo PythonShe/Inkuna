@@ -369,13 +369,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "墨水与月光相遇的极简阅读器。"
+            "value": "极简纯粹的电子书阅读器。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "墨水與月光相遇的極簡閱讀器。"
+            "value": "極簡純粹的電子書閱讀器。"
           }
         },
         "ja": {
@@ -547,13 +547,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "开卷仪式"
+            "value": "偏好设置"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "開卷儀式"
+            "value": "偏好設定"
           }
         },
         "ja": {
@@ -636,13 +636,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无论白昼，亦或深夜"
+            "value": "选择日间或夜间阅读模式"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無論白晝，抑或深夜"
+            "value": "選擇日間或夜間閱讀模式"
           }
         },
         "ja": {
@@ -725,13 +725,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "灯火微熹，月色接替了照亮书页的微光。"
+            "value": "灯光渐暗，月光洒在书页上。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "燈火微熹，月色接替了照亮書頁的微光。"
+            "value": "燈光漸暗，月光灑在書頁上。"
           }
         },
         "ja": {
@@ -1081,13 +1081,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "明朗日光"
+            "value": "适合日间阅读"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "明朗日光"
+            "value": "適合日間閱讀"
           }
         },
         "ja": {
@@ -1170,13 +1170,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "恬淡"
+            "value": "羊皮纸"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "恬淡"
+            "value": "羊皮紙"
           }
         },
         "ja": {
@@ -1259,13 +1259,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "温润羊皮纸"
+            "value": "柔和护眼"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "溫潤羊皮紙"
+            "value": "柔和護眼"
           }
         },
         "ja": {
@@ -1348,13 +1348,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "沉寂"
+            "value": "深灰"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "沉寂"
+            "value": "深灰"
           }
         },
         "ja": {
@@ -1437,13 +1437,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "低调石墨"
+            "value": "低对比度深色"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "低調石墨"
+            "value": "低對比度深色"
           }
         },
         "ja": {
@@ -1526,13 +1526,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "暗月"
+            "value": "暗黑"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "暗月"
+            "value": "暗黑"
           }
         },
         "ja": {
@@ -1615,13 +1615,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "夜读灯火"
+            "value": "适合夜间阅读"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "夜讀燈火"
+            "value": "適合夜間閱讀"
           }
         },
         "ja": {
@@ -1704,13 +1704,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "今夕"
+            "value": "今晚"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "今夜"
+            "value": "今晚"
           }
         },
         "ja": {
@@ -1882,7 +1882,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "检索"
+            "value": "搜索"
           }
         },
         "zh-Hant": {
@@ -1971,13 +1971,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "阅历"
+            "value": "统计"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "閱讀統計"
+            "value": "統計"
           }
         },
         "ja": {
@@ -2060,13 +2060,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "今夕"
+            "value": "今晚"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "今夜"
+            "value": "今晚"
           }
         },
         "ja": {
@@ -2149,13 +2149,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "重拾未完的书卷"
+            "value": "继续上次的阅读"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "接續未完的篇章"
+            "value": "繼續上次的閱讀"
           }
         },
         "ja": {
@@ -2238,13 +2238,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "本章剩余十五页"
+            "value": "本章还剩 15 页"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "本章尚餘十五頁"
+            "value": "本章還剩 15 頁"
           }
         },
         "ja": {
@@ -2505,13 +2505,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "案头闲卷"
+            "value": "待读书单"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "案頭隨選"
+            "value": "待讀書單"
           }
         },
         "ja": {
@@ -2950,13 +2950,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在书架中检索"
+            "value": "搜索书架"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在書架中搜尋"
+            "value": "搜尋書架"
           }
         },
         "ja": {
@@ -3306,13 +3306,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "尚无已读完的书籍。不必匆忙。"
+            "value": "暂无已读完的书籍。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "尚無已讀完的書籍。不必匆忙。"
+            "value": "暫無已讀完的書籍。"
           }
         },
         "ja": {
@@ -3395,13 +3395,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "案头尚无书卷。"
+            "value": "心愿单中暂无书籍。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "案頭尚無書卷。"
+            "value": "願望清單中暫無書籍。"
           }
         },
         "ja": {
@@ -3484,13 +3484,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在书库中未找到相关内容。"
+            "value": "未找到相关书籍。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在書庫中未找到相關內容。"
+            "value": "未找到相關書籍。"
           }
         },
         "ja": {
@@ -3573,13 +3573,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此处尚无书籍。"
+            "value": "暂无正在阅读的书籍。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此處尚無書籍。"
+            "value": "暫無正在閱讀的書籍。"
           }
         },
         "ja": {
@@ -3662,13 +3662,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此处尚无书籍。"
+            "value": "书架上暂无书籍。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此處尚無書籍。"
+            "value": "書架上暫無書籍。"
           }
         },
         "ja": {
@@ -3840,7 +3840,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "检索"
+            "value": "搜索"
           }
         },
         "zh-Hant": {
@@ -4107,13 +4107,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "阅读"
+            "value": "阅读统计"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "閱讀"
+            "value": "閱讀統計"
           }
         },
         "ja": {
@@ -4374,13 +4374,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "本月阅读小时"
+            "value": "本月阅读时长"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "本月閱讀小時"
+            "value": "本月閱讀時長"
           }
         },
         "ja": {
@@ -4463,13 +4463,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "今年读完本数"
+            "value": "今年已读完"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "今年讀完本數"
+            "value": "今年已讀完"
           }
         },
         "ja": {
@@ -5175,13 +5175,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在本书中搜索"
+            "value": "搜索本书内容"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在本書中搜尋"
+            "value": "搜尋本書內容"
           }
         },
         "ja": {
@@ -5264,13 +5264,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "本书中未找到相关内容。"
+            "value": "未在本书中找到相关内容。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "本書中未找到相關內容。"
+            "value": "未在本書中找到相關內容。"
           }
         },
         "ja": {
@@ -7756,13 +7756,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "书架上尚无书籍"
+            "value": "书架上暂无书籍"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "書架上尚無書籍"
+            "value": "書架上暫無書籍"
           }
         },
         "ja": {
@@ -11954,7 +11954,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "本月有 %lld 个夜晚与书相伴。"
+                  "value": "本月有 %lld 天在夜间阅读。"
                 }
               }
             }
@@ -11966,7 +11966,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "本月有 %lld 個夜晚與書相伴。"
+                  "value": "本月有 %lld 天在夜間閱讀。"
                 }
               }
             }
