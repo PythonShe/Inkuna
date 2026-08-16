@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -35,39 +37,53 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import app.inkuna.android.R
-import app.inkuna.android.model.PlaceholderLibrary
 import app.inkuna.android.ui.components.InkProgressBar
 import app.inkuna.android.ui.components.inkShadow
-import java.time.format.TextStyle
-import java.time.temporal.WeekFields
 import app.inkuna.android.ui.main.DisplayTitle
+import app.inkuna.android.ui.main.EmptyState
 import app.inkuna.android.ui.main.ScrollScreen
 import app.inkuna.android.ui.main.SectionTitle
 import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
+import java.text.NumberFormat
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.time.temporal.WeekFields
+import java.util.Locale
 
 /** True one-pixel hairline, like iOS's 1/displayScale separators. */
 @Composable
 fun hairlineThickness(): Dp = with(LocalDensity.current) { (1f / density).dp }
 
+/**
+ * The Stats tab: reading facts, the month's reading calendar, and the
+ * in-progress list — every number from the core's recorded reading
+ * sessions. Until the first answer lands the screen shows its title alone,
+ * never zeros pretending to be data.
+ */
 @Composable
-fun StatsScreen(innerPadding: PaddingValues) {
+fun StatsScreen(
+    innerPadding: PaddingValues,
+    model: StatsViewModel = viewModel(),
+) {
     val ink = InkTheme.colors
-    // TODO(core): all stats derive from recorded reading sessions; the
-    // calendar is prototype data, not the real date.
-    // Month and weekday names come from java.time in the reader's locale —
-    // spelling them out in English would leave the stats screen untranslated
-    // in an otherwise localized app.
-    val locale = LocalConfiguration.current.locales[0]
-    val monthName = remember(locale) {
-        PlaceholderLibrary.calendarMonth.getDisplayName(TextStyle.FULL_STANDALONE, locale)
+    val state by model.state.collectAsStateWithLifecycle()
+
+    // A reading session may have ended since the numbers were fetched.
+    LifecycleResumeEffect(Unit) {
+        model.reload()
+        onPauseOrDispose {}
     }
 
     ScrollScreen(innerPadding) {
         DisplayTitle(stringResource(R.string.stats_title))
+        val overview = state.overview ?: return@ScrollScreen
         Spacer(Modifier.height(InkSpace.s6))
         // Intrinsic height keeps the three tiles level once a caption wraps
         // — which it does in most translations, and at any raised font scale.
@@ -75,22 +91,42 @@ fun StatsScreen(innerPadding: PaddingValues) {
             horizontalArrangement = Arrangement.spacedBy(InkSpace.s3),
             modifier = Modifier.height(IntrinsicSize.Min),
         ) {
-            PlaceholderLibrary.facts.forEach { fact ->
-                FactCard(
-                    fact.value,
-                    stringResource(fact.captionRes),
-                    Modifier.weight(1f).fillMaxHeight(),
-                )
-            }
+            FactCard(
+                overview.pagesThisWeek.toString(),
+                stringResource(R.string.stats_pages_this_week),
+                Modifier.weight(1f).fillMaxHeight(),
+            )
+            FactCard(
+                hoursText(overview.minutesThisMonth),
+                stringResource(R.string.stats_hours_this_month),
+                Modifier.weight(1f).fillMaxHeight(),
+            )
+            FactCard(
+                overview.booksFinishedThisYear.toString(),
+                stringResource(R.string.stats_books_this_year),
+                Modifier.weight(1f).fillMaxHeight(),
+            )
         }
         Spacer(Modifier.height(34.dp))
+        // Month and weekday names come from java.time in the reader's locale
+        // — spelling them out in English would leave the stats screen
+        // untranslated in an otherwise localized app.
+        val locale = LocalConfiguration.current.locales[0]
+        val today = LocalDate.now()
+        val monthName = remember(locale, today.month) {
+            today.month.getDisplayName(TextStyle.FULL_STANDALONE, locale)
+        }
         SectionTitle(monthName)
         Spacer(Modifier.height(14.dp))
-        CalendarCard(monthName, locale)
+        CalendarCard(monthName, locale, today, overview.readDays)
         Spacer(Modifier.height(34.dp))
         SectionTitle(stringResource(R.string.stats_in_progress))
         Spacer(Modifier.height(6.dp))
-        PlaceholderLibrary.books.forEach { book ->
+        if (state.inProgress.isEmpty()) {
+            EmptyState(stringResource(R.string.stats_in_progress_empty))
+        }
+        state.inProgress.forEach { book ->
+            val progress = book.progress ?: 0
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -106,9 +142,9 @@ fun StatsScreen(innerPadding: PaddingValues) {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                InkProgressBar(book.progress, Modifier.width(92.dp))
+                InkProgressBar(progress, Modifier.width(92.dp))
                 Text(
-                    stringResource(R.string.reader_percent, book.progress),
+                    stringResource(R.string.reader_percent, progress),
                     style = InkType.caption,
                     color = ink.textTertiary,
                     textAlign = TextAlign.End,
@@ -123,6 +159,24 @@ fun StatsScreen(innerPadding: PaddingValues) {
                     .background(ink.borderHairline)
             )
         }
+    }
+}
+
+/**
+ * Whole and half hours, the design's "6½" voice: 30+ leftover minutes
+ * round to the half, never to a decimal. The digits come from the
+ * composition's locale, so a locale with its own numerals gets them.
+ */
+@Composable
+private fun hoursText(minutes: Int): String {
+    val locale = LocalConfiguration.current.locales[0]
+    val numbers = remember(locale) { NumberFormat.getInstance(locale) }
+    val hours = minutes / 60
+    val half = minutes % 60 >= 30
+    return when {
+        hours == 0 && half -> stringResource(R.string.stats_hours_half_only)
+        half -> stringResource(R.string.stats_hours_half, numbers.format(hours))
+        else -> numbers.format(hours)
     }
 }
 
@@ -152,16 +206,24 @@ private fun FactCard(value: String, caption: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun CalendarCard(monthName: String, locale: java.util.Locale) {
+private fun CalendarCard(
+    monthName: String,
+    locale: Locale,
+    today: LocalDate,
+    readDays: Set<Int>,
+) {
     val ink = InkTheme.colors
+    // The grid starts on the locale's first day of the week, with that
+    // locale's own narrow weekday initials; the leading blanks put the 1st
+    // in its true column.
+    val firstDay = remember(locale) { WeekFields.of(locale).firstDayOfWeek }
+    val leadingBlanks =
+        (today.withDayOfMonth(1).dayOfWeek.value - firstDay.value + 7) % 7
     val cells = buildList {
-        repeat(PlaceholderLibrary.calendarLeadingBlanks) { add(null) }
-        (1..PlaceholderLibrary.calendarDayCount).forEach { add(it) }
+        repeat(leadingBlanks) { add(null) }
+        (1..today.lengthOfMonth()).forEach { add(it) }
         while (size % 7 != 0) add(null)
     }
-    // The grid starts on the locale's first day of the week, with that
-    // locale's own narrow weekday initials.
-    val firstDay = remember(locale) { WeekFields.of(locale).firstDayOfWeek }
     val weekdays = remember(locale) {
         (0L..6L).map { offset ->
             firstDay.plus(offset).getDisplayName(TextStyle.NARROW_STANDALONE, locale)
@@ -196,11 +258,19 @@ private fun CalendarCard(monthName: String, locale: java.util.Locale) {
                 horizontalArrangement = Arrangement.spacedBy(InkSpace.s1),
                 modifier = Modifier.padding(top = InkSpace.s1),
             ) {
-                week.forEach { day -> DayCell(day, monthName, Modifier.weight(1f)) }
+                week.forEach { day ->
+                    DayCell(
+                        day = day,
+                        monthName = monthName,
+                        today = today.dayOfMonth,
+                        didRead = day != null && day in readDays,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
         Text(
-            stringResource(R.string.stats_calendar_caption),
+            pluralStringResource(R.plurals.stats_evenings, readDays.size, readDays.size),
             style = InkType.caption,
             color = ink.textTertiary,
             modifier = Modifier.padding(top = 10.dp),
@@ -209,10 +279,15 @@ private fun CalendarCard(monthName: String, locale: java.util.Locale) {
 }
 
 @Composable
-private fun DayCell(day: Int?, monthName: String, modifier: Modifier = Modifier) {
+private fun DayCell(
+    day: Int?,
+    monthName: String,
+    today: Int,
+    didRead: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val ink = InkTheme.colors
-    val isToday = day == PlaceholderLibrary.calendarToday
-    val didRead = day != null && day in PlaceholderLibrary.calendarReadDays
+    val isToday = day == today
     // "Read that evening" is carried only by a 4dp accent dot; without a text
     // alternative the whole calendar is a column of bare numerals.
     val cellLabel = when {
@@ -234,7 +309,7 @@ private fun DayCell(day: Int?, monthName: String, modifier: Modifier = Modifier)
             style = InkType.label.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Normal),
             color = when {
                 day == null -> Color.Transparent
-                day > PlaceholderLibrary.calendarToday -> ink.textTertiary
+                day > today -> ink.textTertiary
                 else -> ink.textDisplay
             },
         )

@@ -27,9 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import app.inkuna.android.R
-import app.inkuna.android.model.PlaceholderBook
 import app.inkuna.android.ui.library.LibraryScreen
-import app.inkuna.core.Publication as CorePublication
 import app.inkuna.android.ui.search.SearchScreen
 import app.inkuna.android.ui.stats.StatsScreen
 import app.inkuna.android.ui.theme.InkTheme
@@ -59,10 +57,8 @@ enum class MainTab(
  */
 @Composable
 fun MainScreen(
-    onOpenBook: (PlaceholderBook) -> Unit,
-    onOpenPublication: (String) -> Unit,
-    continueReading: CorePublication?,
-    onOpenReader: (CorePublication) -> Unit,
+    onOpenBook: (String) -> Unit,
+    onOpenReader: (String) -> Unit,
 ) {
     val ink = InkTheme.colors
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Tonight) }
@@ -103,11 +99,10 @@ fun MainScreen(
             when (selectedTab) {
                 MainTab.Tonight -> TonightScreen(
                     innerPadding,
-                    onOpenBook,
-                    continueReading,
-                    onOpenReader,
+                    onOpenBook = onOpenBook,
+                    onOpenReader = onOpenReader,
                 )
-                MainTab.Library -> LibraryScreen(innerPadding, onOpenPublication)
+                MainTab.Library -> LibraryScreen(innerPadding, onOpenBook)
                 MainTab.Search -> SearchScreen(innerPadding, onOpenBook)
                 MainTab.Stats -> StatsScreen(innerPadding)
             }

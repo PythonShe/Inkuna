@@ -3,25 +3,32 @@ import UIKit
 /// A standing book on a horizontal shelf: cover with title and author
 /// beneath (the "On the nightstand" / "New this week" pattern).
 final class ShelfBookView: UIControl {
-    let book: PlaceholderBook
+    let publication: Publication
 
-    var onOpen: ((PlaceholderBook) -> Void)?
+    var onOpen: ((Publication) -> Void)?
 
-    init(book: PlaceholderBook, width: CGFloat = 104) {
-        self.book = book
+    init(publication: Publication, width: CGFloat = 104) {
+        self.publication = publication
         super.init(frame: .zero)
 
-        let cover = BookCoverView(title: book.title, author: book.author, seed: book.coverSeed)
+        // TODO(l10n): localize once the strings pass lands.
+        let author = publication.displayAuthors(unknownAuthor: "Unknown author")
+        let cover = BookCoverView(
+            title: publication.title,
+            author: author,
+            seed: BookCoverView.coverSeed(for: publication.id),
+            coverPath: publication.coverPath
+        )
         cover.isUserInteractionEnabled = false
 
         let titleLabel = InkLabel()
-        titleLabel.text = book.title
+        titleLabel.text = publication.title
         titleLabel.font = InkFont.serif(14, weight: .medium, style: .footnote)
         titleLabel.textColor = InkColor.textDisplay
         titleLabel.numberOfLines = 2
 
         let authorLabel = InkLabel()
-        authorLabel.text = book.author
+        authorLabel.text = author
         authorLabel.font = InkFont.caption
         authorLabel.textColor = InkColor.textTertiary
         authorLabel.numberOfLines = 1
@@ -45,14 +52,14 @@ final class ShelfBookView: UIControl {
         ])
 
         isAccessibilityElement = true
-        accessibilityLabel = "\(book.title), \(book.author)"
+        accessibilityLabel = "\(publication.title), \(author)"
         accessibilityTraits = .button
 
         // .touchUpInside, not .primaryActionTriggered: plain UIControl
         // subclasses never emit the latter.
         addAction(UIAction { [weak self] _ in
             guard let self else { return }
-            self.onOpen?(self.book)
+            self.onOpen?(self.publication)
         }, for: .touchUpInside)
     }
 

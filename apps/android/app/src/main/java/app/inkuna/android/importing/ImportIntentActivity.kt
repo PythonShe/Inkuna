@@ -20,12 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import app.inkuna.android.MainActivity
 import app.inkuna.android.model.AppSettings
 import app.inkuna.android.ui.importing.ImportSheet
 import app.inkuna.android.ui.theme.InkTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 /**
  * Handles an EPUB arriving from outside the app — tapped in Files, shared
@@ -75,38 +77,41 @@ class ImportIntentActivity : ComponentActivity() {
             finish()
             return
         }
-        // The same one blocking read MainActivity does, so the sheet opens
-        // on the reader's chosen ground instead of flashing the wrong one.
-        val settings = AppSettings(applicationContext)
-        val initial = runBlocking { settings.snapshot.first() }
-        setContent {
-            val snapshot by settings.snapshot.collectAsState(initial)
-            InkTheme(night = snapshot.readingTheme.isNight) {
-                Box(Modifier.fillMaxSize().background(InkTheme.colors.scrim)) {
-                    InboundImport(
-                        uris = incoming,
-                        delivery = delivery,
-                        onDone = { addedSomething ->
-                            if (addedSomething) {
-                                // NEW_TASK so the library comes up in
-                                // Inkuna's own task rather than on top of
-                                // the caller's (Files, Gmail) back stack.
-                                // SINGLE_TOP because CLEAR_TOP alone would
-                                // finish and recreate a standard-launch
-                                // MainActivity — tearing down an open
-                                // reader — instead of onNewIntent-ing it.
-                                startActivity(
-                                    Intent(this@ImportIntentActivity, MainActivity::class.java)
-                                        .addFlags(
-                                            Intent.FLAG_ACTIVITY_NEW_TASK or
-                                                Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                                                Intent.FLAG_ACTIVITY_SINGLE_TOP
-                                        )
-                                )
-                            }
-                            finish()
-                        },
-                    )
+        // The same load MainActivity does — off the main thread while the
+        // (transparent) launch window holds — so the sheet opens on the
+        // reader's chosen ground instead of flashing the wrong one.
+        val settings = AppSettings.get(applicationContext)
+        lifecycleScope.launch {
+            settings.load()
+            setContent {
+                val snapshot by settings.snapshot.collectAsState()
+                InkTheme(night = snapshot.readingTheme.isNight) {
+                    Box(Modifier.fillMaxSize().background(InkTheme.colors.scrim)) {
+                        InboundImport(
+                            uris = incoming,
+                            delivery = delivery,
+                            onDone = { addedSomething ->
+                                if (addedSomething) {
+                                    // NEW_TASK so the library comes up in
+                                    // Inkuna's own task rather than on top of
+                                    // the caller's (Files, Gmail) back stack.
+                                    // SINGLE_TOP because CLEAR_TOP alone would
+                                    // finish and recreate a standard-launch
+                                    // MainActivity — tearing down an open
+                                    // reader — instead of onNewIntent-ing it.
+                                    startActivity(
+                                        Intent(this@ImportIntentActivity, MainActivity::class.java)
+                                            .addFlags(
+                                                Intent.FLAG_ACTIVITY_NEW_TASK or
+                                                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                            )
+                                    )
+                                }
+                                finish()
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -183,6 +188,13 @@ private fun InboundImport(
         while (!started) {
             ImportEngine.state.first { it is ImportState.Idle }
             started = ImportEngine.start(context, uris)
+            // The engine can refuse while its state still *reads* Idle —
+            // start() takes the run slot synchronously but only publishes
+            // Running after naming every file of the other selection. A
+            // StateFlow replays that stale Idle immediately, so without a
+            // yield this loop would spin the main thread until the other
+            // run gets around to publishing.
+            if (!started) delay(50)
         }
     }
 

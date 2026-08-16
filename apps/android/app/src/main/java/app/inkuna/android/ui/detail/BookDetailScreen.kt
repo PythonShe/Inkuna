@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -32,32 +33,45 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import app.inkuna.android.R
-import app.inkuna.android.model.PlaceholderBook
-import app.inkuna.android.model.PlaceholderChapter
-import app.inkuna.android.model.PlaceholderLibrary
-import app.inkuna.core.Publication as CorePublication
 import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkIconButton
 import app.inkuna.android.ui.components.InkProgressBar
+import app.inkuna.android.ui.main.EmptyState
 import app.inkuna.android.ui.main.SectionTitle
 import app.inkuna.android.ui.stats.hairlineThickness
 import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
 
-// TODO(core): the detail metadata, progress, and contents list still render
-// the placeholder book; only the read affordances are core-backed. The
-// library wiring workstream replaces the visuals with `publication`.
+/**
+ * Book detail: the cover held at arm's length, progress, and the core's
+ * table of contents with the saved position's chapter inked in accent.
+ * A chapter row opens the reader at that chapter; the button resumes the
+ * saved position.
+ */
 @Composable
 fun BookDetailScreen(
-    book: PlaceholderBook,
-    publication: CorePublication?,
+    publicationId: String,
     onBack: () -> Unit,
-    onRead: (CorePublication) -> Unit,
+    onRead: (chapterHref: String?) -> Unit,
+    model: BookDetailViewModel = viewModel(
+        key = "detail-$publicationId",
+        factory = BookDetailViewModel.factory(publicationId),
+    ),
 ) {
     val ink = InkTheme.colors
+    val state by model.state.collectAsStateWithLifecycle()
+
+    LifecycleResumeEffect(Unit) {
+        model.reload()
+        onPauseOrDispose {}
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -73,6 +87,17 @@ fun BookDetailScreen(
             onClick = onBack,
         )
         Spacer(Modifier.height(18.dp))
+
+        val book = state.book
+        if (book == null) {
+            if (state.failed) {
+                EmptyState(stringResource(R.string.library_unopenable))
+            }
+            // Still fetching: the screen holds quiet instead of flashing
+            // placeholder metadata that names the wrong book.
+            return@Column
+        }
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth(),
@@ -81,7 +106,8 @@ fun BookDetailScreen(
                 title = book.title,
                 author = book.author,
                 width = 150.dp,
-                seed = book.coverSeed,
+                seed = book.seed,
+                coverPath = book.coverPath,
             )
             Text(
                 book.title,
@@ -97,14 +123,19 @@ fun BookDetailScreen(
                 modifier = Modifier.padding(top = 5.dp),
             )
             Spacer(Modifier.height(InkSpace.s5))
-            InkProgressBar(book.progress, Modifier.width(200.dp))
+            val progress = book.progress ?: 0
+            InkProgressBar(progress, Modifier.width(200.dp))
+            // The honest position line, mirroring the reader: "p. N of M"
+            // only when the stored locator carries a synthetic position and
+            // the core knows the count — never a fictional page number.
+            val position = state.position
+            val positionCount = state.positionCount
             Text(
-                stringResource(
-                    R.string.reader_page_info,
-                    book.currentPage,
-                    book.pageCount,
-                    book.progress,
-                ),
+                if (position != null && positionCount != null && positionCount > 0) {
+                    stringResource(R.string.reader_page_info, position, positionCount, progress)
+                } else {
+                    stringResource(R.string.reader_percent, progress)
+                },
                 style = InkType.caption,
                 color = ink.textTertiary,
                 modifier = Modifier.padding(top = InkSpace.s2),
@@ -112,37 +143,35 @@ fun BookDetailScreen(
             Spacer(Modifier.height(18.dp))
             InkButton(
                 text = stringResource(R.string.tonight_keep_reading),
-                // Reading needs a real book: until an import UI exists the
-                // library can be empty, and then there is nothing to open.
-                onClick = { publication?.let(onRead) },
+                onClick = { onRead(null) },
                 icon = Icons.Outlined.AutoStories,
-                enabled = publication != null,
             )
         }
         Spacer(Modifier.height(InkSpace.s10))
         SectionTitle(stringResource(R.string.detail_contents))
         Spacer(Modifier.height(InkSpace.s2))
-        PlaceholderLibrary.chapters.forEachIndexed { index, chapter ->
-            // TODO(core): jump to the tapped chapter; the placeholder rows
-            // always open the current reading position (the in-reader
-            // contents sheet does jump for real).
-            ChapterRow(
-                chapter = chapter,
-                current = index == PlaceholderLibrary.currentChapterIndex,
-                onClick = { publication?.let(onRead) },
-            )
+        if (state.chapters.isEmpty()) {
+            EmptyState(stringResource(R.string.detail_no_contents))
+        } else {
+            state.chapters.forEachIndexed { index, chapter ->
+                ChapterRow(
+                    chapter = chapter,
+                    current = index == state.currentChapterIndex,
+                    onClick = { onRead(chapter.href) },
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun ChapterRow(
-    chapter: PlaceholderChapter,
+    chapter: BookDetailViewModel.DetailChapter,
     current: Boolean,
     onClick: () -> Unit,
 ) {
     val ink = InkTheme.colors
-    val label = stringResource(R.string.a11y_chapter_row, chapter.numeral, chapter.title, chapter.page)
+    val label = stringResource(R.string.a11y_chapter_row_no_page, chapter.numeral, chapter.title)
     Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -154,7 +183,13 @@ private fun ChapterRow(
                     contentDescription = label
                     role = Role.Button
                 }
-                .padding(horizontal = 2.dp, vertical = 13.dp),
+                // Nested TOC entries step in with their depth.
+                .padding(
+                    start = 2.dp + (chapter.depth.coerceAtMost(4) * 14).dp,
+                    end = 2.dp,
+                    top = 13.dp,
+                    bottom = 13.dp,
+                ),
         ) {
             Text(
                 chapter.numeral,
@@ -171,11 +206,6 @@ private fun ChapterRow(
                 ),
                 color = if (current) ink.accentText else ink.textDisplay,
                 modifier = Modifier.weight(1f),
-            )
-            Text(
-                stringResource(R.string.reader_chapter_page, chapter.page),
-                style = InkType.caption,
-                color = ink.textTertiary,
             )
         }
         Box(

@@ -3,6 +3,10 @@ import UIKit
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
+    /// The launch read of the settings record, cancelled if the scene goes
+    /// away before it lands.
+    private var launchTask: Task<Void, Never>?
+
     func scene(
         _ scene: UIScene,
         willConnectTo session: UISceneSession,
@@ -10,21 +14,32 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     ) {
         guard let windowScene = scene as? UIWindowScene else { return }
         let window = UIWindow(windowScene: windowScene)
-        let settings = AppSettings.shared
-        // The in-app day/night side follows the reading theme, not the
-        // system appearance.
-        window.overrideUserInterfaceStyle = settings.readingTheme.isNight ? .dark : .light
-        window.rootViewController = settings.hasCompletedOnboarding
-            ? MainTabBarController()
-            : RootNavigationController(rootViewController: WelcomeViewController())
-        window.makeKeyAndVisible()
         self.window = window
-        #if DEBUG
-        debugRoute()
-        #endif
-        // A book handed to us while the app was not running ("Open with
-        // Inkuna" from Files, Mail, Safari, a share sheet) arrives here.
-        openIncomingDocuments(connectionOptions.urlContexts, in: scene)
+        // Settings live in the core; the launch screen holds for the one
+        // local read before the first frame commits.
+        let urlContexts = connectionOptions.urlContexts
+        launchTask = Task { @MainActor in
+            await AppSettings.shared.load()
+            guard !Task.isCancelled else { return }
+            let settings = AppSettings.shared
+            // The in-app day/night side follows the reading theme, not the
+            // system appearance.
+            window.overrideUserInterfaceStyle = settings.readingTheme.isNight ? .dark : .light
+            window.rootViewController = settings.hasCompletedOnboarding
+                ? MainTabBarController()
+                : RootNavigationController(rootViewController: WelcomeViewController())
+            window.makeKeyAndVisible()
+            #if DEBUG
+            self.debugRoute()
+            #endif
+            // A book handed to us while the app was not running ("Open with
+            // Inkuna" from Files, Mail, Safari, a share sheet) arrives here.
+            self.openIncomingDocuments(urlContexts, in: scene)
+        }
+    }
+
+    func sceneDidDisconnect(_ scene: UIScene) {
+        launchTask?.cancel()
     }
 
     /// The same books, when the app is already running.
@@ -78,9 +93,17 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             case "stats": main.select(.stats)
             case "detail":
                 guard let navigation = main.selectedViewController as? UINavigationController else { return }
-                let detail = BookDetailViewController(book: PlaceholderLibrary.heroBook)
-                detail.hidesBottomBarWhenPushed = true
-                navigation.pushViewController(detail, animated: false)
+                // The detail screen needs a real publication; deep-launch
+                // onto the newest import (fixture runs seed one first).
+                Task {
+                    guard
+                        let bookshelf = try? await LibraryStore.shared.library(),
+                        let publication = try? await bookshelf.list(shelf: .all, sort: .recentlyAdded).first
+                    else { return }
+                    let detail = BookDetailViewController(publication: publication)
+                    detail.hidesBottomBarWhenPushed = true
+                    navigation.pushViewController(detail, animated: false)
+                }
             case "reader":
                 guard let navigation = main.selectedViewController as? UINavigationController else { return }
                 ReaderLauncher.push(on: navigation)

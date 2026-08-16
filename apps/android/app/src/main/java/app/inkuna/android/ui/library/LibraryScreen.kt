@@ -104,6 +104,7 @@ fun LibraryScreen(
                         author = row.author,
                         progress = row.progress,
                         seed = row.seed,
+                        coverPath = row.coverPath,
                         // The core owns every book's file, so a listed book
                         // is always on disk — no cloud-only state to badge.
                         downloaded = true,

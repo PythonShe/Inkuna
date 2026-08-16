@@ -1,15 +1,41 @@
+import os
+import ReadiumShared
 import UIKit
 
-/// Book detail: the cover held at arm's length, progress, and the table
-/// of contents with the reader's current chapter inked in accent.
-///
-/// TODO(core): chapters and progress come from the Rust core's metadata /
-/// TOC extraction; the placeholder contents render the hero book for now.
-final class BookDetailViewController: UIViewController {
-    private let book: PlaceholderBook
+// The UniFFI bindings are compiled into this target, so `Publication` below
+// is the core's record, not `ReadiumShared.Publication` — the import is for
+// `Locator`, which decodes the core's stored position.
 
-    init(book: PlaceholderBook) {
-        self.book = book
+/// Book detail: the cover held at arm's length, progress, and the core's
+/// table of contents with the saved position's chapter inked in accent.
+final class BookDetailViewController: UIViewController {
+    /// The book being described. Re-fetched on every appearance: progress
+    /// moves while the reader is open, and the rows behind it are stale by
+    /// the time the reader is popped.
+    private var publication: Publication
+
+    /// The core's flattened TOC; empty until fetched (and for books that
+    /// list none).
+    private var chapters: [Chapter] = []
+
+    private let progressBar: InkProgressBar
+    private let metaLabel = InkLabel()
+    private let contentsStack = UIStackView()
+
+    private let logger = Logger(subsystem: "app.inkuna.ios", category: "detail")
+
+    /// The in-flight refresh, cancelled by its successor.
+    /// `nonisolated(unsafe)` so the nonisolated `deinit` can cancel it; only
+    /// ever touched on the main actor.
+    nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
+
+    deinit {
+        refreshTask?.cancel()
+    }
+
+    init(publication: Publication) {
+        self.publication = publication
+        self.progressBar = InkProgressBar(progress: CGFloat(publication.progression))
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -57,31 +83,38 @@ final class BookDetailViewController: UIViewController {
 
         // MARK: Cover block
 
-        let cover = BookCoverView(title: book.title, author: book.author, seed: book.coverSeed)
+        // TODO(l10n): localize once the strings pass lands.
+        let author = publication.displayAuthors(unknownAuthor: "Unknown author")
+        let cover = BookCoverView(
+            title: publication.title,
+            author: author,
+            seed: BookCoverView.coverSeed(for: publication.id),
+            coverPath: publication.coverPath
+        )
         cover.widthAnchor.constraint(equalToConstant: 150).isActive = true
 
         let titleLabel = InkLabel()
-        titleLabel.text = book.title
+        titleLabel.text = publication.title
         titleLabel.font = InkFont.displaySmall
         titleLabel.textColor = InkColor.textDisplay
         titleLabel.textAlignment = .center
         titleLabel.numberOfLines = 0
 
         let authorLabel = InkLabel()
-        authorLabel.text = book.author
+        authorLabel.text = author
         authorLabel.font = InkFont.labelRegular
         authorLabel.textColor = InkColor.textSecondary
 
-        let progressBar = InkProgressBar(progress: book.progress)
         progressBar.widthAnchor.constraint(equalToConstant: 200).isActive = true
 
-        let metaLabel = InkLabel()
-        metaLabel.text = book.metaText
+        metaLabel.text = positionText()
         metaLabel.font = InkFont.caption
         metaLabel.textColor = InkColor.textTertiary
 
+        // TODO(l10n): localize once the strings pass lands.
         let readButton = InkButton("Keep reading", symbol: "book") { [weak self] in
-            self?.openReader()
+            guard let self else { return }
+            ReaderLauncher.push(self.publication, on: self.navigationController)
         }
 
         let coverBlock = UIStackView(arrangedSubviews: [cover, titleLabel, authorLabel, progressBar, metaLabel, readButton])
@@ -96,6 +129,7 @@ final class BookDetailViewController: UIViewController {
 
         // MARK: Contents
 
+        // TODO(l10n): localize once the strings pass lands.
         let contentsTitle = InkLabel()
         contentsTitle.text = "Contents"
         contentsTitle.font = InkFont.sectionTitle
@@ -103,38 +137,133 @@ final class BookDetailViewController: UIViewController {
         content.addArrangedSubview(contentsTitle)
         content.setCustomSpacing(InkSpacing.space2, after: contentsTitle)
 
-        for (index, chapter) in PlaceholderLibrary.chapters.enumerated() {
-            content.addArrangedSubview(chapterRow(chapter, index: index))
+        contentsStack.axis = .vertical
+        content.addArrangedSubview(contentsStack)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        refresh()
+    }
+
+    /// Re-fetches the publication and its TOC, then repaints progress and
+    /// the chapter list. A failed fetch keeps what is already on screen —
+    /// the screen was handed a real publication and can stand on it.
+    private func refresh() {
+        // One refresh at a time: a stale fetch must not repaint over a
+        // newer one when appearances come in quick succession.
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self, id = publication.id, logger] in
+            do {
+                let bookshelf = try await LibraryStore.shared.library()
+                let publication = try await bookshelf.publication(id: id)
+                let chapters = try await bookshelf.chapters(id: id)
+                guard let self, !Task.isCancelled else { return }
+                self.publication = publication
+                self.chapters = chapters
+                self.progressBar.setProgress(CGFloat(publication.progression), animated: false)
+                self.metaLabel.text = self.positionText()
+                self.rebuildContents()
+            } catch is CancellationError {
+                // The screen was popped, or a newer refresh took over.
+                return
+            } catch {
+                logger.warning("Refreshing detail for \(id, privacy: .public) failed: \(error)")
+            }
         }
     }
 
-    private func chapterRow(_ chapter: PlaceholderChapter, index: Int) -> UIView {
-        let isCurrent = index == PlaceholderLibrary.currentChapterIndex
+    // MARK: Position line
 
+    /// The honest position line, mirroring the reader: "p. N of M" only
+    /// when the stored locator carries a synthetic position and the core
+    /// knows the count — book-wide percentage alone otherwise. Never a
+    /// fictional page number.
+    private func positionText() -> String {
+        let percent = Int((publication.progression * 100).rounded())
+        if
+            let locatorJSON = publication.locator,
+            let locator = try? Locator(jsonString: locatorJSON),
+            let position = locator.locations.position,
+            let positionCount = publication.positionCount, positionCount > 0
+        {
+            // TODO(l10n): localize once the strings pass lands.
+            return "p. \(position) of \(Int(positionCount)) · \(percent)%"
+        }
+        return "\(percent)%"
+    }
+
+    // MARK: Contents
+
+    private func rebuildContents() {
+        contentsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        guard !chapters.isEmpty else {
+            // TODO(l10n): localize once the strings pass lands.
+            let empty = InkLabel()
+            empty.text = "This book lists no contents."
+            empty.font = InkFont.reading()
+            empty.textColor = InkColor.textTertiary
+            empty.numberOfLines = 0
+            let wrapper = UIStackView(arrangedSubviews: [empty])
+            wrapper.axis = .vertical
+            wrapper.isLayoutMarginsRelativeArrangement = true
+            wrapper.layoutMargins = UIEdgeInsets(top: InkSpacing.space4, left: 0, bottom: InkSpacing.space4, right: 0)
+            contentsStack.addArrangedSubview(wrapper)
+            return
+        }
+
+        let currentIndex = currentChapterIndex()
+        for (index, chapter) in chapters.enumerated() {
+            contentsStack.addArrangedSubview(chapterRow(chapter, isCurrent: index == currentIndex))
+        }
+    }
+
+    /// The chapter the saved position sits in: the first TOC entry whose
+    /// resource matches the stored locator's, the same "several entries in
+    /// one resource resolve to the first" rule as the reader's contents
+    /// sheet. Unlike the sheet, this screen keeps the book closed, so a
+    /// position in a resource that carries no TOC entry of its own cannot
+    /// be attributed to the preceding chapter — those books show no
+    /// highlight rather than a guessed one.
+    private func currentChapterIndex() -> Int? {
+        guard
+            let locatorJSON = publication.locator,
+            let locator = try? Locator(jsonString: locatorJSON)
+        else { return nil }
+        let resource = ChapterHref.normalized(locator.href.string)
+        return chapters.firstIndex { ChapterHref.normalized($0.href) == resource }
+    }
+
+    private func chapterRow(_ chapter: Chapter, isCurrent: Bool) -> UIView {
         let numeral = InkLabel()
-        numeral.text = chapter.numeral
+        numeral.text = "\(chapter.idx + 1)"
         numeral.font = InkFont.caption
         numeral.textColor = isCurrent ? InkColor.accentText : InkColor.textTertiary
-        numeral.widthAnchor.constraint(equalToConstant: 26).isActive = true
+        numeral.widthAnchor.constraint(greaterThanOrEqualToConstant: 26).isActive = true
+        numeral.setContentHuggingPriority(.required, for: .horizontal)
+        numeral.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let title = InkLabel()
         title.text = chapter.title
         title.font = InkFont.serif(16, weight: isCurrent ? .semibold : .regular, style: .body)
         title.textColor = isCurrent ? InkColor.accentText : InkColor.textDisplay
+        title.numberOfLines = 0
 
-        let page = InkLabel()
-        page.text = "p. \(chapter.page)"
-        page.font = InkFont.caption
-        page.textColor = InkColor.textTertiary
-
-        let row = UIStackView(arrangedSubviews: [numeral, title, UIView(), page])
+        let row = UIStackView(arrangedSubviews: [numeral, title, UIView()])
         row.axis = .horizontal
         row.alignment = .firstBaseline
         row.spacing = InkSpacing.space3
         row.isLayoutMarginsRelativeArrangement = true
-        row.layoutMargins = UIEdgeInsets(top: 13, left: 2, bottom: 13, right: 2)
+        // Nested TOC entries step in with their depth.
+        let leadingInset = 2 + CGFloat(min(chapter.depth, 4)) * 14
+        row.layoutMargins = UIEdgeInsets(top: 13, left: leadingInset, bottom: 13, right: 2)
+        row.isUserInteractionEnabled = false
 
-        let container = UIView()
+        let container = ChapterRowControl { [weak self] in
+            guard let self else { return }
+            ReaderLauncher.push(self.publication, startingAt: chapter, on: self.navigationController)
+        }
         row.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(row)
 
@@ -154,32 +283,31 @@ final class BookDetailViewController: UIViewController {
             separator.heightAnchor.constraint(equalToConstant: 1 / traitCollection.displayScale),
         ])
 
-        let tap = UITapGestureRecognizer(target: self, action: #selector(openReaderFromChapter))
-        container.addGestureRecognizer(tap)
-        container.isUserInteractionEnabled = true
         container.isAccessibilityElement = true
-        container.accessibilityLabel = "Chapter \(chapter.numeral), \(chapter.title), page \(chapter.page)"
-        container.accessibilityTraits = .button
+        // TODO(l10n): localize once the strings pass lands.
+        container.accessibilityLabel = "Chapter \(chapter.idx + 1), \(chapter.title)"
+        container.accessibilityTraits = isCurrent ? [.button, .selected] : .button
         return container
     }
 
-    @objc private func openReaderFromChapter() {
-        // TODO(core): jump to the tapped chapter's position; the placeholder
-        // reader always opens the current chapter.
-        openReader()
-    }
-
-    private func openReader() {
-        guard let navigationController else { return }
-        // Reached from the reader's Contents button? Go back to the open
-        // page instead of stacking a second reader.
-        if navigationController.viewControllers.dropLast().last is ReaderViewController {
-            navigationController.popViewController(animated: true)
-            return
+    /// Tappable chapter row with the quiet pressed dim the shelf uses.
+    private final class ChapterRowControl: UIControl {
+        init(handler: @escaping @MainActor () -> Void) {
+            super.init(frame: .zero)
+            addAction(UIAction { _ in handler() }, for: .touchUpInside)
         }
-        // TODO(core): this placeholder row has no core identity yet, so
-        // which book to read is decided by `ReaderLauncher`; library wiring
-        // will pass this detail screen's own `Publication`.
-        ReaderLauncher.push(on: navigationController)
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+        override var isHighlighted: Bool {
+            didSet {
+                guard isHighlighted != oldValue else { return }
+                let pressed = isHighlighted
+                InkMotion.runQuiet(duration: InkMotion.fast) {
+                    self.alpha = pressed ? 0.7 : 1
+                }
+            }
+        }
     }
 }

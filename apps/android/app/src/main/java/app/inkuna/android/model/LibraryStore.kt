@@ -1,10 +1,13 @@
 package app.inkuna.android.model
 
 import android.content.Context
+import android.util.Log
 import app.inkuna.core.Bookshelf
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -51,7 +54,25 @@ object LibraryStore {
         return openLock.withLock {
             opened ?: withContext(Dispatchers.IO) {
                 Bookshelf.open(dataDir.absolutePath)
-            }.also { opened = it }
+            }.also { shelf ->
+                opened = shelf
+                // Covers imported by older cores are full-resolution
+                // originals; normalize them into the core's bounded WebP
+                // form off the critical path. Idempotent and cheap when
+                // there is nothing to do; failing only means covers stay
+                // big until the next open.
+                writes.launch {
+                    try {
+                        shelf.optimizeCovers()
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (failure: Throwable) {
+                        Log.w(TAG, "Cover optimization failed", failure)
+                    }
+                }
+            }
         }
     }
+
+    private const val TAG = "LibraryStore"
 }

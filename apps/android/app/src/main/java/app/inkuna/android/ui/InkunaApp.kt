@@ -2,6 +2,7 @@ package app.inkuna.android.ui
 
 import android.app.Activity
 import android.app.UiModeManager
+import android.net.Uri
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -10,29 +11,20 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import app.inkuna.android.model.AppSettings
-import app.inkuna.android.model.LibraryStore
-import app.inkuna.android.model.PlaceholderLibrary
-import app.inkuna.core.Publication as CorePublication
-import app.inkuna.core.Shelf
-import app.inkuna.core.Sort
 import app.inkuna.android.ui.detail.BookDetailScreen
 import app.inkuna.android.ui.main.MainScreen
 import app.inkuna.android.ui.onboarding.ThemePickScreen
@@ -40,25 +32,25 @@ import app.inkuna.android.ui.onboarding.WelcomeScreen
 import app.inkuna.android.ui.reader.ReaderScreen
 import app.inkuna.android.ui.theme.InkMotion
 import app.inkuna.android.ui.theme.InkTheme
-import kotlinx.coroutines.launch
 
 private object Routes {
     const val WELCOME = "welcome"
     const val THEME_PICK = "themepick"
     const val MAIN = "main"
-    const val DETAIL = "detail/{bookId}"
 
-    /** The reader is core-addressed: the argument is a `Publication` id. */
-    const val READER = "reader/{publicationId}"
+    /** Both book screens are core-addressed: the argument is a
+     *  `Publication` id; the reader optionally takes a chapter href to
+     *  open at instead of the saved position. */
+    const val DETAIL = "detail/{publicationId}"
+    const val READER = "reader/{publicationId}?chapter={chapter}"
 
-    fun detail(bookId: Int) = "detail/$bookId"
-    fun reader(publicationId: String) = "reader/$publicationId"
+    fun detail(publicationId: String) = "detail/${Uri.encode(publicationId)}"
+
+    fun reader(publicationId: String, chapterHref: String? = null): String {
+        val base = "reader/${Uri.encode(publicationId)}"
+        return if (chapterHref == null) base else "$base?chapter=${Uri.encode(chapterHref)}"
+    }
 }
-
-private fun bookFrom(route: androidx.navigation.NavBackStackEntry) =
-    PlaceholderLibrary.books.firstOrNull {
-        it.id == route.arguments?.getString("bookId")?.toIntOrNull()
-    } ?: PlaceholderLibrary.heroBook
 
 /**
  * Pushes [route] once. A second tap landing inside the 320ms page
@@ -73,14 +65,8 @@ private fun NavHostController.pushOnce(route: String) {
 
 /** Opens the reader for a core publication, popping back to an existing
  *  reader instead of stacking a second one (mirrors the iOS review fix). */
-private fun NavHostController.openReader(publication: CorePublication) {
-    openReader(publication.id)
-}
-
-/** The id-addressed form, for screens that render real core rows and so
- *  already know which publication was tapped. */
-private fun NavHostController.openReader(publicationId: String) {
-    val route = Routes.reader(publicationId)
+private fun NavHostController.openReader(publicationId: String, chapterHref: String? = null) {
+    val route = Routes.reader(publicationId, chapterHref)
     if (!popBackStack(route, inclusive = false)) {
         pushOnce(route)
     }
@@ -89,7 +75,6 @@ private fun NavHostController.openReader(publicationId: String) {
 @Composable
 fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
     val snapshot by settings.snapshot.collectAsState(initial)
-    val scope = rememberCoroutineScope()
     val night = snapshot.readingTheme.isNight
 
     // Keep the system bars and the per-app night qualifier (launch window
@@ -97,7 +82,7 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
     // system dark mode; the reading surface decides.
     val view = LocalView.current
     val context = LocalContext.current
-    androidx.compose.runtime.LaunchedEffect(night) {
+    LaunchedEffect(night) {
         (view.context as? Activity)?.window?.let { window ->
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !night
@@ -113,23 +98,6 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
         val nav = rememberNavController()
         val pageEasing = InkMotion.easePage
 
-        // The reader is core-addressed, but the shelves still render
-        // PlaceholderLibrary rows — so every "keep reading" affordance
-        // carries the most recently opened core publication instead.
-        // Refreshed on every navigation so a finished sitting moves the
-        // hero. TODO(core): dissolve once the shelves themselves run on
-        // Bookshelf queries and each row carries its own publication.
-        var continueReading by remember { mutableStateOf<CorePublication?>(null) }
-        val navEntry by nav.currentBackStackEntryAsState()
-        // Only a *successful* query moves the hero: an emptied library must
-        // clear it, while a load that threw keeps whatever was there.
-        LaunchedEffect(navEntry) {
-            runCatching {
-                LibraryStore.bookshelf(context)
-                    .list(Shelf.UNFINISHED, Sort.RECENTLY_OPENED)
-                    .firstOrNull()
-            }.onSuccess { continueReading = it }
-        }
         NavHost(
             navController = nav,
             startDestination = if (initial.onboarded) Routes.MAIN else Routes.WELCOME,
@@ -162,9 +130,9 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
             composable(Routes.THEME_PICK) {
                 ThemePickScreen(
                     selectedTheme = snapshot.readingTheme,
-                    onPick = { theme -> scope.launch { settings.setReadingTheme(theme) } },
+                    onPick = { theme -> settings.setReadingTheme(theme) },
                     onContinue = {
-                        scope.launch { settings.setOnboarded(true) }
+                        settings.setOnboarded(true)
                         nav.navigate(Routes.MAIN) {
                             popUpTo(Routes.WELCOME) { inclusive = true }
                             launchSingleTop = true
@@ -178,28 +146,25 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
                 enterTransition = { fadeIn(tween(InkMotion.durSlow)) },
             ) {
                 MainScreen(
-                    onOpenBook = { book -> nav.pushOnce(Routes.detail(book.id)) },
-                    // TODO(core): the detail screen still renders placeholder
-                    // chapters, so a real library row opens the reader
-                    // directly rather than routing through a screen that
-                    // cannot describe the book it was handed. Restore the
-                    // row -> detail -> read path when detail is wired.
-                    onOpenPublication = { id -> nav.openReader(id) },
-                    continueReading = continueReading,
-                    onOpenReader = { publication -> nav.openReader(publication) },
+                    onOpenBook = { id -> nav.pushOnce(Routes.detail(id)) },
+                    onOpenReader = { id -> nav.openReader(id) },
                 )
             }
             composable(Routes.DETAIL) { entry ->
+                val publicationId = entry.arguments?.getString("publicationId").orEmpty()
                 BookDetailScreen(
-                    book = bookFrom(entry),
-                    publication = continueReading,
+                    publicationId = publicationId,
                     onBack = { nav.popBackStack() },
-                    onRead = { publication -> nav.openReader(publication) },
+                    onRead = { chapterHref -> nav.openReader(publicationId, chapterHref) },
                 )
             }
-            composable(Routes.READER) { entry ->
+            composable(
+                Routes.READER,
+                arguments = listOf(navArgument("chapter") { nullable = true }),
+            ) { entry ->
                 ReaderScreen(
                     publicationId = entry.arguments?.getString("publicationId").orEmpty(),
+                    initialChapterHref = entry.arguments?.getString("chapter"),
                     settings = settings,
                     snapshot = snapshot,
                     onBack = { nav.popBackStack() },

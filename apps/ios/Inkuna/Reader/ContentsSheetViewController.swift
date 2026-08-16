@@ -18,12 +18,14 @@ final class ContentsSheetViewController: UIViewController {
 
     private let bookTitle: String
     private let coverSeed: Int
+    private let coverPath: String?
     private let rows: [Row]
     private let pageInfoText: String
 
-    init(bookTitle: String, coverSeed: Int, rows: [Row], pageInfoText: String) {
+    init(bookTitle: String, coverSeed: Int, coverPath: String?, rows: [Row], pageInfoText: String) {
         self.bookTitle = bookTitle
         self.coverSeed = coverSeed
+        self.coverPath = coverPath
         self.rows = rows
         self.pageInfoText = pageInfoText
         super.init(nibName: nil, bundle: nil)
@@ -44,7 +46,7 @@ final class ContentsSheetViewController: UIViewController {
 
         // MARK: Header
 
-        let cover = BookCoverView(title: "", author: "", seed: coverSeed)
+        let cover = BookCoverView(title: "", author: "", seed: coverSeed, coverPath: coverPath)
         NSLayoutConstraint.activate([
             cover.widthAnchor.constraint(equalToConstant: 34),
         ])

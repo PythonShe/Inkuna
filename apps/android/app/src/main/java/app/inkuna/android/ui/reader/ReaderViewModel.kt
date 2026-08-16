@@ -51,6 +51,9 @@ import org.readium.r2.streamer.parser.DefaultPublicationParser
 class ReaderViewModel(
     private val app: Application,
     private val publicationId: String,
+    /** A chapter href to open at instead of the saved position (a
+     *  detail-screen contents row); null resumes where the reader left off. */
+    private val initialChapterHref: String? = null,
 ) : AndroidViewModel(app) {
 
     sealed interface UiState {
@@ -86,6 +89,10 @@ class ReaderViewModel(
     private val stateFlow = MutableStateFlow<UiState>(UiState.Opening)
     val state: StateFlow<UiState> = stateFlow.asStateFlow()
 
+    // @Volatile: assigned on the main thread when the book opens, read from
+    // the application write scope's worker threads by the progress and
+    // session writes below.
+    @Volatile
     private var bookshelf: Bookshelf? = null
     private var openJob: Job? = null
 
@@ -222,10 +229,16 @@ class ReaderViewModel(
             )
         }
 
-        // The locator blob is opaque to the core; only Readium parses it.
-        // A blob this navigator cannot read (corrupt, or from a future
-        // format) degrades to opening at the start, never to a crash.
-        val initialLocator = core.locator?.let { raw ->
+        // A requested start chapter wins over the saved position, resolved
+        // the same way a contents-sheet jump is; an unresolvable href falls
+        // back to resuming. The locator blob is opaque to the core; only
+        // Readium parses it. A blob this navigator cannot read (corrupt, or
+        // from a future format) degrades to opening at the start, never to
+        // a crash.
+        val chapterTarget = initialChapterHref
+            ?.let { href -> Url(href) }
+            ?.let { url -> publication.locatorFromLink(Link(href = url)) }
+        val initialLocator = chapterTarget ?: core.locator?.let { raw ->
             runCatching { Locator.fromJSON(JSONObject(raw)) }.getOrNull()
         }
 
@@ -421,10 +434,10 @@ class ReaderViewModel(
     companion object {
         private const val TAG = "InkunaReader"
 
-        fun factory(publicationId: String) = viewModelFactory {
+        fun factory(publicationId: String, initialChapterHref: String? = null) = viewModelFactory {
             initializer {
                 val application = this[AndroidViewModelFactory.APPLICATION_KEY]!!
-                ReaderViewModel(application, publicationId)
+                ReaderViewModel(application, publicationId, initialChapterHref)
             }
         }
     }

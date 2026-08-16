@@ -64,7 +64,7 @@ final class BookListRowView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    func configure(title: String, author: String, progress: CGFloat?, seed: Int, downloaded: Bool) {
+    func configure(title: String, author: String, progress: CGFloat?, seed: Int, coverPath: String?, downloaded: Bool) {
         titleLabel.text = title
         authorLabel.text = author
         cloudBadge.isHidden = downloaded
@@ -74,7 +74,7 @@ final class BookListRowView: UIView {
         accessibilityTraits = .button
 
         coverContainer.subviews.forEach { $0.removeFromSuperview() }
-        let cover = BookCoverView(title: title, author: author, seed: seed)
+        let cover = BookCoverView(title: title, author: author, seed: seed, coverPath: coverPath)
         cover.translatesAutoresizingMaskIntoConstraints = false
         coverContainer.addSubview(cover)
         NSLayoutConstraint.activate([

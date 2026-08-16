@@ -1,6 +1,8 @@
 //! The Stats screen's numbers, bucketed into the caller's local calendar.
 
-use chrono::{DateTime, Datelike, Duration, FixedOffset, Offset, Utc};
+use chrono::offset::LocalResult;
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, Utc, Weekday};
+use chrono_tz::Tz;
 
 use crate::{CoreError, Library};
 
@@ -24,17 +26,22 @@ pub struct StatsOverview {
 }
 
 impl Library {
-    /// The Stats screen's numbers, computed in the caller's local time
-    /// (`tz_offset_minutes` east of UTC, accepted range −1439..=1439). A
+    /// The Stats screen's numbers, computed in the caller's local
+    /// calendar. `timezone` is an IANA zone id (`Asia/Tokyo`); bucketing
+    /// with the zone rather than a fixed offset is what keeps week,
+    /// month, and year boundaries honest across DST transitions — a
+    /// year-start is a whole DST cycle away from today's offset. A
     /// session belongs wholly to the local day/week/month of its
-    /// `started_at` — one sitting, one bucket. An offset outside the
-    /// accepted range is not an error: the numbers are bucketed in UTC.
+    /// `started_at` — one sitting, one bucket. `week_start` is the
+    /// locale's first day of week, any of the seven (ar-EG starts on
+    /// Saturday). An unknown zone id is not an error: the numbers are
+    /// bucketed in UTC.
     pub fn stats_overview(
         &self,
-        tz_offset_minutes: i32,
-        week_starts_monday: bool,
+        timezone: &str,
+        week_start: Weekday,
     ) -> Result<StatsOverview, CoreError> {
-        self.stats_overview_at(Utc::now(), tz_offset_minutes, week_starts_monday)
+        self.stats_overview_at(Utc::now(), timezone, week_start)
     }
 
     /// [`stats_overview`](Self::stats_overview) against an explicit clock
@@ -46,33 +53,22 @@ impl Library {
     pub(crate) fn stats_overview_at(
         &self,
         now: DateTime<Utc>,
-        tz_offset_minutes: i32,
-        week_starts_monday: bool,
+        timezone: &str,
+        week_start: Weekday,
     ) -> Result<StatsOverview, CoreError> {
-        // `tz_offset_minutes` is minutes east of UTC and must land within
-        // ±1439; anything else silently buckets in UTC rather than
-        // failing an otherwise valid stats query. The UTC fallback is
-        // infallible, so there is no error path here.
-        let tz = tz_offset_minutes
-            .checked_mul(60)
-            .and_then(FixedOffset::east_opt)
-            .unwrap_or_else(|| Utc.fix());
-        let offset_seconds = i64::from(tz.local_minus_utc());
-        // Local midnight of a NaiveDate, as a unix timestamp.
-        let local_midnight_ts =
-            |date: chrono::NaiveDate| date.and_time(chrono::NaiveTime::MIN).and_utc().timestamp() - offset_seconds;
+        // An unknown zone id silently buckets in UTC rather than failing
+        // an otherwise valid stats query; the fallback is infallible, so
+        // there is no error path here.
+        let tz: Tz = timezone.parse().unwrap_or(Tz::UTC);
 
         let today = now.with_timezone(&tz).date_naive();
-        let days_into_week = if week_starts_monday {
-            today.weekday().num_days_from_monday()
-        } else {
-            today.weekday().num_days_from_sunday()
-        };
-        let week_start = local_midnight_ts(today - Duration::days(i64::from(days_into_week)));
+        let days_into_week =
+            (today.weekday().num_days_from_monday() + 7 - week_start.num_days_from_monday()) % 7;
+        let week_start_ts = local_midnight(&tz, today - Duration::days(i64::from(days_into_week)));
         let month_first = today.with_day(1).unwrap_or(today);
-        let month_start = local_midnight_ts(month_first);
+        let month_start = local_midnight(&tz, month_first);
         let year_first = month_first.with_month(1).unwrap_or(month_first);
-        let year_start = local_midnight_ts(year_first);
+        let year_start = local_midnight(&tz, year_first);
 
         struct SessionRow {
             started_at: i64,
@@ -82,7 +78,7 @@ impl Library {
             end_position: Option<i64>,
         }
 
-        let horizon = week_start.min(month_start);
+        let horizon = week_start_ts.min(month_start);
         let (sessions, finished): (Vec<SessionRow>, u32) = self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(
                 "SELECT started_at, ended_at, updated_at, start_position, end_position
@@ -111,7 +107,7 @@ impl Library {
         let mut seconds: u64 = 0;
         let mut days = std::collections::BTreeSet::new();
         for session in &sessions {
-            if session.started_at >= week_start {
+            if session.started_at >= week_start_ts {
                 if let (Some(start), Some(end)) = (session.start_position, session.end_position) {
                     // Paging backwards clamps to 0, never negative.
                     pages += (end - start).max(0) as u64;
@@ -135,4 +131,23 @@ impl Library {
             read_days: days.into_iter().collect(),
         })
     }
+}
+
+/// Local midnight of `date` in `tz`, as a unix timestamp. At a DST
+/// transition an ambiguous midnight takes the earlier reading, and a
+/// skipped midnight rolls forward to the first instant that exists —
+/// scanning hour by hour, because the gap is not always one hour: a
+/// handful of zones spring forward at 00:00, and Pacific/Apia skipped
+/// December 30, 2011 *entirely* when Samoa crossed the date line, so the
+/// first valid instant can be a whole day away.
+fn local_midnight(tz: &Tz, date: NaiveDate) -> i64 {
+    let midnight = date.and_time(NaiveTime::MIN);
+    for hour in 0..=48 {
+        match (midnight + Duration::hours(hour)).and_local_timezone(*tz) {
+            LocalResult::Single(dt) | LocalResult::Ambiguous(dt, _) => return dt.timestamp(),
+            LocalResult::None => {}
+        }
+    }
+    // No tz database gap exceeds 48 hours; unreachable in practice.
+    midnight.and_utc().timestamp()
 }

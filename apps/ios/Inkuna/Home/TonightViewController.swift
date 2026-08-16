@@ -14,6 +14,16 @@ final class TonightViewController: ScrollScreenViewController {
     /// a destination.
     private var continueReading: Publication?
 
+    /// The rest of the unfinished shelf, behind the hero. Empty hides the
+    /// nightstand section entirely.
+    private var nightstand: [Publication] = []
+    /// The nightstand section's slot in the content stack (title + shelf),
+    /// rebuilt whenever the shelf changes.
+    private let shelfSection = UIStackView()
+
+    /// The in-flight reload, cancelled by its successor.
+    private var reloadTask: Task<Void, Never>?
+
     nonisolated(unsafe) private var libraryDidChangeObserver: NSObjectProtocol?
 
     deinit {
@@ -51,11 +61,9 @@ final class TonightViewController: ScrollScreenViewController {
         contentStack.addArrangedSubview(chipRow)
         contentStack.setCustomSpacing(InkSpacing.space4, after: chipRow)
 
-        let shelfTitle = sectionTitle("On the nightstand")
-        contentStack.addArrangedSubview(shelfTitle)
-        contentStack.setCustomSpacing(InkSpacing.space4, after: shelfTitle)
-
-        contentStack.addArrangedSubview(shelfRow(books: PlaceholderLibrary.shelf))
+        shelfSection.axis = .vertical
+        contentStack.addArrangedSubview(shelfSection)
+        rebuildShelf()
 
         libraryDidChangeObserver = NotificationCenter.default.addObserver(
             forName: .inkunaLibraryDidChange,
@@ -77,17 +85,26 @@ final class TonightViewController: ScrollScreenViewController {
     // MARK: Continue reading
 
     private func reloadContinueReading() {
-        Task { [weak self] in
+        // One reload at a time: viewWillAppear and a library-change
+        // notification can land together, and the older fetch must not
+        // repaint over the newer one.
+        reloadTask?.cancel()
+        reloadTask = Task { [weak self] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
                 // Unfinished, not all: a book just finished must not be the
                 // "keep reading" hero merely for being touched last.
                 let publications = try await bookshelf.list(shelf: .unfinished, sort: .recentlyOpened)
-                guard let self else { return }
+                guard let self, !Task.isCancelled else { return }
                 // A successful-but-empty answer clears the hero; only a
                 // failed load keeps the previous one.
                 self.continueReading = publications.first
+                // The shelf holds what the hero doesn't: the rest of the
+                // unfinished pile, most recently touched first, capped at a
+                // shelf's worth.
+                self.nightstand = Array(publications.dropFirst().prefix(8))
                 self.rebuildHero()
+                self.rebuildShelf()
             } catch {
                 // Keep whatever the card already shows; the library screen
                 // owns the recovery path for a library that will not open.
@@ -95,19 +112,32 @@ final class TonightViewController: ScrollScreenViewController {
         }
     }
 
+    /// Shows the nightstand only when there is something on it — an empty
+    /// core shelf removes the section instead of rendering stand-ins.
+    private func rebuildShelf() {
+        shelfSection.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        guard !nightstand.isEmpty else { return }
+        // TODO(l10n): localize once the strings pass lands.
+        let shelfTitle = sectionTitle("On the nightstand")
+        shelfSection.addArrangedSubview(shelfTitle)
+        shelfSection.setCustomSpacing(InkSpacing.space4, after: shelfTitle)
+        shelfSection.addArrangedSubview(shelfRow(publications: nightstand))
+    }
+
     private func rebuildHero() {
         heroContainer.subviews.forEach { $0.removeFromSuperview() }
         let card: UIView
         if let publication = continueReading {
             let percent = Int((publication.progression * 100).rounded())
-            let author = publication.authors.joined(separator: ", ")
+            // TODO(l10n): localize once the strings pass lands.
+            let author = publication.displayAuthors(unknownAuthor: "Unknown author")
             card = makeHeroCard(
                 title: publication.title,
-                // TODO(l10n): localize once the strings pass lands.
-                author: author.isEmpty ? "Unknown author" : author,
+                author: author,
                 progress: CGFloat(publication.progression),
                 caption: "\(percent)% read",
                 seed: BookCoverView.coverSeed(for: publication.id),
+                coverPath: publication.coverPath,
                 onOpen: { [weak self] in
                     guard let self, let current = self.continueReading else { return }
                     ReaderLauncher.push(current, on: self.navigationController)
@@ -123,6 +153,7 @@ final class TonightViewController: ScrollScreenViewController {
                 progress: book.progress,
                 caption: PlaceholderLibrary.pagesLeftText,
                 seed: book.coverSeed,
+                coverPath: nil,
                 onOpen: nil
             )
         }
@@ -147,6 +178,7 @@ final class TonightViewController: ScrollScreenViewController {
         progress: CGFloat,
         caption: String,
         seed: Int,
+        coverPath: String?,
         onOpen: (() -> Void)?
     ) -> UIView {
         let card = UIView()
@@ -154,7 +186,7 @@ final class TonightViewController: ScrollScreenViewController {
         card.layer.cornerRadius = InkRadius.xl
         card.installInkShadow(.md)
 
-        let cover = BookCoverView(title: title, author: author, seed: seed)
+        let cover = BookCoverView(title: title, author: author, seed: seed, coverPath: coverPath)
         cover.widthAnchor.constraint(equalToConstant: 96).isActive = true
 
         let titleLabel = InkLabel()
@@ -175,10 +207,13 @@ final class TonightViewController: ScrollScreenViewController {
         leftLabel.font = InkFont.caption
         leftLabel.textColor = InkColor.textTertiary
 
+        // The button opens the same book as the card; on the placeholder
+        // card there is nothing to open and it says so by being disabled.
         // TODO(l10n): localize once the strings pass lands.
         let readButton = InkButton("Keep reading", size: .small, symbol: "book") { [weak self] in
-            self?.openReader()
+            self?.heroOpenAction?()
         }
+        readButton.isEnabled = onOpen != nil
         let buttonRow = UIStackView(arrangedSubviews: [readButton, UIView()])
         buttonRow.axis = .horizontal
 

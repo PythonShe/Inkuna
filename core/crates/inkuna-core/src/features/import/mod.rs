@@ -5,6 +5,7 @@
 //! row. Invariant: a committed row always points at an existing file.
 
 mod budget;
+mod cover;
 mod model;
 mod pipeline;
 

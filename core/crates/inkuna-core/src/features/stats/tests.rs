@@ -1,4 +1,4 @@
-use chrono::{DateTime, FixedOffset, TimeZone, Utc};
+use chrono::{DateTime, FixedOffset, TimeZone, Utc, Weekday};
 
 use crate::test_support::write_epub;
 use crate::{ImportOutcome, Library};
@@ -168,7 +168,7 @@ fn stats_attribute_sessions_to_local_buckets() {
     set_finished_at(&library, &id, ts(2026, 1, 9, 23, 0));
 
     let monday = library
-        .stats_overview_at(at(now), TOKYO_MINUTES, true)
+        .stats_overview_at(at(now), "Asia/Tokyo", Weekday::Mon)
         .unwrap();
     assert_eq!(monday.pages_this_week, 15);
     assert_eq!(monday.minutes_this_month, 20 + 30 + 10 + 10);
@@ -177,13 +177,13 @@ fn stats_attribute_sessions_to_local_buckets() {
 
     // With a Sunday week start, Mar 1's 5 pages join the week.
     let sunday = library
-        .stats_overview_at(at(now), TOKYO_MINUTES, false)
+        .stats_overview_at(at(now), "Asia/Tokyo", Weekday::Sun)
         .unwrap();
     assert_eq!(sunday.pages_this_week, 20);
 }
 
 #[test]
-fn stats_fall_back_to_utc_on_out_of_range_offset() {
+fn stats_fall_back_to_utc_on_unknown_zone() {
     let (_dir, library, id) = library_with_book();
     let now = ts(2026, 3, 3, 22, 0);
     insert_session(
@@ -192,9 +192,71 @@ fn stats_fall_back_to_utc_on_out_of_range_offset() {
         Some(10), Some(25),
     );
 
-    // An offset whose seconds conversion overflows i32 must fall back to
-    // UTC, not panic (debug) or wrap into a bogus offset (release).
-    let overflowing = library.stats_overview_at(at(now), i32::MAX, true).unwrap();
-    let utc = library.stats_overview_at(at(now), 0, true).unwrap();
-    assert_eq!(overflowing, utc);
+    // A zone id the tz database does not know must fall back to UTC
+    // bucketing, not error out an otherwise valid stats query.
+    let unknown = library
+        .stats_overview_at(at(now), "Not/AZone", Weekday::Mon)
+        .unwrap();
+    let utc = library.stats_overview_at(at(now), "UTC", Weekday::Mon).unwrap();
+    assert_eq!(unknown, utc);
+}
+
+/// A month boundary on the other side of a DST transition must be
+/// computed with that day's offset, not today's. US DST began Mar 8,
+/// 2026: 23:30 EST on Feb 28 is inside February, but inside March if the
+/// boundary is derived from today's EDT offset — the bug this guards
+/// against.
+#[test]
+fn month_boundary_holds_across_dst_transition() {
+    let (_dir, library, id) = library_with_book();
+    let new_york = chrono_tz::America::New_York;
+    let now = new_york
+        .with_ymd_and_hms(2026, 3, 11, 12, 0, 0)
+        .unwrap()
+        .timestamp();
+    let late_february = new_york
+        .with_ymd_and_hms(2026, 2, 28, 23, 30, 0)
+        .unwrap()
+        .timestamp();
+    insert_session(
+        &library, &id,
+        late_february, Some(late_february + 600), late_february + 600,
+        Some(0), Some(5),
+    );
+
+    let overview = library
+        .stats_overview_at(at(now), "America/New_York", Weekday::Mon)
+        .unwrap();
+    assert_eq!(overview.minutes_this_month, 0);
+    assert!(overview.read_days.is_empty());
+}
+
+/// Samoa skipped December 30, 2011 entirely (UTC−10 → UTC+14). A Friday
+/// week start lands on that missing day, so the boundary must resolve to
+/// the first instant that exists (Dec 31 00:00 +14) rather than a
+/// UTC-midnight guess ten hours earlier — which would leak Thursday's
+/// sessions into the new week.
+#[test]
+fn week_boundary_survives_a_skipped_local_day() {
+    let (_dir, library, id) = library_with_book();
+    let apia = chrono_tz::Pacific::Apia;
+    let now = apia
+        .with_ymd_and_hms(2011, 12, 31, 12, 0, 0)
+        .unwrap()
+        .timestamp();
+    // Late Thursday Dec 29 local (still UTC−10): the prior week.
+    let thursday = apia
+        .with_ymd_and_hms(2011, 12, 29, 23, 0, 0)
+        .unwrap()
+        .timestamp();
+    insert_session(
+        &library, &id,
+        thursday, Some(thursday + 600), thursday + 600,
+        Some(0), Some(7),
+    );
+
+    let overview = library
+        .stats_overview_at(at(now), "Pacific/Apia", Weekday::Fri)
+        .unwrap();
+    assert_eq!(overview.pages_this_week, 0);
 }

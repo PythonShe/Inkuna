@@ -1,12 +1,33 @@
+import os
 import UIKit
 
 /// The Stats tab: reading facts, the month's reading calendar, and the
-/// in-progress list.
-///
-/// TODO(core): every number here comes from the Rust core's progress
-/// tracking once sessions are recorded; the placeholder mirrors the design
-/// canvas.
+/// in-progress list — every number from the core's recorded reading
+/// sessions, bucketed in the device's local time.
 final class StatsViewController: ScrollScreenViewController {
+    /// Everything below the title, rebuilt whenever fresh numbers arrive.
+    /// Until the first answer the screen shows the title alone — never
+    /// zeros pretending to be data.
+    private let statsStack = UIStackView()
+
+    /// The in-flight fetch; a new reload cancels its predecessor.
+    /// `nonisolated(unsafe)` so the nonisolated `deinit` can cancel it; only
+    /// ever touched on the main actor.
+    nonisolated(unsafe) private var reloadTask: Task<Void, Never>?
+    /// `nonisolated(unsafe)` so the nonisolated `deinit` can unregister it.
+    /// Only ever touched on the main actor: assigned in `viewDidLoad`, read
+    /// once at deinit, when no other reference to this screen survives.
+    nonisolated(unsafe) private var libraryDidChangeObserver: NSObjectProtocol?
+
+    private let logger = Logger(subsystem: "app.inkuna.ios", category: "stats")
+
+    deinit {
+        reloadTask?.cancel()
+        if let libraryDidChangeObserver {
+            NotificationCenter.default.removeObserver(libraryDidChangeObserver)
+        }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -15,30 +36,106 @@ final class StatsViewController: ScrollScreenViewController {
         contentStack.addArrangedSubview(title)
         contentStack.setCustomSpacing(InkSpacing.space6, after: title)
 
-        let facts = UIStackView(
-            arrangedSubviews: PlaceholderLibrary.facts.map { factCard(value: $0.value, caption: $0.caption) }
-        )
+        statsStack.axis = .vertical
+        contentStack.addArrangedSubview(statsStack)
+
+        libraryDidChangeObserver = NotificationCenter.default.addObserver(
+            forName: .inkunaLibraryDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reload() }
+        }
+
+        reload()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // A reading session may have ended since the numbers were fetched.
+        reload()
+    }
+
+    private func reload() {
+        reloadTask?.cancel()
+        // Stats bucketing follows the zone and week convention this device
+        // lives in; the zone id (not a fixed offset) is what keeps
+        // week/month/year boundaries honest across DST.
+        let timezone = TimeZone.current.identifier
+        let weekStart = Weekday(firstWeekday: Calendar.current.firstWeekday)
+        reloadTask = Task { [weak self] in
+            do {
+                let bookshelf = try await LibraryStore.shared.library()
+                let overview = try await bookshelf.statsOverview(
+                    timezone: timezone,
+                    weekStart: weekStart
+                )
+                // Reading, not unfinished: "in progress" means actually
+                // begun, so a freshly imported book stays off this list.
+                let inProgress = try await bookshelf.list(shelf: .reading, sort: .recentlyOpened)
+                guard !Task.isCancelled, let self else { return }
+                self.render(overview: overview, inProgress: inProgress)
+            } catch is CancellationError {
+                // The screen went away, or a newer reload took over.
+                return
+            } catch {
+                // Keep whatever numbers are already on screen; the library
+                // screen owns the recovery path for a library that will
+                // not open.
+                self?.logger.warning("Stats reload failed: \(error)")
+            }
+        }
+    }
+
+    private func render(overview: StatsOverview, inProgress: [Publication]) {
+        statsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        // TODO(l10n): localize once the strings pass lands.
+        let facts = UIStackView(arrangedSubviews: [
+            factCard(value: "\(overview.pagesThisWeek)", caption: "pages this week"),
+            factCard(value: Self.hoursText(minutes: Int(overview.minutesThisMonth)), caption: "hours this month"),
+            factCard(value: "\(overview.booksFinishedThisYear)", caption: "books this year"),
+        ])
         facts.axis = .horizontal
         facts.spacing = InkSpacing.space3
         facts.distribution = .fillEqually
-        contentStack.addArrangedSubview(facts)
-        contentStack.setCustomSpacing(34, after: facts)
+        statsStack.addArrangedSubview(facts)
+        statsStack.setCustomSpacing(34, after: facts)
 
-        let monthTitle = sectionTitle(PlaceholderLibrary.calendarMonthTitle)
-        contentStack.addArrangedSubview(monthTitle)
-        contentStack.setCustomSpacing(14, after: monthTitle)
+        let month = MonthGrid()
+        let monthTitle = sectionTitle(month.title)
+        statsStack.addArrangedSubview(monthTitle)
+        statsStack.setCustomSpacing(14, after: monthTitle)
 
-        let calendar = calendarCard()
-        contentStack.addArrangedSubview(calendar)
-        contentStack.setCustomSpacing(34, after: calendar)
+        let readDays = Set(overview.readDays.map(Int.init))
+        let calendar = calendarCard(month: month, readDays: readDays)
+        statsStack.addArrangedSubview(calendar)
+        statsStack.setCustomSpacing(34, after: calendar)
 
+        // TODO(l10n): localize once the strings pass lands.
         let progressTitle = sectionTitle("In progress")
-        contentStack.addArrangedSubview(progressTitle)
-        contentStack.setCustomSpacing(6, after: progressTitle)
+        statsStack.addArrangedSubview(progressTitle)
+        statsStack.setCustomSpacing(6, after: progressTitle)
 
-        for book in PlaceholderLibrary.books {
-            contentStack.addArrangedSubview(progressRow(book))
+        if inProgress.isEmpty {
+            // TODO(l10n): localize once the strings pass lands.
+            statsStack.addArrangedSubview(paddedEmptyState("Nothing in progress yet."))
+        } else {
+            for publication in inProgress {
+                statsStack.addArrangedSubview(progressRow(publication))
+            }
         }
+    }
+
+    /// Whole and half hours, the design's "6½" voice: 30+ leftover minutes
+    /// round to the half, never to a decimal.
+    private static func hoursText(minutes: Int) -> String {
+        let hours = minutes / 60
+        let half = minutes % 60 >= 30
+        if hours == 0 {
+            return half ? "½" : "0"
+        }
+        return half ? "\(hours)½" : "\(hours)"
     }
 
     // MARK: Fact cards
@@ -76,7 +173,39 @@ final class StatsViewController: ScrollScreenViewController {
 
     // MARK: Calendar
 
-    private func calendarCard() -> UIView {
+    /// The current local month's shape, derived once per render so every
+    /// cell agrees on what "today" is.
+    private struct MonthGrid {
+        let title: String
+        /// Weekday header labels, in this locale's column order.
+        let weekdaySymbols: [String]
+        /// Empty cells before the 1st.
+        let leadingBlanks: Int
+        let dayCount: Int
+        let today: Int
+
+        init(now: Date = Date(), calendar: Calendar = .current) {
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.setLocalizedDateFormatFromTemplate("MMMM")
+            title = formatter.string(from: now)
+
+            // Header columns start on this locale's first weekday.
+            let symbols = calendar.veryShortStandaloneWeekdaySymbols
+            let first = calendar.firstWeekday - 1
+            weekdaySymbols = (0..<symbols.count).map { symbols[(first + $0) % symbols.count] }
+
+            let firstOfMonth = calendar.date(
+                from: calendar.dateComponents([.year, .month], from: now)
+            ) ?? now
+            let weekdayOfFirst = calendar.component(.weekday, from: firstOfMonth)
+            leadingBlanks = (weekdayOfFirst - calendar.firstWeekday + 7) % 7
+            dayCount = calendar.range(of: .day, in: .month, for: now)?.count ?? 30
+            today = calendar.component(.day, from: now)
+        }
+    }
+
+    private func calendarCard(month: MonthGrid, readDays: Set<Int>) -> UIView {
         let card = UIView()
         card.backgroundColor = InkColor.bgSurface
         card.layer.cornerRadius = InkRadius.lg
@@ -87,7 +216,7 @@ final class StatsViewController: ScrollScreenViewController {
         grid.spacing = InkSpacing.space1
 
         let headers = UIStackView(
-            arrangedSubviews: ["S", "M", "T", "W", "T", "F", "S"].map { day in
+            arrangedSubviews: month.weekdaySymbols.map { day in
                 let label = InkLabel()
                 label.text = day
                 label.font = InkFont.caption
@@ -101,8 +230,10 @@ final class StatsViewController: ScrollScreenViewController {
         headers.spacing = InkSpacing.space1
         grid.addArrangedSubview(headers)
 
-        var cells: [UIView] = (0..<PlaceholderLibrary.calendarLeadingBlanks).map { _ in UIView() }
-        cells += (1...PlaceholderLibrary.calendarDayCount).map(dayCell)
+        var cells: [UIView] = (0..<month.leadingBlanks).map { _ in UIView() }
+        cells += (1...month.dayCount).map { day in
+            dayCell(day, today: month.today, didRead: readDays.contains(day))
+        }
         while cells.count % 7 != 0 {
             cells.append(UIView())
         }
@@ -115,7 +246,10 @@ final class StatsViewController: ScrollScreenViewController {
         }
 
         let footer = InkLabel()
-        footer.text = PlaceholderLibrary.calendarCaption
+        // TODO(l10n): localize once the strings pass lands.
+        footer.text = readDays.count == 1
+            ? "One evening with a book this month."
+            : "\(readDays.count) evenings with a book this month."
         footer.font = InkFont.caption
         footer.textColor = InkColor.textTertiary
 
@@ -133,10 +267,9 @@ final class StatsViewController: ScrollScreenViewController {
         return card
     }
 
-    private func dayCell(_ day: Int) -> UIView {
-        let isToday = day == PlaceholderLibrary.calendarToday
-        let isFuture = day > PlaceholderLibrary.calendarToday
-        let didRead = PlaceholderLibrary.calendarReadDays.contains(day)
+    private func dayCell(_ day: Int, today: Int, didRead: Bool) -> UIView {
+        let isToday = day == today
+        let isFuture = day > today
 
         let cell = UIView()
         cell.backgroundColor = isToday ? InkColor.accentSoft : .clear
@@ -171,18 +304,18 @@ final class StatsViewController: ScrollScreenViewController {
 
     // MARK: In-progress rows
 
-    private func progressRow(_ book: PlaceholderBook) -> UIView {
+    private func progressRow(_ publication: Publication) -> UIView {
         let title = InkLabel()
-        title.text = book.title
+        title.text = publication.title
         title.font = InkFont.serif(15, weight: .medium, style: .subheadline)
         title.textColor = InkColor.textDisplay
         title.lineBreakMode = .byTruncatingTail
 
-        let bar = InkProgressBar(progress: book.progress)
+        let bar = InkProgressBar(progress: CGFloat(publication.progression))
         bar.widthAnchor.constraint(equalToConstant: 92).isActive = true
 
         let percent = InkLabel()
-        percent.text = book.percentText
+        percent.text = "\(Int((publication.progression * 100).rounded()))%"
         percent.font = InkFont.caption
         percent.textColor = InkColor.textTertiary
         percent.textAlignment = .right
@@ -217,5 +350,21 @@ final class StatsViewController: ScrollScreenViewController {
             separator.heightAnchor.constraint(equalToConstant: 1 / traitCollection.displayScale),
         ])
         return container
+    }
+}
+
+private extension Weekday {
+    /// `Calendar.firstWeekday` is 1-based starting at Sunday; anything
+    /// out of range degrades to Sunday rather than trapping.
+    init(firstWeekday: Int) {
+        switch firstWeekday {
+        case 2: self = .monday
+        case 3: self = .tuesday
+        case 4: self = .wednesday
+        case 5: self = .thursday
+        case 6: self = .friday
+        case 7: self = .saturday
+        default: self = .sunday
+        }
     }
 }
