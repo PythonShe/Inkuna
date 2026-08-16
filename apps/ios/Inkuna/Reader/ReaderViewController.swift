@@ -634,7 +634,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
         let sheet = ContentsSheetViewController(
             bookTitle: publication.title,
-            coverSeed: Self.coverSeed(for: publication.id),
+            coverSeed: BookCoverView.coverSeed(for: publication.id),
             rows: rows,
             pageInfoText: pageInfoText()
         )
@@ -700,16 +700,6 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             resource.removeFirst()
         }
         return resource.removingPercentEncoding ?? resource
-    }
-
-    /// Stable generated-cover seed for a publication id; `String.hashValue`
-    /// is salted per launch so it cannot serve.
-    static func coverSeed(for id: String) -> Int {
-        var seed = 5381
-        for byte in id.utf8 {
-            seed = (seed &* 33) &+ Int(byte)
-        }
-        return abs(seed)
     }
 
     // MARK: Theme & type

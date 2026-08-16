@@ -187,7 +187,7 @@ final class LibraryViewController: ScrollScreenViewController {
                 title: publication.title,
                 author: displayAuthor(publication),
                 progress: publication.progression > 0 ? CGFloat(publication.progression) : nil,
-                seed: coverSeed(for: publication),
+                seed: BookCoverView.coverSeed(for: publication.id),
                 // The core owns every book's file, so a listed book is
                 // always on disk — there is no cloud-only state to badge.
                 downloaded: true
@@ -211,22 +211,5 @@ final class LibraryViewController: ScrollScreenViewController {
     // TODO(l10n): localize once the strings pass lands.
     private func displayAuthor(_ publication: Publication) -> String {
         publication.authors.isEmpty ? "Unknown author" : publication.authors.joined(separator: ", ")
-    }
-
-    /// A stable per-book seed for the generated cover.
-    ///
-    /// Deliberately not `hashValue`: Swift seeds string hashing per process,
-    /// so a book would change colour on every launch.
-    ///
-    /// TODO(core): the core already extracts real cover art into
-    /// `Publication.coverPath`; render it here once `BookCoverView` accepts
-    /// an image and falls back to the generated cover.
-    private func coverSeed(for publication: Publication) -> Int {
-        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-        for byte in publication.id.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 0x0000_0100_0000_01b3
-        }
-        return Int(hash % UInt64(Int.max))
     }
 }
