@@ -105,7 +105,7 @@ impl Library {
         let title = parsed
             .metadata
             .title
-            .or_else(|| src.file_stem().map(|s| s.to_string_lossy().into_owned()))
+            .or_else(|| src.file_stem().map(|s| nfc(&s.to_string_lossy())))
             .ok_or_else(|| {
                 let _ = std::fs::remove_file(&tmp_path);
                 CoreError::InvalidPublication("untitled".into())
@@ -336,6 +336,18 @@ impl Library {
             rows.next().transpose().map_err(Into::into)
         })
     }
+}
+
+/// Normalizes a filename-derived title to NFC. File providers hand back
+/// decomposed forms on some volumes (HFS+/APFS most of all), and a
+/// decomposed CJK or Hangul title renders identically but compares, sorts,
+/// and searches differently from every composed string in the library.
+/// Titles from inside a book are left verbatim — this is only for names the
+/// filesystem made up. Living here, no shell can forget it.
+fn nfc(name: &str) -> String {
+    icu_normalizer::ComposingNormalizer::new_nfc()
+        .normalize(name)
+        .into_owned()
 }
 
 fn is_constraint_violation(e: &rusqlite::Error) -> bool {

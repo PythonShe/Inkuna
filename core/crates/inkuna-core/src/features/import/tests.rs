@@ -638,6 +638,32 @@ fn rejects_non_epub_naming_the_format() {
 }
 
 #[test]
+fn untitled_epub_falls_back_to_the_file_stem_normalized_to_nfc() {
+    let dir = tempfile::tempdir().unwrap();
+    // Decomposed Hangul (NFD), as APFS/HFS+ file providers hand names back:
+    // renders as 밤의 서재 but is byte-for-byte different from the composed
+    // form every other title in the library uses.
+    let decomposed = "\u{1107}\u{1161}\u{11B7}\u{110B}\u{1174} \
+                      \u{1109}\u{1165}\u{110C}\u{1162}";
+    let epub = dir.path().join(format!("{decomposed}.epub"));
+    let opf = r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:language>ko</dc:language></metadata>
+  <manifest><item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#;
+    write_epub_parts(
+        &epub,
+        opf,
+        &[("ch01.xhtml", r#"<html><body><p>본문.</p></body></html>"#)],
+    );
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(publication.title, "밤의 서재");
+}
+
+#[test]
 fn import_is_idempotent_by_content_hash() {
     let dir = tempfile::tempdir().unwrap();
     let epub = dir.path().join("book.epub");
