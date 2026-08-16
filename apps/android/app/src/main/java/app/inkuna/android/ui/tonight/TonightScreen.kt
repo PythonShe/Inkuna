@@ -28,11 +28,12 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import app.inkuna.android.R
-import app.inkuna.android.model.PlaceholderBook
+import app.inkuna.android.model.BookRow
 import app.inkuna.android.model.PlaceholderLibrary
-import app.inkuna.android.model.coverSeed
-import app.inkuna.core.Publication as CorePublication
 import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkButtonSize
@@ -48,15 +49,23 @@ import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
-import kotlin.math.roundToInt
 
 @Composable
 fun TonightScreen(
     innerPadding: PaddingValues,
-    onOpenBook: (PlaceholderBook) -> Unit,
-    continueReading: CorePublication?,
-    onOpenReader: (CorePublication) -> Unit,
+    onOpenBook: (String) -> Unit,
+    onOpenReader: (String) -> Unit,
+    model: TonightViewModel = viewModel(),
 ) {
+    val state by model.state.collectAsStateWithLifecycle()
+
+    // Progress moves while the reader is open, and imports land from other
+    // tabs; coming back must not show last week's hero.
+    LifecycleResumeEffect(Unit) {
+        model.reload()
+        onPauseOrDispose {}
+    }
+
     // TODO(core): chips become real collection filters once collections land.
     var selectedChip by rememberSaveable { mutableStateOf(0) }
 
@@ -66,8 +75,7 @@ fun TonightScreen(
         DisplayTitle(stringResource(R.string.tonight_title))
         Spacer(Modifier.height(28.dp))
         HeroCard(
-            placeholder = PlaceholderLibrary.heroBook,
-            continueReading = continueReading,
+            continueReading = state.continueReading,
             onOpenReader = onOpenReader,
         )
         Spacer(Modifier.height(InkSpace.s8))
@@ -80,39 +88,35 @@ fun TonightScreen(
                 )
             }
         }
-        Spacer(Modifier.height(InkSpace.s4))
-        SectionTitle(stringResource(R.string.tonight_nightstand))
-        Spacer(Modifier.height(InkSpace.s4))
-        ShelfRow(books = PlaceholderLibrary.shelf, onOpenBook = onOpenBook)
+        // The nightstand shows only when there is something on it — an
+        // empty core shelf removes the section instead of rendering
+        // stand-ins.
+        if (state.nightstand.isNotEmpty()) {
+            Spacer(Modifier.height(InkSpace.s4))
+            SectionTitle(stringResource(R.string.tonight_nightstand))
+            Spacer(Modifier.height(InkSpace.s4))
+            ShelfRow(books = state.nightstand, onOpenBook = onOpenBook)
+        }
     }
 }
 
 /**
  * The card shows the book it opens: whatever the core hands back as the
- * most recently read publication, down to its cover colour. [placeholder]
- * is the design's stand-in book, rendered only while the library is empty
- * and there is nothing to continue.
+ * most recently read publication, down to its cover. With nothing to
+ * continue it renders the design's stand-in book — inert scenery, never a
+ * destination.
  */
 @Composable
 private fun HeroCard(
-    placeholder: PlaceholderBook,
-    continueReading: CorePublication?,
-    onOpenReader: (CorePublication) -> Unit,
+    continueReading: BookRow?,
+    onOpenReader: (String) -> Unit,
 ) {
     val ink = InkTheme.colors
-    val unknownAuthor = stringResource(R.string.unknown_author)
+    val placeholder = PlaceholderLibrary.heroBook
     val title = continueReading?.title ?: placeholder.title
-    val author = if (continueReading != null) {
-        continueReading.authors.joinToString(", ").ifEmpty { unknownAuthor }
-    } else {
-        placeholder.author
-    }
-    // Rounded like the library rows and iOS, so one book never reads 1% here
-    // and 2% a tab away.
-    val progress = continueReading
-        ?.let { (it.progression * 100).roundToInt().coerceIn(0, 100) }
-        ?: placeholder.progress
-    val seed = continueReading?.let { coverSeed(it.id) } ?: placeholder.coverSeed
+    val author = continueReading?.author ?: placeholder.author
+    val progress = continueReading?.let { it.progress ?: 0 } ?: placeholder.progress
+    val seed = continueReading?.seed ?: placeholder.coverSeed
     // TODO(core): "pages left in this chapter" needs a chapter's position
     // range, which the core does not expose yet. Real progress beats an
     // invented page count, so the fraction stands in for it.
@@ -121,10 +125,7 @@ private fun HeroCard(
     } else {
         stringResource(R.string.tonight_pages_left)
     }
-    // The placeholder is scenery, never a destination: with nothing to
-    // continue (empty library, or every book finished) the card goes inert
-    // rather than opening a book that does not exist.
-    val open: (() -> Unit)? = continueReading?.let { book -> { onOpenReader(book) } }
+    val open: (() -> Unit)? = continueReading?.let { book -> { onOpenReader(book.id) } }
     val titleLabel = stringResource(R.string.a11y_book_row, title, author)
     Row(
         modifier = Modifier
@@ -182,10 +183,10 @@ private fun HeroCard(
                 text = stringResource(R.string.tonight_keep_reading),
                 // Reading needs a real book, and the library can still be
                 // empty — a fresh install, or every book removed again.
-                onClick = { continueReading?.let(onOpenReader) },
+                onClick = { open?.invoke() },
                 size = InkButtonSize.Small,
                 icon = Icons.Outlined.AutoStories,
-                enabled = continueReading != null,
+                enabled = open != null,
             )
         }
     }

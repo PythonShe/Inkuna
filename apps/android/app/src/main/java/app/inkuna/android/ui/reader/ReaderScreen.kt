@@ -91,10 +91,11 @@ fun ReaderScreen(
     settings: AppSettings,
     snapshot: AppSettings.Snapshot,
     onBack: () -> Unit,
+    initialChapterHref: String? = null,
 ) {
     val viewModel: ReaderViewModel = viewModel(
         key = "reader-$publicationId",
-        factory = ReaderViewModel.factory(publicationId),
+        factory = ReaderViewModel.factory(publicationId, initialChapterHref),
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     val theme = snapshot.readingTheme

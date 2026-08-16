@@ -26,7 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.inkuna.android.model.PlaceholderBook
+import app.inkuna.android.model.BookRow
 import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
@@ -110,8 +110,8 @@ fun EmptyState(text: String, modifier: Modifier = Modifier) {
 /** Horizontal cover shelf; shadows aren't clipped because nothing clips. */
 @Composable
 fun ShelfRow(
-    books: List<PlaceholderBook>,
-    onOpenBook: (PlaceholderBook) -> Unit,
+    books: List<BookRow>,
+    onOpenBook: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -121,13 +121,13 @@ fun ShelfRow(
         horizontalArrangement = Arrangement.spacedBy(InkSpace.s4),
     ) {
         books.forEach { book ->
-            ShelfBookView(book, onClick = { onOpenBook(book) })
+            ShelfBookView(book, onClick = { onOpenBook(book.id) })
         }
     }
 }
 
 @Composable
-fun ShelfBookView(book: PlaceholderBook, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun ShelfBookView(book: BookRow, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val ink = InkTheme.colors
     val rowLabel = stringResource(R.string.a11y_book_row, book.title, book.author)
     Column(
@@ -139,7 +139,13 @@ fun ShelfBookView(book: PlaceholderBook, onClick: () -> Unit, modifier: Modifier
                 role = Role.Button
             },
     ) {
-        BookCover(title = book.title, author = book.author, width = 104.dp, seed = book.coverSeed)
+        BookCover(
+            title = book.title,
+            author = book.author,
+            width = 104.dp,
+            seed = book.seed,
+            coverPath = book.coverPath,
+        )
         Text(
             book.title,
             style = InkType.heading.copy(fontSize = 14.sp, lineHeight = 18.sp),

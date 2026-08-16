@@ -47,8 +47,6 @@ class MainActivity : FragmentActivity() {
         // migrations and an orphaned-file sweep synchronously. Failure is
         // recoverable, not fatal: nothing is cached on error, so the first
         // screen that needs the shelf retries and surfaces it.
-        // TODO(core): feed the library/tonight/stats screens from the
-        // Bookshelf; PlaceholderLibrary stands in until then.
         lifecycleScope.launch {
             runCatching { LibraryStore.bookshelf(applicationContext) }
                 .onFailure { Log.w("Inkuna", "core library warm-up failed", it) }

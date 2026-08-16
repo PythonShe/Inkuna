@@ -67,6 +67,7 @@
 
     <!-- Book detail -->
     <string name="detail_contents">Contents</string>
+    <string name="detail_no_contents">This book lists no contents.</string>
 
     <!-- Reader -->
     <string name="reader_menu_contents">Contents · %1$d%%</string>

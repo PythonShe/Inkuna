@@ -5,8 +5,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.inkuna.android.R
+import app.inkuna.android.model.BookRow
 import app.inkuna.android.model.LibraryStore
-import app.inkuna.android.model.coverSeed
 import app.inkuna.core.Publication
 import app.inkuna.core.Shelf
 import app.inkuna.core.Sort
@@ -17,26 +17,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 /** Which segment of the library is on screen. */
 enum class LibrarySegment { Reading, Finished, Wishlist }
-
-/**
- * One row, projected off the core's [Publication].
- *
- * Deliberately not the generated type: UniFFI records expose `var` fields,
- * which Compose treats as unstable and recomposes on every read.
- */
-data class LibraryRow(
-    val id: String,
-    val title: String,
-    val author: String,
-    val progress: Int?,
-    val seed: Int,
-    /** Absolute path of the core-extracted cover art, if the book has any. */
-    val coverPath: String?,
-)
 
 /** What to show when there are no rows. */
 sealed interface LibraryEmptiness {
@@ -50,7 +33,7 @@ sealed interface LibraryEmptiness {
 }
 
 data class LibraryUiState(
-    val rows: List<LibraryRow> = emptyList(),
+    val rows: List<BookRow> = emptyList(),
     val emptiness: LibraryEmptiness = LibraryEmptiness.Shelf(LibraryEmptiness.Shelf.Kind.Reading),
     val segment: LibrarySegment = LibrarySegment.Reading,
     val query: String = "",
@@ -156,16 +139,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun row(publication: Publication) = LibraryRow(
-        id = publication.id,
-        title = publication.title,
-        author = publication.authors.joinToString(", ").ifEmpty { null }
-            ?: getApplication<Application>().getString(R.string.unknown_author),
-        // Rounded, not truncated — iOS rounds, and the same book must not
-        // read 1% on one shell and 2% on the other.
-        progress = publication.progression.takeIf { it > 0.0 }?.let { (it * 100).roundToInt() },
-        seed = coverSeed(publication.id),
-        coverPath = publication.coverPath,
+    private fun row(publication: Publication) = BookRow.from(
+        publication,
+        unknownAuthor = getApplication<Application>().getString(R.string.unknown_author),
     )
 
     private companion object {
