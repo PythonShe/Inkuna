@@ -35,16 +35,32 @@ private fun decodeSampled(path: String, targetWidthPx: Int): ImageBitmap? {
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
     val options = BitmapFactory.Options().apply {
-        inSampleSize = sampleSize(bounds.outWidth, targetWidthPx)
+        inSampleSize = sampleSize(
+            bounds.outWidth,
+            bounds.outHeight,
+            targetWidthPx,
+            // The tile is 2:3, so the height budget is the width's 1.5×; a
+            // pathologically tall cover must be sampled by its height too or
+            // it allocates its full pixel count at inSampleSize 1.
+            targetWidthPx * 3 / 2,
+        )
     }
     return BitmapFactory.decodeFile(path, options)?.asImageBitmap()
 }
 
-/** Largest power of two keeping the decoded width at or above the target. */
-private fun sampleSize(sourceWidth: Int, targetWidthPx: Int): Int {
-    if (targetWidthPx <= 0) return 1
+/** Largest power of two keeping both decoded axes at or above their target. */
+private fun sampleSize(
+    sourceWidth: Int,
+    sourceHeight: Int,
+    targetWidthPx: Int,
+    targetHeightPx: Int,
+): Int {
+    if (targetWidthPx <= 0 || targetHeightPx <= 0) return 1
     var sample = 1
-    while (sourceWidth / (sample * 2) >= targetWidthPx) {
+    while (
+        sourceWidth / (sample * 2) >= targetWidthPx ||
+        sourceHeight / (sample * 2) >= targetHeightPx
+    ) {
         sample *= 2
     }
     return sample

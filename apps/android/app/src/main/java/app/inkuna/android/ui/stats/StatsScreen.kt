@@ -51,6 +51,7 @@ import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
+import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
@@ -163,16 +164,19 @@ fun StatsScreen(
 
 /**
  * Whole and half hours, the design's "6½" voice: 30+ leftover minutes
- * round to the half, never to a decimal.
+ * round to the half, never to a decimal. The digits come from the
+ * composition's locale, so a locale with its own numerals gets them.
  */
+@Composable
 private fun hoursText(minutes: Int): String {
+    val locale = LocalConfiguration.current.locales[0]
+    val numbers = remember(locale) { NumberFormat.getInstance(locale) }
     val hours = minutes / 60
     val half = minutes % 60 >= 30
     return when {
-        hours == 0 && half -> "½"
-        hours == 0 -> "0"
-        half -> "$hours½"
-        else -> "$hours"
+        hours == 0 && half -> stringResource(R.string.stats_hours_half_only)
+        half -> stringResource(R.string.stats_hours_half, numbers.format(hours))
+        else -> numbers.format(hours)
     }
 }
 

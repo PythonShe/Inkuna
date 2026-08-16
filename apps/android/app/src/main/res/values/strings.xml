@@ -55,7 +55,7 @@
     <!-- Search -->
     <string name="search_title">Search</string>
     <string name="search_placeholder">Titles, authors</string>
-    <string name="search_new_this_week">New this week</string>
+    <string name="search_recently_added">Recently added</string>
 
     <!-- Stats -->
     <string name="stats_title">Reading</string>
@@ -63,6 +63,11 @@
     <string name="stats_pages_this_week">pages this week</string>
     <string name="stats_hours_this_month">hours this month</string>
     <string name="stats_books_this_year">books this year</string>
+    <!-- Whole hours plus a half, the design's "6½" voice; %1$s is the
+         locale-formatted whole count. -->
+    <string name="stats_hours_half">%1$s½</string>
+    <!-- Under an hour but past the half: the fraction stands alone. -->
+    <string name="stats_hours_half_only">½</string>
     <string name="stats_in_progress_empty">Nothing in progress yet.</string>
     <plurals name="stats_evenings">
         <item quantity="one">One evening with a book this month.</item>

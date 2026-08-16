@@ -12,7 +12,9 @@ import app.inkuna.core.Sort
 import java.time.DayOfWeek
 import java.time.ZonedDateTime
 import java.time.temporal.WeekFields
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,7 +54,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
     fun reload() {
         reload?.cancel()
         reload = viewModelScope.launch {
-            runCatching {
+            try {
                 val bookshelf = LibraryStore.bookshelf(getApplication())
                 // Stats bucketing follows the wall clock and week convention
                 // this device lives in; the core stores UTC instants and
@@ -72,7 +74,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
                 val inProgress = bookshelf.list(Shelf.READING, Sort.RECENTLY_OPENED)
                 val unknownAuthor =
                     getApplication<Application>().getString(R.string.unknown_author)
-                UiState(
+                val fresh = UiState(
                     overview = Overview(
                         pagesThisWeek = overview.pagesThisWeek.toInt(),
                         minutesThisMonth = overview.minutesThisMonth.toInt(),
@@ -81,13 +83,15 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
                     ),
                     inProgress = inProgress.map { BookRow.from(it, unknownAuthor) },
                 )
-            }.onSuccess { fresh ->
+                ensureActive()
                 _state.value = fresh
-            }.onFailure {
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
                 // Keep whatever numbers are already on screen; the library
                 // screen owns the recovery path for a library that will
                 // not open.
-                Log.w(TAG, "The stats overview would not load", it)
+                Log.w(TAG, "The stats overview would not load", failure)
             }
         }
     }

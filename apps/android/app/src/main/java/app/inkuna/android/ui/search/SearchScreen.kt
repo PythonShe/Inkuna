@@ -55,7 +55,7 @@ fun SearchScreen(
                 // An empty library has nothing to discover; the quiet
                 // screen leaves the search field standing alone.
                 EyebrowText(
-                    stringResource(R.string.search_new_this_week),
+                    stringResource(R.string.search_recently_added),
                     modifier = Modifier.padding(top = InkSpace.s6, bottom = InkSpace.s4),
                 )
                 ShelfRow(books = state.discover, onOpenBook = onOpenBook)

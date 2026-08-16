@@ -44,10 +44,10 @@ private object Routes {
     const val DETAIL = "detail/{publicationId}"
     const val READER = "reader/{publicationId}?chapter={chapter}"
 
-    fun detail(publicationId: String) = "detail/$publicationId"
+    fun detail(publicationId: String) = "detail/${Uri.encode(publicationId)}"
 
     fun reader(publicationId: String, chapterHref: String? = null): String {
-        val base = "reader/$publicationId"
+        val base = "reader/${Uri.encode(publicationId)}"
         return if (chapterHref == null) base else "$base?chapter=${Uri.encode(chapterHref)}"
     }
 }

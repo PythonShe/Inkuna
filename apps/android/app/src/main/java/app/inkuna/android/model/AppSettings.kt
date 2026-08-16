@@ -47,6 +47,11 @@ class AppSettings private constructor(private val context: Context) {
     data class Snapshot(
         val onboarded: Boolean = false,
         val readingTheme: ReadingTheme = ReadingTheme.Paper,
+        /** The stored theme id verbatim. An id this build doesn't know
+         *  (a newer app's theme, synced back) reads as [ReadingTheme.Paper]
+         *  for rendering but is written back untouched, so changing the
+         *  brightness here never destroys the other install's choice. */
+        val rawReadingTheme: String = ReadingTheme.Paper.name.lowercase(),
         val textSizeStep: Int = DEFAULT_TEXT_SIZE_STEP,
         val brightness: Float = DEFAULT_BRIGHTNESS,
     )
@@ -89,8 +94,18 @@ class AppSettings private constructor(private val context: Context) {
                 current
             }
         }.onSuccess { record ->
-            _snapshot.value = record.toSnapshot()
-            loaded = true
+            // Anything the user changed while the load was in flight was
+            // queued rather than applied to the stored record; replay it
+            // over what landed, then persist the folded result once so the
+            // queued changes aren't lost to the load that overtook them.
+            val replayed = synchronized(pendingRebase) {
+                val pending = pendingRebase.toList()
+                _snapshot.value = pending.fold(record.toSnapshot()) { acc, transform -> transform(acc) }
+                pendingRebase.clear()
+                loaded = true
+                pending.isNotEmpty()
+            }
+            if (replayed) persist()
         }.onFailure {
             Log.w(TAG, "Settings would not load; running on defaults", it)
         }
@@ -123,7 +138,7 @@ class AppSettings private constructor(private val context: Context) {
         update { it.copy(onboarded = value) }
 
     fun setReadingTheme(theme: ReadingTheme) =
-        update { it.copy(readingTheme = theme) }
+        update { it.copy(readingTheme = theme, rawReadingTheme = theme.name.lowercase()) }
 
     fun setTextSizeStep(step: Int) =
         update { it.copy(textSizeStep = step.coerceIn(0, TEXT_SIZE_STEPS.lastIndex)) }
@@ -146,6 +161,11 @@ class AppSettings private constructor(private val context: Context) {
         synchronized(pendingRebase) {
             if (!loaded) pendingRebase.add(transform)
         }
+        persist()
+    }
+
+    /** Stores the snapshot as it stands when this write's turn comes. */
+    private fun persist() {
         LibraryStore.writes.launch {
             writeLock.withLock {
                 runCatching {
@@ -175,17 +195,19 @@ class AppSettings private constructor(private val context: Context) {
         onboarded = onboarded,
         // The core treats the theme as an opaque string the shells own;
         // both shells write the lowercase names, and an unrecognized value
-        // (a future theme, a hand-edited database) reads as Paper.
+        // (a future theme, a hand-edited database) renders as Paper while
+        // the id itself is carried through untouched.
         readingTheme = ReadingTheme.entries
             .firstOrNull { it.name.equals(readingTheme, ignoreCase = true) }
             ?: ReadingTheme.Paper,
+        rawReadingTheme = readingTheme,
         textSizeStep = textSizeStep.toInt().coerceIn(0, TEXT_SIZE_STEPS.lastIndex),
         brightness = brightness.toFloat().coerceIn(0f, 1f),
     )
 
     private fun Snapshot.toRecord() = Settings(
         onboarded = onboarded,
-        readingTheme = readingTheme.name.lowercase(),
+        readingTheme = rawReadingTheme,
         textSizeStep = textSizeStep.toUByte(),
         brightness = brightness.toDouble(),
     )

@@ -9,7 +9,9 @@ import app.inkuna.android.model.BookRow
 import app.inkuna.android.model.LibraryStore
 import app.inkuna.core.Shelf
 import app.inkuna.core.Sort
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,15 +43,15 @@ class TonightViewModel(application: Application) : AndroidViewModel(application)
     fun reload() {
         reload?.cancel()
         reload = viewModelScope.launch {
-            // Unfinished, not all: a book just finished must not be the
-            // "keep reading" hero merely for being touched last.
-            runCatching {
-                LibraryStore.bookshelf(getApplication())
+            try {
+                // Unfinished, not all: a book just finished must not be the
+                // "keep reading" hero merely for being touched last.
+                val publications = LibraryStore.bookshelf(getApplication())
                     .list(Shelf.UNFINISHED, Sort.RECENTLY_OPENED)
-            }.onSuccess { publications ->
                 val unknownAuthor =
                     getApplication<Application>().getString(R.string.unknown_author)
                 val rows = publications.map { BookRow.from(it, unknownAuthor) }
+                ensureActive()
                 // A successful-but-empty answer clears the hero; only a
                 // failed load keeps whatever the card already shows — the
                 // library screen owns the recovery path for a library that
@@ -58,7 +60,11 @@ class TonightViewModel(application: Application) : AndroidViewModel(application)
                     continueReading = rows.firstOrNull(),
                     nightstand = rows.drop(1).take(NIGHTSTAND_CAPACITY),
                 )
-            }.onFailure { Log.w(TAG, "The tonight shelf would not load", it) }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
+                Log.w(TAG, "The tonight shelf would not load", failure)
+            }
         }
     }
 

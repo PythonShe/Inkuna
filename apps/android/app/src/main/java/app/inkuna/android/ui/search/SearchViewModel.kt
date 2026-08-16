@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 
 /**
  * The Search tab's core-backed state: library search through the core's
- * case-folded, CJK-safe metadata matching, and the "New this week" shelf
+ * case-folded, CJK-safe metadata matching, and the "Recently added" shelf
  * of the freshest imports while the query is empty.
  */
 class SearchViewModel(application: Application) : AndroidViewModel(application) {
