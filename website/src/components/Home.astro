@@ -43,6 +43,24 @@ const t = useTranslations(home, lang);
         </span>
       </li>
     </ul>
+    <aside class="beta">
+      <svg class="beta-icon" viewBox="0 0 1024 1024" aria-hidden="true">
+        <rect
+          width="1024"
+          height="1024"
+          rx="230"
+          fill="#26262b"
+          stroke="var(--hairline)"
+          stroke-width="8"></rect>
+        <circle cx="512" cy="512" r="430" fill="#1a1a1e"></circle>
+        <circle cx="676" cy="389" r="266" fill="#f5f2ea"></circle>
+      </svg>
+      <p>
+        {t("beta.pre")}<a href="https://testflight.apple.com/join/VYVQyn1T"
+          >TestFlight</a
+        >{t("beta.post")}
+      </p>
+    </aside>
     <p class="platforms">
       {t("platforms.pre")}<a href="https://github.com/PythonShe/Inkuna">GitHub</a
       >{t("platforms.post")}
@@ -112,6 +130,25 @@ const t = useTranslations(home, lang);
     flex: none;
     font-size: 0.8rem;
     color: var(--ink-soft);
+  }
+  .beta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.4rem;
+  }
+  /* App-icon tile keeps its own ink even in light mode. */
+  .beta-icon {
+    width: 3rem;
+    height: 3rem;
+    flex: none;
+    border-radius: 0.7rem;
+  }
+  .beta p {
+    margin: 0;
   }
   .platforms {
     font-size: 0.95rem;
