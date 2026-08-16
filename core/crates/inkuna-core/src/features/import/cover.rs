@@ -68,7 +68,11 @@ fn normalized(bytes: &[u8], extension: &str) -> Option<Cover> {
         // only stack generation loss.
         return None;
     }
-    let _decode_slot = DECODE_GATE.lock().unwrap();
+    // The gate guards no data, only concurrency, so a panic while a slot
+    // was held poisons nothing worth propagating: recover and carry on.
+    let _decode_slot = DECODE_GATE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let decoded = ImageReader::new(Cursor::new(bytes))
         .with_guessed_format()
         .ok()?
