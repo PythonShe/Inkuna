@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 진입점 -->
+    <string name="import_add_books">도서 추가</string>
+    <string name="import_empty_title">책장에 아직 책이 없습니다</string>
+    <string name="import_empty_body">파일에서 EPUB 도서를 추가하면 이곳에 보관됩니다. Inkuna는 자체 복사본을 유지하므로 원본 파일은 그대로 유지됩니다.</string>
+    <string name="import_empty_footnote">현재는 EPUB을 지원합니다. 만화 및 기타 포맷도 곧 지원될 예정입니다.</string>
+    <string name="import_empty_action">첫 번째 책 추가하기</string>
+    <string name="a11y_import_add_books">서재에 도서 추가</string>
+
+    <!-- 진행 상황 -->
+    <string name="import_progress_eyebrow">서재에 추가하는 중</string>
+    <string name="import_phase_preparing">파일 준비 중…</string>
+    <string name="import_phase_copying">파일 복사 중</string>
+    <string name="import_phase_reading">도서 분석 중</string>
+    <string name="import_progress_count">%1$d / %2$d</string>
+    <string name="import_cancel">취소</string>
+    <string name="a11y_import_progress">가져오는 중, %1$d / %2$d</string>
+
+    <!-- 결과 보고 -->
+    <string name="import_done">완료</string>
+    <string name="import_result_cancelled">가져오기가 중단되었습니다</string>
+    <string name="import_result_nothing">추가된 도서가 없습니다</string>
+    <string name="import_result_already">이미 서재에 있습니다</string>
+    <plurals name="import_result_added">
+        <item quantity="other">%d권의 책이 추가되었습니다</item>
+    </plurals>
+    <string name="import_section_added">추가됨</string>
+    <string name="import_section_duplicates">이미 서재에 있음</string>
+    <string name="import_section_failures">추가되지 않음</string>
+    <string name="import_unknown_author">작자 미상</string>
+    <string name="import_unnamed_file">해당 파일</string>
+
+    <!-- 실패 사유 -->
+    <string name="import_fail_unsupported">%1$s 파일은 아직 지원되지 않습니다</string>
+    <string name="import_fail_unknown_format">Inkuna가 지원하는 파일 형식이 아닙니다</string>
+    <string name="import_fail_broken">이 EPUB은 읽기에 필요한 정보가 누락되어 있습니다</string>
+    <string name="import_fail_archive">파일이 손상되어 열 수 없습니다</string>
+    <string name="import_fail_too_large">파일이 너무 커서 추가할 수 없습니다</string>
+    <string name="import_fail_unreadable">파일을 읽을 수 없습니다</string>
+    <string name="import_fail_library">서재에 저장할 수 없습니다</string>
+
+    <!-- 외부 Intent -->
+    <string name="import_intent_label">Inkuna에 추가</string>
+    <string name="import_intent_open_library">서재 열기</string>
+    <string name="import_intent_nothing">추가할 내용이 없습니다.</string>
+</resources>

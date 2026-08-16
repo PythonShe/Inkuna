@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Точки входа -->
+    <string name="import_add_books">Добавить книги</string>
+    <string name="import_empty_title">На полке пока пусто</string>
+    <string name="import_empty_body">Добавьте EPUB-файл из «Файлов», и он появится здесь.</string>
+    <string name="import_empty_footnote">Сейчас поддерживается EPUB. Комиксы и другие форматы появятся позже.</string>
+    <string name="import_empty_action">Добавить первую книгу</string>
+    <string name="a11y_import_add_books">Добавить книги в библиотеку</string>
+
+    <!-- Прогресс -->
+    <string name="import_progress_eyebrow">Добавление в библиотеку</string>
+    <string name="import_phase_preparing">Подготовка файла…</string>
+    <string name="import_phase_copying">Копирование файла</string>
+    <string name="import_phase_reading">Чтение книги</string>
+    <string name="import_progress_count">%1$d из %2$d</string>
+    <string name="import_cancel">Отмена</string>
+    <string name="a11y_import_progress">Импорт, %1$d из %2$d</string>
+
+    <!-- Отчет -->
+    <string name="import_done">Готово</string>
+    <string name="import_result_cancelled">Импорт остановлен</string>
+    <string name="import_result_nothing">Ничего не добавлено</string>
+    <string name="import_result_already">Уже в библиотеке</string>
+    <plurals name="import_result_added">
+        <item quantity="one">Добавлена %d книга</item>
+        <item quantity="few">Добавлено %d книги</item>
+        <item quantity="many">Добавлено %d книг</item>
+        <item quantity="other">Добавлено %d книг</item>
+    </plurals>
+    <string name="import_section_added">Добавлено</string>
+    <string name="import_section_duplicates">Уже в библиотеке</string>
+    <string name="import_section_failures">Не добавлено</string>
+    <string name="import_unknown_author">Неизвестный автор</string>
+    <string name="import_unnamed_file">Этот файл</string>
+
+    <!-- Причины ошибок -->
+    <string name="import_fail_unsupported">Файлы %1$s пока не поддерживаются</string>
+    <string name="import_fail_unknown_format">Inkuna не удалось распознать формат файла</string>
+    <string name="import_fail_broken">В этом EPUB-файле отсутствуют необходимые данные</string>
+    <string name="import_fail_archive">Файл поврежден</string>
+    <string name="import_fail_too_large">Файл слишком велик для добавления</string>
+    <string name="import_fail_unreadable">Не удалось прочитать файл</string>
+    <string name="import_fail_library">Не удалось записать данные в библиотеку</string>
+
+    <!-- Входящий Intent -->
+    <string name="import_intent_label">Добавить в Inkuna</string>
+    <string name="import_intent_open_library">Открыть библиотеку</string>
+    <string name="import_intent_nothing">Нечего добавить.</string>
+</resources>

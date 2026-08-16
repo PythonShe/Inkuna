@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Điểm nhập -->
+    <string name="import_add_books">Thêm sách</string>
+    <string name="import_empty_title">Chưa có cuốn sách nào trên giá</string>
+    <string name="import_empty_body">Thêm tệp EPUB từ Tệp của bạn và sách sẽ chờ bạn ở đây.</string>
+    <string name="import_empty_footnote">Hiện hỗ trợ định dạng EPUB. Truyện tranh và các định dạng khác sẽ sớm ra mắt.</string>
+    <string name="import_empty_action">Thêm cuốn sách đầu tiên của bạn</string>
+    <string name="a11y_import_add_books">Thêm sách vào thư viện</string>
+
+    <!-- Tiến trình -->
+    <string name="import_progress_eyebrow">Đang thêm vào thư viện</string>
+    <string name="import_phase_preparing">Đang chuẩn bị tệp…</string>
+    <string name="import_phase_copying">Đang sao chép tệp</string>
+    <string name="import_phase_reading">Đang đọc thông tin sách</string>
+    <string name="import_progress_count">%1$d trên %2$d</string>
+    <string name="import_cancel">Hủy</string>
+    <string name="a11y_import_progress">Đang nhập, %1$d trên %2$d</string>
+
+    <!-- Báo cáo kết quả -->
+    <string name="import_done">Xong</string>
+    <string name="import_result_cancelled">Đã dừng nhập sách</string>
+    <string name="import_result_nothing">Không có cuốn sách nào được thêm</string>
+    <string name="import_result_already">Đã có trong thư viện</string>
+    <plurals name="import_result_added">
+        <item quantity="other">Đã thêm %d cuốn sách</item>
+    </plurals>
+    <string name="import_section_added">Đã thêm</string>
+    <string name="import_section_duplicates">Đã có trong thư viện</string>
+    <string name="import_section_failures">Không thể thêm</string>
+    <string name="import_unknown_author">Tác giả chưa rõ</string>
+    <string name="import_unnamed_file">Tệp này</string>
+
+    <!-- Lý do thất bại -->
+    <string name="import_fail_unsupported">Tệp định dạng %1$s chưa được hỗ trợ</string>
+    <string name="import_fail_unknown_format">Inkuna không nhận dạng được định dạng tệp này</string>
+    <string name="import_fail_broken">Tệp EPUB này thiếu dữ liệu cần thiết để đọc</string>
+    <string name="import_fail_archive">Tệp bị hỏng và không thể mở được</string>
+    <string name="import_fail_too_large">Tệp này quá lớn để thêm vào</string>
+    <string name="import_fail_unreadable">Không thể đọc tệp này</string>
+    <string name="import_fail_library">Không thể ghi dữ liệu vào thư viện</string>
+
+    <!-- Intent bên ngoài -->
+    <string name="import_intent_label">Thêm vào Inkuna</string>
+    <string name="import_intent_open_library">Mở thư viện</string>
+    <string name="import_intent_nothing">Không có nội dung nào để thêm.</string>
+</resources>

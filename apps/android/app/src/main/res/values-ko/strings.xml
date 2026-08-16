@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inkuna</string>
+
+    <!-- 온보딩 -->
+    <string name="welcome_tagline">잉크와 달빛이 만나는 미니멀한 독서 공간.</string>
+    <string name="welcome_begin">시작하기</string>
+    <string name="themepick_eyebrow">독서를 위한 작은 의식</string>
+    <string name="themepick_title">낮의 빛 아래에서, 혹은 밤의 고요 속에서</string>
+    <string name="themepick_sample">램프의 불빛이 잦아들자, 달빛이 책장을 비추기 시작했다.</string>
+    <string name="themepick_hint">독서 중에 언제든지 변경할 수 있습니다.</string>
+    <string name="themepick_continue">계속하기</string>
+
+    <!-- 독서 테마 -->
+    <string name="theme_paper">페이퍼</string>
+    <string name="theme_paper_subtitle">따뜻한 햇살 아래의 독서</string>
+    <string name="theme_calm">캄</string>
+    <string name="theme_calm_subtitle">부드러운 양피지</string>
+    <string name="theme_quiet">콰이어트</string>
+    <string name="theme_quiet_subtitle">차분한 흑연 톤</string>
+    <string name="theme_moon">문</string>
+    <string name="theme_moon_subtitle">깊은 밤을 위한 등불</string>
+
+    <!-- 탭 -->
+    <string name="tab_tonight">오늘 밤</string>
+    <string name="tab_library">서재</string>
+    <string name="tab_search">검색</string>
+    <string name="tab_stats">독서 기록</string>
+
+    <!-- 오늘 밤 -->
+    <string name="tonight_eyebrow">오늘 밤</string>
+    <string name="tonight_title">읽던 곳에서 이어 읽기</string>
+    <string name="tonight_pages_left">이 챕터가 15페이지 남았습니다</string>
+    <string name="tonight_percent_read">%1$d%% 읽음</string>
+    <string name="tonight_keep_reading">계속 읽기</string>
+    <string name="tonight_nightstand">침대 곁 책들</string>
+    <string name="tonight_chip_fiction">소설</string>
+    <string name="tonight_chip_essays">에세이</string>
+    <string name="tonight_chip_night_reads">밤의 독서</string>
+
+    <!-- 서재 -->
+    <string name="library_title">서재</string>
+    <string name="library_search_placeholder">서재 검색</string>
+    <string name="library_seg_reading">읽는 중</string>
+    <string name="library_seg_finished">완독</string>
+    <string name="library_seg_wishlist">읽고 싶은 책</string>
+    <string name="library_empty_finished">아직 완독한 책이 없습니다. 서두르지 않아도 괜찮습니다.</string>
+    <string name="library_empty_wishlist">침대 곁에 아직 책이 없습니다.</string>
+    <string name="library_empty_query">서가에서 찾을 수 없습니다.</string>
+    <string name="library_empty_reading">아직 책이 없습니다.</string>
+    <string name="library_empty_all">아직 책이 없습니다.</string>
+    <string name="library_unopenable">서재를 열 수 없습니다.</string>
+    <string name="unknown_author">작자 미상</string>
+
+    <!-- 검색 -->
+    <string name="search_title">검색</string>
+    <string name="search_placeholder">도서명, 저자</string>
+    <string name="search_recently_added">최근 추가됨</string>
+
+    <!-- 독서 기록 -->
+    <string name="stats_title">독서</string>
+    <string name="stats_in_progress">읽는 중</string>
+    <string name="stats_pages_this_week">이번 주 읽은 페이지</string>
+    <string name="stats_hours_this_month">이번 달 독서 시간</string>
+    <string name="stats_books_this_year">올해 완독한 책</string>
+    <string name="stats_hours_half">%1$s시간 반</string>
+    <string name="stats_hours_half_only">30분</string>
+    <string name="stats_in_progress_empty">현재 읽는 중인 책이 없습니다.</string>
+    <plurals name="stats_evenings">
+        <item quantity="other">이번 달에 책과 함께한 밤은 %d일입니다.</item>
+    </plurals>
+
+    <!-- 도서 상세 -->
+    <string name="detail_contents">목차</string>
+    <string name="detail_no_contents">이 도서에는 목차가 없습니다.</string>
+
+    <!-- 뷰어 -->
+    <string name="reader_menu_contents">목차 · %1$d%%</string>
+    <string name="reader_menu_theme_type">테마 및 글꼴</string>
+    <string name="reader_search_placeholder">이 책에서 검색</string>
+    <string name="reader_search_empty">책 안에서 결과를 찾을 수 없습니다.</string>
+    <string name="reader_bookmark_placed">북마크가 추가되었습니다.</string>
+    <string name="reader_link_failed">이 링크를 열 수 없습니다.</string>
+    <string name="reader_page_info">%1$d / %2$d쪽 · %3$d%%</string>
+    <string name="reader_chapter_page">p. %1$d</string>
+    <string name="reader_percent">%1$d%%</string>
+    <string name="reader_open_failed">이 책을 열 수 없습니다.</string>
+    <string name="reader_retry">다시 시도</string>
+    <string name="reader_page_failed">이 페이지를 표시할 수 없습니다.</string>
+    <string name="reader_bookmark_empty">북마크할 위치가 없습니다.</string>
+    <string name="reader_bookmark_save_failed">북마크를 저장할 수 없습니다.</string>
+
+    <!-- 접근성 -->
+    <string name="a11y_back">뒤로</string>
+    <string name="a11y_close">닫기</string>
+    <string name="a11y_reading_menu">독서 메뉴</string>
+    <string name="a11y_close_reading_menu">독서 메뉴 닫기</string>
+    <string name="a11y_place_bookmark">북마크 추가</string>
+    <string name="a11y_smaller_text">글자 크기 축소</string>
+    <string name="a11y_larger_text">글자 크기 확대</string>
+    <string name="a11y_page_brightness">페이지 밝기</string>
+    <string name="a11y_not_downloaded">다운로드되지 않음</string>
+    <string name="a11y_book_row">%1$s, %2$s</string>
+    <string name="a11y_chapter_row">챕터 %1$s, %2$s, %3$d쪽</string>
+    <string name="a11y_chapter_row_no_page">챕터 %1$s, %2$s</string>
+    <string name="a11y_theme_tile">%1$s. %2$s</string>
+    <string name="a11y_no_results">검색 결과 없음</string>
+    <string name="a11y_toggle_reader_controls">독서 컨트롤 표시/숨기기</string>
+    <string name="a11y_calendar_day">%1$s %2$d일</string>
+    <string name="a11y_calendar_day_read">%1$s %2$d일, 읽음</string>
+    <string name="a11y_fact">%1$s %2$s</string>
+    <plurals name="a11y_result_count">
+        <item quantity="other">%d개의 결과</item>
+    </plurals>
+</resources>

@@ -9,11 +9,13 @@
     <string name="import_add_books">Add books</string>
     <string name="import_empty_title">Nothing on the shelf yet</string>
     <string name="import_empty_body">Add an EPUB from your files and it will be waiting here.</string>
+    <string name="import_empty_footnote">EPUB today. Comics and more to come.</string>
     <string name="import_empty_action">Add your first book</string>
     <string name="a11y_import_add_books">Add books to your library</string>
 
     <!-- Progress -->
     <string name="import_progress_eyebrow">Adding to your library</string>
+    <string name="import_phase_preparing">Getting the file ready…</string>
     <string name="import_phase_copying">Copying the file</string>
     <string name="import_phase_reading">Reading the book</string>
     <string name="import_progress_count">%1$d of %2$d</string>

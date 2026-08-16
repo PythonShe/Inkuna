@@ -90,6 +90,9 @@
     <string name="reader_percent">%1$d%%</string>
     <string name="reader_open_failed">This book could not be opened.</string>
     <string name="reader_retry">Try again</string>
+    <string name="reader_page_failed">This page couldn\'t be shown.</string>
+    <string name="reader_bookmark_empty">Nothing to bookmark yet.</string>
+    <string name="reader_bookmark_save_failed">The bookmark couldn\'t be saved.</string>
 
     <!-- Accessibility -->
     <string name="a11y_back">Back</string>

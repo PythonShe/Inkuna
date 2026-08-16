@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inkuna</string>
+
+    <!-- Mở đầu -->
+    <string name="welcome_tagline">Trình đọc sách tối giản, nơi trang mực hòa cùng ánh trăng.</string>
+    <string name="welcome_begin">Bắt đầu</string>
+    <string name="themepick_eyebrow">Một nghi thức nhỏ</string>
+    <string name="themepick_title">Đọc lúc ban ngày, hoặc khi đêm về</string>
+    <string name="themepick_sample">Ngọn đèn lụi dần, và vầng trăng tiếp tục công việc soi sáng trang sách.</string>
+    <string name="themepick_hint">Bạn có thể thay đổi bất kỳ lúc nào khi đang đọc sách.</string>
+    <string name="themepick_continue">Tiếp tục</string>
+
+    <!-- Giao diện đọc sách -->
+    <string name="theme_paper">Trang giấy</string>
+    <string name="theme_paper_subtitle">Đọc sách êm dịu dưới ánh ban ngày</string>
+    <string name="theme_calm">Tĩnh lặng</string>
+    <string name="theme_calm_subtitle">Sắc giấy da êm ái</string>
+    <string name="theme_quiet">Trầm lắng</string>
+    <string name="theme_quiet_subtitle">Tông than chì dịu mắt</string>
+    <string name="theme_moon">Ánh trăng</string>
+    <string name="theme_moon_subtitle">Ánh đèn ấm áp cho những giờ khuya</string>
+
+    <!-- Thanh điều hướng -->
+    <string name="tab_tonight">Tối nay</string>
+    <string name="tab_library">Thư viện</string>
+    <string name="tab_search">Tìm kiếm</string>
+    <string name="tab_stats">Thống kê</string>
+
+    <!-- Tối nay -->
+    <string name="tonight_eyebrow">Tối nay</string>
+    <string name="tonight_title">Đọc tiếp từ nơi bạn đã dừng</string>
+    <string name="tonight_pages_left">Còn mười lăm trang nữa trong chương này</string>
+    <string name="tonight_percent_read">Đã đọc %1$d%%</string>
+    <string name="tonight_keep_reading">Đọc tiếp</string>
+    <string name="tonight_nightstand">Trên bàn đầu giường</string>
+    <string name="tonight_chip_fiction">Tiểu thuyết</string>
+    <string name="tonight_chip_essays">Tùy bút</string>
+    <string name="tonight_chip_night_reads">Đọc đêm</string>
+
+    <!-- Thư viện -->
+    <string name="library_title">Thư viện</string>
+    <string name="library_search_placeholder">Tìm kiếm trong thư viện</string>
+    <string name="library_seg_reading">Đang đọc</string>
+    <string name="library_seg_finished">Đã xong</string>
+    <string name="library_seg_wishlist">Muốn đọc</string>
+    <string name="library_empty_finished">Chưa có cuốn sách nào đọc xong. Không cần vội vã.</string>
+    <string name="library_empty_wishlist">Chưa có cuốn sách nào trên bàn đầu giường.</string>
+    <string name="library_empty_query">Không tìm thấy sách phù hợp trong kho sách.</string>
+    <string name="library_empty_reading">Chưa có sách ở đây.</string>
+    <string name="library_empty_all">Chưa có sách ở đây.</string>
+    <string name="library_unopenable">Không thể mở thư viện.</string>
+    <string name="unknown_author">Tác giả chưa rõ</string>
+
+    <!-- Tìm kiếm -->
+    <string name="search_title">Tìm kiếm</string>
+    <string name="search_placeholder">Tên sách, tác giả</string>
+    <string name="search_recently_added">Mới thêm gần đây</string>
+
+    <!-- Thống kê -->
+    <string name="stats_title">Đọc sách</string>
+    <string name="stats_in_progress">Đang đọc</string>
+    <string name="stats_pages_this_week">trang trong tuần này</string>
+    <string name="stats_hours_this_month">giờ trong tháng này</string>
+    <string name="stats_books_this_year">cuốn sách trong năm nay</string>
+    <string name="stats_hours_half">%1$s giờ rưỡi</string>
+    <string name="stats_hours_half_only">nửa giờ</string>
+    <string name="stats_in_progress_empty">Chưa có cuốn sách nào đang đọc.</string>
+    <plurals name="stats_evenings">
+        <item quantity="other">%d buổi tối đọc sách trong tháng này.</item>
+    </plurals>
+
+    <!-- Chi tiết sách -->
+    <string name="detail_contents">Mục lục</string>
+    <string name="detail_no_contents">Cuốn sách này không có mục lục.</string>
+
+    <!-- Trình đọc -->
+    <string name="reader_menu_contents">Mục lục · %1$d%%</string>
+    <string name="reader_menu_theme_type">Giao diện &amp; Kiểu chữ</string>
+    <string name="reader_search_placeholder">Tìm kiếm trong cuốn sách này</string>
+    <string name="reader_search_empty">Không tìm thấy nội dung trong cuốn sách này.</string>
+    <string name="reader_bookmark_placed">Đã đánh dấu trang.</string>
+    <string name="reader_link_failed">Không thể mở liên kết này.</string>
+    <string name="reader_page_info">Trang %1$d / %2$d · %3$d%%</string>
+    <string name="reader_chapter_page">Trang %1$d</string>
+    <string name="reader_percent">%1$d%%</string>
+    <string name="reader_open_failed">Không thể mở cuốn sách này.</string>
+    <string name="reader_retry">Thử lại</string>
+    <string name="reader_page_failed">Không thể hiển thị trang này.</string>
+    <string name="reader_bookmark_empty">Chưa có nội dung để đánh dấu trang.</string>
+    <string name="reader_bookmark_save_failed">Không thể lưu dấu trang.</string>
+
+    <!-- Trợ năng -->
+    <string name="a11y_back">Quay lại</string>
+    <string name="a11y_close">Đóng</string>
+    <string name="a11y_reading_menu">Menu đọc sách</string>
+    <string name="a11y_close_reading_menu">Đóng menu đọc sách</string>
+    <string name="a11y_place_bookmark">Đánh dấu trang</string>
+    <string name="a11y_smaller_text">Thu nhỏ cỡ chữ</string>
+    <string name="a11y_larger_text">Phóng to cỡ chữ</string>
+    <string name="a11y_page_brightness">Độ sáng trang</string>
+    <string name="a11y_not_downloaded">Chưa tải về</string>
+    <string name="a11y_book_row">%1$s, %2$s</string>
+    <string name="a11y_chapter_row">Chương %1$s, %2$s, trang %3$d</string>
+    <string name="a11y_chapter_row_no_page">Chương %1$s, %2$s</string>
+    <string name="a11y_theme_tile">%1$s. %2$s</string>
+    <string name="a11y_no_results">Không có kết quả</string>
+    <string name="a11y_toggle_reader_controls">Hiện hoặc ẩn điều khiển đọc sách</string>
+    <string name="a11y_calendar_day">Ngày %2$d %1$s</string>
+    <string name="a11y_calendar_day_read">Ngày %2$d %1$s, đã đọc</string>
+    <string name="a11y_fact">%1$s %2$s</string>
+    <plurals name="a11y_result_count">
+        <item quantity="other">%d kết quả</item>
+    </plurals>
+</resources>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- エントリーポイント -->
+    <string name="import_add_books">本を追加</string>
+    <string name="import_empty_title">本棚にはまだ本がありません</string>
+    <string name="import_empty_body">「ファイル」からEPUB書籍を追加すると、ここに並びます。Inkuna内に複製されるため、元のファイルはそのまま残ります。</string>
+    <string name="import_empty_footnote">現在はEPUBに対応しています。コミック等は今後対応予定です。</string>
+    <string name="import_empty_action">最初の1冊を追加</string>
+    <string name="a11y_import_add_books">本棚に本を追加</string>
+
+    <!-- 進捗 -->
+    <string name="import_progress_eyebrow">本棚に追加中</string>
+    <string name="import_phase_preparing">準備中…</string>
+    <string name="import_phase_copying">ファイルをコピー中</string>
+    <string name="import_phase_reading">書籍を読み込み中</string>
+    <string name="import_progress_count">%1$d / %2$d</string>
+    <string name="import_cancel">キャンセル</string>
+    <string name="a11y_import_progress">インポート中、%1$d / %2$d</string>
+
+    <!-- 結果レポート -->
+    <string name="import_done">完了</string>
+    <string name="import_result_cancelled">インポートを中止しました</string>
+    <string name="import_result_nothing">本は追加されませんでした</string>
+    <string name="import_result_already">既に追加されています</string>
+    <plurals name="import_result_added">
+        <item quantity="other">%d 冊の本を追加しました</item>
+    </plurals>
+    <string name="import_section_added">追加済み</string>
+    <string name="import_section_duplicates">既に追加されています</string>
+    <string name="import_section_failures">追加できませんでした</string>
+    <string name="import_unknown_author">作者不明</string>
+    <string name="import_unnamed_file">このファイル</string>
+
+    <!-- 失敗理由 -->
+    <string name="import_fail_unsupported">%1$s 形式はまだサポートされていません</string>
+    <string name="import_fail_unknown_format">Inkunaが対応している形式ではありません</string>
+    <string name="import_fail_broken">このEPUBは読み込みに必要な情報が不足しています</string>
+    <string name="import_fail_archive">ファイルが破損しているため開けません</string>
+    <string name="import_fail_too_large">ファイルサイズが大きすぎるため追加できません</string>
+    <string name="import_fail_unreadable">ファイルを読み込めませんでした</string>
+    <string name="import_fail_library">ライブラリに保存できませんでした</string>
+
+    <!-- 外部インテント -->
+    <string name="import_intent_label">Inkunaに追加</string>
+    <string name="import_intent_open_library">本棚を開く</string>
+    <string name="import_intent_nothing">追加できる本がありませんでした。</string>
+</resources>

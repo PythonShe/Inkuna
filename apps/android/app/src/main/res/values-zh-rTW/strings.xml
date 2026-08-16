@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inkuna</string>
+
+    <!-- 引導流程 -->
+    <string name="welcome_tagline">墨水與月光相遇的極簡閱讀器。</string>
+    <string name="welcome_begin">開始</string>
+    <string name="themepick_eyebrow">一個小小的儀式</string>
+    <string name="themepick_title">無論白晝，抑或深夜</string>
+    <string name="themepick_sample">燈火微熹，月色接替了照亮書頁的微光。</string>
+    <string name="themepick_hint">閱讀時可隨時更改。</string>
+    <string name="themepick_continue">繼續</string>
+
+    <!-- 閱讀主題 -->
+    <string name="theme_paper">紙白</string>
+    <string name="theme_paper_subtitle">明朗日光下的閱讀</string>
+    <string name="theme_calm">恬淡</string>
+    <string name="theme_calm_subtitle">溫潤羊皮紙感</string>
+    <string name="theme_quiet">沉寂</string>
+    <string name="theme_quiet_subtitle">低調石墨色</string>
+    <string name="theme_moon">暗月</string>
+    <string name="theme_moon_subtitle">深夜裡的伴讀燈火</string>
+
+    <!-- 底部標籤欄 -->
+    <string name="tab_tonight">今夜</string>
+    <string name="tab_library">書架</string>
+    <string name="tab_search">搜尋</string>
+    <string name="tab_stats">閱讀統計</string>
+
+    <!-- 今夜 -->
+    <string name="tonight_eyebrow">今夜</string>
+    <string name="tonight_title">接續未完的篇章</string>
+    <string name="tonight_pages_left">本章尚餘十五頁</string>
+    <string name="tonight_percent_read">已讀 %1$d%%</string>
+    <string name="tonight_keep_reading">繼續閱讀</string>
+    <string name="tonight_nightstand">案頭隨選</string>
+    <string name="tonight_chip_fiction">小說</string>
+    <string name="tonight_chip_essays">隨筆</string>
+    <string name="tonight_chip_night_reads">夜讀</string>
+
+    <!-- 書架 -->
+    <string name="library_title">書架</string>
+    <string name="library_search_placeholder">在書架中搜尋</string>
+    <string name="library_seg_reading">閱讀中</string>
+    <string name="library_seg_finished">已讀完</string>
+    <string name="library_seg_wishlist">願望清單</string>
+    <string name="library_empty_finished">尚無已讀完的書籍。不必匆忙。</string>
+    <string name="library_empty_wishlist">案頭尚無書卷。</string>
+    <string name="library_empty_query">在書庫中未找到相關內容。</string>
+    <string name="library_empty_reading">此處尚無書籍。</string>
+    <string name="library_empty_all">此處尚無書籍。</string>
+    <string name="library_unopenable">無法打開書庫。</string>
+    <string name="unknown_author">未知作者</string>
+
+    <!-- 搜尋 -->
+    <string name="search_title">搜尋</string>
+    <string name="search_placeholder">書名、作者</string>
+    <string name="search_recently_added">最近加入</string>
+
+    <!-- 閱讀統計 -->
+    <string name="stats_title">閱讀</string>
+    <string name="stats_in_progress">正在閱讀</string>
+    <string name="stats_pages_this_week">本週閱讀頁數</string>
+    <string name="stats_hours_this_month">本月閱讀小時</string>
+    <string name="stats_books_this_year">今年讀完本數</string>
+    <string name="stats_hours_half">%1$s½</string>
+    <string name="stats_hours_half_only">½</string>
+    <string name="stats_in_progress_empty">暫無正在閱讀的書籍。</string>
+    <plurals name="stats_evenings">
+        <item quantity="other">本月有 %d 個夜晚與書相伴。</item>
+    </plurals>
+
+    <!-- 書籍詳情 -->
+    <string name="detail_contents">目錄</string>
+    <string name="detail_no_contents">本書未列出目錄。</string>
+
+    <!-- 閱讀器 -->
+    <string name="reader_menu_contents">目錄 · %1$d%%</string>
+    <string name="reader_menu_theme_type">版面與主題</string>
+    <string name="reader_search_placeholder">在本書中搜尋</string>
+    <string name="reader_search_empty">在本書中未找到相關內容。</string>
+    <string name="reader_bookmark_placed">書籤已加入。</string>
+    <string name="reader_link_failed">無法開啟此連結。</string>
+    <string name="reader_page_info">第 %1$d 頁，共 %2$d 頁 · %3$d%%</string>
+    <string name="reader_chapter_page">第 %1$d 頁</string>
+    <string name="reader_percent">%1$d%%</string>
+    <string name="reader_open_failed">無法打開此書。</string>
+    <string name="reader_retry">重試</string>
+    <string name="reader_page_failed">無法顯示此頁。</string>
+    <string name="reader_bookmark_empty">暫無內容可加入書籤。</string>
+    <string name="reader_bookmark_save_failed">無法儲存書籤。</string>
+
+    <!-- 無障礙輔助 -->
+    <string name="a11y_back">返回</string>
+    <string name="a11y_close">關閉</string>
+    <string name="a11y_reading_menu">閱讀選單</string>
+    <string name="a11y_close_reading_menu">關閉閱讀選單</string>
+    <string name="a11y_place_bookmark">加入書籤</string>
+    <string name="a11y_smaller_text">縮小字級</string>
+    <string name="a11y_larger_text">放大字級</string>
+    <string name="a11y_page_brightness">頁面亮度</string>
+    <string name="a11y_not_downloaded">未下載</string>
+    <string name="a11y_book_row">%1$s，%2$s</string>
+    <string name="a11y_chapter_row">第 %1$s 章，%2$s，第 %3$d 頁</string>
+    <string name="a11y_chapter_row_no_page">第 %1$s 章，%2$s</string>
+    <string name="a11y_theme_tile">%1$s。%2$s</string>
+    <string name="a11y_no_results">無結果</string>
+    <string name="a11y_toggle_reader_controls">顯示或隱藏閱讀控制項</string>
+    <string name="a11y_calendar_day">%1$s%2$d日</string>
+    <string name="a11y_calendar_day_read">%1$s%2$d日，已閱讀</string>
+    <string name="a11y_fact">%1$s %2$s</string>
+    <plurals name="a11y_result_count">
+        <item quantity="other">%d 個結果</item>
+    </plurals>
+</resources>

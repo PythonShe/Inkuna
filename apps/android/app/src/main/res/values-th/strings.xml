@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inkuna</string>
+
+    <!-- การเริ่มต้นใช้งาน -->
+    <string name="welcome_tagline">แอปอ่านหนังสือสไตล์มินิมอล ที่ซึ่งน้ำหมึกบรรจบกับแสงจันทร์</string>
+    <string name="welcome_begin">เริ่มต้น</string>
+    <string name="themepick_eyebrow">ธรรมเนียมเล็กๆ ในการอ่าน</string>
+    <string name="themepick_title">อ่านในยามกลางวัน หรือยามค่ำคืน</string>
+    <string name="themepick_sample">ตะเกียงหรี่แสงลง และดวงจันทร์เข้ามารับหน้าที่ส่องสว่างบนหน้ากระดาษแทน</string>
+    <string name="themepick_hint">คุณสามารถเปลี่ยนค่านี้ได้ตลอดเวลาขณะอ่าน</string>
+    <string name="themepick_continue">ดำเนินการต่อ</string>
+
+    <!-- ธีมการอ่าน -->
+    <string name="theme_paper">กระดาษ</string>
+    <string name="theme_paper_subtitle">อ่านสบายตาในแสงกลางวัน</string>
+    <string name="theme_calm">สงบนิ่ง</string>
+    <string name="theme_calm_subtitle">สัมผัสกระดาษสาอันนุ่มนวล</string>
+    <string name="theme_quiet">เงียบสงบ</string>
+    <string name="theme_quiet_subtitle">โทนกราไฟต์สบายตา</string>
+    <string name="theme_moon">แสงจันทร์</string>
+    <string name="theme_moon_subtitle">แสงตะเกียงสำหรับยามดึก</string>
+
+    <!-- แถบเมนู -->
+    <string name="tab_tonight">คืนนี้</string>
+    <string name="tab_library">ชั้นหนังสือ</string>
+    <string name="tab_search">ค้นหา</string>
+    <string name="tab_stats">สถิติการอ่าน</string>
+
+    <!-- คืนนี้ -->
+    <string name="tonight_eyebrow">คืนนี้</string>
+    <string name="tonight_title">อ่านต่อจากที่ค้างไว้</string>
+    <string name="tonight_pages_left">เหลืออีก 15 หน้าในบทนี้</string>
+    <string name="tonight_percent_read">อ่านแล้ว %1$d%%</string>
+    <string name="tonight_keep_reading">อ่านต่อ</string>
+    <string name="tonight_nightstand">บนโต๊ะข้างเตียง</string>
+    <string name="tonight_chip_fiction">นวนิยาย</string>
+    <string name="tonight_chip_essays">ความเรียง</string>
+    <string name="tonight_chip_night_reads">อ่านยามค่ำคืน</string>
+
+    <!-- ชั้นหนังสือ -->
+    <string name="library_title">ชั้นหนังสือ</string>
+    <string name="library_search_placeholder">ค้นหาในชั้นหนังสือของคุณ</string>
+    <string name="library_seg_reading">กำลังอ่าน</string>
+    <string name="library_seg_finished">อ่านจบแล้ว</string>
+    <string name="library_seg_wishlist">อยากอ่าน</string>
+    <string name="library_empty_finished">ยังไม่มีหนังสือที่อ่านจบ ไม่ต้องรีบร้อน</string>
+    <string name="library_empty_wishlist">ยังไม่มีหนังสือบนโต๊ะข้างเตียง</string>
+    <string name="library_empty_query">ไม่พบหนังสือที่ค้นหาในชั้น</string>
+    <string name="library_empty_reading">ยังไม่มีหนังสือในส่วนนี้</string>
+    <string name="library_empty_all">ยังไม่มีหนังสือในส่วนนี้</string>
+    <string name="library_unopenable">ไม่สามารถเปิดชั้นหนังสือได้</string>
+    <string name="unknown_author">ไม่ระบุผู้แต่ง</string>
+
+    <!-- ค้นหา -->
+    <string name="search_title">ค้นหา</string>
+    <string name="search_placeholder">ชื่อหนังสือ, ผู้แต่ง</string>
+    <string name="search_recently_added">เพิ่มล่าสุด</string>
+
+    <!-- สถิติ -->
+    <string name="stats_title">การอ่าน</string>
+    <string name="stats_in_progress">กำลังอ่าน</string>
+    <string name="stats_pages_this_week">หน้าในสัปดาห์นี้</string>
+    <string name="stats_hours_this_month">ชั่วโมงในเดือนนี้</string>
+    <string name="stats_books_this_year">เล่มในปีนี้</string>
+    <string name="stats_hours_half">%1$s ชั่วโมงครึ่ง</string>
+    <string name="stats_hours_half_only">ครึ่งชั่วโมง</string>
+    <string name="stats_in_progress_empty">ยังไม่มีหนังสือที่กำลังอ่าน</string>
+    <plurals name="stats_evenings">
+        <item quantity="other">อ่านหนังสือไป %d คืนในเดือนนี้</item>
+    </plurals>
+
+    <!-- รายละเอียดหนังสือ -->
+    <string name="detail_contents">สารบัญ</string>
+    <string name="detail_no_contents">หนังสือเล่มนี้ไม่มีสารบัญ</string>
+
+    <!-- เครื่องมืออ่าน -->
+    <string name="reader_menu_contents">สารบัญ · %1$d%%</string>
+    <string name="reader_menu_theme_type">ธีมและรูปแบบอักษร</string>
+    <string name="reader_search_placeholder">ค้นหาในหนังสือเล่มนี้</string>
+    <string name="reader_search_empty">ไม่พบผลการค้นหาในหนังสือเล่มนี้</string>
+    <string name="reader_bookmark_placed">คั่นหน้าเรียบร้อยแล้ว</string>
+    <string name="reader_link_failed">ไม่สามารถเปิดลิงก์นี้ได้</string>
+    <string name="reader_page_info">หน้า %1$d จาก %2$d · %3$d%%</string>
+    <string name="reader_chapter_page">หน้า %1$d</string>
+    <string name="reader_percent">%1$d%%</string>
+    <string name="reader_open_failed">ไม่สามารถเปิดหนังสือเล่มนี้ได้</string>
+    <string name="reader_retry">ลองอีกครั้ง</string>
+    <string name="reader_page_failed">ไม่สามารถแสดงหน้านี้ได้</string>
+    <string name="reader_bookmark_empty">ยังไม่มีหน้าที่สามารถคั่นได้</string>
+    <string name="reader_bookmark_save_failed">ไม่สามารถบันทึกที่คั่นหน้าได้</string>
+
+    <!-- การเข้าถึง (Accessibility) -->
+    <string name="a11y_back">ย้อนกลับ</string>
+    <string name="a11y_close">ปิด</string>
+    <string name="a11y_reading_menu">เมนูการอ่าน</string>
+    <string name="a11y_close_reading_menu">ปิดเมนูการอ่าน</string>
+    <string name="a11y_place_bookmark">คั่นหน้านี้</string>
+    <string name="a11y_smaller_text">ลดขนาดตัวอักษร</string>
+    <string name="a11y_larger_text">เพิ่มขนาดตัวอักษร</string>
+    <string name="a11y_page_brightness">ความสว่างของหน้า</string>
+    <string name="a11y_not_downloaded">ยังไม่ได้ดาวน์โหลด</string>
+    <string name="a11y_book_row">%1$s, %2$s</string>
+    <string name="a11y_chapter_row">บทที่ %1$s, %2$s, หน้า %3$d</string>
+    <string name="a11y_chapter_row_no_page">บทที่ %1$s, %2$s</string>
+    <string name="a11y_theme_tile">%1$s. %2$s</string>
+    <string name="a11y_no_results">ไม่พบผลลัพธ์</string>
+    <string name="a11y_toggle_reader_controls">แสดงหรือซ่อนการควบคุมการอ่าน</string>
+    <string name="a11y_calendar_day">%2$d %1$s</string>
+    <string name="a11y_calendar_day_read">%2$d %1$s อ่านแล้ว</string>
+    <string name="a11y_fact">%1$s %2$s</string>
+    <plurals name="a11y_result_count">
+        <item quantity="other">%d ผลลัพธ์</item>
+    </plurals>
+</resources>

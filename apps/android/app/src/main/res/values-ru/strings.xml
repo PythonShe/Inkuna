@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inkuna</string>
+
+    <!-- Начало работы -->
+    <string name="welcome_tagline">Минималистичная читалка, где чернила встречаются с лунным светом.</string>
+    <string name="welcome_begin">Начать</string>
+    <string name="themepick_eyebrow">Маленький ритуал</string>
+    <string name="themepick_title">Чтение днем и ночью</string>
+    <string name="themepick_sample">Лампа догорала, и луна взяла на себя заботу освещать страницу.</string>
+    <string name="themepick_hint">Вы можете изменить это в любой момент во время чтения.</string>
+    <string name="themepick_continue">Продолжить</string>
+
+    <!-- Темы чтения -->
+    <string name="theme_paper">Бумага</string>
+    <string name="theme_paper_subtitle">Теплое дневное чтение</string>
+    <string name="theme_calm">Покой</string>
+    <string name="theme_calm_subtitle">Мягкий пергамент</string>
+    <string name="theme_quiet">Тишина</string>
+    <string name="theme_quiet_subtitle">Приглушенный графит</string>
+    <string name="theme_moon">Луна</string>
+    <string name="theme_moon_subtitle">Свет лампы для полуночных часов</string>
+
+    <!-- Вкладки -->
+    <string name="tab_tonight">Сегодня</string>
+    <string name="tab_library">Библиотека</string>
+    <string name="tab_search">Поиск</string>
+    <string name="tab_stats">Статистика</string>
+
+    <!-- Сегодня -->
+    <string name="tonight_eyebrow">Сегодня</string>
+    <string name="tonight_title">Продолжайте с места остановки</string>
+    <string name="tonight_pages_left">Осталось 15 страниц в этой главе</string>
+    <string name="tonight_percent_read">Прочитано %1$d%%</string>
+    <string name="tonight_keep_reading">Читать дальше</string>
+    <string name="tonight_nightstand">На тумбочке</string>
+    <string name="tonight_chip_fiction">Художественная литература</string>
+    <string name="tonight_chip_essays">Эссе</string>
+    <string name="tonight_chip_night_reads">Ночное чтение</string>
+
+    <!-- Библиотека -->
+    <string name="library_title">Библиотека</string>
+    <string name="library_search_placeholder">Поиск по библиотеке</string>
+    <string name="library_seg_reading">Читаю</string>
+    <string name="library_seg_finished">Прочитано</string>
+    <string name="library_seg_wishlist">В планах</string>
+    <string name="library_empty_finished">Пока ничего не прочитано. Спешить некуда.</string>
+    <string name="library_empty_wishlist">На тумбочке пока пусто.</string>
+    <string name="library_empty_query">На полках ничего не найдено.</string>
+    <string name="library_empty_reading">Здесь пока ничего нет.</string>
+    <string name="library_empty_all">Здесь пока ничего нет.</string>
+    <string name="library_unopenable">Не удалось открыть библиотеку.</string>
+    <string name="unknown_author">Неизвестный автор</string>
+
+    <!-- Поиск -->
+    <string name="search_title">Поиск</string>
+    <string name="search_placeholder">Названия, авторы</string>
+    <string name="search_recently_added">Недавно добавленные</string>
+
+    <!-- Статистика -->
+    <string name="stats_title">Чтение</string>
+    <string name="stats_in_progress">В процессе</string>
+    <string name="stats_pages_this_week">страниц за неделю</string>
+    <string name="stats_hours_this_month">часов за месяц</string>
+    <string name="stats_books_this_year">книг за год</string>
+    <string name="stats_hours_half">%1$s ч с половиной</string>
+    <string name="stats_hours_half_only">½ ч</string>
+    <string name="stats_in_progress_empty">Сейчас вы ничего не читаете.</string>
+    <plurals name="stats_evenings">
+        <item quantity="one">%d вечер с книгой в этом месяце.</item>
+        <item quantity="few">%d вечера с книгой в этом месяце.</item>
+        <item quantity="many">%d вечеров с книгой в этом месяце.</item>
+        <item quantity="other">%d вечеров с книгой в этом месяце.</item>
+    </plurals>
+
+    <!-- Детали книги -->
+    <string name="detail_contents">Оглавление</string>
+    <string name="detail_no_contents">В этой книге нет оглавления.</string>
+
+    <!-- Читалка -->
+    <string name="reader_menu_contents">Оглавление · %1$d%%</string>
+    <string name="reader_menu_theme_type">Оформление и шрифт</string>
+    <string name="reader_search_placeholder">Искать в этой книге</string>
+    <string name="reader_search_empty">В этой книге ничего не найдено.</string>
+    <string name="reader_bookmark_placed">Закладка добавлена.</string>
+    <string name="reader_link_failed">Не удалось открыть ссылку.</string>
+    <string name="reader_page_info">с. %1$d из %2$d · %3$d%%</string>
+    <string name="reader_chapter_page">с. %1$d</string>
+    <string name="reader_percent">%1$d%%</string>
+    <string name="reader_open_failed">Не удалось открыть книгу.</string>
+    <string name="reader_retry">Повторить</string>
+    <string name="reader_page_failed">Не удалось отобразить страницу.</string>
+    <string name="reader_bookmark_empty">Пока нечего добавить в закладки.</string>
+    <string name="reader_bookmark_save_failed">Не удалось сохранить закладку.</string>
+
+    <!-- Специальные возможности -->
+    <string name="a11y_back">Назад</string>
+    <string name="a11y_close">Закрыть</string>
+    <string name="a11y_reading_menu">Меню чтения</string>
+    <string name="a11y_close_reading_menu">Закрыть меню чтения</string>
+    <string name="a11y_place_bookmark">Поставить закладку</string>
+    <string name="a11y_smaller_text">Уменьшить шрифт</string>
+    <string name="a11y_larger_text">Увеличить шрифт</string>
+    <string name="a11y_page_brightness">Яркость страницы</string>
+    <string name="a11y_not_downloaded">Не загружено</string>
+    <string name="a11y_book_row">%1$s, %2$s</string>
+    <string name="a11y_chapter_row">Глава %1$s, %2$s, страница %3$d</string>
+    <string name="a11y_chapter_row_no_page">Глава %1$s, %2$s</string>
+    <string name="a11y_theme_tile">%1$s. %2$s</string>
+    <string name="a11y_no_results">Ничего не найдено</string>
+    <string name="a11y_toggle_reader_controls">Показать или скрыть элементы управления</string>
+    <string name="a11y_calendar_day">%2$d %1$s</string>
+    <string name="a11y_calendar_day_read">%2$d %1$s, прочитано</string>
+    <string name="a11y_fact">%1$s %2$s</string>
+    <plurals name="a11y_result_count">
+        <item quantity="one">%d результат</item>
+        <item quantity="few">%d результата</item>
+        <item quantity="many">%d результатов</item>
+        <item quantity="other">%d результатов</item>
+    </plurals>
+</resources>
