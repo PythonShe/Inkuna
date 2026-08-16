@@ -9,5 +9,6 @@ Frameworks/
 # Xcode
 xcuserdata/
 DerivedData/
+.derivedData/
 .swiftpm/
 *.xcresult
