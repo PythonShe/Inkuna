@@ -76,10 +76,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     // MARK: Floating chrome
 
-    private lazy var backButton = ReaderGlassButton(symbol: "arrow.backward", accessibilityLabel: "Back") { [weak self] in
+    private lazy var backButton = ReaderGlassButton(symbol: "arrow.backward", accessibilityLabel: String(localized: "a11y_back", defaultValue: "Back")) { [weak self] in
         self?.navigationController?.popViewController(animated: true)
     }
-    private lazy var menuButton = ReaderGlassButton(symbol: "ellipsis", pointSize: 19, accessibilityLabel: "Reading menu") { [weak self] in
+    private lazy var menuButton = ReaderGlassButton(symbol: "ellipsis", pointSize: 19, accessibilityLabel: String(localized: "a11y_reading_menu", defaultValue: "Reading menu")) { [weak self] in
         guard let self else { return }
         self.setMenu(visible: !self.menuVisible)
     }

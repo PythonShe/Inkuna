@@ -4,15 +4,26 @@ import UIKit
 /// capsule track whose selected segment floats on a raised chip.
 final class InkSegmentedControl: UIControl {
     var onChange: ((String) -> Void)?
+    var onSelectIndex: ((Int) -> Void)?
 
-    private(set) var selectedOption: String
+    private(set) var selectedIndex: Int
+    var selectedOption: String {
+        guard selectedIndex >= 0 && selectedIndex < options.count else { return "" }
+        return options[selectedIndex]
+    }
     private let options: [String]
     private let stack = UIStackView()
     private let selectionFeedback = UISelectionFeedbackGenerator()
 
-    init(options: [String], selected: String? = nil) {
+    init(options: [String], selected: String? = nil, selectedIndex: Int? = nil) {
         self.options = options
-        self.selectedOption = selected ?? options.first ?? ""
+        if let selectedIndex, selectedIndex >= 0, selectedIndex < options.count {
+            self.selectedIndex = selectedIndex
+        } else if let selected, let idx = options.firstIndex(of: selected) {
+            self.selectedIndex = idx
+        } else {
+            self.selectedIndex = 0
+        }
         super.init(frame: .zero)
 
         backgroundColor = InkColor.bgRecessed
@@ -29,7 +40,7 @@ final class InkSegmentedControl: UIControl {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
         ])
 
-        for option in options {
+        for (index, option) in options.enumerated() {
             let segment = UIButton(type: .custom)
             var config = UIButton.Configuration.filled()
             config.cornerStyle = .capsule
@@ -38,14 +49,14 @@ final class InkSegmentedControl: UIControl {
             segment.configuration = config
             segment.configurationUpdateHandler = { [weak self] button in
                 guard let self else { return }
-                let isSelected = option == self.selectedOption
+                let isSelected = index == self.selectedIndex
                 var config = button.configuration
                 config?.baseBackgroundColor = isSelected ? InkColor.bgRaised : .clear
                 config?.baseForegroundColor = isSelected ? InkColor.textBody : InkColor.textSecondary
                 button.configuration = config
             }
             segment.addAction(
-                UIAction { [weak self] _ in self?.select(option) },
+                UIAction { [weak self] _ in self?.selectIndex(index) },
                 for: .primaryActionTriggered
             )
             stack.addArrangedSubview(segment)
@@ -60,17 +71,23 @@ final class InkSegmentedControl: UIControl {
         layer.cornerRadius = InkRadius.pill(for: bounds.height)
     }
 
-    func select(_ option: String, notify: Bool = true) {
-        guard options.contains(option), option != selectedOption else { return }
-        selectedOption = option
+    func selectIndex(_ index: Int, notify: Bool = true) {
+        guard index >= 0, index < options.count, index != selectedIndex else { return }
+        selectedIndex = index
         for case let segment as UIButton in stack.arrangedSubviews {
             segment.setNeedsUpdateConfiguration()
         }
         if notify {
             selectionFeedback.selectionChanged()
             selectionFeedback.prepare()
-            onChange?(option)
+            onSelectIndex?(index)
+            onChange?(options[index])
             sendActions(for: .valueChanged)
         }
+    }
+
+    func select(_ option: String, notify: Bool = true) {
+        guard let idx = options.firstIndex(of: option) else { return }
+        selectIndex(idx, notify: notify)
     }
 }

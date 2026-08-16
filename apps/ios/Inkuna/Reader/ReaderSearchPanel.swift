@@ -162,9 +162,16 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         resultsSection.isHidden = false
         resultsScroll.isHidden = found == 0
         emptyLabel.isHidden = found > 0
+        let countAnnouncement: String
+        if found == 0 {
+            countAnnouncement = String(localized: "a11y_no_results", defaultValue: "No results")
+        } else {
+            let format = NSLocalizedString("a11y_result_count", comment: "")
+            countAnnouncement = String.localizedStringWithFormat(format, Int64(found))
+        }
         UIAccessibility.post(
             notification: .announcement,
-            argument: found == 0 ? "No results" : "\(found) result\(found == 1 ? "" : "s")"
+            argument: countAnnouncement
         )
     }
 
@@ -175,8 +182,11 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         snippetLabel.textColor = InkColor.textDisplay
         snippetLabel.numberOfLines = 2
 
+        let pageFormat = NSLocalizedString("reader_chapter_page", comment: "")
+        let pageText = String.localizedStringWithFormat(pageFormat, Int64(pageNumber))
+
         let whereLabel = InkLabel()
-        whereLabel.text = "p. \(pageNumber)"
+        whereLabel.text = pageText
         whereLabel.font = InkFont.caption
         whereLabel.textColor = InkColor.textTertiary
 
@@ -197,7 +207,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         ])
 
         row.isAccessibilityElement = true
-        row.accessibilityLabel = "\(snippet), page \(pageNumber)"
+        row.accessibilityLabel = "\(snippet), \(pageText)"
         row.accessibilityTraits = .button
         return row
     }

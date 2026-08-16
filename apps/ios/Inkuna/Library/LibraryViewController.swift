@@ -13,8 +13,22 @@ import UIKit
 /// empty. The list also still moves to a diffable collection view once row
 /// churn justifies it.
 final class LibraryViewController: ScrollScreenViewController {
+    private enum Segment: Int, CaseIterable {
+        case reading
+        case finished
+        case wishlist
+
+        var title: String {
+            switch self {
+            case .reading: String(localized: "library_seg_reading", defaultValue: "Reading")
+            case .finished: String(localized: "library_seg_finished", defaultValue: "Finished")
+            case .wishlist: String(localized: "library_seg_wishlist", defaultValue: "Wishlist")
+            }
+        }
+    }
+
     private let listStack = UIStackView()
-    private var segment = "Reading"
+    private var segment: Segment = .reading
     private var query = ""
 
     /// Rows currently on screen, in the order the core returned them.
@@ -57,17 +71,15 @@ final class LibraryViewController: ScrollScreenViewController {
         contentStack.addArrangedSubview(searchField)
         contentStack.setCustomSpacing(InkSpacing.space4, after: searchField)
 
+        let segments = Segment.allCases
         let segmented = InkSegmentedControl(
-            options: [
-                String(localized: "library_seg_reading", defaultValue: "Reading"),
-                String(localized: "library_seg_finished", defaultValue: "Finished"),
-                String(localized: "library_seg_wishlist", defaultValue: "Wishlist"),
-            ],
-            selected: segment
+            options: segments.map(\.title),
+            selectedIndex: segment.rawValue
         )
-        segmented.onChange = { [weak self] option in
-            self?.segment = option
-            self?.reloadList()
+        segmented.onSelectIndex = { [weak self] index in
+            guard let self, let chosen = Segment(rawValue: index) else { return }
+            self.segment = chosen
+            self.reloadList()
         }
         let segmentRow = UIStackView(arrangedSubviews: [segmented, UIView()])
         segmentRow.axis = .horizontal
@@ -107,15 +119,15 @@ final class LibraryViewController: ScrollScreenViewController {
 
         // TODO(core): no Wishlist shelf exists yet — file-less publications
         // are deferred to their own spec, so the segment stays empty.
-        guard segment != "Wishlist" else {
+        guard segment != .wishlist else {
             publications = []
-            render(rows: [], emptiness: .shelf("Nothing on the nightstand yet."))
+            render(rows: [], emptiness: .shelf(String(localized: "library_empty_wishlist", defaultValue: "Nothing on the nightstand yet.")))
             return
         }
 
         // Unfinished, not Reading: a book must be listed the moment it is
         // imported, and Reading deliberately means "opened at least once".
-        let shelf: Shelf = segment == "Finished" ? .finished : .unfinished
+        let shelf: Shelf = segment == .finished ? .finished : .unfinished
         let trimmed = query.trimmingCharacters(in: .whitespaces)
 
         reloadTask = Task { [weak self] in

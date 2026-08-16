@@ -31,14 +31,14 @@ enum ReaderLauncher {
                 guard let publication = publications.first else {
                     // Covers both an empty library and one whose every book
                     // is finished — the query is the unfinished shelf.
-                    toast(symbol: "books.vertical", text: "Nothing to keep reading right now.", on: navigationController)
+                    toast(symbol: "books.vertical", text: String(localized: "library_empty_reading", defaultValue: "Nothing to keep reading right now."), on: navigationController)
                     return
                 }
                 let reader = ReaderViewController(publication: publication)
                 reader.hidesBottomBarWhenPushed = true
                 navigationController.pushViewController(reader, animated: true)
             } catch {
-                toast(symbol: "exclamationmark.triangle", text: "The library couldn't be opened.", on: navigationController)
+                toast(symbol: "exclamationmark.triangle", text: String(localized: "library_unopenable", defaultValue: "The library couldn't be opened."), on: navigationController)
             }
         }
     }
