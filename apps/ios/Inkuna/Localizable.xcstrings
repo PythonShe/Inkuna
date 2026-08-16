@@ -9243,19 +9243,19 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "出现问题：%@ "
+            "value": "出现问题：%@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "發生問題：%@ "
+            "value": "發生問題：%@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "エラーが発生しました：%@ "
+            "value": "エラーが発生しました：%@"
           }
         },
         "ko": {
