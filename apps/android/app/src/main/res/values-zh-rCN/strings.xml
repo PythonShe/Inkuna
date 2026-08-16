@@ -2,35 +2,35 @@
 <resources>
     <string name="app_name">Inkuna</string>
 
-    <!-- 引导流程 -->
+    
     <string name="welcome_tagline">墨水与月光相遇的极简阅读器。</string>
     <string name="welcome_begin">开始</string>
-    <string name="themepick_eyebrow">一个小小的仪式</string>
+    <string name="themepick_eyebrow">开卷仪式</string>
     <string name="themepick_title">无论白昼，亦或深夜</string>
     <string name="themepick_sample">灯火微熹，月色接替了照亮书页的微光。</string>
     <string name="themepick_hint">阅读时可随时更改。</string>
     <string name="themepick_continue">继续</string>
 
-    <!-- 阅读主题 -->
+    
     <string name="theme_paper">纸白</string>
-    <string name="theme_paper_subtitle">明朗日光下的阅读</string>
+    <string name="theme_paper_subtitle">明朗日光</string>
     <string name="theme_calm">恬淡</string>
-    <string name="theme_calm_subtitle">温润羊皮纸感</string>
+    <string name="theme_calm_subtitle">温润羊皮纸</string>
     <string name="theme_quiet">沉寂</string>
-    <string name="theme_quiet_subtitle">低调石墨色</string>
+    <string name="theme_quiet_subtitle">低调石墨</string>
     <string name="theme_moon">暗月</string>
-    <string name="theme_moon_subtitle">深夜里的伴读灯火</string>
+    <string name="theme_moon_subtitle">夜读灯火</string>
 
-    <!-- 底部标签栏 -->
+    
     <string name="tab_tonight">今夕</string>
     <string name="tab_library">书架</string>
     <string name="tab_search">检索</string>
     <string name="tab_stats">阅历</string>
 
-    <!-- 今夕 -->
+    
     <string name="tonight_eyebrow">今夕</string>
-    <string name="tonight_title">重拾读至那一页的思绪</string>
-    <string name="tonight_pages_left">本章还剩十五页</string>
+    <string name="tonight_title">重拾未完的书卷</string>
+    <string name="tonight_pages_left">本章剩余十五页</string>
     <string name="tonight_percent_read">已读 %1$d%%</string>
     <string name="tonight_keep_reading">继续阅读</string>
     <string name="tonight_nightstand">案头闲卷</string>
@@ -38,7 +38,7 @@
     <string name="tonight_chip_essays">随笔</string>
     <string name="tonight_chip_night_reads">夜读</string>
 
-    <!-- 书架 -->
+    
     <string name="library_title">书架</string>
     <string name="library_search_placeholder">在书架中检索</string>
     <string name="library_seg_reading">在读</string>
@@ -49,15 +49,15 @@
     <string name="library_empty_query">在书库中未找到相关内容。</string>
     <string name="library_empty_reading">此处尚无书籍。</string>
     <string name="library_empty_all">此处尚无书籍。</string>
-    <string name="library_unopenable">无法打开书库。</string>
+    <string name="library_unopenable">无法打开书架。</string>
     <string name="unknown_author">未知作者</string>
 
-    <!-- 检索 -->
+    
     <string name="search_title">检索</string>
     <string name="search_placeholder">书名、作者</string>
     <string name="search_recently_added">最近添加</string>
 
-    <!-- 阅历与统计 -->
+    
     <string name="stats_title">阅读</string>
     <string name="stats_in_progress">正在阅读</string>
     <string name="stats_pages_this_week">本周阅读页数</string>
@@ -70,15 +70,15 @@
         <item quantity="other">本月有 %d 个夜晚与书相伴。</item>
     </plurals>
 
-    <!-- 书籍详情 -->
+    
     <string name="detail_contents">目录</string>
     <string name="detail_no_contents">本书未列出目录。</string>
 
-    <!-- 阅读器 -->
+    
     <string name="reader_menu_contents">目录 · %1$d%%</string>
     <string name="reader_menu_theme_type">版式与主题</string>
-    <string name="reader_search_placeholder">在本书中检索</string>
-    <string name="reader_search_empty">在本书中未找到相关内容。</string>
+    <string name="reader_search_placeholder">在本书中搜索</string>
+    <string name="reader_search_empty">本书中未找到相关内容。</string>
     <string name="reader_bookmark_placed">书签已添加。</string>
     <string name="reader_link_failed">无法打开此链接。</string>
     <string name="reader_page_info">第 %1$d 页，共 %2$d 页 · %3$d%%</string>
@@ -87,29 +87,29 @@
     <string name="reader_open_failed">无法打开此书。</string>
     <string name="reader_retry">重试</string>
     <string name="reader_page_failed">无法显示此页。</string>
-    <string name="reader_bookmark_empty">暂无内容可添加书签。</string>
+    <string name="reader_bookmark_empty">暂无书签。</string>
     <string name="reader_bookmark_save_failed">无法保存书签。</string>
 
-    <!-- 无障碍辅助 -->
+    
     <string name="a11y_back">返回</string>
     <string name="a11y_close">关闭</string>
     <string name="a11y_reading_menu">阅读菜单</string>
     <string name="a11y_close_reading_menu">关闭阅读菜单</string>
     <string name="a11y_place_bookmark">添加书签</string>
-    <string name="a11y_smaller_text">缩小字号</string>
-    <string name="a11y_larger_text">放大字号</string>
+    <string name="a11y_smaller_text">减小字号</string>
+    <string name="a11y_larger_text">加大字号</string>
     <string name="a11y_page_brightness">页面亮度</string>
     <string name="a11y_not_downloaded">未下载</string>
     <string name="a11y_book_row">%1$s，%2$s</string>
     <string name="a11y_chapter_row">第 %1$s 章，%2$s，第 %3$d 页</string>
     <string name="a11y_chapter_row_no_page">第 %1$s 章，%2$s</string>
     <string name="a11y_theme_tile">%1$s。%2$s</string>
-    <string name="a11y_no_results">无结果</string>
-    <string name="a11y_toggle_reader_controls">显示或隐藏阅读控制</string>
+    <string name="a11y_no_results">无搜索结果</string>
+    <string name="a11y_toggle_reader_controls">显示或隐藏阅读控制项</string>
     <string name="a11y_calendar_day">%1$s%2$d日</string>
     <string name="a11y_calendar_day_read">%1$s%2$d日，已阅读</string>
     <string name="a11y_fact">%1$s %2$s</string>
     <plurals name="a11y_result_count">
-        <item quantity="other">%d 个结果</item>
+        <item quantity="other">%d 条结果</item>
     </plurals>
 </resources>

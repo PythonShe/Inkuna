@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 入口 -->
+    
     <string name="import_add_books">加入書籍</string>
     <string name="import_empty_title">書架上尚無書籍</string>
     <string name="import_empty_body">從檔案中加入 EPUB 電子書，書籍將在此等候。Inkuna 會保留獨立複本，不影響原始檔案。</string>
@@ -8,16 +8,16 @@
     <string name="import_empty_action">加入您的第一本書</string>
     <string name="a11y_import_add_books">向書架加入書籍</string>
 
-    <!-- 進度 -->
-    <string name="import_progress_eyebrow">正在加入至書架</string>
+    
+    <string name="import_progress_eyebrow">正在加入書架</string>
     <string name="import_phase_preparing">正在準備檔案…</string>
-    <string name="import_phase_copying">正在拷貝檔案</string>
+    <string name="import_phase_copying">正在複製檔案</string>
     <string name="import_phase_reading">正在解析書籍</string>
     <string name="import_progress_count">第 %1$d 本，共 %2$d 本</string>
     <string name="import_cancel">取消</string>
     <string name="a11y_import_progress">正在匯入，第 %1$d 本，共 %2$d 本</string>
 
-    <!-- 匯入報告 -->
+    
     <string name="import_done">完成</string>
     <string name="import_result_cancelled">匯入已停止</string>
     <string name="import_result_nothing">未加入任何書籍</string>
@@ -31,40 +31,40 @@
     <string name="import_unknown_author">未知作者</string>
     <string name="import_unnamed_file">該檔案</string>
 
-    <!-- 失敗原因 -->
-    <string name="import_fail_unsupported">尚不支援 %1$s 格式檔案</string>
+    
+    <string name="import_fail_unsupported">尚不支援 %1$s 格式 — Inkuna 目前支援 EPUB。</string>
     <string name="import_fail_unknown_format">Inkuna 無法識別此檔案格式</string>
-    <string name="import_fail_broken">此 EPUB 檔案缺少閱讀所需的資料</string>
+    <string name="import_fail_broken">此 EPUB 檔案缺少必要內容，無法閱讀。</string>
     <string name="import_fail_archive">檔案已損毀，無法開啟</string>
     <string name="import_fail_too_large">檔案過大，Inkuna 無法加入</string>
     <string name="import_fail_unreadable">無法讀取此檔案</string>
-    <string name="import_fail_library">無法寫入書庫資料</string>
+    <string name="import_fail_library">無法寫入書架。</string>
 
-    <!-- 外部 Intent -->
+    
     <string name="import_intent_label">加入至 Inkuna</string>
-    <string name="import_intent_open_library">打開書架</string>
+    <string name="import_intent_open_library">開啟書架</string>
     <string name="import_intent_nothing">沒有可加入的內容。</string>
-    <string name="import_dismiss">好</string>
-    <string name="import_fail_library_unavailable">書庫未能打開，因此未加入任何內容。</string>
-    <string name="import_fail_not_found">匯入過程中書籍從書庫中遺失。</string>
-    <string name="import_fail_storage">無法讀取檔案。請檢查檔案是否存在且裝置儲存空間充足。</string>
+    <string name="import_dismiss">確定</string>
+    <string name="import_fail_library_unavailable">無法開啟書架，未加入任何內容。</string>
+    <string name="import_fail_not_found">匯入過程中檔案已不存在。</string>
+    <string name="import_fail_storage">無法讀取檔案。請檢查檔案是否可用以及裝置儲存空間是否充足。</string>
     <string name="import_fail_unknown">發生問題：%1$s</string>
-    <string name="import_fail_unsupported_generic">這不是 Inkuna 可識別的書籍檔案。</string>
+    <string name="import_fail_unsupported_generic">Inkuna 無法識別此書籍檔案格式。</string>
     <string name="import_format_cbr">CBR 漫畫</string>
     <string name="import_format_cbz">CBZ 漫畫</string>
     <string name="import_format_plain_text">純文字</string>
-    <string name="import_progress_title_many">正在將%1$s加入書庫</string>
-    <string name="import_progress_title_one">正在加入書庫</string>
-    <string name="import_status_added">已加入至書架</string>
+    <string name="import_progress_title_many">正在將 %1$s 加入書架</string>
+    <string name="import_progress_title_one">正在加入書架</string>
+    <string name="import_status_added">已加入書架</string>
     <string name="import_status_duplicate">已存在於書架中</string>
-    <string name="import_subtitle_cancelled">您中止了其餘匯入</string>
+    <string name="import_subtitle_cancelled">已取消其餘書籍的匯入</string>
     <string name="import_subtitle_duplicate_many">%1$d 本已在書架中</string>
     <string name="import_subtitle_duplicate_one">1 本已在書架中</string>
     <string name="import_subtitle_failure_many">%1$d 本未能加入</string>
     <string name="import_subtitle_failure_one">1 本未能加入</string>
-    <string name="import_toast_added_one">已加入 %1$s</string>
+    <string name="import_toast_added_one">已加入《%1$s》</string>
     <string name="import_toast_already">《%1$s》已在書架中</string>
-    <string name="import_toast_could_not_add">未能加入 %1$s</string>
+    <string name="import_toast_could_not_add">未能加入《%1$s》</string>
     <plurals name="import_books_count">
         <item quantity="other">%d 本書</item>
     </plurals>

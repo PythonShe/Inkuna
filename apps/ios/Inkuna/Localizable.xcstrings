@@ -547,13 +547,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "一个小小的仪式"
+            "value": "开卷仪式"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "一個小小的儀式"
+            "value": "開卷儀式"
           }
         },
         "ja": {
@@ -1081,13 +1081,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "明朗日光下的阅读"
+            "value": "明朗日光"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "明朗日光下的閱讀"
+            "value": "明朗日光"
           }
         },
         "ja": {
@@ -1259,13 +1259,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "温润羊皮纸感"
+            "value": "温润羊皮纸"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "溫潤羊皮紙感"
+            "value": "溫潤羊皮紙"
           }
         },
         "ja": {
@@ -1437,13 +1437,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "低调石墨色"
+            "value": "低调石墨"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "低調石墨色"
+            "value": "低調石墨"
           }
         },
         "ja": {
@@ -1615,13 +1615,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "深夜里的伴读灯火"
+            "value": "夜读灯火"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "深夜裡的伴讀燈火"
+            "value": "夜讀燈火"
           }
         },
         "ja": {
@@ -2149,7 +2149,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "重拾读至那一页的思绪"
+            "value": "重拾未完的书卷"
           }
         },
         "zh-Hant": {
@@ -2238,7 +2238,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "本章还剩十五页"
+            "value": "本章剩余十五页"
           }
         },
         "zh-Hant": {
@@ -3751,13 +3751,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法打开书库。"
+            "value": "无法打开书架。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法打開書庫。"
+            "value": "無法開啟書架。"
           }
         },
         "ja": {
@@ -5175,7 +5175,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在本书中检索"
+            "value": "在本书中搜索"
           }
         },
         "zh-Hant": {
@@ -5264,13 +5264,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在本书中未找到相关内容。"
+            "value": "本书中未找到相关内容。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在本書中未找到相關內容。"
+            "value": "本書中未找到相關內容。"
           }
         },
         "ja": {
@@ -5804,7 +5804,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法打開此書。"
+            "value": "無法開啟此書。"
           }
         },
         "ja": {
@@ -6065,13 +6065,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "暂无内容可添加书签。"
+            "value": "暂无书签。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "暫無內容可加入書籤。"
+            "value": "暫無書籤。"
           }
         },
         "ja": {
@@ -6510,7 +6510,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "缩小字号"
+            "value": "减小字号"
           }
         },
         "zh-Hant": {
@@ -6599,13 +6599,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "放大字号"
+            "value": "加大字号"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "放大字級"
+            "value": "加大字級"
           }
         },
         "ja": {
@@ -7222,13 +7222,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无结果"
+            "value": "无搜索结果"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無結果"
+            "value": "無搜尋結果"
           }
         },
         "ja": {
@@ -7311,7 +7311,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "显示或隐藏阅读控制"
+            "value": "显示或隐藏阅读控制项"
           }
         },
         "zh-Hant": {
@@ -8201,13 +8201,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在添加到书架"
+            "value": "正在添加至书架"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在加入至書架"
+            "value": "正在加入書架"
           }
         },
         "ja": {
@@ -8379,13 +8379,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在拷贝文件"
+            "value": "正在复制文件"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在拷貝檔案"
+            "value": "正在複製檔案"
           }
         },
         "ja": {
@@ -8913,13 +8913,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "好"
+            "value": "确定"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "好"
+            "value": "確定"
           }
         },
         "ja": {
@@ -9269,13 +9269,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已添加 %@"
+            "value": "已添加《%@》"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已加入 %@"
+            "value": "已加入《%@》"
           }
         },
         "ja": {
@@ -9447,13 +9447,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "未能添加 %@"
+            "value": "未能添加《%@》"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "未能加入 %@"
+            "value": "未能加入《%@》"
           }
         },
         "ja": {
@@ -9892,13 +9892,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "您中止了其余导入"
+            "value": "已取消其余书籍的导入"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "您中止了其餘匯入"
+            "value": "已取消其餘書籍的匯入"
           }
         },
         "ja": {
@@ -10426,13 +10426,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已添加到书架"
+            "value": "已添加至书架"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已加入至書架"
+            "value": "已加入書架"
           }
         },
         "ja": {
@@ -10604,13 +10604,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "暂不支持 %@ 格式文件 — Inkuna 当前支持 EPUB。"
+            "value": "暂不支持 %@ 格式 — Inkuna 当前支持 EPUB。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "尚不支援 %@ 格式檔案 — Inkuna 目前支援 EPUB。"
+            "value": "尚不支援 %@ 格式 — Inkuna 目前支援 EPUB。"
           }
         },
         "ja": {
@@ -10693,13 +10693,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这不是 Inkuna 可识别的书籍文件。"
+            "value": "Inkuna 无法识别此书籍文件格式。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這不是 Inkuna 可識別的書籍檔案。"
+            "value": "Inkuna 無法識別此書籍檔案格式。"
           }
         },
         "ja": {
@@ -10871,13 +10871,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此 EPUB 文件缺少阅读所需的数据。"
+            "value": "此 EPUB 文件缺少必要内容，无法阅读。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此 EPUB 檔案缺少閱讀所需的資料。"
+            "value": "此 EPUB 檔案缺少必要內容，無法閱讀。"
           }
         },
         "ja": {
@@ -11138,13 +11138,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法读取文件。请检查文件是否存在且设备存储空间充足。"
+            "value": "无法读取文件。请检查文件是否可用以及设备存储空间是否充足。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法讀取檔案。請檢查檔案是否存在且裝置儲存空間充足。"
+            "value": "無法讀取檔案。請檢查檔案是否可用以及裝置儲存空間是否充足。"
           }
         },
         "ja": {
@@ -11316,13 +11316,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法写入书库数据。"
+            "value": "无法写入书架。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法寫入書庫資料。"
+            "value": "無法寫入書架。"
           }
         },
         "ja": {
@@ -11405,13 +11405,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "导入过程中书籍从书库中遗失。"
+            "value": "导入过程中文件已不存在。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "匯入過程中書籍從書庫中遺失。"
+            "value": "匯入過程中檔案已不存在。"
           }
         },
         "ja": {
@@ -11494,13 +11494,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "书库未能打开，因此未添加任何内容。"
+            "value": "无法打开书架，未添加任何内容。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "書庫未能打開，因此未加入任何內容。"
+            "value": "無法開啟書架，未加入任何內容。"
           }
         },
         "ja": {
@@ -12181,7 +12181,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld 个结果"
+                  "value": "%lld 条结果"
                 }
               }
             }
@@ -12193,7 +12193,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld 個結果"
+                  "value": "%lld 條結果"
                 }
               }
             }
@@ -12848,13 +12848,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在添加到书库"
+            "value": "正在添加至书架"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在加入書庫"
+            "value": "正在加入書架"
           }
         },
         "ja": {
@@ -12938,13 +12938,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在将%@添加到书库"
+            "value": "正在将 %@ 添加至书架"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在將%@加入書庫"
+            "value": "正在將 %@ 加入書架"
           }
         },
         "ja": {
@@ -13027,7 +13027,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "添加到 Inkuna"
+            "value": "添加至 Inkuna"
           }
         },
         "zh-Hant": {
@@ -13122,7 +13122,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "打開書架"
+            "value": "開啟書架"
           }
         },
         "ja": {
