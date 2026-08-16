@@ -93,6 +93,8 @@ enum ImportCopy {
             "The file is damaged and couldn't be opened."
         case .invalidPublication:
             "This EPUB is missing something Inkuna needs to read it."
+        case .tooLarge:
+            "This file is too large for Inkuna to add."
         case .storage:
             "The file couldn't be read. Check that it's still available and that this device has room."
         case .database:

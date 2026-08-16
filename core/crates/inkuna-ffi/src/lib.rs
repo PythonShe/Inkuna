@@ -21,6 +21,8 @@ uniffi::setup_scaffolding!("inkuna");
 pub enum InkunaError {
     #[error("io error: {detail}")]
     Io { detail: String },
+    #[error("file too large: over {limit} bytes")]
+    FileTooLarge { limit: u64 },
     #[error("database error: {detail}")]
     Database { detail: String },
     #[error("archive error: {detail}")]
@@ -38,6 +40,7 @@ impl From<inkuna_core::CoreError> for InkunaError {
         use inkuna_core::CoreError as C;
         match e {
             C::Io(e) => InkunaError::Io { detail: e.to_string() },
+            C::FileTooLarge(limit) => InkunaError::FileTooLarge { limit },
             C::Database(e) => InkunaError::Database { detail: e.to_string() },
             C::Archive(m) => InkunaError::Archive { detail: m },
             C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat { format: f },

@@ -48,6 +48,9 @@ enum class ImportFailureKind {
     /** The container is damaged. */
     DamagedArchive,
 
+    /** Past the import ceiling: refused mid-copy rather than left to fill the device. */
+    TooLarge,
+
     /** The file could not be read: revoked permission, storage error, empty. */
     Unreadable,
 
@@ -82,6 +85,8 @@ data class ImportFailure(
                 failure(name, ImportFailureKind.BrokenBook, describe(error))
             is InkunaException.Archive ->
                 failure(name, ImportFailureKind.DamagedArchive, describe(error))
+            is InkunaException.FileTooLarge ->
+                failure(name, ImportFailureKind.TooLarge, describe(error))
             is InkunaException.Io ->
                 failure(name, ImportFailureKind.Unreadable, describe(error))
             is InkunaException.Database, is InkunaException.NotFound ->

@@ -19,6 +19,9 @@ enum ImportFailureReason: Error, Sendable, Equatable {
     case damagedArchive
     /// A well-formed EPUB whose structure the core cannot import.
     case invalidPublication
+    /// Bigger than the core's import ceiling, so it was refused mid-copy
+    /// instead of being allowed to fill the device.
+    case tooLarge
     /// Filesystem trouble: unreadable source, no room, a device error.
     case storage
     /// The library database itself failed the write.
@@ -46,6 +49,7 @@ enum ImportFailureReason: Error, Sendable, Equatable {
         case .UnsupportedFormat(let format): self = .unsupportedFormat(format)
         case .Archive: self = .damagedArchive
         case .InvalidPublication: self = .invalidPublication
+        case .FileTooLarge: self = .tooLarge
         case .Io: self = .storage
         case .Database: self = .database
         case .NotFound: self = .notFound

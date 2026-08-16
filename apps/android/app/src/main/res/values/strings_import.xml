@@ -42,6 +42,7 @@
     <string name="import_fail_unknown_format">Inkuna couldn\'t tell what this file is</string>
     <string name="import_fail_broken">This EPUB is missing something it needs</string>
     <string name="import_fail_archive">This file is damaged</string>
+    <string name="import_fail_too_large">This file is too large to add</string>
     <string name="import_fail_unreadable">This file couldn\'t be read</string>
     <string name="import_fail_library">Your library couldn\'t be written to</string>
 

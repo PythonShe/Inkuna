@@ -50,7 +50,9 @@ impl Library {
     /// today, and with `InvalidPublication` when a mandatory part is
     /// missing, no title can be derived, or the per-publication
     /// persistence budget trips (in which case the transaction rolls back
-    /// and the staged file is swept).
+    /// and the staged file is swept). A source past the import ceiling
+    /// (`files::MAX_IMPORT_BYTES`) fails with `FileTooLarge` mid-copy,
+    /// its partial staged file swept.
     pub fn import(&self, path: &str) -> Result<ImportOutcome, CoreError> {
         match self.prepare_import(path)? {
             Prepared::Duplicate(existing) => Ok(ImportOutcome::Duplicate(*existing)),

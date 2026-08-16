@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
 import app.inkuna.android.R
+import app.inkuna.core.InkunaException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -53,6 +54,17 @@ internal object ImportStaging {
 
     /** Report copy progress at most this often, so a fast copy can't flood recomposition. */
     private const val PROGRESS_INTERVAL_MS = 60L
+
+    /**
+     * The core's own import ceiling (`files::MAX_IMPORT_BYTES`, 2 GiB),
+     * mirrored here so the *first* boundary a hostile or broken provider
+     * crosses is the one that stops it: this fallback writes into the app
+     * cache before the core ever sees a byte, and the size a provider
+     * declares is not something to trust. The core enforces the same limit
+     * on what it stores, so the two agree on which files are books; this
+     * only saves the wasted cache write.
+     */
+    private const val MAX_IMPORT_BYTES = 2L * 1024 * 1024 * 1024
 
     /**
      * ext4/f2fs cap file *names* at 255 bytes. A CJK title is 3 bytes per
@@ -103,7 +115,8 @@ internal object ImportStaging {
      *
      * Cancellation-safe: the loop checks the job on every block, and a
      * cancelled or failed copy deletes its partial file before rethrowing,
-     * so nothing is ever left in the cache.
+     * so nothing is ever left in the cache. A stream that runs past
+     * [MAX_IMPORT_BYTES] is cut off the same way.
      *
      * @param onProgress copied bytes and the provider's declared size when
      *   it reported one (`null` when it did not).
@@ -131,8 +144,14 @@ internal object ImportStaging {
                         coroutineContext.ensureActive()
                         val read = input.read(buffer)
                         if (read < 0) break
-                        output.write(buffer, 0, read)
                         copied += read
+                        if (copied > MAX_IMPORT_BYTES) {
+                            // Refused with the core's own typed error, so a
+                            // stream cut off here reads exactly like one the
+                            // core cut off itself.
+                            throw InkunaException.FileTooLarge(MAX_IMPORT_BYTES.toULong())
+                        }
+                        output.write(buffer, 0, read)
                         val now = System.currentTimeMillis()
                         if (now - lastReport >= PROGRESS_INTERVAL_MS) {
                             lastReport = now

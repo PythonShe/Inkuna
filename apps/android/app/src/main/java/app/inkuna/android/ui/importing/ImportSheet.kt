@@ -350,6 +350,7 @@ private fun FailureRow(failure: ImportFailure) {
         ImportFailureKind.UnknownFormat -> stringResource(R.string.import_fail_unknown_format)
         ImportFailureKind.BrokenBook -> stringResource(R.string.import_fail_broken)
         ImportFailureKind.DamagedArchive -> stringResource(R.string.import_fail_archive)
+        ImportFailureKind.TooLarge -> stringResource(R.string.import_fail_too_large)
         ImportFailureKind.Unreadable -> stringResource(R.string.import_fail_unreadable)
         ImportFailureKind.LibraryError -> stringResource(R.string.import_fail_library)
     }
