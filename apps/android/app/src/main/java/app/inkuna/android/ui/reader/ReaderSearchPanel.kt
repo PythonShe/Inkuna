@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.inkuna.android.R
-import app.inkuna.android.model.PlaceholderBook
 import app.inkuna.android.model.PlaceholderLibrary
 import app.inkuna.android.ui.components.glassModifier
 import app.inkuna.android.ui.stats.hairlineThickness
@@ -105,9 +104,7 @@ private fun search(query: String): List<SearchHit> {
 
 @Composable
 fun ReaderSearchPanel(
-    book: PlaceholderBook,
     topPadding: Dp,
-    onJump: (Int) -> Unit,
     onClose: () -> Unit,
 ) {
     val ink = InkTheme.colors
@@ -205,10 +202,14 @@ fun ReaderSearchPanel(
                             .semantics { liveRegion = LiveRegionMode.Polite },
                     ) {
                         itemsIndexed(results, key = { _, hit -> hit.pageIndex }) { _, hit ->
+                            // TODO(core): jump the navigator to the hit's
+                            // locator once real in-book search lands; the
+                            // placeholder hits have no position in the
+                            // rendered book, so a tap just closes.
                             Column(
                                 Modifier
                                     .fillMaxWidth()
-                                    .clickable { onJump(hit.pageIndex) }
+                                    .clickable { onClose() }
                                     .padding(horizontal = 4.dp, vertical = 11.dp)
                             ) {
                                 Text(
@@ -217,15 +218,6 @@ fun ReaderSearchPanel(
                                     color = ink.textDisplay,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    stringResource(
-                                        R.string.reader_chapter_page,
-                                        book.currentPage + hit.pageIndex,
-                                    ),
-                                    style = InkType.caption,
-                                    color = ink.textTertiary,
-                                    modifier = Modifier.padding(top = 3.dp),
                                 )
                             }
                         }

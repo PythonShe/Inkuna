@@ -1,24 +1,74 @@
+import os
+import ReadiumNavigator
+import ReadiumShared
+import ReadiumStreamer
 import UIKit
 
-/// The reading screen: horizontally paged prose on the selected page theme
-/// under floating glass chrome — a back button, the page line, and a more
-/// button that fans out the reading menu (contents, theme & type, in-book
-/// search, bookmark). The chrome shows on entry, tucks away when a page is
-/// turned, and comes back on tap.
-///
-/// TODO(core): page content, pagination, and positions come from the Rust
-/// core + Readium's `EPUBNavigatorViewController` once rendering lands;
-/// this screen reads the placeholder chapter so the experience is real
-/// end to end.
-final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGestureRecognizerDelegate {
-    private let book: PlaceholderBook
+// The UniFFI bindings are compiled into this target, so the core's
+// `Publication` record is the module-local `Publication` type and shadows
+// `ReadiumShared.Publication`, which is always written fully qualified here.
 
-    private let scrollView = UIScrollView()
-    private let pageStack = UIStackView()
-    private var pageLabels: [UILabel] = []
+/// The open reading session's id, held outside the view controller.
+///
+/// Session transitions ride the serialized core-write chain, which can
+/// outlive the reader: a slow predecessor still holds the chain when the
+/// reader is popped. The closures own this box outright, so the session that
+/// started always gets ended — a session captured `[weak self]` would
+/// guard-return on a deallocated reader and leave the row open until the
+/// book is next opened, losing every trailing idle minute.
+@MainActor
+private final class ReaderSession {
+    var id: String?
+}
+
+/// The reading screen: the core's publication rendered by Readium's
+/// `EPUBNavigatorViewController` on the selected page theme, under floating
+/// glass chrome — a back button, the position line, and a more button that
+/// fans out the reading menu (contents, theme & type, in-book search,
+/// bookmark). The chrome shows on entry, tucks away when a page is turned,
+/// and comes back on tap.
+///
+/// The division of labor is the core contract: Readium owns rendering,
+/// pagination, and locators; the Rust core owns storage, progress, sessions,
+/// and bookmarks. One `updateProgress` per page turn, one session per sitting.
+final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
+    /// The core publication being read.
+    private let publication: Publication
+
+    private var navigator: EPUBNavigatorViewController?
+    private var readiumPublication: ReadiumShared.Publication?
+    private var navigationAdapter: DirectionalNavigationAdapter?
+
+    /// Reading-order resource lookup: normalized href → reading-order index.
+    private var resourceIndexByHref: [String: Int] = [:]
+    /// First synthetic position of each reading-order resource, index-aligned.
+    private var firstPositionByResource: [Int?] = []
+    /// Synthetic position count, reported to the core once known.
+    private var positionCount: Int?
+    /// The flattened TOC from the core, fetched once at open.
+    private var coreChapters: [Chapter] = []
+
+    private var currentLocator: Locator?
+    /// Set before restores, jumps, preference reloads, and rotations so the
+    /// resulting `locationDidChange` doesn't read as a page turn and tuck the
+    /// chrome away.
+    private var expectProgrammaticMove = true
+
+    /// The open reading session, captured strongly by the session closures
+    /// so it survives this controller.
+    private let session = ReaderSession()
+    /// Tail of the serialized core-write chain: progress heartbeats and
+    /// session transitions must reach the core in the order they happened.
+    private var coreWriteChain: Task<Void, Never>?
+    /// The open in flight. Owned so popping the reader can cancel it.
+    private var openTask: Task<Void, Never>?
+
+    private let logger = Logger(subsystem: "app.inkuna.ios", category: "reader")
+
+    private let loadingIndicator = UIActivityIndicatorView(style: .medium)
+    private let openFailureLabel = InkLabel()
     private let dimView = UIView()
     private let pageInfoLabel = InkLabel()
-    private var pageIndex = 0
     private let bookmarkFeedback = UIImpactFeedbackGenerator(style: .light)
 
     // MARK: Floating chrome
@@ -39,10 +89,6 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
             self?.setMenu(visible: false)
             self?.presentThemeSheet()
         },
-        onSearch: { [weak self] in
-            self?.setMenu(visible: false)
-            self?.showSearch()
-        },
         onBookmark: { [weak self] in
             self?.placeBookmark()
         }
@@ -51,75 +97,44 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
     private var menuAnimator: UIViewPropertyAnimator?
     private var searchPanel: ReaderSearchPanel?
     /// Chrome shows on entry and on page taps, and gets out of the way
-    /// while reading (page swipes hide it, taps toggle it).
+    /// while reading (page turns hide it, taps toggle it).
     private var chromeVisible = true
     private var chromeAnimator: UIViewPropertyAnimator?
 
-    init(book: PlaceholderBook) {
-        self.book = book
+    init(publication: Publication) {
+        self.publication = publication
         super.init(nibName: nil, bundle: nil)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         let settings = AppSettings.shared
         view.backgroundColor = settings.readingTheme.background
 
-        // MARK: Pages
+        // MARK: Loading & failure states
 
-        scrollView.isPagingEnabled = true
-        scrollView.showsHorizontalScrollIndicator = false
-        scrollView.contentInsetAdjustmentBehavior = .never
-        scrollView.delegate = self
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scrollView)
+        loadingIndicator.color = settings.readingTheme.dimmedForeground
+        loadingIndicator.hidesWhenStopped = true
+        loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(loadingIndicator)
+        loadingIndicator.startAnimating()
 
-        pageStack.axis = .horizontal
-        pageStack.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(pageStack)
-
-        NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            pageStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
-            pageStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
-            pageStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-            pageStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-            pageStack.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
-        ])
-
-        for _ in 0..<PlaceholderLibrary.samplePages.count {
-            let page = UIView()
-            let label = InkLabel()
-            label.numberOfLines = 0
-            label.translatesAutoresizingMaskIntoConstraints = false
-            page.addSubview(label)
-            pageStack.addArrangedSubview(page)
-            NSLayoutConstraint.activate([
-                // Clear of the floating back button on any device.
-                label.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 64),
-                label.centerXAnchor.constraint(equalTo: page.centerXAnchor),
-                label.leadingAnchor.constraint(greaterThanOrEqualTo: page.leadingAnchor, constant: 26),
-                label.widthAnchor.constraint(lessThanOrEqualToConstant: InkFont.readingMeasure),
-            ])
-            // High, not required: overrunning prose extends toward the page
-            // edge instead of clipping mid-sentence.
-            // TODO(core): real pagination via Readium removes overflow.
-            let bottom = label.bottomAnchor.constraint(
-                lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor,
-                constant: -70
-            )
-            bottom.priority = .defaultHigh
-            bottom.isActive = true
-            pageLabels.append(label)
-            page.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor).isActive = true
-        }
-        renderPages()
+        // TODO(l10n): localize once the strings pass lands.
+        openFailureLabel.text = "This book couldn't be opened."
+        openFailureLabel.font = InkFont.reading()
+        openFailureLabel.textColor = settings.readingTheme.dimmedForeground
+        openFailureLabel.textAlignment = .center
+        openFailureLabel.numberOfLines = 0
+        openFailureLabel.isHidden = true
+        openFailureLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(openFailureLabel)
 
         // MARK: Brightness veil
 
@@ -127,12 +142,6 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
         dimView.isUserInteractionEnabled = false
         dimView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(dimView)
-        NSLayoutConstraint.activate([
-            dimView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            dimView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            dimView.topAnchor.constraint(equalTo: view.topAnchor),
-            dimView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
         applyBrightness(settings.brightness)
 
         // MARK: Floating chrome
@@ -150,6 +159,15 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
             view.addSubview(chrome)
         }
         NSLayoutConstraint.activate([
+            loadingIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            loadingIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            openFailureLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            openFailureLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            openFailureLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: InkSpacing.pageMargin),
+            dimView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            dimView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            dimView.topAnchor.constraint(equalTo: view.topAnchor),
+            dimView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: InkSpacing.space4),
             backButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
             menuButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -InkSpacing.space4),
@@ -163,11 +181,95 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
         ])
         updatePageInfo()
 
-        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
-        tap.delegate = self
-        view.addGestureRecognizer(tap)
-
         bookmarkFeedback.prepare()
+
+        // Sessions end when the app leaves the foreground — backgrounded
+        // minutes are not reading minutes — and resume when it returns.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+
+        openTask = Task { await openPublication() }
+    }
+
+    // MARK: Sessions
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        startSession()
+        #if DEBUG
+        runDebugRouteIfNeeded()
+        #endif
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        endSession()
+        // Leaving for good, not just being covered: nothing is left to open
+        // into, and the container's file handles go with us — nothing else
+        // ever closes the publication.
+        if isMovingFromParent || isBeingDismissed {
+            openTask?.cancel()
+            readiumPublication?.close()
+            readiumPublication = nil
+        }
+    }
+
+    @objc private func appDidEnterBackground() {
+        endSession()
+    }
+
+    @objc private func appWillEnterForeground() {
+        if viewIfLoaded?.window != nil {
+            startSession()
+        }
+    }
+
+    private func startSession() {
+        enqueueCoreWrite("session start") { [session, id = publication.id] bookshelf in
+            guard session.id == nil else { return }
+            session.id = try await bookshelf.sessionStart(id: id)
+        }
+    }
+
+    private func endSession() {
+        // The session box is captured strongly on purpose: this close must
+        // still run when the chain drains after the reader is gone.
+        enqueueCoreWrite("session end") { [session] bookshelf in
+            guard let sessionID = session.id else { return }
+            session.id = nil
+            try await bookshelf.sessionEnd(sessionId: sessionID)
+        }
+    }
+
+    /// Appends one core write to the serialized chain. Progress updates and
+    /// session transitions run strictly in the order they were enqueued, so a
+    /// late heartbeat can never land after its session ended. Failures are
+    /// logged, never surfaced: losing one heartbeat must not interrupt
+    /// reading.
+    private func enqueueCoreWrite(
+        _ label: String,
+        _ work: @escaping @MainActor (Bookshelf) async throws -> Void
+    ) {
+        let previous = coreWriteChain
+        coreWriteChain = Task { @MainActor [logger] in
+            await previous?.value
+            do {
+                let bookshelf = try await LibraryStore.shared.library()
+                try await work(bookshelf)
+            } catch {
+                logger.warning("Core write failed (\(label, privacy: .public)): \(error)")
+            }
+        }
     }
 
     #if DEBUG
@@ -175,8 +277,7 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
     // `-inkuna.debugScreen reader -inkuna.debugReaderUI menu|search|contents|theme`
     private var didRunDebugRoute = false
 
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
+    private func runDebugRouteIfNeeded() {
         guard !didRunDebugRoute else { return }
         didRunDebugRoute = true
         switch UserDefaults.standard.string(forKey: "inkuna.debugReaderUI") {
@@ -190,60 +291,259 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
     }
     #endif
 
-    // MARK: Prose
+    // MARK: Opening
 
-    private func renderPages() {
-        let settings = AppSettings.shared
-        let theme = settings.readingTheme
-        let font = InkFont.reading(settings.textSize)
+    /// Everything Readium gives back at open, produced off the main actor in
+    /// one pass so the publication object can be interrogated freely before
+    /// it is handed to the main-actor navigator.
+    private struct OpenedBook {
+        let publication: ReadiumShared.Publication
+        let initialLocation: Locator?
+        /// Synthetic positions grouped by reading-order resource.
+        let positionsByReadingOrder: [[Locator]]
+    }
 
-        let paragraphStyle = NSMutableParagraphStyle()
-        let lineHeight = font.pointSize * InkFont.readingLineHeightMultiple
-        paragraphStyle.minimumLineHeight = lineHeight
-        paragraphStyle.maximumLineHeight = lineHeight
-        paragraphStyle.paragraphSpacing = font.pointSize * 0.9
+    private enum ReaderOpenError: Error {
+        case fileNotFound
+        case assetUnreadable
+        case openFailed
+    }
 
-        for (index, paragraphs) in PlaceholderLibrary.samplePages.enumerated() {
-            let text = NSMutableAttributedString()
-            if index == 0 {
-                let eyebrowFont = InkFont.caption
-                text.append(
-                    NSAttributedString(
-                        string: PlaceholderLibrary.chapterEyebrow.uppercased() + "\n",
-                        attributes: [
-                            .font: eyebrowFont,
-                            .foregroundColor: theme.dimmedForeground,
-                            .kern: InkFont.capsKern(for: eyebrowFont),
-                            .paragraphStyle: paragraphStyle,
-                        ]
-                    )
-                )
-            }
-            let isLastPage = index == PlaceholderLibrary.samplePages.count - 1
-            for (paragraphIndex, paragraph) in paragraphs.enumerated() {
-                let isRestHere = isLastPage && paragraphIndex == paragraphs.count - 1
-                let bodyFont = isRestHere
-                    ? InkFont.serif(font.pointSize, weight: .regular, style: .body).withItalics()
-                    : font
-                let terminator = paragraphIndex == paragraphs.count - 1 ? "" : "\n"
-                text.append(
-                    NSAttributedString(
-                        string: paragraph + terminator,
-                        attributes: [
-                            .font: bodyFont,
-                            .foregroundColor: isRestHere
-                                ? theme.foreground.withAlphaComponent(0.55)
-                                : theme.foreground,
-                            .paragraphStyle: paragraphStyle,
-                        ]
-                    )
-                )
-            }
-            pageLabels[index].attributedText = text
+    private func openPublication() async {
+        let opened: OpenedBook
+        do {
+            opened = try await Self.openBook(
+                path: publication.filePath,
+                locatorJSON: publication.locator,
+                progression: publication.progression
+            )
+        } catch {
+            logger.error("Opening \(self.publication.id, privacy: .public) failed: \(error)")
+            loadingIndicator.stopAnimating()
+            openFailureLabel.isHidden = false
+            return
+        }
+
+        // The reader may have been popped while the book was opening; a
+        // navigator installed now would be a child of a hierarchy that is
+        // already off screen. The freshly-opened container is closed on
+        // every path that does not hand it to `readiumPublication`, whose
+        // owner (viewDidDisappear) is the only other closer.
+        guard !Task.isCancelled, isViewLoaded else {
+            opened.publication.close()
+            return
+        }
+
+        let navigator: EPUBNavigatorViewController
+        do {
+            navigator = try EPUBNavigatorViewController(
+                publication: opened.publication,
+                initialLocation: opened.initialLocation,
+                config: EPUBNavigatorViewController.Configuration(preferences: readerPreferences())
+            )
+        } catch {
+            logger.error("Navigator init for \(self.publication.id, privacy: .public) failed: \(error)")
+            loadingIndicator.stopAnimating()
+            openFailureLabel.isHidden = false
+            opened.publication.close()
+            return
+        }
+
+        readiumPublication = opened.publication
+        currentLocator = opened.initialLocation
+        indexResources(of: opened.publication, positionsByReadingOrder: opened.positionsByReadingOrder)
+
+        navigator.delegate = self
+        addChild(navigator)
+        navigator.view.frame = view.bounds
+        navigator.view.translatesAutoresizingMaskIntoConstraints = false
+        view.insertSubview(navigator.view, at: 0)
+        NSLayoutConstraint.activate([
+            navigator.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            navigator.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            navigator.view.topAnchor.constraint(equalTo: view.topAnchor),
+            navigator.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        navigator.didMove(toParent: self)
+        self.navigator = navigator
+
+        // Edge taps turn pages, Apple Books style; center taps fall through
+        // to `didTapAt` and toggle the chrome.
+        let adapter = DirectionalNavigationAdapter(animatedTransition: true) { [weak self] in
+            self?.setChrome(visible: false)
+        }
+        adapter.bind(to: navigator)
+        navigationAdapter = adapter
+
+        loadingIndicator.stopAnimating()
+        updatePageInfo()
+        reportPositionCountIfNeeded()
+        fetchChapters()
+    }
+
+    /// Opens the EPUB and interrogates it in one nonisolated pass: asset,
+    /// publication, restored location, and synthetic positions.
+    private nonisolated static func openBook(
+        path: String,
+        locatorJSON: String?,
+        progression: Double
+    ) async throws -> OpenedBook {
+        guard let file = FileURL(path: path, isDirectory: false) else {
+            throw ReaderOpenError.fileNotFound
+        }
+        let assetRetriever = AssetRetriever(httpClient: DefaultHTTPClient())
+        guard let asset = await assetRetriever.retrieve(url: file).getOrNil() else {
+            throw ReaderOpenError.assetUnreadable
+        }
+        // EPUB only, DRM-free: the core rejects other formats at import and
+        // DRM circumvention is out of scope by policy.
+        let opener = PublicationOpener(parser: EPUBParser())
+        guard let readiumPublication = await opener.open(
+            asset: asset,
+            allowUserInteraction: false
+        ).getOrNil() else {
+            throw ReaderOpenError.openFailed
+        }
+
+        let positions = await readiumPublication.positionsByReadingOrder().getOrNil() ?? []
+
+        // Restore the saved position: the stored locator verbatim, or — if
+        // it is missing or unreadable — the honest fallback of locating the
+        // stored book-wide progression.
+        var initialLocation = locatorJSON.flatMap { try? Locator(jsonString: $0) }
+        if initialLocation == nil, progression > 0 {
+            initialLocation = await readiumPublication.locate(progression: progression)
+        }
+
+        return OpenedBook(
+            publication: readiumPublication,
+            initialLocation: initialLocation,
+            positionsByReadingOrder: positions
+        )
+    }
+
+    /// Builds the resource lookups the contents sheet and jump targets use.
+    private func indexResources(
+        of readiumPublication: ReadiumShared.Publication,
+        positionsByReadingOrder: [[Locator]]
+    ) {
+        var indexByHref: [String: Int] = [:]
+        for (index, link) in readiumPublication.readingOrder.enumerated() {
+            indexByHref[Self.normalizedResourceHref(link.href)] = index
+        }
+        resourceIndexByHref = indexByHref
+        firstPositionByResource = positionsByReadingOrder.map { $0.first?.locations.position }
+        let count = positionsByReadingOrder.reduce(0) { $0 + $1.count }
+        positionCount = count > 0 ? count : nil
+    }
+
+    /// Reports the synthetic position count to the core — once per book is
+    /// the contract, so only when it is new or changed.
+    private func reportPositionCountIfNeeded() {
+        guard let positionCount, positionCount > 0 else { return }
+        let count = UInt32(positionCount)
+        guard publication.positionCount != count else { return }
+        enqueueCoreWrite("report position count") { [id = publication.id] bookshelf in
+            try await bookshelf.reportPositionCount(id: id, count: count)
         }
     }
 
-    // MARK: Reading menu
+    private func fetchChapters() {
+        Task { [weak self, id = publication.id, logger] in
+            do {
+                let bookshelf = try await LibraryStore.shared.library()
+                let chapters = try await bookshelf.chapters(id: id)
+                self?.coreChapters = chapters
+            } catch {
+                logger.warning("Fetching chapters for \(id, privacy: .public) failed: \(error)")
+            }
+        }
+    }
+
+    // MARK: Progress
+
+    func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
+        currentLocator = locator
+        updatePageInfo()
+
+        if expectProgrammaticMove {
+            expectProgrammaticMove = false
+        } else {
+            // Reading takes the page: turning it tucks the chrome away.
+            setChrome(visible: false)
+        }
+
+        // One `updateProgress` per page turn: opaque locator, book-wide
+        // totalProgression, and the synthetic position once known.
+        guard
+            let locatorJSON = try? locator.jsonString(),
+            let totalProgression = locator.locations.totalProgression
+        else { return }
+        let position = locator.locations.position.map(UInt32.init)
+        enqueueCoreWrite("progress") { [id = publication.id] bookshelf in
+            try await bookshelf.updateProgress(
+                id: id,
+                locator: locatorJSON,
+                progression: totalProgression,
+                position: position
+            )
+        }
+    }
+
+    func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
+        logger.warning("Navigator error for \(self.publication.id, privacy: .public): \(error)")
+        // TODO(l10n): localize once the strings pass lands.
+        InkToastView.show(
+            symbol: "exclamationmark.triangle",
+            text: "This page couldn't be shown.",
+            in: view,
+            topInset: view.safeAreaInsets.top + 56
+        )
+    }
+
+    func navigator(_ navigator: Navigator, didFailToLoadResourceAt href: RelativeURL, withError error: ReadError) {
+        logger.warning("Resource \(href.string, privacy: .public) failed to load: \(error)")
+    }
+
+    /**
+     Only http(s) leaves the app. An EPUB is untrusted content, and the
+     protocol's default implementation opens *any* scheme an installed app
+     registers — `tel:`, `shortcuts:`, a bank app's custom scheme; the
+     reader is told the link was not followed instead of it firing
+     silently. Mirrors the Android shell's external-link guard.
+     */
+    func navigator(_ navigator: Navigator, presentExternalURL url: URL) {
+        let scheme = url.scheme?.lowercased()
+        guard scheme == "http" || scheme == "https" else {
+            showLinkNotFollowed()
+            return
+        }
+        UIApplication.shared.open(url) { [weak self] opened in
+            if !opened { self?.showLinkNotFollowed() }
+        }
+    }
+
+    private func showLinkNotFollowed() {
+        // TODO(l10n): localize once the strings pass lands.
+        InkToastView.show(
+            symbol: "link",
+            text: "That link wasn't followed.",
+            in: view,
+            topInset: view.safeAreaInsets.top + 56
+        )
+    }
+
+    // MARK: Chrome
+
+    func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
+        if let searchPanel, searchPanel.alpha > 0 {
+            hideSearch()
+        } else if menuVisible {
+            setMenu(visible: false)
+        } else {
+            setChrome(visible: !chromeVisible)
+        }
+    }
 
     private func setMenu(visible: Bool) {
         guard menuVisible != visible else { return }
@@ -287,46 +587,175 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
         chromeAnimator = animator
     }
 
-    @objc private func handleTap() {
-        if let searchPanel, searchPanel.alpha > 0 {
-            hideSearch()
-        } else if menuVisible {
-            setMenu(visible: false)
-        } else {
-            setChrome(visible: !chromeVisible)
-        }
-    }
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        // Bare page taps only — chrome and overlays handle their own touches.
-        var candidate = touch.view
-        while let current = candidate, current !== view {
-            if current === menuView || current === backButton || current === menuButton || current === searchPanel {
-                return false
-            }
-            candidate = current.superview
-        }
-        return true
-    }
+    // MARK: Bookmarks
 
     private func placeBookmark() {
-        // TODO(core): persist the bookmark through the Rust core.
+        guard
+            let locator = navigator?.currentLocation,
+            let locatorJSON = try? locator.jsonString()
+        else {
+            // TODO(l10n): localize once the strings pass lands.
+            InkToastView.show(
+                symbol: "bookmark.slash",
+                text: "Nothing to bookmark yet.",
+                in: view,
+                topInset: view.safeAreaInsets.top + 56
+            )
+            return
+        }
+        let progression = locator.locations.totalProgression ?? publication.progression
         bookmarkFeedback.impactOccurred()
-        InkToastView.show(
-            symbol: "bookmark.fill",
-            text: "Bookmark placed.",
-            in: view,
-            topInset: view.safeAreaInsets.top + 56
+        Task { [weak self, id = publication.id, logger] in
+            do {
+                let bookshelf = try await LibraryStore.shared.library()
+                _ = try await bookshelf.addBookmark(id: id, locator: locatorJSON, progression: progression)
+                guard let self else { return }
+                // TODO(l10n): localize once the strings pass lands.
+                InkToastView.show(
+                    symbol: "bookmark.fill",
+                    text: "Bookmark placed.",
+                    in: self.view,
+                    topInset: self.view.safeAreaInsets.top + 56
+                )
+            } catch {
+                logger.warning("Bookmark for \(id, privacy: .public) failed: \(error)")
+                guard let self else { return }
+                // TODO(l10n): localize once the strings pass lands.
+                InkToastView.show(
+                    symbol: "exclamationmark.triangle",
+                    text: "The bookmark couldn't be saved.",
+                    in: self.view,
+                    topInset: self.view.safeAreaInsets.top + 56
+                )
+            }
+        }
+    }
+
+    // MARK: Contents
+
+    private func presentContents() {
+        let currentResourceIndex = currentLocator.flatMap { resourceIndex(forHref: $0.href.string) }
+        var rows: [ContentsSheetViewController.Row] = []
+        var currentRowIndex: Int?
+        // The highlight rule, shared with the Android shell: highlight the
+        // last TOC entry whose resource index is <= the current resource
+        // index. Several entries inside one resource resolve to the first of
+        // them (the reader cannot tell them apart within a resource), and a
+        // resource carrying no TOC entry of its own highlights the preceding
+        // chapter.
+        var bestResourceIndex: Int?
+        for (rowIndex, chapter) in coreChapters.enumerated() {
+            let chapterResourceIndex = resourceIndex(forHref: chapter.href)
+            if
+                let chapterResourceIndex,
+                let currentResourceIndex,
+                chapterResourceIndex <= currentResourceIndex,
+                bestResourceIndex.map({ chapterResourceIndex > $0 }) ?? true
+            {
+                bestResourceIndex = chapterResourceIndex
+                currentRowIndex = rowIndex
+            }
+            rows.append(ContentsSheetViewController.Row(
+                chapter: chapter,
+                position: chapterResourceIndex.flatMap { firstPositionByResource.indices.contains($0) ? firstPositionByResource[$0] : nil },
+                isCurrent: false
+            ))
+        }
+        if let currentRowIndex {
+            rows[currentRowIndex].isCurrent = true
+        }
+
+        let sheet = ContentsSheetViewController(
+            bookTitle: publication.title,
+            coverSeed: BookCoverView.coverSeed(for: publication.id),
+            rows: rows,
+            pageInfoText: pageInfoText()
+        )
+        sheet.onSelectChapter = { [weak self] chapter in
+            self?.jump(to: chapter)
+        }
+        present(sheet, animated: true)
+    }
+
+    private func jump(to chapter: Chapter) {
+        guard let navigator, let target = jumpLocator(for: chapter) else {
+            logger.warning("No jump target for chapter \(chapter.id, privacy: .public)")
+            return
+        }
+        expectProgrammaticMove = true
+        Task {
+            _ = await navigator.go(to: target, options: NavigatorGoOptions(animated: false))
+        }
+    }
+
+    /// Builds the Readium locator for a core chapter href (resource path,
+    /// possibly with a fragment) against the publication's reading order —
+    /// the same resolution Readium's own locator service performs, done
+    /// synchronously against the indexed reading order.
+    private func jumpLocator(for chapter: Chapter) -> Locator? {
+        guard
+            let readiumPublication,
+            let index = resourceIndex(forHref: chapter.href),
+            readiumPublication.readingOrder.indices.contains(index)
+        else { return nil }
+        let link = readiumPublication.readingOrder[index]
+        guard let mediaType = link.mediaType else { return nil }
+        let fragment = Self.splitFragment(chapter.href).fragment
+        return Locator(
+            href: link.url(),
+            mediaType: mediaType,
+            title: chapter.title,
+            locations: Locator.Locations(
+                fragments: fragment.map { [$0] } ?? [],
+                progression: fragment == nil ? 0.0 : nil
+            )
         )
     }
 
-    private func presentContents() {
-        let sheet = ContentsSheetViewController(book: book, pageInfoText: pageInfoText())
-        sheet.onSelectChapter = { _ in
-            // TODO(core): jump to the chapter position via Readium; the
-            // placeholder chapter has nowhere to go yet.
+    private func resourceIndex(forHref href: String) -> Int? {
+        resourceIndexByHref[Self.normalizedResourceHref(href)]
+    }
+
+    private nonisolated static func splitFragment(_ href: String) -> (resource: String, fragment: String?) {
+        guard let hashIndex = href.firstIndex(of: "#") else { return (href, nil) }
+        return (
+            String(href[..<hashIndex]),
+            String(href[href.index(after: hashIndex)...])
+        )
+    }
+
+    /// Href comparison key: fragment off, leading slash off, percent-decoded
+    /// — so the core's package-root-relative hrefs and Readium's normalized
+    /// link hrefs meet in the middle (CJK resource names included).
+    private nonisolated static func normalizedResourceHref(_ href: String) -> String {
+        var resource = splitFragment(href).resource
+        if resource.hasPrefix("/") {
+            resource.removeFirst()
         }
-        present(sheet, animated: true)
+        return resource.removingPercentEncoding ?? resource
+    }
+
+    // MARK: Theme & type
+
+    /// The design system's reading themes and text sizes routed through
+    /// Readium's preferences: page colors and font scale are ours, publisher
+    /// styles and CJK layout (vertical writing included) stay Readium's.
+    private func readerPreferences() -> EPUBPreferences {
+        let settings = AppSettings.shared
+        let theme = settings.readingTheme
+        return EPUBPreferences(
+            backgroundColor: ReadiumNavigator.Color(uiColor: theme.background),
+            fontSize: settings.textSize.pointSize / ReadingTextSize.medium.pointSize,
+            textColor: ReadiumNavigator.Color(uiColor: theme.foreground),
+            theme: theme.isNight ? .dark : .light
+        )
+    }
+
+    private func applyPreferences() {
+        guard let navigator else { return }
+        // The reload the navigator performs is not a page turn.
+        expectProgrammaticMove = true
+        navigator.submitPreferences(readerPreferences())
     }
 
     private func presentThemeSheet() {
@@ -337,12 +766,14 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
             InkMotion.runQuiet {
                 self.view.backgroundColor = theme.background
                 self.pageInfoLabel.textColor = theme.dimmedForeground
+                self.loadingIndicator.color = theme.dimmedForeground
+                self.openFailureLabel.textColor = theme.dimmedForeground
             }
-            self.renderPages()
+            self.applyPreferences()
         }
         sheet.onSizeChange = { [weak self] size in
             AppSettings.shared.textSize = size
-            self?.renderPages()
+            self?.applyPreferences()
         }
         sheet.onBrightnessChange = { [weak self] brightness in
             AppSettings.shared.brightness = brightness
@@ -353,22 +784,21 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
 
     // MARK: In-book search
 
+    /// Reachable only through the DEBUG deep-launch route above — the menu
+    /// no longer offers search, because the panel's placeholder results
+    /// would be shown against a real book. The plumbing stays for the
+    /// screenshot loop and for when the core's search spec lands.
     private func showSearch() {
         let panel: ReaderSearchPanel
         if let existing = searchPanel {
             panel = existing
         } else {
-            panel = ReaderSearchPanel(basePage: book.currentPage)
+            // TODO(core): real in-book, CJK-aware search is the search
+            // spec; the panel stays on its placeholder results until then.
+            panel = ReaderSearchPanel(basePage: currentLocator?.locations.position ?? 1)
             panel.onClose = { [weak self] in self?.hideSearch() }
-            panel.onJump = { [weak self] index in
-                guard let self else { return }
-                self.scrollView.setContentOffset(
-                    CGPoint(x: CGFloat(index) * self.scrollView.bounds.width, y: 0),
-                    animated: false
-                )
-                self.pageIndex = index
-                self.updatePageInfo()
-                self.hideSearch()
+            panel.onJump = { [weak self] _ in
+                self?.hideSearch()
             }
             panel.alpha = 0
             // The panel owns the screen while it is up: VoiceOver must not
@@ -420,63 +850,31 @@ final class ReaderViewController: UIViewController, UIScrollViewDelegate, UIGest
         dimView.alpha = max(0, 0.78 - brightness) / 1.7
     }
 
+    /// The honest position line: synthetic positions once the navigator has
+    /// computed them, book-wide progression alone until then. Never a
+    /// fictional page number.
     private func pageInfoText() -> String {
-        let page = book.currentPage + pageIndex
-        let percent = Int((Double(page) / Double(book.pageCount) * 100).rounded())
-        return "p. \(page) of \(book.pageCount) · \(percent)%"
+        let progression = currentLocator?.locations.totalProgression ?? publication.progression
+        let percent = Int((progression * 100).rounded())
+        if let position = currentLocator?.locations.position, let positionCount, positionCount > 0 {
+            // TODO(l10n): localize once the strings pass lands.
+            return "p. \(position) of \(positionCount) · \(percent)%"
+        }
+        return "\(percent)%"
     }
 
     private func updatePageInfo() {
-        // TODO(core): live position from the core's progress tracking.
         pageInfoLabel.text = pageInfoText()
-        let page = book.currentPage + pageIndex
-        let percent = Int((Double(page) / Double(book.pageCount) * 100).rounded())
+        let progression = currentLocator?.locations.totalProgression ?? publication.progression
+        let percent = Int((progression * 100).rounded())
+        // TODO(l10n): localize once the strings pass lands.
         menuView.contentsPill.text = "Contents · \(percent)%"
-    }
-
-    // MARK: UIScrollViewDelegate
-
-    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        // Reading takes the page: turning it tucks the chrome away.
-        setChrome(visible: false)
-    }
-
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        syncPageIndex()
-    }
-
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        if !decelerate {
-            syncPageIndex()
-        }
-    }
-
-    private func syncPageIndex() {
-        let width = scrollView.bounds.width
-        guard width > 0 else { return }
-        let index = Int((scrollView.contentOffset.x / width).rounded())
-        guard index != pageIndex else { return }
-        pageIndex = index
-        updatePageInfo()
     }
 
     override func viewWillTransition(to size: CGSize, with coordinator: any UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
-        // Keep the reader on its page across rotation and window resizes.
-        let index = pageIndex
-        coordinator.animate(alongsideTransition: nil) { [weak self] _ in
-            guard let self else { return }
-            self.scrollView.setContentOffset(
-                CGPoint(x: CGFloat(index) * self.scrollView.bounds.width, y: 0),
-                animated: false
-            )
-        }
-    }
-}
-
-private extension UIFont {
-    func withItalics() -> UIFont {
-        guard let descriptor = fontDescriptor.withSymbolicTraits([.traitItalic]) else { return self }
-        return UIFont(descriptor: descriptor, size: pointSize)
+        // The navigator re-lays out and re-emits its location on rotation;
+        // that is not a page turn either.
+        expectProgrammaticMove = true
     }
 }

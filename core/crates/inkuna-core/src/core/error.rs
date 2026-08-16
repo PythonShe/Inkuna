@@ -12,6 +12,14 @@ pub enum CoreError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// The source is bigger than the import ceiling
+    /// (`files::MAX_IMPORT_BYTES`), so it was refused mid-copy rather than
+    /// allowed to fill the device — the guard that matters for a stream
+    /// whose length nobody can know in advance. Carries the ceiling in
+    /// bytes so a shell can name the limit it just hit.
+    #[error("file too large: over {0} bytes")]
+    FileTooLarge(u64),
+
     /// SQLite failed. Reaching a shell means the library database itself
     /// is in trouble; ordinary domain misses are `NotFound` instead.
     #[error("database error: {0}")]

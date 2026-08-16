@@ -31,6 +31,7 @@
     <string name="tonight_eyebrow">Tonight</string>
     <string name="tonight_title">Pick up where you left off</string>
     <string name="tonight_pages_left">Fifteen pages left in this chapter</string>
+    <string name="tonight_percent_read">%1$d%% read</string>
     <string name="tonight_keep_reading">Keep reading</string>
     <string name="tonight_nightstand">On the nightstand</string>
     <string name="tonight_chip_fiction">Fiction</string>
@@ -46,6 +47,10 @@
     <string name="library_empty_finished">Nothing finished yet. No hurry.</string>
     <string name="library_empty_wishlist">Nothing on the nightstand yet.</string>
     <string name="library_empty_query">Nothing found in the stacks.</string>
+    <string name="library_empty_reading">Nothing here yet.</string>
+    <string name="library_empty_all">Nothing here yet.</string>
+    <string name="library_unopenable">The library couldn\'t be opened.</string>
+    <string name="unknown_author">Unknown author</string>
 
     <!-- Search -->
     <string name="search_title">Search</string>
@@ -69,16 +74,18 @@
     <string name="reader_search_placeholder">Search this book</string>
     <string name="reader_search_empty">Nothing found in this book.</string>
     <string name="reader_bookmark_placed">Bookmark placed.</string>
+    <string name="reader_link_failed">This link could not be opened.</string>
     <string name="reader_page_info">p. %1$d of %2$d · %3$d%%</string>
     <string name="reader_chapter_page">p. %1$d</string>
     <string name="reader_percent">%1$d%%</string>
+    <string name="reader_open_failed">This book could not be opened.</string>
+    <string name="reader_retry">Try again</string>
 
     <!-- Accessibility -->
     <string name="a11y_back">Back</string>
     <string name="a11y_close">Close</string>
     <string name="a11y_reading_menu">Reading menu</string>
     <string name="a11y_close_reading_menu">Close reading menu</string>
-    <string name="a11y_search_book">Search this book</string>
     <string name="a11y_place_bookmark">Place bookmark</string>
     <string name="a11y_smaller_text">Smaller text</string>
     <string name="a11y_larger_text">Larger text</string>
@@ -86,6 +93,7 @@
     <string name="a11y_not_downloaded">Not downloaded</string>
     <string name="a11y_book_row">%1$s, %2$s</string>
     <string name="a11y_chapter_row">Chapter %1$s, %2$s, page %3$d</string>
+    <string name="a11y_chapter_row_no_page">Chapter %1$s, %2$s</string>
     <string name="a11y_theme_tile">%1$s. %2$s</string>
     <string name="a11y_no_results">No results</string>
     <string name="a11y_toggle_reader_controls">Show or hide reading controls</string>

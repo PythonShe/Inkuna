@@ -15,5 +15,80 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          Books arriving from outside the app: tapped in Files, shared from a
+          mail client, opened from a browser download. A separate activity so
+          an inbound import never disturbs the reader's activity, translucent
+          so it reads as a sheet over wherever the book came from.
+
+          singleTop + onNewIntent: a second book tapped while the sheet is up
+          joins the same activity instead of stacking another one.
+        -->
+        <activity
+            android:name=".importing.ImportIntentActivity"
+            android:label="@string/import_intent_label"
+            android:theme="@style/Theme.Inkuna.Import"
+            android:launchMode="singleTop"
+            android:configChanges="uiMode"
+            android:excludeFromRecents="true"
+            android:exported="true">
+
+            <!--
+              EPUB by its own MIME type. Providers that label an EPUB
+              correctly (Files, Drive, most mail clients) match here.
+            -->
+            <intent-filter android:label="@string/import_intent_label">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-epub+zip" />
+            </intent-filter>
+
+            <!--
+              The same book by extension, for providers that hand over
+              application/octet-stream. The declared mimeType is matched
+              against the *resolved* type — the sender's explicit type, or
+              what the resolver infers from the provider's getType() /
+              the file extension — so a sender-untyped intent can still
+              land here when it resolves to octet-stream; one that resolves
+              to no type at all matches nothing. host/pathPattern filters need a
+              scheme and a host wildcard to match at all; the case
+              permutations are what Android requires, its pathPattern being
+              case-sensitive and without alternation. The core detects
+              format by magic bytes regardless, so a mislabelled file is
+              still answered honestly.
+            -->
+            <intent-filter android:label="@string/import_intent_label">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:pathPattern=".*\\.epub" />
+                <data android:pathPattern=".*\\.EPUB" />
+                <data android:pathPattern=".*\\..*\\.epub" />
+                <data android:pathPattern=".*\\..*\\..*\\.epub" />
+            </intent-filter>
+
+            <!-- Shared from a mail client or another app. -->
+            <intent-filter android:label="@string/import_intent_label">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-epub+zip" />
+            </intent-filter>
+            <intent-filter android:label="@string/import_intent_label">
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-epub+zip" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

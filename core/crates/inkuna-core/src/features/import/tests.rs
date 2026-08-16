@@ -638,6 +638,154 @@ fn rejects_non_epub_naming_the_format() {
 }
 
 #[test]
+fn reader_import_matches_path_import_byte_for_byte() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("本の虫.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let mut stream = std::fs::File::open(&epub).unwrap();
+    let publication = imported(library.import_reader(&mut stream, "本の虫.epub").unwrap());
+    assert_eq!(publication.title, "月光書房");
+    assert_eq!(publication.authors, vec!["紫式部".to_string()]);
+
+    // The same bytes over the path route dedupe against the stream import:
+    // the two entries hash identically.
+    match library.import(epub.to_str().unwrap()).unwrap() {
+        ImportOutcome::Duplicate(p) => assert_eq!(p.id, publication.id),
+        other => panic!("expected duplicate, got {other:?}"),
+    }
+}
+
+#[test]
+fn reader_import_detects_format_from_content_not_the_claimed_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let comic = dir.path().join("comic.cbz");
+    write_cbz(&comic);
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let mut stream = std::fs::File::open(&comic).unwrap();
+    // A CBZ under an .epub display name: detection runs on the staged
+    // bytes, so the lie changes nothing.
+    let err = library.import_reader(&mut stream, "偽物.epub").unwrap_err();
+    match err {
+        CoreError::UnsupportedFormat(Some(format)) => assert_eq!(format, "cbz"),
+        other => panic!("expected UnsupportedFormat with name, got {other:?}"),
+    }
+    // The forced pre-detection copy was swept.
+    let leftovers: Vec<_> = std::fs::read_dir(data_dir.join("books")).unwrap().collect();
+    assert!(leftovers.is_empty(), "staged copy leaked: {leftovers:?}");
+}
+
+#[test]
+fn batch_reader_import_reports_outcomes_and_progress_by_display_name() {
+    use crate::BatchImportOutcome;
+    use std::sync::Mutex;
+
+    let dir = tempfile::tempdir().unwrap();
+    let good = dir.path().join("good.epub");
+    write_epub(&good, "月光書房", "紫式部", "ja");
+    let comic = dir.path().join("comic.cbz");
+    write_cbz(&comic);
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let items = vec![
+        (std::fs::File::open(&good).unwrap(), "夜の本.epub".to_string()),
+        (std::fs::File::open(&comic).unwrap(), "漫画.cbz".to_string()),
+    ];
+    let events: Mutex<Vec<(usize, String)>> = Mutex::new(Vec::new());
+    let outcomes = library.import_batch_readers(items, &|done, name| {
+        events.lock().unwrap().push((done, name.to_string()));
+    });
+
+    assert_eq!(outcomes.len(), 2);
+    match &outcomes[0] {
+        BatchImportOutcome::Imported(p) => assert_eq!(p.title, "月光書房"),
+        other => panic!("expected Imported, got {other:?}"),
+    }
+    match &outcomes[1] {
+        BatchImportOutcome::Failed { path, error } => {
+            // A stream has no path; failures are reported by display name.
+            assert_eq!(path, "漫画.cbz");
+            assert!(matches!(error, CoreError::UnsupportedFormat(Some(f)) if f == "cbz"));
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+    let events = events.into_inner().unwrap();
+    assert_eq!(
+        events.iter().map(|(done, _)| *done).collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+    let mut names: Vec<_> = events.into_iter().map(|(_, name)| name).collect();
+    names.sort();
+    assert_eq!(names, vec!["夜の本.epub".to_string(), "漫画.cbz".to_string()]);
+}
+
+#[test]
+fn batch_import_reports_each_completed_file_with_increasing_counts() {
+    use std::sync::Mutex;
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut paths = Vec::new();
+    for i in 0..3 {
+        let epub = dir.path().join(format!("book-{i}.epub"));
+        write_epub(&epub, &format!("第{i}巻"), "著者", "ja");
+        paths.push(epub.to_str().unwrap().to_string());
+    }
+    // A failure still counts as a completed file.
+    let comic = dir.path().join("comic.cbz");
+    write_cbz(&comic);
+    paths.push(comic.to_str().unwrap().to_string());
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let events: Mutex<Vec<(usize, String)>> = Mutex::new(Vec::new());
+    let outcomes = library.import_batch_with(&paths, &|done, path| {
+        events.lock().unwrap().push((done, path.to_string()));
+    });
+
+    assert_eq!(outcomes.len(), paths.len());
+    let events = events.into_inner().unwrap();
+    // One event per file, counts strictly 1..=N even though rayon finishes
+    // files in whatever order it likes.
+    assert_eq!(
+        events.iter().map(|(done, _)| *done).collect::<Vec<_>>(),
+        (1..=paths.len()).collect::<Vec<_>>()
+    );
+    let mut reported: Vec<_> = events.into_iter().map(|(_, path)| path).collect();
+    reported.sort();
+    let mut expected = paths.clone();
+    expected.sort();
+    assert_eq!(reported, expected);
+}
+
+#[test]
+fn untitled_epub_falls_back_to_the_file_stem_normalized_to_nfc() {
+    let dir = tempfile::tempdir().unwrap();
+    // Decomposed Hangul (NFD), as APFS/HFS+ file providers hand names back:
+    // renders as 밤의 서재 but is byte-for-byte different from the composed
+    // form every other title in the library uses.
+    let decomposed = "\u{1107}\u{1161}\u{11B7}\u{110B}\u{1174} \
+                      \u{1109}\u{1165}\u{110C}\u{1162}";
+    let epub = dir.path().join(format!("{decomposed}.epub"));
+    let opf = r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:language>ko</dc:language></metadata>
+  <manifest><item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#;
+    write_epub_parts(
+        &epub,
+        opf,
+        &[("ch01.xhtml", r#"<html><body><p>본문.</p></body></html>"#)],
+    );
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(publication.title, "밤의 서재");
+}
+
+#[test]
 fn import_is_idempotent_by_content_hash() {
     let dir = tempfile::tempdir().unwrap();
     let epub = dir.path().join("book.epub");

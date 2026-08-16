@@ -36,6 +36,7 @@ import app.inkuna.android.R
 import app.inkuna.android.model.PlaceholderBook
 import app.inkuna.android.model.PlaceholderChapter
 import app.inkuna.android.model.PlaceholderLibrary
+import app.inkuna.core.Publication as CorePublication
 import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkIconButton
@@ -46,11 +47,15 @@ import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
 
+// TODO(core): the detail metadata, progress, and contents list still render
+// the placeholder book; only the read affordances are core-backed. The
+// library wiring workstream replaces the visuals with `publication`.
 @Composable
 fun BookDetailScreen(
     book: PlaceholderBook,
+    publication: CorePublication?,
     onBack: () -> Unit,
-    onRead: () -> Unit,
+    onRead: (CorePublication) -> Unit,
 ) {
     val ink = InkTheme.colors
     Column(
@@ -107,20 +112,24 @@ fun BookDetailScreen(
             Spacer(Modifier.height(18.dp))
             InkButton(
                 text = stringResource(R.string.tonight_keep_reading),
-                onClick = onRead,
+                // Reading needs a real book: until an import UI exists the
+                // library can be empty, and then there is nothing to open.
+                onClick = { publication?.let(onRead) },
                 icon = Icons.Outlined.AutoStories,
+                enabled = publication != null,
             )
         }
         Spacer(Modifier.height(InkSpace.s10))
         SectionTitle(stringResource(R.string.detail_contents))
         Spacer(Modifier.height(InkSpace.s2))
         PlaceholderLibrary.chapters.forEachIndexed { index, chapter ->
-            // TODO(core): jump to the tapped chapter; the prototype always
-            // opens the current reading position.
+            // TODO(core): jump to the tapped chapter; the placeholder rows
+            // always open the current reading position (the in-reader
+            // contents sheet does jump for real).
             ChapterRow(
                 chapter = chapter,
                 current = index == PlaceholderLibrary.currentChapterIndex,
-                onClick = onRead,
+                onClick = { publication?.let(onRead) },
             )
         }
     }

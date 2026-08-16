@@ -18,6 +18,28 @@ final class BookCoverView: UIView {
         (0x6B5537, 0xF6EDD9),
     ]
 
+    /// The one generated-cover seed in the app.
+    ///
+    /// Every screen that draws a book must reach the same palette for it, so
+    /// the reduction lives here rather than being re-derived per screen —
+    /// the library row, the contents sheet, and the debug harness once had
+    /// three different hashes and three different colours for one book.
+    ///
+    /// FNV-1a, deliberately not `hashValue`: Swift seeds string hashing per
+    /// process, so a book would change colour on every launch.
+    ///
+    /// TODO(core): the core already extracts real cover art into
+    /// `Publication.coverPath`; render it once this view accepts an image and
+    /// falls back to the generated cover.
+    static func coverSeed(for id: String) -> Int {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in id.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x0000_0100_0000_01b3
+        }
+        return Int(hash % UInt64(Int.max))
+    }
+
     private let content = UIView()
     private let titleLabel = InkLabel()
     private let authorLabel = InkLabel()

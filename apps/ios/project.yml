@@ -11,6 +11,13 @@ options:
     icon:
       file: true
       buildPhase: resources
+packages:
+  # Readium renders; the Rust core never does. Pinned exactly: navigator
+  # behavior and the locator contract must not drift under a lockfile-less
+  # regenerated project.
+  Readium:
+    url: https://github.com/readium/swift-toolkit
+    exactVersion: 3.11.0
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -32,6 +39,14 @@ targets:
     dependencies:
       - framework: Frameworks/InkunaCore.xcframework
         embed: false
+      # Only the products the reader consumes. ReadiumAdapterGCDWebServer is
+      # deliberately absent: since 3.x the EPUB navigator no longer needs an
+      # HTTP server (its httpServer initializer is deprecated in 3.11.0).
+      - package: Readium
+        products:
+          - ReadiumShared
+          - ReadiumStreamer
+          - ReadiumNavigator
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.inkuna.ios
@@ -46,3 +61,23 @@ targets:
         # launches don't flash light (the generated plist can't set it).
         UILaunchScreen:
           UIColorName: LaunchBackground
+        # "Open with Inkuna" from Files, Mail, Safari, and the share sheet.
+        # `org.idpf.epub-container` is a system-declared type (UTType.epub),
+        # so no UTImportedTypeDeclarations entry is needed — declaring one
+        # would shadow the system's with a weaker definition.
+        # Rank Alternate, not Owner: Apple Books owns EPUB on a stock
+        # device, and claiming Owner would silently steal every EPUB tap
+        # from it.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: EPUB Book
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - org.idpf.epub-container
+        # Deliberately NOT opening documents in place: iOS then hands the
+        # app a copy in Documents/Inbox instead of a live reference to the
+        # reader's file. That is exactly the contract the core wants — it
+        # takes ownership of its own copy of every book — and it means an
+        # inbound document never depends on a provider staying reachable.
+        # `ImportFlow` deletes the Inbox copy once the core has its own.
+        LSSupportsOpeningDocumentsInPlace: false

@@ -2,17 +2,34 @@ package app.inkuna.android
 
 import android.app.UiModeManager
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
 import app.inkuna.android.model.AppSettings
+import app.inkuna.android.model.LibraryStore
 import app.inkuna.android.ui.InkunaApp
+import app.inkuna.android.ui.reader.READER_NAVIGATOR_FRAGMENT_TAG
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.readium.r2.navigator.epub.EpubNavigatorFragment
 
-class MainActivity : ComponentActivity() {
+// A FragmentActivity because Readium's EPUB navigator is a Fragment; the
+// rest of the shell stays pure Compose.
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // The navigator fragment can only be built once its publication is
+        // open, which is async — so a recreated activity restores a dummy
+        // (Readium's sanctioned pattern), removed below before anything
+        // resumes; the reader then re-adds a real one at the core's saved
+        // locator.
+        supportFragmentManager.fragmentFactory = EpubNavigatorFragment.createDummyFactory()
         super.onCreate(savedInstanceState)
+        supportFragmentManager.findFragmentByTag(READER_NAVIGATOR_FRAGMENT_TAG)?.let { restored ->
+            supportFragmentManager.beginTransaction().remove(restored).commitNow()
+        }
         enableEdgeToEdge()
         val settings = AppSettings(applicationContext)
         // One blocking read so the first frame renders the right theme and
@@ -26,8 +43,16 @@ class MainActivity : ComponentActivity() {
             if (initial.readingTheme.isNight) UiModeManager.MODE_NIGHT_YES
             else UiModeManager.MODE_NIGHT_NO
         )
-        // TODO(core): open app.inkuna.core.Bookshelf here and feed the
-        // library screens; PlaceholderLibrary stands in until then.
+        // Warm the core library off the main thread — opening runs schema
+        // migrations and an orphaned-file sweep synchronously. Failure is
+        // recoverable, not fatal: nothing is cached on error, so the first
+        // screen that needs the shelf retries and surfaces it.
+        // TODO(core): feed the library/tonight/stats screens from the
+        // Bookshelf; PlaceholderLibrary stands in until then.
+        lifecycleScope.launch {
+            runCatching { LibraryStore.bookshelf(applicationContext) }
+                .onFailure { Log.w("Inkuna", "core library warm-up failed", it) }
+        }
         setContent {
             InkunaApp(settings = settings, initial = initial)
         }

@@ -45,6 +45,15 @@ impl Format {
     /// CBZ. Returns `UnsupportedFormat(None)` when nothing matches, and
     /// `Io` when the file cannot be read at all.
     pub fn detect(path: &Path) -> Result<Format, CoreError> {
+        Self::detect_as(path, path)
+    }
+
+    /// [`detect`](Self::detect) with the filename decoupled from the
+    /// content: reads the bytes at `content` while `named` supplies the
+    /// extension for the TXT check. For staged copies of a stream import,
+    /// whose real name travels separately from the bytes.
+    pub fn detect_as(content: &Path, named: &Path) -> Result<Format, CoreError> {
+        let path = content;
         let mut file = File::open(path)?;
         let mut head = [0u8; 68];
         let n = file.read(&mut head)?;
@@ -77,7 +86,7 @@ impl Format {
             }
             return Ok(Format::Cbz);
         }
-        if is_plain_text(path, &head[..n]) {
+        if is_plain_text(named, &head[..n]) {
             return Ok(Format::Txt);
         }
         Err(CoreError::UnsupportedFormat(None))
