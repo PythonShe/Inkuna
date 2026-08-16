@@ -15,7 +15,7 @@ use rusqlite::{Connection, Transaction};
 use crate::core::files::copy_and_hash_unbounded;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 2;
+pub(crate) const SCHEMA_VERSION: i64 = 3;
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -105,6 +105,20 @@ const V2_INDEX_SQL: &str = "
 CREATE UNIQUE INDEX idx_publications_content_hash ON publications(content_hash);
 ";
 
+// 0003: per-resource Readium position ranges, reported by the shell once
+// its navigator computes synthetic positions (the core never invents page
+// numbers). `start_position` is 1-based and cumulative across the spine;
+// chapter ranges are derived from these rows at query time.
+const V3_SQL: &str = "
+CREATE TABLE resource_positions (
+    publication_id TEXT NOT NULL REFERENCES publications(id) ON DELETE CASCADE,
+    spine_idx      INTEGER NOT NULL,
+    start_position INTEGER NOT NULL,
+    position_count INTEGER NOT NULL,
+    PRIMARY KEY (publication_id, spine_idx)
+);
+";
+
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
     loop {
         let version: i64 =
@@ -120,6 +134,7 @@ pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), Core
                 adopt_legacy_rows(&tx, data_dir)?;
                 tx.execute_batch(V2_INDEX_SQL)?;
             }
+            2 => tx.execute_batch(V3_SQL)?,
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }
