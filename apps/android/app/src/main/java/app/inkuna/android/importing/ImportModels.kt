@@ -142,8 +142,8 @@ sealed interface ImportState {
     /**
      * @param completed files fully dealt with so far.
      * @param total files in this selection.
-     * @param fraction overall progress in `0..1`, or `null` while the core
-     *   works and cannot report any (`import_batch` has no callback).
+     * @param fraction overall progress in `0..1`, or `null` when nothing
+     *   is known yet.
      */
     @Immutable
     data class Running(

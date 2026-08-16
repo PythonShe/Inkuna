@@ -62,16 +62,42 @@ impl Library {
     /// verbatim; outcomes come back in input order. Two identical files in
     /// one batch resolve to Imported + Duplicate via the unique-index race.
     pub fn import_batch(&self, paths: &[String]) -> Vec<BatchImportOutcome> {
+        self.import_batch_with(paths, &|_, _| {})
+    }
+
+    /// [`import_batch`](Self::import_batch) reporting progress: `on_done`
+    /// fires once per finished file with the count of files done so far
+    /// (including that one) and the input path that finished. Counts are
+    /// strictly increasing across calls, but the paths need not arrive in
+    /// input order — files finish in parallel. Called from rayon worker
+    /// threads, under an internal lock that keeps the counts ordered, so
+    /// keep the callback quick.
+    pub fn import_batch_with(
+        &self,
+        paths: &[String],
+        on_done: &(dyn Fn(usize, &str) + Sync),
+    ) -> Vec<BatchImportOutcome> {
         use rayon::prelude::*;
+        let done = std::sync::Mutex::new(0usize);
         paths
             .par_iter()
-            .map(|path| match self.import(path) {
-                Ok(ImportOutcome::Imported(p)) => BatchImportOutcome::Imported(p),
-                Ok(ImportOutcome::Duplicate(p)) => BatchImportOutcome::Duplicate(p),
-                Err(error) => BatchImportOutcome::Failed {
-                    path: path.clone(),
-                    error,
-                },
+            .map(|path| {
+                let outcome = match self.import(path) {
+                    Ok(ImportOutcome::Imported(p)) => BatchImportOutcome::Imported(p),
+                    Ok(ImportOutcome::Duplicate(p)) => BatchImportOutcome::Duplicate(p),
+                    Err(error) => BatchImportOutcome::Failed {
+                        path: path.clone(),
+                        error,
+                    },
+                };
+                {
+                    // The callback runs under the lock so a consumer never
+                    // sees the counter go backwards.
+                    let mut done = done.lock().unwrap();
+                    *done += 1;
+                    on_done(*done, path);
+                }
+                outcome
             })
             .collect()
     }

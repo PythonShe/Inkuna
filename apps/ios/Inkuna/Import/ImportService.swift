@@ -12,11 +12,10 @@ enum ImportService {
     /// Files handed to the core per call.
     ///
     /// The core's `importBatch` parallelizes the parse stage with rayon, so
-    /// bigger chunks import faster; but it is one `await` with no progress
-    /// inside it, so bigger chunks also mean a longer stare at a frozen
-    /// number. Four is where a multi-book selection still moves visibly
-    /// while keeping most of the parallelism, and it bounds peak disk use:
-    /// at most four staged copies exist at a time, not the whole selection.
+    /// bigger chunks import faster, and its progress listener reports every
+    /// finished file while the call runs. Chunking survives for disk, not
+    /// feedback: at most four staged copies exist at a time, not the whole
+    /// selection.
     private static let chunkSize = 4
 
     /// Imports `urls` in order, reporting progress as it goes.
@@ -25,10 +24,11 @@ enum ImportService {
     /// which every item failed, because the caller has to tell the user
     /// which files did not make it either way.
     ///
-    /// - Parameter onProgress: called on the main actor before each phase.
+    /// - Parameter onProgress: called on the main actor; escaping because
+    ///   the core's per-file events arrive while `importBatch` is awaited.
     static func run(
         urls: [URL],
-        onProgress: (ImportProgress) -> Void = { _ in }
+        onProgress: @escaping @MainActor (ImportProgress) -> Void = { _ in }
     ) async -> ImportReport {
         guard !urls.isEmpty else { return ImportReport() }
 
@@ -69,7 +69,13 @@ enum ImportService {
                 fileName: chunk.first?.importDisplayName,
                 phase: .importing
             ))
-            items.append(contentsOf: await importStaged(staged, using: shelf))
+            items.append(contentsOf: await importStaged(
+                staged,
+                using: shelf,
+                completedBefore: completed,
+                totalCount: urls.count,
+                onProgress: onProgress
+            ))
 
             let readable = staged.compactMap(\.staged)
             await detached { readable.forEach(ImportStaging.discard) }
@@ -89,10 +95,14 @@ enum ImportService {
     // MARK: Core calls
 
     /// Hands one chunk's staged copies to the core and maps every outcome
-    /// back onto the file the user actually picked.
+    /// back onto the file the user actually picked. Progress within the
+    /// chunk comes from the core's listener, one event per finished file.
     private static func importStaged(
         _ staged: [StagedFile],
-        using shelf: Bookshelf
+        using shelf: Bookshelf,
+        completedBefore: Int,
+        totalCount: Int,
+        onProgress: @escaping @MainActor (ImportProgress) -> Void
     ) async -> [ImportItemOutcome] {
         let readable = staged.filter { $0.staged != nil }
         guard !readable.isEmpty else {
@@ -113,10 +123,31 @@ enum ImportService {
             }
         } else {
             let paths = readable.compactMap { $0.staged?.path(percentEncoded: false) }
+            // The listener names files by our staging path; walk each event
+            // back to the name the user picked for the status line.
+            let names = Dictionary(
+                readable.compactMap { file in
+                    file.staged.map { ($0.path(percentEncoded: false), file.fileName) }
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+            let listener = ChunkProgressListener { completedInChunk, path in
+                let progress = ImportProgress(
+                    completed: completedBefore + completedInChunk,
+                    total: totalCount,
+                    fileName: names[path],
+                    phase: .importing
+                )
+                // The main queue is FIFO, so events keep the core's order
+                // and the count never appears to move backwards.
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { onProgress(progress) }
+                }
+            }
             do {
                 // Per-item failures come back as `.failed` items in input
                 // order; only a wholesale failure throws.
-                outcomes = try await shelf.importBatch(paths: paths).map { .success($0) }
+                outcomes = try await shelf.importBatch(paths: paths, listener: listener).map { .success($0) }
             } catch let error as InkunaError {
                 let reason = ImportFailureReason(error)
                 outcomes = readable.map { _ in .failure(reason) }
@@ -168,6 +199,23 @@ enum ImportService {
     /// Runs blocking filesystem work off the main thread.
     private static func detached<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
         await Task.detached(priority: .userInitiated, operation: work).value
+    }
+}
+
+// MARK: - Progress listener
+
+/// Forwards the core's per-file completion events for one `importBatch`
+/// call. The core calls from its worker threads; the stored closure is
+/// `@Sendable` and does its own main-queue hop.
+private final class ChunkProgressListener: ImportProgressListener, @unchecked Sendable {
+    private let deliver: @Sendable (_ completedInChunk: Int, _ path: String) -> Void
+
+    init(deliver: @escaping @Sendable (Int, String) -> Void) {
+        self.deliver = deliver
+    }
+
+    func onFileComplete(completed: UInt32, total: UInt32, path: String) {
+        deliver(Int(completed), path)
     }
 }
 

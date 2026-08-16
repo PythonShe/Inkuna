@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import app.inkuna.core.BookshelfInterface
 import app.inkuna.core.ImportOutcome
+import app.inkuna.core.ImportProgressListener
 import app.inkuna.android.model.LibraryStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -36,14 +37,11 @@ import kotlinx.coroutines.withContext
  *
  * ## Why the work is chunked
  *
- * `importBatch` is one suspend call with no progress callback: a five-book
- * selection handed over whole would sit on a frozen spinner for as long as
- * the core takes. So a run walks the selection in chunks of [CHUNK], staging
- * each chunk's files into cache — byte-accurate progress, because the copy
- * is the part that scales with file size — and then handing that chunk to
- * `importBatch`. Progress advances at every chunk boundary, rayon still
- * parallelizes inside a chunk, and cache use stays bounded to [CHUNK] books
- * rather than the whole selection.
+ * For disk, not feedback: staging each chunk's files into cache bounds
+ * cache use to [CHUNK] books rather than the whole selection, while rayon
+ * still parallelizes inside a chunk. Progress is real throughout — the
+ * copy reports bytes, and `importBatch`'s listener reports every finished
+ * file while the core works.
  *
  * Nothing here touches the main thread: the core's methods are `suspend` and
  * hop to their own blocking pool, and staging runs on `Dispatchers.IO`.
@@ -60,10 +58,10 @@ object ImportEngine {
     private const val CHUNK = 3
 
     /**
-     * How much of one file's progress the copy accounts for. The core's own
-     * pass (hash, dedupe, parse, commit) takes the rest and reports none of
-     * it, so the bar stops here and goes indeterminate rather than
-     * pretending to know.
+     * How much of one file's progress the copy accounts for. The core's
+     * pass (hash, dedupe, parse, commit) takes the rest and reports one
+     * event per *finished* file, so the bar holds this share until the
+     * chunk's first completion event lands.
      */
     private const val COPY_SHARE = 0.45f
 
@@ -165,14 +163,35 @@ object ImportEngine {
                         total = total,
                         currentName = staged.first().displayName,
                         phase = ImportPhase.Reading,
-                        // The core reports nothing while it works: an honest
-                        // "still going" beats a bar inventing a position.
-                        fraction = null,
+                        // Hold the copy's share until the core's first
+                        // per-file completion event moves the bar for real.
+                        fraction = overall(completed, total, COPY_SHARE),
                     )
 
                     val byPath = staged.associateBy { it.path }
+                    // The core fires once per finished file, from its own
+                    // worker threads; events arrive with strictly increasing
+                    // counts, and StateFlow.value is thread-safe to set.
+                    val base = completed
+                    val listener = object : ImportProgressListener {
+                        override fun onFileComplete(
+                            completed: UInt,
+                            total: UInt,
+                            path: String,
+                        ) {
+                            val done = base + completed.toInt()
+                            _state.value = ImportState.Running(
+                                completed = done,
+                                total = uris.size,
+                                currentName = byPath[path]?.displayName
+                                    ?: path.substringAfterLast('/'),
+                                phase = ImportPhase.Reading,
+                                fraction = overall(done, uris.size, 0f),
+                            )
+                        }
+                    }
                     val outcomes = try {
-                        shelf.importBatch(staged.map { it.path })
+                        shelf.importBatch(staged.map { it.path }, listener)
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Throwable) {

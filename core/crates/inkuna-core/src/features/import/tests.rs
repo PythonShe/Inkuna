@@ -638,6 +638,43 @@ fn rejects_non_epub_naming_the_format() {
 }
 
 #[test]
+fn batch_import_reports_each_completed_file_with_increasing_counts() {
+    use std::sync::Mutex;
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut paths = Vec::new();
+    for i in 0..3 {
+        let epub = dir.path().join(format!("book-{i}.epub"));
+        write_epub(&epub, &format!("第{i}巻"), "著者", "ja");
+        paths.push(epub.to_str().unwrap().to_string());
+    }
+    // A failure still counts as a completed file.
+    let comic = dir.path().join("comic.cbz");
+    write_cbz(&comic);
+    paths.push(comic.to_str().unwrap().to_string());
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let events: Mutex<Vec<(usize, String)>> = Mutex::new(Vec::new());
+    let outcomes = library.import_batch_with(&paths, &|done, path| {
+        events.lock().unwrap().push((done, path.to_string()));
+    });
+
+    assert_eq!(outcomes.len(), paths.len());
+    let events = events.into_inner().unwrap();
+    // One event per file, counts strictly 1..=N even though rayon finishes
+    // files in whatever order it likes.
+    assert_eq!(
+        events.iter().map(|(done, _)| *done).collect::<Vec<_>>(),
+        (1..=paths.len()).collect::<Vec<_>>()
+    );
+    let mut reported: Vec<_> = events.into_iter().map(|(_, path)| path).collect();
+    reported.sort();
+    let mut expected = paths.clone();
+    expected.sort();
+    assert_eq!(reported, expected);
+}
+
+#[test]
 fn untitled_epub_falls_back_to_the_file_stem_normalized_to_nfc() {
     let dir = tempfile::tempdir().unwrap();
     // Decomposed Hangul (NFD), as APFS/HFS+ file providers hand names back:

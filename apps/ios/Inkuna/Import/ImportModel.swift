@@ -122,8 +122,9 @@ struct ImportReport: Sendable {
 
 // MARK: - Progress
 
-/// Where a run has got to. Reported per chunk, not per byte: the core's
-/// import is one call per file with no inner progress to observe.
+/// Where a run has got to. Reported per file: the core's batch listener
+/// fires as each file finishes, and the shell adds its own staging phases
+/// around it.
 struct ImportProgress: Sendable {
     enum Phase: Sendable, Equatable {
         /// Copying the picked file out of its provider into staging.

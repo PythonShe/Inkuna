@@ -102,7 +102,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard !epubs.isEmpty else { return }
         do {
             let bookshelf = try await LibraryStore.shared.library()
-            let outcomes = try await bookshelf.importBatch(paths: epubs)
+            let outcomes = try await bookshelf.importBatch(paths: epubs, listener: nil)
             print("[inkuna.debug] imported fixtures: \(outcomes)")
         } catch {
             print("[inkuna.debug] fixture import failed: \(error)")

@@ -239,6 +239,19 @@ pub enum ImportOutcome {
     Failed { path: String, error: InkunaError },
 }
 
+/// Observes a batch import while it runs. Implemented by the shells;
+/// called from Rust worker threads, so implementations must hop to their
+/// own main thread before touching UI.
+#[uniffi::export(with_foreign)]
+pub trait ImportProgressListener: Send + Sync {
+    /// One file finished — imported, duplicate, or failed. `completed`
+    /// counts finished files including this one and is strictly
+    /// increasing across calls; `path` names the input that finished,
+    /// which is not necessarily the batch's next one, because files
+    /// finish in parallel.
+    fn on_file_complete(&self, completed: u32, total: u32, path: String);
+}
+
 /// Absolutizes DB-relative paths against the library's data dir.
 fn publication_record(library: &inkuna_core::Library, p: inkuna_core::Publication) -> Publication {
     let data_dir = library.data_dir();
@@ -302,12 +315,22 @@ impl Bookshelf {
 
     /// Imports many files (document pickers multi-select), parallelizing
     /// the parse stage; per-item failures come back as `Failed` items in
-    /// input order instead of throwing.
-    pub async fn import_batch(&self, paths: Vec<String>) -> Result<Vec<ImportOutcome>, InkunaError> {
+    /// input order instead of throwing. `listener`, when given, hears one
+    /// event per finished file while the call runs.
+    pub async fn import_batch(
+        &self,
+        paths: Vec<String>,
+        listener: Option<Arc<dyn ImportProgressListener>>,
+    ) -> Result<Vec<ImportOutcome>, InkunaError> {
         let library = self.0.clone();
         blocking(move || {
+            let total = paths.len() as u32;
             Ok(library
-                .import_batch(&paths)
+                .import_batch_with(&paths, &|done, path| {
+                    if let Some(listener) = &listener {
+                        listener.on_file_complete(done as u32, total, path.to_string());
+                    }
+                })
                 .into_iter()
                 .map(|outcome| match outcome {
                     inkuna_core::BatchImportOutcome::Imported(p) => ImportOutcome::Imported {
