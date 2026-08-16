@@ -61,6 +61,18 @@ targets:
         # launches don't flash light (the generated plist can't set it).
         UILaunchScreen:
           UIColorName: LaunchBackground
+        # App Store validation (90474) rejects a bundle with no declared
+        # orientations. iPhone: no upside-down (standard on notched devices).
+        # iPad: all four are mandatory for multitasking support.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # "Open with Inkuna" from Files, Mail, Safari, and the share sheet.
         # `org.idpf.epub-container` is a system-declared type (UTType.epub),
         # so no UTImportedTypeDeclarations entry is needed — declaring one
