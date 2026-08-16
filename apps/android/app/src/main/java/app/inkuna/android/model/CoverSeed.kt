@@ -4,8 +4,9 @@ package app.inkuna.android.model
  * A stable per-book seed for the generated cover.
  *
  * Deliberately not [String.hashCode]: FNV-1a keeps the colour of a book
- * identical across processes and platforms, so the same book wears the same
- * cover on every screen that draws it and on both shells.
+ * identical across processes, so the same book wears the same cover on
+ * every screen that draws it. Cross-shell identity is not a goal — ids are
+ * minted per device, so the two shells never see the same id anyway.
  *
  * TODO(core): the core already extracts real cover art into
  * `Publication.coverPath`; render it once `BookCover` accepts an image and

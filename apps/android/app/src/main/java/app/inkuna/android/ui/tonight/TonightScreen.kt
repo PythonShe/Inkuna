@@ -67,7 +67,6 @@ fun TonightScreen(
         Spacer(Modifier.height(28.dp))
         HeroCard(
             placeholder = PlaceholderLibrary.heroBook,
-            onOpenBook = onOpenBook,
             continueReading = continueReading,
             onOpenReader = onOpenReader,
         )
@@ -97,7 +96,6 @@ fun TonightScreen(
 @Composable
 private fun HeroCard(
     placeholder: PlaceholderBook,
-    onOpenBook: (PlaceholderBook) -> Unit,
     continueReading: CorePublication?,
     onOpenReader: (CorePublication) -> Unit,
 ) {
@@ -123,11 +121,10 @@ private fun HeroCard(
     } else {
         stringResource(R.string.tonight_pages_left)
     }
-    val open: () -> Unit = if (continueReading != null) {
-        { onOpenReader(continueReading) }
-    } else {
-        { onOpenBook(placeholder) }
-    }
+    // The placeholder is scenery, never a destination: with nothing to
+    // continue (empty library, or every book finished) the card goes inert
+    // rather than opening a book that does not exist.
+    val open: (() -> Unit)? = continueReading?.let { book -> { onOpenReader(book) } }
     val titleLabel = stringResource(R.string.a11y_book_row, title, author)
     Row(
         modifier = Modifier
@@ -144,7 +141,7 @@ private fun HeroCard(
             author = author,
             width = 96.dp,
             seed = seed,
-            modifier = Modifier.clickable(onClick = open),
+            modifier = if (open != null) Modifier.clickable(onClick = open) else Modifier,
         )
         Column(Modifier.weight(1f).padding(bottom = 4.dp)) {
             // The card is deliberately not one accessibility element — the
@@ -154,12 +151,16 @@ private fun HeroCard(
                 title,
                 style = InkType.heading,
                 color = ink.textDisplay,
-                modifier = Modifier
-                    .clickable(onClick = open)
-                    .semantics {
-                        contentDescription = titleLabel
-                        role = Role.Button
-                    },
+                modifier = if (open != null) {
+                    Modifier
+                        .clickable(onClick = open)
+                        .semantics {
+                            contentDescription = titleLabel
+                            role = Role.Button
+                        }
+                } else {
+                    Modifier.semantics { contentDescription = titleLabel }
+                },
             )
             Text(
                 author,

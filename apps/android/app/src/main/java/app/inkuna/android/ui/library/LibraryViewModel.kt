@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.inkuna.android.R
 import app.inkuna.android.model.LibraryStore
 import app.inkuna.android.model.coverSeed
 import app.inkuna.core.Publication
@@ -11,6 +12,7 @@ import app.inkuna.core.Shelf
 import app.inkuna.core.Sort
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -106,9 +108,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             try {
                 // Typing coalesces: each keystroke cancels its predecessor
                 // while it waits, so a four-letter query reaches the core
-                // once instead of four times. Only searches wait — segment
-                // switches, the initial load and a cleared field repaint at
-                // once.
+                // once instead of four times. Every reload with a query
+                // present waits out the debounce — only an empty field
+                // (segment switches and the initial load included) repaints
+                // at once.
                 if (trimmed.isNotEmpty()) delay(SEARCH_DEBOUNCE_MS)
                 val bookshelf = LibraryStore.bookshelf(getApplication())
                 val publications = if (trimmed.isEmpty()) {
@@ -132,6 +135,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     else -> LibraryEmptiness.Shelf(LibraryEmptiness.Shelf.Kind.Reading)
                 }
 
+                // A reload superseded mid-flight must not repaint over its
+                // successor's rows once the successor has landed.
+                ensureActive()
                 _state.value = _state.value.copy(rows = publications.map(::row), emptiness = emptiness)
             } catch (cancellation: kotlinx.coroutines.CancellationException) {
                 throw cancellation
@@ -151,7 +157,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private fun row(publication: Publication) = LibraryRow(
         id = publication.id,
         title = publication.title,
-        author = publication.authors.joinToString(", ").ifEmpty { null } ?: UNKNOWN_AUTHOR,
+        author = publication.authors.joinToString(", ").ifEmpty { null }
+            ?: getApplication<Application>().getString(R.string.unknown_author),
         // Rounded, not truncated — iOS rounds, and the same book must not
         // read 1% on one shell and 2% on the other.
         progress = publication.progression.takeIf { it > 0.0 }?.let { (it * 100).roundToInt() },
@@ -164,8 +171,5 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         /** Long enough to swallow a fast typist's keystrokes, short enough
          *  that a reader who stops typing does not notice waiting. */
         const val SEARCH_DEBOUNCE_MS = 200L
-
-        // TODO(l10n): move to strings.xml with the rest of the l10n pass.
-        const val UNKNOWN_AUTHOR = "Unknown author"
     }
 }

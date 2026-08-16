@@ -86,7 +86,6 @@
     <string name="a11y_close">Close</string>
     <string name="a11y_reading_menu">Reading menu</string>
     <string name="a11y_close_reading_menu">Close reading menu</string>
-    <string name="a11y_search_book">Search this book</string>
     <string name="a11y_place_bookmark">Place bookmark</string>
     <string name="a11y_smaller_text">Smaller text</string>
     <string name="a11y_larger_text">Larger text</string>

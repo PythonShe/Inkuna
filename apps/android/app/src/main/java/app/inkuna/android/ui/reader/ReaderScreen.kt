@@ -185,8 +185,10 @@ private fun ReaderContent(
     var toastShown by rememberSaveable { mutableIntStateOf(0) }
     var toastVisible by remember { mutableStateOf(false) }
     // One toast slot, two things worth saying: the bookmark confirmation and
-    // a link the shell would not follow.
-    var toastMessage by rememberSaveable { mutableIntStateOf(R.string.reader_bookmark_placed) }
+    // a link the shell would not follow. Saved as an enum, never as a raw
+    // resource id — ids are not stable across app updates, and a restored
+    // stale id would throw at the stringResource call.
+    var toastMessage by rememberSaveable { mutableStateOf(ReaderToast.BookmarkPlaced) }
     // A programmatic jump (contents sheet) moves the locator; the auto-hide
     // below must not read that as a page turn.
     var jumping by remember { mutableStateOf(false) }
@@ -227,7 +229,7 @@ private fun ReaderContent(
                     context.startActivity(Intent(Intent.ACTION_VIEW, url.toString().toUri()))
                 }.isSuccess
                 if (!opened) {
-                    toastMessage = R.string.reader_link_failed
+                    toastMessage = ReaderToast.LinkFailed
                     toastCount += 1
                 }
             }
@@ -422,7 +424,7 @@ private fun ReaderContent(
                             navigator?.currentLocator?.value?.let { at ->
                                 viewModel.addBookmark(at) {
                                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    toastMessage = R.string.reader_bookmark_placed
+                                    toastMessage = ReaderToast.BookmarkPlaced
                                     toastCount += 1
                                 }
                             }
@@ -460,11 +462,15 @@ private fun ReaderContent(
                 .padding(top = statusPad + 56.dp),
         ) {
             InkToast(
-                text = stringResource(toastMessage),
-                icon = if (toastMessage == R.string.reader_link_failed) {
-                    Icons.Outlined.LinkOff
-                } else {
-                    Icons.Filled.Bookmark
+                text = stringResource(
+                    when (toastMessage) {
+                        ReaderToast.BookmarkPlaced -> R.string.reader_bookmark_placed
+                        ReaderToast.LinkFailed -> R.string.reader_link_failed
+                    },
+                ),
+                icon = when (toastMessage) {
+                    ReaderToast.BookmarkPlaced -> Icons.Filled.Bookmark
+                    ReaderToast.LinkFailed -> Icons.Outlined.LinkOff
                 },
             )
         }
@@ -534,3 +540,6 @@ private fun readingPreferences(snapshot: AppSettings.Snapshot): EpubPreferences 
         fontSize = AppSettings.TEXT_SIZE_STEPS[snapshot.textSizeStep] / 16.0,
     )
 }
+
+/** What the reader's single toast slot is currently saying. */
+private enum class ReaderToast { BookmarkPlaced, LinkFailed }
