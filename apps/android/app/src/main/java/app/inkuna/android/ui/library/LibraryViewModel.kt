@@ -9,6 +9,7 @@ import app.inkuna.core.Publication
 import app.inkuna.core.Shelf
 import app.inkuna.core.Sort
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -102,6 +103,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
         reload = viewModelScope.launch {
             try {
+                // Typing coalesces: each keystroke cancels its predecessor
+                // while it waits, so a four-letter query reaches the core
+                // once instead of four times. Only searches wait — segment
+                // switches, the initial load and a cleared field repaint at
+                // once.
+                if (trimmed.isNotEmpty()) delay(SEARCH_DEBOUNCE_MS)
                 val bookshelf = LibraryStore.bookshelf(getApplication())
                 val publications = if (trimmed.isEmpty()) {
                     bookshelf.list(shelf, Sort.RECENTLY_OPENED)
@@ -152,6 +159,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private companion object {
         const val TAG = "InkunaLibrary"
+
+        /** Long enough to swallow a fast typist's keystrokes, short enough
+         *  that a reader who stops typing does not notice waiting. */
+        const val SEARCH_DEBOUNCE_MS = 200L
 
         // TODO(l10n): move to strings.xml with the rest of the l10n pass.
         const val UNKNOWN_AUTHOR = "Unknown author"
