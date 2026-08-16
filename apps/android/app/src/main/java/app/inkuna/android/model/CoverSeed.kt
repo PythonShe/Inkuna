@@ -8,9 +8,9 @@ package app.inkuna.android.model
  * every screen that draws it. Cross-shell identity is not a goal — ids are
  * minted per device, so the two shells never see the same id anyway.
  *
- * TODO(core): the core already extracts real cover art into
- * `Publication.coverPath`; render it once `BookCover` accepts an image and
- * falls back to the generated cover.
+ * The generated cover is also the fallback under real cover art: `BookCover`
+ * keeps drawing it until `Publication.coverPath` decodes, and forever for a
+ * book whose file carried no cover.
  */
 fun coverSeed(id: String): Int {
     var hash = -0x340d631b7bdddcdbL // FNV-1a 64-bit offset basis
