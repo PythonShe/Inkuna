@@ -21,6 +21,11 @@ final class AppSettings {
         brightness: 0.78
     )
 
+    /// Whether `record` reflects the stored settings. Stays false when the
+    /// launch-time load fails, so the write path knows the untouched fields
+    /// are defaults it must not persist over the user's stored values.
+    private var loaded = false
+
     /// Tail of the serialized settings-write chain: whole-record writes
     /// must reach the core in the order the user made them.
     private var writeChain: Task<Void, Never>?
@@ -45,15 +50,19 @@ final class AppSettings {
     func load() async {
         do {
             let bookshelf = try await LibraryStore.shared.library()
-            if let migrated = migratedLegacySettings() {
+            let current = try await bookshelf.settings()
+            if let migrated = migratedLegacySettings(over: current) {
                 // Settings written by builds that kept them in UserDefaults
-                // move into the core once, then the keys are gone.
+                // move into the core once. The keys are removed only after
+                // the core write lands — a failed write must leave them in
+                // place for the next launch to migrate.
                 try await bookshelf.setSettings(settings: migrated)
-                record = migrated
                 removeLegacySettings()
+                record = migrated
             } else {
-                record = try await bookshelf.settings()
+                record = current
             }
+            loaded = true
         } catch {
             logger.warning("Settings load failed: \(error)")
         }
@@ -67,16 +76,17 @@ final class AppSettings {
         #endif
     }
 
-    /// The legacy UserDefaults settings as a core record, or nil when no
-    /// legacy value exists (the store was born on the core).
-    private func migratedLegacySettings() -> Settings? {
+    /// The legacy UserDefaults settings overlaid on the core's current
+    /// record, or nil when no legacy value exists (the store was born on
+    /// the core).
+    private func migratedLegacySettings(over current: Settings) -> Settings? {
         guard
             let bundleID = Bundle.main.bundleIdentifier,
             let stored = UserDefaults.standard.persistentDomain(forName: bundleID),
             LegacyKey.all.contains(where: { stored[$0] != nil })
         else { return nil }
 
-        var migrated = record
+        var migrated = current
         if let onboarded = stored[LegacyKey.onboarded] as? Bool {
             migrated.onboarded = onboarded
         }
@@ -105,17 +115,36 @@ final class AppSettings {
         }
     }
 
-    /// Appends one whole-record write to the serialized chain. Failures are
-    /// logged, never surfaced: the in-memory record already changed and the
-    /// UI moved with it.
-    private func persist() {
-        let snapshot = record
+    /// Every change made while `loaded` is false, in order. When a write
+    /// finally reaches the core they are replayed over the *stored* record,
+    /// so a load failure at launch cannot cost the user the settings they
+    /// didn't touch.
+    private var pendingRebase: [@MainActor (inout Settings) -> Void] = []
+
+    /// Applies one change to the in-memory record — the UI reads it back
+    /// synchronously — and appends a whole-record write to the serialized
+    /// chain. Failures are logged, never surfaced.
+    private func mutate(_ transform: @escaping @MainActor (inout Settings) -> Void) {
+        transform(&record)
+        if !loaded { pendingRebase.append(transform) }
         let previous = writeChain
-        writeChain = Task { [logger] in
+        writeChain = Task {
             await previous?.value
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                try await bookshelf.setSettings(settings: snapshot)
+                if !loaded {
+                    // The launch-time load failed, so the record's untouched
+                    // fields are defaults, not the user's stored values —
+                    // writing it whole would erase them. Rebase instead:
+                    // read the stored record and replay every change made
+                    // since on top of it.
+                    var stored = try await bookshelf.settings()
+                    for pending in pendingRebase { pending(&stored) }
+                    pendingRebase.removeAll()
+                    record = stored
+                    loaded = true
+                }
+                try await bookshelf.setSettings(settings: record)
             } catch {
                 logger.warning("Settings write failed: \(error)")
             }
@@ -124,40 +153,36 @@ final class AppSettings {
 
     var hasCompletedOnboarding: Bool {
         get { record.onboarded }
-        set {
-            record.onboarded = newValue
-            persist()
-        }
+        set { mutate { $0.onboarded = newValue } }
     }
 
     /// The reader's page theme; also decides whether the whole app is in
     /// night mode (`ReadingTheme.isNight`). The core stores the id as an
-    /// opaque string, so an id written by a newer build reads back as
-    /// `.paper` here without being lost on the next write.
+    /// opaque string, parsed case-insensitively (matching Android), so an
+    /// id written by a newer build reads back as `.paper` here without
+    /// being lost on the next write.
     var readingTheme: ReadingTheme {
-        get { ReadingTheme(rawValue: record.readingTheme) ?? .paper }
+        get { ReadingTheme(rawValue: record.readingTheme.lowercased()) ?? .paper }
         set {
-            record.readingTheme = newValue.rawValue
-            persist()
+            mutate { $0.readingTheme = newValue.rawValue }
             applyAppearance()
         }
     }
 
     var textSize: ReadingTextSize {
         get { ReadingTextSize(rawValue: Int(record.textSizeStep)) ?? .medium }
-        set {
-            record.textSizeStep = UInt8(newValue.rawValue)
-            persist()
-        }
+        set { mutate { $0.textSizeStep = UInt8(newValue.rawValue) } }
     }
 
-    /// Reader page brightness, 0…1. Below the default the reader dims the
-    /// page with an ink veil rather than touching system brightness.
+    /// Reader page brightness, 0…1, clamped here as well as by the core so
+    /// the in-memory record never diverges from what gets stored.
+    /// Below the default the reader dims the page with an ink veil rather
+    /// than touching system brightness.
     var brightness: Double {
         get { record.brightness }
         set {
-            record.brightness = newValue
-            persist()
+            let clamped = min(max(newValue, 0), 1)
+            mutate { $0.brightness = clamped }
         }
     }
 

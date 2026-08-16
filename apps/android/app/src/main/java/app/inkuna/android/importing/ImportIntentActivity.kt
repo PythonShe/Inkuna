@@ -25,6 +25,7 @@ import app.inkuna.android.MainActivity
 import app.inkuna.android.model.AppSettings
 import app.inkuna.android.ui.importing.ImportSheet
 import app.inkuna.android.ui.theme.InkTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -187,6 +188,13 @@ private fun InboundImport(
         while (!started) {
             ImportEngine.state.first { it is ImportState.Idle }
             started = ImportEngine.start(context, uris)
+            // The engine can refuse while its state still *reads* Idle —
+            // start() takes the run slot synchronously but only publishes
+            // Running after naming every file of the other selection. A
+            // StateFlow replays that stale Idle immediately, so without a
+            // yield this loop would spin the main thread until the other
+            // run gets around to publishing.
+            if (!started) delay(50)
         }
     }
 

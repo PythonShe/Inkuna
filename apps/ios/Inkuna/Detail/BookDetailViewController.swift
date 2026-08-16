@@ -24,6 +24,9 @@ final class BookDetailViewController: UIViewController {
 
     private let logger = Logger(subsystem: "app.inkuna.ios", category: "detail")
 
+    /// The in-flight refresh, cancelled by its successor.
+    private var refreshTask: Task<Void, Never>?
+
     init(publication: Publication) {
         self.publication = publication
         self.progressBar = InkProgressBar(progress: CGFloat(publication.progression))
@@ -140,12 +143,15 @@ final class BookDetailViewController: UIViewController {
     /// the chapter list. A failed fetch keeps what is already on screen —
     /// the screen was handed a real publication and can stand on it.
     private func refresh() {
-        Task { [weak self, id = publication.id, logger] in
+        // One refresh at a time: a stale fetch must not repaint over a
+        // newer one when appearances come in quick succession.
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self, id = publication.id, logger] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
                 let publication = try await bookshelf.publication(id: id)
                 let chapters = try await bookshelf.chapters(id: id)
-                guard let self else { return }
+                guard let self, !Task.isCancelled else { return }
                 self.publication = publication
                 self.chapters = chapters
                 self.progressBar.setProgress(CGFloat(publication.progression), animated: false)

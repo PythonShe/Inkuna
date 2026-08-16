@@ -55,6 +55,8 @@ class AppSettings private constructor(private val context: Context) {
     val snapshot: StateFlow<Snapshot> = _snapshot.asStateFlow()
 
     private val loadLock = Mutex()
+
+    @Volatile
     private var loaded = false
 
     // One write at a time: each persist stores the snapshot as it stands
@@ -74,9 +76,18 @@ class AppSettings private constructor(private val context: Context) {
         if (loaded) return _snapshot.value
         runCatching {
             val bookshelf = LibraryStore.bookshelf(context)
-            migrateLegacyStore(bookshelf.settings())
-                ?.also { bookshelf.setSettings(it) }
-                ?: bookshelf.settings()
+            val current = bookshelf.settings()
+            val migrated = migrateLegacyStore(current)
+            if (migrated != null) {
+                bookshelf.setSettings(migrated)
+                // The legacy file is cleared only after the core write
+                // lands — a failed write must leave it in place for the
+                // next launch to migrate.
+                context.legacySettingsStore.edit { it.clear() }
+                migrated
+            } else {
+                current
+            }
         }.onSuccess { record ->
             _snapshot.value = record.toSnapshot()
             loaded = true
@@ -88,15 +99,15 @@ class AppSettings private constructor(private val context: Context) {
 
     /**
      * The old DataStore values overlaid on the core's record, or null when
-     * there is nothing to migrate. The file is cleared afterwards so the
-     * migration happens exactly once.
+     * there is nothing to migrate. The caller clears the legacy file once
+     * the record is stored, making the migration happen exactly once.
      */
     private suspend fun migrateLegacyStore(current: Settings): Settings? {
         val prefs = context.legacySettingsStore.data
             .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
             .first()
         if (prefs.asMap().isEmpty()) return null
-        val migrated = current.copy(
+        return current.copy(
             onboarded = prefs[LegacyKeys.onboarded] ?: current.onboarded,
             readingTheme = prefs[LegacyKeys.readingTheme] ?: current.readingTheme,
             textSizeStep = prefs[LegacyKeys.textSizeStep]
@@ -106,8 +117,6 @@ class AppSettings private constructor(private val context: Context) {
                 ?.coerceIn(0f, 1f)?.toDouble()
                 ?: current.brightness,
         )
-        context.legacySettingsStore.edit { it.clear() }
-        return migrated
     }
 
     fun setOnboarded(value: Boolean) =
@@ -122,14 +131,41 @@ class AppSettings private constructor(private val context: Context) {
     fun setBrightness(value: Float) =
         update { it.copy(brightness = value.coerceIn(0f, 1f)) }
 
+    /**
+     * Every change made while [loaded] is false, in order. When a write
+     * finally reaches the core they are replayed over the *stored* record,
+     * so a load failure at launch cannot cost the user the settings they
+     * didn't touch.
+     */
+    private val pendingRebase = mutableListOf<(Snapshot) -> Snapshot>()
+
     // The snapshot updates synchronously — the caller's screen renders the
     // change next frame — and persisting trails best-effort behind it.
     private fun update(transform: (Snapshot) -> Snapshot) {
         _snapshot.updateAndGet(transform)
+        synchronized(pendingRebase) {
+            if (!loaded) pendingRebase.add(transform)
+        }
         LibraryStore.writes.launch {
             writeLock.withLock {
                 runCatching {
-                    LibraryStore.bookshelf(context).setSettings(_snapshot.value.toRecord())
+                    val bookshelf = LibraryStore.bookshelf(context)
+                    loadLock.withLock {
+                        if (!loaded) {
+                            // The launch-time load failed, so the snapshot's
+                            // untouched fields are defaults, not the user's
+                            // stored values — writing it whole would erase
+                            // them. Rebase instead: read the stored record
+                            // and replay every change made since on top of it.
+                            val stored = bookshelf.settings().toSnapshot()
+                            synchronized(pendingRebase) {
+                                _snapshot.value = pendingRebase.fold(stored) { acc, pending -> pending(acc) }
+                                pendingRebase.clear()
+                                loaded = true
+                            }
+                        }
+                    }
+                    bookshelf.setSettings(_snapshot.value.toRecord())
                 }.onFailure { Log.w(TAG, "A settings write failed", it) }
             }
         }

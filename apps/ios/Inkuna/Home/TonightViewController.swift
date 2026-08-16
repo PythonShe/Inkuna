@@ -21,6 +21,9 @@ final class TonightViewController: ScrollScreenViewController {
     /// rebuilt whenever the shelf changes.
     private let shelfSection = UIStackView()
 
+    /// The in-flight reload, cancelled by its successor.
+    private var reloadTask: Task<Void, Never>?
+
     nonisolated(unsafe) private var libraryDidChangeObserver: NSObjectProtocol?
 
     deinit {
@@ -82,13 +85,17 @@ final class TonightViewController: ScrollScreenViewController {
     // MARK: Continue reading
 
     private func reloadContinueReading() {
-        Task { [weak self] in
+        // One reload at a time: viewWillAppear and a library-change
+        // notification can land together, and the older fetch must not
+        // repaint over the newer one.
+        reloadTask?.cancel()
+        reloadTask = Task { [weak self] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
                 // Unfinished, not all: a book just finished must not be the
                 // "keep reading" hero merely for being touched last.
                 let publications = try await bookshelf.list(shelf: .unfinished, sort: .recentlyOpened)
-                guard let self else { return }
+                guard let self, !Task.isCancelled else { return }
                 // A successful-but-empty answer clears the hero; only a
                 // failed load keeps the previous one.
                 self.continueReading = publications.first

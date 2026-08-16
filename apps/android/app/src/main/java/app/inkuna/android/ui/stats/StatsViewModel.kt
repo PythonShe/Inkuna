@@ -12,7 +12,6 @@ import app.inkuna.core.Sort
 import java.time.DayOfWeek
 import java.time.ZonedDateTime
 import java.time.temporal.WeekFields
-import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,8 +59,13 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
                 // buckets them against exactly this offset.
                 val overview = bookshelf.statsOverview(
                     tzOffsetMinutes = ZonedDateTime.now().offset.totalSeconds / 60,
-                    weekStartsMonday =
-                        WeekFields.of(Locale.getDefault()).firstDayOfWeek == DayOfWeek.MONDAY,
+                    // The same locale the calendar grid renders with
+                    // (LocalConfiguration), not Locale.getDefault() — the
+                    // two diverge once per-app language lands, and the
+                    // week bucketing must match the drawn first column.
+                    weekStartsMonday = WeekFields.of(
+                        getApplication<Application>().resources.configuration.locales[0]
+                    ).firstDayOfWeek == DayOfWeek.MONDAY,
                 )
                 // Reading, not unfinished: "in progress" means actually
                 // begun, so a freshly imported book stays off this list.
