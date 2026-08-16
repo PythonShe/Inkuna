@@ -25,7 +25,9 @@ enum PlaceholderLibrary {
 
     // MARK: Reader sample (until the core's in-book search lands)
 
-    static let pagesLeftText = "Fifteen pages left in this chapter"
+    static var pagesLeftText: String {
+        String(localized: "tonight_pages_left", defaultValue: "Fifteen pages left in this chapter")
+    }
 
     /// Four pages of sample prose, one array of paragraphs per page.
     static let samplePages: [[String]] = [
@@ -53,11 +55,15 @@ enum PlaceholderLibrary {
 
     // MARK: Stats screen
 
-    static let facts: [(value: String, caption: String)] = [
-        ("214", "pages this week"),
-        ("6½", "hours this month"),
-        ("12", "books this year"),
-    ]
+    static var facts: [(value: String, caption: String)] {
+        let halfFormat = NSLocalizedString("stats_hours_half", comment: "")
+        let sixAndHalf = String.localizedStringWithFormat(halfFormat, "6")
+        return [
+            ("214", String(localized: "stats_pages_this_week", defaultValue: "pages this week")),
+            (sixAndHalf, String(localized: "stats_hours_this_month", defaultValue: "hours this month")),
+            ("12", String(localized: "stats_books_this_year", defaultValue: "books this year")),
+        ]
+    }
 
     static let calendarMonthTitle = "August"
     /// Weekday column the 1st falls on (0 = Sunday).
@@ -65,9 +71,18 @@ enum PlaceholderLibrary {
     static let calendarDayCount = 31
     static let calendarToday = 14
     static let calendarReadDays: Set<Int> = [1, 2, 3, 5, 8, 9, 10, 11, 13, 14]
-    static let calendarCaption = "Eleven evenings with a book this month."
+    static var calendarCaption: String {
+        let format = NSLocalizedString("stats_evenings", comment: "")
+        return String.localizedStringWithFormat(format, Int64(11))
+    }
 
     // MARK: Tonight screen
 
-    static let tonightChips = ["Fiction", "Essays", "Night reads"]
+    static var tonightChips: [String] {
+        [
+            String(localized: "tonight_chip_fiction", defaultValue: "Fiction"),
+            String(localized: "tonight_chip_essays", defaultValue: "Essays"),
+            String(localized: "tonight_chip_night_reads", defaultValue: "Night reads"),
+        ]
+    }
 }

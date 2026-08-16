@@ -31,8 +31,7 @@ final class StatsViewController: ScrollScreenViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // TODO(l10n): localize once the strings pass lands.
-        let title = displayTitle("Reading")
+        let title = displayTitle(String(localized: "stats_title", defaultValue: "Reading"))
         contentStack.addArrangedSubview(title)
         contentStack.setCustomSpacing(InkSpacing.space6, after: title)
 
@@ -90,11 +89,19 @@ final class StatsViewController: ScrollScreenViewController {
     private func render(overview: StatsOverview, inProgress: [Publication]) {
         statsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
-        // TODO(l10n): localize once the strings pass lands.
         let facts = UIStackView(arrangedSubviews: [
-            factCard(value: "\(overview.pagesThisWeek)", caption: "pages this week"),
-            factCard(value: Self.hoursText(minutes: Int(overview.minutesThisMonth)), caption: "hours this month"),
-            factCard(value: "\(overview.booksFinishedThisYear)", caption: "books this year"),
+            factCard(
+                value: "\(overview.pagesThisWeek)",
+                caption: String(localized: "stats_pages_this_week", defaultValue: "pages this week")
+            ),
+            factCard(
+                value: Self.hoursText(minutes: Int(overview.minutesThisMonth)),
+                caption: String(localized: "stats_hours_this_month", defaultValue: "hours this month")
+            ),
+            factCard(
+                value: "\(overview.booksFinishedThisYear)",
+                caption: String(localized: "stats_books_this_year", defaultValue: "books this year")
+            ),
         ])
         facts.axis = .horizontal
         facts.spacing = InkSpacing.space3
@@ -112,14 +119,12 @@ final class StatsViewController: ScrollScreenViewController {
         statsStack.addArrangedSubview(calendar)
         statsStack.setCustomSpacing(34, after: calendar)
 
-        // TODO(l10n): localize once the strings pass lands.
-        let progressTitle = sectionTitle("In progress")
+        let progressTitle = sectionTitle(String(localized: "stats_in_progress", defaultValue: "In progress"))
         statsStack.addArrangedSubview(progressTitle)
         statsStack.setCustomSpacing(6, after: progressTitle)
 
         if inProgress.isEmpty {
-            // TODO(l10n): localize once the strings pass lands.
-            statsStack.addArrangedSubview(paddedEmptyState("Nothing in progress yet."))
+            statsStack.addArrangedSubview(paddedEmptyState(String(localized: "stats_in_progress_empty", defaultValue: "Nothing in progress yet.")))
         } else {
             for publication in inProgress {
                 statsStack.addArrangedSubview(progressRow(publication))
@@ -133,9 +138,13 @@ final class StatsViewController: ScrollScreenViewController {
         let hours = minutes / 60
         let half = minutes % 60 >= 30
         if hours == 0 {
-            return half ? "½" : "0"
+            return half ? String(localized: "stats_hours_half_only", defaultValue: "½") : "0"
         }
-        return half ? "\(hours)½" : "\(hours)"
+        if half {
+            let halfFormat = NSLocalizedString("stats_hours_half", comment: "")
+            return String.localizedStringWithFormat(halfFormat, "\(hours)")
+        }
+        return "\(hours)"
     }
 
     // MARK: Fact cards
@@ -168,6 +177,9 @@ final class StatsViewController: ScrollScreenViewController {
             stack.topAnchor.constraint(equalTo: card.topAnchor, constant: InkSpacing.space4),
             stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -InkSpacing.space4),
         ])
+        card.isAccessibilityElement = true
+        let factFormat = NSLocalizedString("a11y_fact", comment: "")
+        card.accessibilityLabel = String.localizedStringWithFormat(factFormat, value, caption)
         return card
     }
 
@@ -232,7 +244,7 @@ final class StatsViewController: ScrollScreenViewController {
 
         var cells: [UIView] = (0..<month.leadingBlanks).map { _ in UIView() }
         cells += (1...month.dayCount).map { day in
-            dayCell(day, today: month.today, didRead: readDays.contains(day))
+            dayCell(day, today: month.today, didRead: readDays.contains(day), monthTitle: month.title)
         }
         while cells.count % 7 != 0 {
             cells.append(UIView())
@@ -246,10 +258,8 @@ final class StatsViewController: ScrollScreenViewController {
         }
 
         let footer = InkLabel()
-        // TODO(l10n): localize once the strings pass lands.
-        footer.text = readDays.count == 1
-            ? "One evening with a book this month."
-            : "\(readDays.count) evenings with a book this month."
+        let eveningsFormat = NSLocalizedString("stats_evenings", comment: "")
+        footer.text = String.localizedStringWithFormat(eveningsFormat, Int64(readDays.count))
         footer.font = InkFont.caption
         footer.textColor = InkColor.textTertiary
 
@@ -267,7 +277,7 @@ final class StatsViewController: ScrollScreenViewController {
         return card
     }
 
-    private func dayCell(_ day: Int, today: Int, didRead: Bool) -> UIView {
+    private func dayCell(_ day: Int, today: Int, didRead: Bool, monthTitle: String) -> UIView {
         let isToday = day == today
         let isFuture = day > today
 
@@ -299,6 +309,15 @@ final class StatsViewController: ScrollScreenViewController {
             stack.centerXAnchor.constraint(equalTo: cell.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         ])
+
+        cell.isAccessibilityElement = true
+        if didRead {
+            let dayFormat = NSLocalizedString("a11y_calendar_day_read", comment: "")
+            cell.accessibilityLabel = String.localizedStringWithFormat(dayFormat, monthTitle, Int64(day))
+        } else {
+            let dayFormat = NSLocalizedString("a11y_calendar_day", comment: "")
+            cell.accessibilityLabel = String.localizedStringWithFormat(dayFormat, monthTitle, Int64(day))
+        }
         return cell
     }
 

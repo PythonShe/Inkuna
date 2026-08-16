@@ -11,12 +11,11 @@ final class ThemePickViewController: UIViewController {
         view.backgroundColor = InkColor.bgApp
         selectionFeedback.prepare()
 
-        // TODO(l10n): localize once the strings pass lands.
         let eyebrow = InkLabel()
-        eyebrow.attributedText = InkFont.eyebrow("One small ritual")
+        eyebrow.attributedText = InkFont.eyebrow(String(localized: "themepick_eyebrow", defaultValue: "One small ritual"))
 
         let title = InkLabel()
-        title.text = "Read by day, or by night"
+        title.text = String(localized: "themepick_title", defaultValue: "Read by day, or by night")
         title.font = InkFont.display
         title.textColor = InkColor.textDisplay
         title.numberOfLines = 0
@@ -36,12 +35,12 @@ final class ThemePickViewController: UIViewController {
         cardRow.alignment = .top
 
         let hint = InkLabel()
-        hint.text = "You can change this anytime while reading."
+        hint.text = String(localized: "themepick_hint", defaultValue: "You can change this anytime while reading.")
         hint.font = InkFont.caption
         hint.textColor = InkColor.textTertiary
         hint.numberOfLines = 0
 
-        let continueButton = InkButton("Continue", size: .large) { [weak self] in
+        let continueButton = InkButton(String(localized: "themepick_continue", defaultValue: "Continue"), size: .large) { [weak self] in
             self?.finishOnboarding()
         }
         let buttonRow = UIStackView(arrangedSubviews: [continueButton])
@@ -112,7 +111,7 @@ private final class ThemePreviewCard: UIControl {
         layer.borderWidth = 3
 
         let sample = InkLabel()
-        sample.text = "The lamp burned low, and the moon took over the work of lighting the page."
+        sample.text = String(localized: "themepick_sample", defaultValue: "The lamp burned low, and the moon took over the work of lighting the page.")
         sample.font = InkFont.serif(13, weight: .regular, style: .footnote)
         sample.textColor = theme.foreground
         sample.numberOfLines = 0
@@ -142,7 +141,8 @@ private final class ThemePreviewCard: UIControl {
         ])
 
         isAccessibilityElement = true
-        accessibilityLabel = "\(theme.displayName). \(theme.subtitle)"
+        let tileFormat = NSLocalizedString("a11y_theme_tile", comment: "")
+        accessibilityLabel = String.localizedStringWithFormat(tileFormat, theme.displayName, theme.subtitle)
         accessibilityTraits = .button
 
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (card: ThemePreviewCard, _) in

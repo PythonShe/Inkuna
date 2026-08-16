@@ -86,9 +86,8 @@ final class ContentsSheetViewController: UIViewController {
         let listStack = UIStackView()
         listStack.axis = .vertical
         if rows.isEmpty {
-            // TODO(l10n): localize once the strings pass lands.
             let empty = InkLabel()
-            empty.text = "This book lists no contents."
+            empty.text = String(localized: "detail_no_contents", defaultValue: "This book lists no contents.")
             empty.font = InkFont.reading()
             empty.textColor = InkColor.textTertiary
             empty.textAlignment = .center
@@ -152,8 +151,8 @@ final class ContentsSheetViewController: UIViewController {
         // navigator has computed positions for this book.
         if let position = rowModel.position {
             let positionLabel = InkLabel()
-            // TODO(l10n): localize once the strings pass lands.
-            positionLabel.text = "p. \(position)"
+            let format = NSLocalizedString("reader_chapter_page", comment: "")
+            positionLabel.text = String.localizedStringWithFormat(format, Int64(position))
             positionLabel.font = InkFont.caption
             positionLabel.textColor = InkColor.textTertiary
             positionLabel.setContentHuggingPriority(.required, for: .horizontal)
@@ -184,12 +183,13 @@ final class ContentsSheetViewController: UIViewController {
         ])
 
         row.isAccessibilityElement = true
-        // TODO(l10n): localize once the strings pass lands.
-        var accessibilityLabel = "\(chapter.idx + 1). \(chapter.title)"
         if let position = rowModel.position {
-            accessibilityLabel += ", position \(position)"
+            let format = NSLocalizedString("a11y_chapter_row", comment: "")
+            row.accessibilityLabel = String.localizedStringWithFormat(format, "\(chapter.idx + 1)", chapter.title, Int64(position))
+        } else {
+            let format = NSLocalizedString("a11y_chapter_row_no_page", comment: "")
+            row.accessibilityLabel = String.localizedStringWithFormat(format, "\(chapter.idx + 1)", chapter.title)
         }
-        row.accessibilityLabel = accessibilityLabel
         row.accessibilityTraits = isCurrent ? [.button, .selected] : .button
         return row
     }

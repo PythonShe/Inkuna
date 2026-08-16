@@ -11,8 +11,7 @@ final class ShelfBookView: UIControl {
         self.publication = publication
         super.init(frame: .zero)
 
-        // TODO(l10n): localize once the strings pass lands.
-        let author = publication.displayAuthors(unknownAuthor: "Unknown author")
+        let author = publication.displayAuthors(unknownAuthor: String(localized: "unknown_author", defaultValue: "Unknown author"))
         let cover = BookCoverView(
             title: publication.title,
             author: author,
@@ -52,7 +51,8 @@ final class ShelfBookView: UIControl {
         ])
 
         isAccessibilityElement = true
-        accessibilityLabel = "\(publication.title), \(author)"
+        let bookFormat = NSLocalizedString("a11y_book_row", comment: "")
+        accessibilityLabel = String.localizedStringWithFormat(bookFormat, publication.title, author)
         accessibilityTraits = .button
 
         // .touchUpInside, not .primaryActionTriggered: plain UIControl

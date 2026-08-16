@@ -36,11 +36,10 @@ final class LibraryViewController: ScrollScreenViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // TODO(l10n): localize once the strings pass lands.
-        let title = displayTitle("Library")
+        let title = displayTitle(String(localized: "library_title", defaultValue: "Library"))
         // The import affordance rides beside the title: this screen hides
         // the navigation bar, so there is no bar button item to put it in.
-        let addButton = InkIconButton(symbol: "plus", accessibilityLabel: "Add books") { [weak self] in
+        let addButton = InkIconButton(symbol: "plus", accessibilityLabel: String(localized: "import_add_books", defaultValue: "Add books")) { [weak self] in
             guard let self else { return }
             ImportFlow.presentPicker(from: self)
         }
@@ -50,7 +49,7 @@ final class LibraryViewController: ScrollScreenViewController {
         contentStack.addArrangedSubview(titleRow)
         contentStack.setCustomSpacing(InkSpacing.space5, after: titleRow)
 
-        let searchField = InkSearchField(placeholder: "Search your library")
+        let searchField = InkSearchField(placeholder: String(localized: "library_search_placeholder", defaultValue: "Search your library"))
         searchField.onTextChange = { [weak self] text in
             self?.query = text
             self?.reloadList()
@@ -58,7 +57,14 @@ final class LibraryViewController: ScrollScreenViewController {
         contentStack.addArrangedSubview(searchField)
         contentStack.setCustomSpacing(InkSpacing.space4, after: searchField)
 
-        let segmented = InkSegmentedControl(options: ["Reading", "Finished", "Wishlist"], selected: segment)
+        let segmented = InkSegmentedControl(
+            options: [
+                String(localized: "library_seg_reading", defaultValue: "Reading"),
+                String(localized: "library_seg_finished", defaultValue: "Finished"),
+                String(localized: "library_seg_wishlist", defaultValue: "Wishlist"),
+            ],
+            selected: segment
+        )
         segmented.onChange = { [weak self] option in
             self?.segment = option
             self?.reloadList()
@@ -143,11 +149,13 @@ final class LibraryViewController: ScrollScreenViewController {
                 // books at all" — only the latter earns the invitation to
                 // import, and it costs a second query only when empty.
                 var emptiness: Emptiness = .shelf(
-                    shelf == .finished ? "Nothing finished yet. No hurry." : "Nothing here yet."
+                    shelf == .finished
+                        ? String(localized: "library_empty_finished", defaultValue: "Nothing finished yet. No hurry.")
+                        : String(localized: "library_empty_reading", defaultValue: "Nothing here yet.")
                 )
                 if rows.isEmpty {
                     if !trimmed.isEmpty {
-                        emptiness = .shelf("Nothing found in the stacks.")
+                        emptiness = .shelf(String(localized: "library_empty_query", defaultValue: "Nothing found in the stacks."))
                     } else if try await bookshelf.list(shelf: .all, sort: .recentlyAdded).isEmpty {
                         emptiness = .wholeLibrary
                     }
@@ -162,7 +170,7 @@ final class LibraryViewController: ScrollScreenViewController {
                 // A library that will not open is worth saying plainly
                 // rather than showing as an empty shelf.
                 self?.publications = []
-                self?.render(rows: [], emptiness: .shelf("The library couldn't be opened."))
+                self?.render(rows: [], emptiness: .shelf(String(localized: "library_unopenable", defaultValue: "The library couldn't be opened.")))
             }
         }
     }
@@ -194,8 +202,7 @@ final class LibraryViewController: ScrollScreenViewController {
             let row = BookListRowView()
             row.configure(
                 title: publication.title,
-                // TODO(l10n): localize once the strings pass lands.
-                author: publication.displayAuthors(unknownAuthor: "Unknown author"),
+                author: publication.displayAuthors(unknownAuthor: String(localized: "unknown_author", defaultValue: "Unknown author")),
                 progress: publication.progression > 0 ? CGFloat(publication.progression) : nil,
                 seed: BookCoverView.coverSeed(for: publication.id),
                 coverPath: publication.coverPath,

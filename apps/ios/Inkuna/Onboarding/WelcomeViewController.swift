@@ -8,20 +8,19 @@ final class WelcomeViewController: UIViewController {
 
         let mark = BrandMarkView()
 
-        // TODO(l10n): localize once the strings pass lands.
         let nameLabel = InkLabel()
-        nameLabel.text = "Inkuna"
+        nameLabel.text = String(localized: "app_name", defaultValue: "Inkuna")
         nameLabel.font = InkFont.serif(54, weight: .light, style: .largeTitle)
         nameLabel.textColor = InkColor.textDisplay
 
         let taglineLabel = InkLabel()
-        taglineLabel.text = "A minimalist book reader where ink meets moonlight."
+        taglineLabel.text = String(localized: "welcome_tagline", defaultValue: "A minimalist book reader where ink meets moonlight.")
         taglineLabel.font = InkFont.reading()
         taglineLabel.textColor = InkColor.textSecondary
         taglineLabel.textAlignment = .center
         taglineLabel.numberOfLines = 0
 
-        let beginButton = InkButton("Begin", size: .large) { [weak self] in
+        let beginButton = InkButton(String(localized: "welcome_begin", defaultValue: "Begin"), size: .large) { [weak self] in
             self?.navigationController?.pushViewController(ThemePickViewController(), animated: true)
         }
 

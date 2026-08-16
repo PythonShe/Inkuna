@@ -72,8 +72,7 @@ final class BookDetailViewController: UIViewController {
 
         // MARK: Back
 
-        // TODO(l10n): localize once the strings pass lands.
-        let backButton = InkIconButton(symbol: "chevron.backward", accessibilityLabel: "Back") { [weak self] in
+        let backButton = InkIconButton(symbol: "chevron.backward", accessibilityLabel: String(localized: "a11y_back", defaultValue: "Back")) { [weak self] in
             self?.navigationController?.popViewController(animated: true)
         }
         let backRow = UIStackView(arrangedSubviews: [backButton, UIView()])
@@ -83,8 +82,7 @@ final class BookDetailViewController: UIViewController {
 
         // MARK: Cover block
 
-        // TODO(l10n): localize once the strings pass lands.
-        let author = publication.displayAuthors(unknownAuthor: "Unknown author")
+        let author = publication.displayAuthors(unknownAuthor: String(localized: "unknown_author", defaultValue: "Unknown author"))
         let cover = BookCoverView(
             title: publication.title,
             author: author,
@@ -111,8 +109,7 @@ final class BookDetailViewController: UIViewController {
         metaLabel.font = InkFont.caption
         metaLabel.textColor = InkColor.textTertiary
 
-        // TODO(l10n): localize once the strings pass lands.
-        let readButton = InkButton("Keep reading", symbol: "book") { [weak self] in
+        let readButton = InkButton(String(localized: "tonight_keep_reading", defaultValue: "Keep reading"), symbol: "book") { [weak self] in
             guard let self else { return }
             ReaderLauncher.push(self.publication, on: self.navigationController)
         }
@@ -129,9 +126,8 @@ final class BookDetailViewController: UIViewController {
 
         // MARK: Contents
 
-        // TODO(l10n): localize once the strings pass lands.
         let contentsTitle = InkLabel()
-        contentsTitle.text = "Contents"
+        contentsTitle.text = String(localized: "detail_contents", defaultValue: "Contents")
         contentsTitle.font = InkFont.sectionTitle
         contentsTitle.textColor = InkColor.textDisplay
         content.addArrangedSubview(contentsTitle)
@@ -187,10 +183,11 @@ final class BookDetailViewController: UIViewController {
             let position = locator.locations.position,
             let positionCount = publication.positionCount, positionCount > 0
         {
-            // TODO(l10n): localize once the strings pass lands.
-            return "p. \(position) of \(Int(positionCount)) · \(percent)%"
+            let format = NSLocalizedString("reader_page_info", comment: "")
+            return String.localizedStringWithFormat(format, Int64(position), Int64(positionCount), Int64(percent))
         }
-        return "\(percent)%"
+        let format = NSLocalizedString("reader_percent", comment: "")
+        return String.localizedStringWithFormat(format, Int64(percent))
     }
 
     // MARK: Contents
@@ -199,9 +196,8 @@ final class BookDetailViewController: UIViewController {
         contentsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         guard !chapters.isEmpty else {
-            // TODO(l10n): localize once the strings pass lands.
             let empty = InkLabel()
-            empty.text = "This book lists no contents."
+            empty.text = String(localized: "detail_no_contents", defaultValue: "This book lists no contents.")
             empty.font = InkFont.reading()
             empty.textColor = InkColor.textTertiary
             empty.numberOfLines = 0
@@ -284,8 +280,8 @@ final class BookDetailViewController: UIViewController {
         ])
 
         container.isAccessibilityElement = true
-        // TODO(l10n): localize once the strings pass lands.
-        container.accessibilityLabel = "Chapter \(chapter.idx + 1), \(chapter.title)"
+        let chapterRowFormat = NSLocalizedString("a11y_chapter_row_no_page", comment: "")
+        container.accessibilityLabel = String.localizedStringWithFormat(chapterRowFormat, "\(chapter.idx + 1)", chapter.title)
         container.accessibilityTraits = isCurrent ? [.button, .selected] : .button
         return container
     }

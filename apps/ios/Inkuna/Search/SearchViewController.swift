@@ -26,12 +26,11 @@ final class SearchViewController: ScrollScreenViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // TODO(l10n): localize once the strings pass lands.
-        let title = displayTitle("Search")
+        let title = displayTitle(String(localized: "search_title", defaultValue: "Search"))
         contentStack.addArrangedSubview(title)
         contentStack.setCustomSpacing(InkSpacing.space5, after: title)
 
-        let searchField = InkSearchField(placeholder: "Titles, authors")
+        let searchField = InkSearchField(placeholder: String(localized: "search_placeholder", defaultValue: "Titles, authors"))
         searchField.onTextChange = { [weak self] text in
             self?.query = text
             self?.reload()
@@ -90,8 +89,7 @@ final class SearchViewController: ScrollScreenViewController {
             } catch {
                 guard !Task.isCancelled, let self else { return }
                 self.publications = []
-                // TODO(l10n): localize once the strings pass lands.
-                self.renderEmpty("The library couldn't be opened.")
+                self.renderEmpty(String(localized: "library_unopenable", defaultValue: "The library couldn't be opened."))
             }
         }
     }
@@ -105,14 +103,12 @@ final class SearchViewController: ScrollScreenViewController {
                 // screen leaves the search field standing alone.
                 return
             }
-            // TODO(l10n): localize once the strings pass lands.
-            renderEmpty("Nothing found in the stacks.")
+            renderEmpty(String(localized: "library_empty_query", defaultValue: "Nothing found in the stacks."))
             return
         }
 
         if discover {
-            // TODO(l10n): localize once the strings pass lands.
-            let eyebrow = eyebrowLabel("Recently added")
+            let eyebrow = eyebrowLabel(String(localized: "search_recently_added", defaultValue: "Recently added"))
             let eyebrowWrapper = UIStackView(arrangedSubviews: [eyebrow])
             eyebrowWrapper.axis = .vertical
             eyebrowWrapper.isLayoutMarginsRelativeArrangement = true
@@ -126,8 +122,7 @@ final class SearchViewController: ScrollScreenViewController {
             let row = BookListRowView()
             row.configure(
                 title: publication.title,
-                // TODO(l10n): localize once the strings pass lands.
-                author: publication.displayAuthors(unknownAuthor: "Unknown author"),
+                author: publication.displayAuthors(unknownAuthor: String(localized: "unknown_author", defaultValue: "Unknown author")),
                 progress: publication.progression > 0 ? CGFloat(publication.progression) : nil,
                 seed: BookCoverView.coverSeed(for: publication.id),
                 coverPath: publication.coverPath,

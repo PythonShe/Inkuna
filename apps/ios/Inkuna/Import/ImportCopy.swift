@@ -5,43 +5,85 @@ import Foundation
 /// The house rule is to keep literals out of deep code so the l10n pass
 /// stays mechanical; for a feature whose whole job is explaining outcomes,
 /// one table beats sprinkling them across four view controllers.
-///
-// TODO(l10n): move to a `.strings` catalog once the strings pass lands.
-// The counted strings need `.stringsdict` plurals; `books(_:)` below is a
-// deliberate placeholder, not a pluralization strategy.
 enum ImportCopy {
     // MARK: Empty library
 
-    static let emptyTitle = "Nothing on the shelf yet"
-    static let emptyBody = """
-        Add an EPUB from Files, iCloud Drive, or wherever your books live. \
-        Inkuna keeps its own copy, so the original stays where it is.
-        """
-    static let emptyFootnote = "EPUB today. Comics and more to come."
-    static let addBooks = "Add books"
+    static var emptyTitle: String {
+        String(localized: "import_empty_title", defaultValue: "Nothing on the shelf yet")
+    }
+
+    static var emptyBody: String {
+        String(
+            localized: "import_empty_body",
+            defaultValue: "Add an EPUB from Files, iCloud Drive, or wherever your books live. Inkuna keeps its own copy, so the original stays where it is."
+        )
+    }
+
+    static var emptyFootnote: String {
+        String(localized: "import_empty_footnote", defaultValue: "EPUB today. Comics and more to come.")
+    }
+
+    static var addBooks: String {
+        String(localized: "import_add_books", defaultValue: "Add books")
+    }
 
     // MARK: Progress
 
-    static let preparing = "Getting the file ready…"
+    static var preparing: String {
+        String(localized: "import_phase_preparing", defaultValue: "Getting the file ready…")
+    }
+
     static func progressTitle(total: Int) -> String {
-        total > 1 ? "Adding \(books(total))" : "Adding to your library"
+        if total > 1 {
+            let format = NSLocalizedString("import_progress_title_many", comment: "")
+            return String.localizedStringWithFormat(format, books(total))
+        } else {
+            return String(localized: "import_progress_title_one", defaultValue: "Adding to your library")
+        }
     }
 
     static func progressCount(completed: Int, total: Int) -> String {
-        "\(completed) of \(total)"
+        let format = NSLocalizedString("import_progress_count", comment: "")
+        return String.localizedStringWithFormat(format, Int64(completed), Int64(total))
     }
 
-    static let cancel = "Cancel"
+    static var cancel: String {
+        String(localized: "import_cancel", defaultValue: "Cancel")
+    }
 
     // MARK: Toasts and alerts
 
-    static func addedOne(_ title: String) -> String { "Added \(title)" }
-    static func addedMany(_ count: Int) -> String { "Added \(books(count))" }
-    static func alreadyInLibrary(_ title: String) -> String { "\(title) is already in your library" }
-    static func couldNotAdd(_ fileName: String) -> String { "Couldn't add \(fileName)" }
-    static let nothingAdded = "Nothing added"
-    static let dismiss = "OK"
-    static let done = "Done"
+    static func addedOne(_ title: String) -> String {
+        let format = NSLocalizedString("import_toast_added_one", comment: "")
+        return String.localizedStringWithFormat(format, title)
+    }
+
+    static func addedMany(_ count: Int) -> String {
+        let format = NSLocalizedString("import_result_added", comment: "")
+        return String.localizedStringWithFormat(format, Int64(count))
+    }
+
+    static func alreadyInLibrary(_ title: String) -> String {
+        let format = NSLocalizedString("import_toast_already", comment: "")
+        return String.localizedStringWithFormat(format, title)
+    }
+
+    static func couldNotAdd(_ fileName: String) -> String {
+        let format = NSLocalizedString("import_toast_could_not_add", comment: "")
+        return String.localizedStringWithFormat(format, fileName)
+    }
+
+    static var nothingAdded: String {
+        String(localized: "import_result_nothing", defaultValue: "Nothing added")
+    }
+
+    static var dismiss: String {
+        String(localized: "import_dismiss", defaultValue: "OK")
+    }
+
+    static var done: String {
+        String(localized: "import_done", defaultValue: "Done")
+    }
 
     // MARK: Summary sheet
 
@@ -54,24 +96,31 @@ enum ImportCopy {
     static func summarySubtitle(_ report: ImportReport) -> String? {
         var parts: [String] = []
         if report.duplicates.count == 1 {
-            parts.append("1 was already in your library")
+            parts.append(String(localized: "import_subtitle_duplicate_one", defaultValue: "1 was already in your library"))
         } else if report.duplicates.count > 1 {
-            parts.append("\(report.duplicates.count) were already in your library")
+            let format = NSLocalizedString("import_subtitle_duplicate_many", comment: "")
+            parts.append(String.localizedStringWithFormat(format, Int64(report.duplicates.count)))
         }
         if report.failures.count == 1 {
-            parts.append("1 couldn't be added")
+            parts.append(String(localized: "import_subtitle_failure_one", defaultValue: "1 couldn't be added"))
         } else if report.failures.count > 1 {
-            parts.append("\(report.failures.count) couldn't be added")
+            let format = NSLocalizedString("import_subtitle_failure_many", comment: "")
+            parts.append(String.localizedStringWithFormat(format, Int64(report.failures.count)))
         }
         if report.wasCancelled {
-            parts.append("you stopped the rest")
+            parts.append(String(localized: "import_subtitle_cancelled", defaultValue: "you stopped the rest"))
         }
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: " · ")
     }
 
-    static let statusAdded = "Added to your library"
-    static let statusDuplicate = "Already in your library"
+    static var statusAdded: String {
+        String(localized: "import_status_added", defaultValue: "Added to your library")
+    }
+
+    static var statusDuplicate: String {
+        String(localized: "import_status_duplicate", defaultValue: "Already in your library")
+    }
 
     // MARK: Failures
 
@@ -83,30 +132,33 @@ enum ImportCopy {
         switch reason {
         case .unsupportedFormat(let name):
             if let name, let known = KnownFormat(tag: name) {
-                "\(known.display) files aren't supported yet — Inkuna reads EPUB today."
+                let format = NSLocalizedString("import_fail_unsupported", comment: "")
+                return String.localizedStringWithFormat(format, known.display)
             } else if let name {
-                "\(name.uppercased(with: .current)) files aren't supported — Inkuna reads EPUB today."
+                let format = NSLocalizedString("import_fail_unsupported", comment: "")
+                return String.localizedStringWithFormat(format, name.uppercased(with: .current))
             } else {
-                "This isn't a book file Inkuna recognizes."
+                return String(localized: "import_fail_unsupported_generic", defaultValue: "This isn't a book file Inkuna recognizes.")
             }
         case .damagedArchive:
-            "The file is damaged and couldn't be opened."
+            return String(localized: "import_fail_archive", defaultValue: "The file is damaged and couldn't be opened.")
         case .invalidPublication:
-            "This EPUB is missing something Inkuna needs to read it."
+            return String(localized: "import_fail_broken", defaultValue: "This EPUB is missing something Inkuna needs to read it.")
         case .tooLarge:
-            "This file is too large for Inkuna to add."
+            return String(localized: "import_fail_too_large", defaultValue: "This file is too large for Inkuna to add.")
         case .storage:
-            "The file couldn't be read. Check that it's still available and that this device has room."
+            return String(localized: "import_fail_storage", defaultValue: "The file couldn't be read. Check that it's still available and that this device has room.")
         case .database:
-            "Your library couldn't be written to."
+            return String(localized: "import_fail_library", defaultValue: "Your library couldn't be written to.")
         case .notFound:
-            "The book went missing from the library mid-import."
+            return String(localized: "import_fail_not_found", defaultValue: "The book went missing from the library mid-import.")
         case .unreadableSource:
-            "Inkuna couldn't get permission to read this file."
+            return String(localized: "import_fail_unreadable", defaultValue: "Inkuna couldn't get permission to read this file.")
         case .libraryUnavailable:
-            "Your library wouldn't open, so nothing was added."
+            return String(localized: "import_fail_library_unavailable", defaultValue: "Your library wouldn't open, so nothing was added.")
         case .unknown(let message):
-            "Something went wrong: \(message)"
+            let format = NSLocalizedString("import_fail_unknown", comment: "")
+            return String.localizedStringWithFormat(format, message)
         }
     }
 
@@ -125,10 +177,10 @@ enum ImportCopy {
             case .epub: "EPUB"
             case .mobi: "MOBI"
             case .azw3: "AZW3"
-            case .txt: "Plain text"
+            case .txt: String(localized: "import_format_plain_text", defaultValue: "Plain text")
             case .pdf: "PDF"
-            case .cbz: "CBZ comic"
-            case .cbr: "CBR comic"
+            case .cbz: String(localized: "import_format_cbz", defaultValue: "CBZ comic")
+            case .cbr: String(localized: "import_format_cbr", defaultValue: "CBR comic")
             }
         }
     }
@@ -136,7 +188,8 @@ enum ImportCopy {
     // MARK: Helpers
 
     static func books(_ count: Int) -> String {
-        count == 1 ? "1 book" : "\(count) books"
+        let format = NSLocalizedString("import_books_count", comment: "")
+        return String.localizedStringWithFormat(format, Int64(count))
     }
 
     /// Trims a title to something a one-line toast can hold without

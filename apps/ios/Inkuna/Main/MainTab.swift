@@ -16,13 +16,12 @@ enum MainTab: String, CaseIterable {
         }
     }
 
-    // TODO(l10n): localize once the strings pass lands.
     var title: String {
         switch self {
-        case .tonight: "Tonight"
-        case .library: "Library"
-        case .search: "Search"
-        case .stats: "Stats"
+        case .tonight: String(localized: "tab_tonight", defaultValue: "Tonight")
+        case .library: String(localized: "tab_library", defaultValue: "Library")
+        case .search: String(localized: "tab_search", defaultValue: "Search")
+        case .stats: String(localized: "tab_stats", defaultValue: "Stats")
         }
     }
 }

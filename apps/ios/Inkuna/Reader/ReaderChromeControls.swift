@@ -170,12 +170,23 @@ final class ReaderMenuView: UIView {
         onTheme: @escaping @MainActor () -> Void,
         onBookmark: @escaping @MainActor () -> Void
     ) {
-        // TODO(l10n): localize once the strings pass lands.
-        contentsPill = ReaderMenuPill(text: "Contents", symbol: "list.bullet", handler: onContents)
+        contentsPill = ReaderMenuPill(
+            text: String(localized: "detail_contents", defaultValue: "Contents"),
+            symbol: "list.bullet",
+            handler: onContents
+        )
         super.init(frame: .zero)
 
-        let themePill = ReaderMenuPill(text: "Theme & type", symbol: "textformat.size", handler: onTheme)
-        let bookmarkButton = ReaderGlassButton(symbol: "bookmark", accessibilityLabel: "Place bookmark", handler: onBookmark)
+        let themePill = ReaderMenuPill(
+            text: String(localized: "reader_menu_theme_type", defaultValue: "Theme & type"),
+            symbol: "textformat.size",
+            handler: onTheme
+        )
+        let bookmarkButton = ReaderGlassButton(
+            symbol: "bookmark",
+            accessibilityLabel: String(localized: "a11y_place_bookmark", defaultValue: "Place bookmark"),
+            handler: onBookmark
+        )
 
         let circleRow = UIStackView(arrangedSubviews: [bookmarkButton])
         circleRow.axis = .horizontal

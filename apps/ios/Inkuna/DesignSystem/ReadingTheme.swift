@@ -45,22 +45,21 @@ enum ReadingTheme: String, CaseIterable {
         }
     }
 
-    // TODO(l10n): localize once the strings pass lands.
     var displayName: String {
         switch self {
-        case .paper: "Paper"
-        case .calm: "Calm"
-        case .quiet: "Quiet"
-        case .moon: "Moon"
+        case .paper: String(localized: "theme_paper", defaultValue: "Paper")
+        case .calm: String(localized: "theme_calm", defaultValue: "Calm")
+        case .quiet: String(localized: "theme_quiet", defaultValue: "Quiet")
+        case .moon: String(localized: "theme_moon", defaultValue: "Moon")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .paper: "Warm daylight reading"
-        case .calm: "Soft parchment"
-        case .quiet: "Low graphite"
-        case .moon: "Lamplight for late hours"
+        case .paper: String(localized: "theme_paper_subtitle", defaultValue: "Warm daylight reading")
+        case .calm: String(localized: "theme_calm_subtitle", defaultValue: "Soft parchment")
+        case .quiet: String(localized: "theme_quiet_subtitle", defaultValue: "Low graphite")
+        case .moon: String(localized: "theme_moon_subtitle", defaultValue: "Lamplight for late hours")
         }
     }
 }

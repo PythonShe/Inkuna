@@ -44,9 +44,8 @@ final class ThemeTypeSheetViewController: UIViewController {
         selectionFeedback.prepare()
         let settings = AppSettings.shared
 
-        // TODO(l10n): localize once the strings pass lands.
         let titleLabel = InkLabel()
-        titleLabel.text = "Theme & type"
+        titleLabel.text = String(localized: "reader_menu_theme_type", defaultValue: "Theme & type")
         titleLabel.font = InkFont.heading
         titleLabel.textColor = InkColor.textDisplay
 
@@ -64,7 +63,7 @@ final class ThemeTypeSheetViewController: UIViewController {
         let dimGlyph = sliderGlyph("sun.min")
         let brightGlyph = sliderGlyph("sun.max")
         let slider = UISlider()
-        slider.accessibilityLabel = "Page brightness"
+        slider.accessibilityLabel = String(localized: "a11y_page_brightness", defaultValue: "Page brightness")
         slider.minimumTrackTintColor = InkColor.accent
         slider.maximumTrackTintColor = InkColor.bgRecessed
         slider.value = Float(settings.brightness)
@@ -126,8 +125,16 @@ final class ThemeTypeSheetViewController: UIViewController {
         container.backgroundColor = InkColor.bgRecessed
         container.layer.cornerRadius = 20
 
-        configureStepButton(sizeDownButton, sample: InkFont.serif(13.5, weight: .medium, style: .footnote), accessibilityLabel: "Smaller text")
-        configureStepButton(sizeUpButton, sample: InkFont.serif(19, weight: .medium, style: .body), accessibilityLabel: "Larger text")
+        configureStepButton(
+            sizeDownButton,
+            sample: InkFont.serif(13.5, weight: .medium, style: .footnote),
+            accessibilityLabel: String(localized: "a11y_smaller_text", defaultValue: "Smaller text")
+        )
+        configureStepButton(
+            sizeUpButton,
+            sample: InkFont.serif(19, weight: .medium, style: .body),
+            accessibilityLabel: String(localized: "a11y_larger_text", defaultValue: "Larger text")
+        )
         sizeDownButton.addAction(UIAction { [weak self] _ in self?.step(-1) }, for: .primaryActionTriggered)
         sizeUpButton.addAction(UIAction { [weak self] _ in self?.step(1) }, for: .primaryActionTriggered)
 
@@ -241,7 +248,8 @@ private final class ThemeTileButton: UIControl {
         ])
 
         isAccessibilityElement = true
-        accessibilityLabel = "\(theme.displayName). \(theme.subtitle)"
+        let tileFormat = NSLocalizedString("a11y_theme_tile", comment: "")
+        accessibilityLabel = String.localizedStringWithFormat(tileFormat, theme.displayName, theme.subtitle)
         accessibilityTraits = .button
 
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (tile: ThemeTileButton, _) in

@@ -45,7 +45,6 @@ enum ReaderLauncher {
 
     private static func toast(symbol: String, text: String, on navigationController: UINavigationController) {
         guard let view = navigationController.topViewController?.view ?? navigationController.viewIfLoaded else { return }
-        // TODO(l10n): localize once the strings pass lands.
         InkToastView.show(
             symbol: symbol,
             text: text,

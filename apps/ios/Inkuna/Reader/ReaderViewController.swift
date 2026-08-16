@@ -130,8 +130,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         view.addSubview(loadingIndicator)
         loadingIndicator.startAnimating()
 
-        // TODO(l10n): localize once the strings pass lands.
-        openFailureLabel.text = "This book couldn't be opened."
+        openFailureLabel.text = String(localized: "reader_open_failed", defaultValue: "This book could not be opened.")
         openFailureLabel.font = InkFont.reading()
         openFailureLabel.textColor = settings.readingTheme.dimmedForeground
         openFailureLabel.textAlignment = .center
@@ -503,10 +502,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
         logger.warning("Navigator error for \(self.publication.id, privacy: .public): \(error)")
-        // TODO(l10n): localize once the strings pass lands.
         InkToastView.show(
             symbol: "exclamationmark.triangle",
-            text: "This page couldn't be shown.",
+            text: String(localized: "reader_page_failed", defaultValue: "This page couldn't be shown."),
             in: view,
             topInset: view.safeAreaInsets.top + 56
         )
@@ -535,10 +533,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     }
 
     private func showLinkNotFollowed() {
-        // TODO(l10n): localize once the strings pass lands.
         InkToastView.show(
             symbol: "link",
-            text: "That link wasn't followed.",
+            text: String(localized: "reader_link_failed", defaultValue: "This link could not be opened."),
             in: view,
             topInset: view.safeAreaInsets.top + 56
         )
@@ -559,9 +556,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private func setMenu(visible: Bool) {
         guard menuVisible != visible else { return }
         menuVisible = visible
-        menuButton.setSymbol(visible ? "xmark" : "ellipsis")
-        // TODO(l10n): localize once the strings pass lands.
-        menuButton.accessibilityLabel = visible ? "Close reading menu" : "Reading menu"
+        menuButton.accessibilityLabel = visible
+            ? String(localized: "a11y_close_reading_menu", defaultValue: "Close reading menu")
+            : String(localized: "a11y_reading_menu", defaultValue: "Reading menu")
         menuView.isUserInteractionEnabled = visible
 
         menuAnimator?.stopAnimation(true)
@@ -605,10 +602,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             let locator = navigator?.currentLocation,
             let locatorJSON = try? locator.jsonString()
         else {
-            // TODO(l10n): localize once the strings pass lands.
             InkToastView.show(
                 symbol: "bookmark.slash",
-                text: "Nothing to bookmark yet.",
+                text: String(localized: "reader_bookmark_empty", defaultValue: "Nothing to bookmark yet."),
                 in: view,
                 topInset: view.safeAreaInsets.top + 56
             )
@@ -621,20 +617,18 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
                 let bookshelf = try await LibraryStore.shared.library()
                 _ = try await bookshelf.addBookmark(id: id, locator: locatorJSON, progression: progression)
                 guard let self else { return }
-                // TODO(l10n): localize once the strings pass lands.
                 InkToastView.show(
                     symbol: "bookmark.fill",
-                    text: "Bookmark placed.",
+                    text: String(localized: "reader_bookmark_placed", defaultValue: "Bookmark placed."),
                     in: self.view,
                     topInset: self.view.safeAreaInsets.top + 56
                 )
             } catch {
                 logger.warning("Bookmark for \(id, privacy: .public) failed: \(error)")
                 guard let self else { return }
-                // TODO(l10n): localize once the strings pass lands.
                 InkToastView.show(
                     symbol: "exclamationmark.triangle",
-                    text: "The bookmark couldn't be saved.",
+                    text: String(localized: "reader_bookmark_save_failed", defaultValue: "The bookmark couldn't be saved."),
                     in: self.view,
                     topInset: self.view.safeAreaInsets.top + 56
                 )
@@ -853,18 +847,19 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         let progression = currentLocator?.locations.totalProgression ?? publication.progression
         let percent = Int((progression * 100).rounded())
         if let position = currentLocator?.locations.position, let positionCount, positionCount > 0 {
-            // TODO(l10n): localize once the strings pass lands.
-            return "p. \(position) of \(positionCount) · \(percent)%"
+            let format = NSLocalizedString("reader_page_info", comment: "")
+            return String.localizedStringWithFormat(format, Int64(position), Int64(positionCount), Int64(percent))
         }
-        return "\(percent)%"
+        let format = NSLocalizedString("reader_percent", comment: "")
+        return String.localizedStringWithFormat(format, Int64(percent))
     }
 
     private func updatePageInfo() {
         pageInfoLabel.text = pageInfoText()
         let progression = currentLocator?.locations.totalProgression ?? publication.progression
         let percent = Int((progression * 100).rounded())
-        // TODO(l10n): localize once the strings pass lands.
-        menuView.contentsPill.text = "Contents · \(percent)%"
+        let format = NSLocalizedString("reader_menu_contents", comment: "")
+        menuView.contentsPill.text = String.localizedStringWithFormat(format, Int64(percent))
     }
 
     override func viewWillTransition(to size: CGSize, with coordinator: any UIViewControllerTransitionCoordinator) {

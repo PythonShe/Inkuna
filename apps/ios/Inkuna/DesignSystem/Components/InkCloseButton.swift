@@ -15,8 +15,7 @@ final class InkCloseButton: UIButton {
             withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
         )
         configuration = config
-        // TODO(l10n): localize once the strings pass lands.
-        accessibilityLabel = "Close"
+        accessibilityLabel = String(localized: "a11y_close", defaultValue: "Close")
 
         NSLayoutConstraint.activate([
             widthAnchor.constraint(equalToConstant: 32),

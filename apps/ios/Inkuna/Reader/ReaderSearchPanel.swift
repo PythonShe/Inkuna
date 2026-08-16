@@ -35,9 +35,8 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         glyph.tintColor = InkColor.textTertiary
         glyph.setContentHuggingPriority(.required, for: .horizontal)
 
-        // TODO(l10n): localize once the strings pass lands.
         field.attributedPlaceholder = NSAttributedString(
-            string: "Search this book",
+            string: String(localized: "reader_search_placeholder", defaultValue: "Search this book"),
             attributes: [.foregroundColor: InkColor.textTertiary]
         )
         field.font = InkFont.sans(15, weight: .regular, style: .callout)
@@ -80,7 +79,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
             scrollFit,
         ])
 
-        emptyLabel.text = "Nothing found in this book."
+        emptyLabel.text = String(localized: "reader_search_empty", defaultValue: "Nothing found in this book.")
         emptyLabel.font = InkFont.serif(15, weight: .regular, style: .subheadline)
         emptyLabel.textColor = InkColor.textTertiary
         emptyLabel.textAlignment = .center

@@ -35,12 +35,11 @@ final class TonightViewController: ScrollScreenViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // TODO(l10n): localize once the strings pass lands.
-        let eyebrow = eyebrowLabel("Tonight")
+        let eyebrow = eyebrowLabel(String(localized: "tonight_eyebrow", defaultValue: "Tonight"))
         contentStack.addArrangedSubview(eyebrow)
         contentStack.setCustomSpacing(6, after: eyebrow)
 
-        let title = displayTitle("Pick up where you left off")
+        let title = displayTitle(String(localized: "tonight_title", defaultValue: "Pick up where you left off"))
         contentStack.addArrangedSubview(title)
         contentStack.setCustomSpacing(28, after: title)
 
@@ -117,8 +116,7 @@ final class TonightViewController: ScrollScreenViewController {
     private func rebuildShelf() {
         shelfSection.arrangedSubviews.forEach { $0.removeFromSuperview() }
         guard !nightstand.isEmpty else { return }
-        // TODO(l10n): localize once the strings pass lands.
-        let shelfTitle = sectionTitle("On the nightstand")
+        let shelfTitle = sectionTitle(String(localized: "tonight_nightstand", defaultValue: "On the nightstand"))
         shelfSection.addArrangedSubview(shelfTitle)
         shelfSection.setCustomSpacing(InkSpacing.space4, after: shelfTitle)
         shelfSection.addArrangedSubview(shelfRow(publications: nightstand))
@@ -129,13 +127,13 @@ final class TonightViewController: ScrollScreenViewController {
         let card: UIView
         if let publication = continueReading {
             let percent = Int((publication.progression * 100).rounded())
-            // TODO(l10n): localize once the strings pass lands.
-            let author = publication.displayAuthors(unknownAuthor: "Unknown author")
+            let author = publication.displayAuthors(unknownAuthor: String(localized: "unknown_author", defaultValue: "Unknown author"))
+            let percentFormat = NSLocalizedString("tonight_percent_read", comment: "")
             card = makeHeroCard(
                 title: publication.title,
                 author: author,
                 progress: CGFloat(publication.progression),
-                caption: "\(percent)% read",
+                caption: String.localizedStringWithFormat(percentFormat, Int64(percent)),
                 seed: BookCoverView.coverSeed(for: publication.id),
                 coverPath: publication.coverPath,
                 onOpen: { [weak self] in
@@ -179,19 +177,19 @@ final class TonightViewController: ScrollScreenViewController {
         caption: String,
         seed: Int,
         coverPath: String?,
-        onOpen: (() -> Void)?
+        onOpen: (@MainActor () -> Void)?
     ) -> UIView {
         let card = UIView()
         card.backgroundColor = InkColor.bgSurface
-        card.layer.cornerRadius = InkRadius.xl
-        card.installInkShadow(.md)
+        card.layer.cornerRadius = InkRadius.lg
+        card.installInkShadow(.sm)
 
         let cover = BookCoverView(title: title, author: author, seed: seed, coverPath: coverPath)
-        cover.widthAnchor.constraint(equalToConstant: 96).isActive = true
+        cover.widthAnchor.constraint(equalToConstant: 80).isActive = true
 
         let titleLabel = InkLabel()
         titleLabel.text = title
-        titleLabel.font = InkFont.heading
+        titleLabel.font = InkFont.serif(18, weight: .medium, style: .headline)
         titleLabel.textColor = InkColor.textDisplay
         titleLabel.numberOfLines = 2
 
@@ -209,8 +207,7 @@ final class TonightViewController: ScrollScreenViewController {
 
         // The button opens the same book as the card; on the placeholder
         // card there is nothing to open and it says so by being disabled.
-        // TODO(l10n): localize once the strings pass lands.
-        let readButton = InkButton("Keep reading", size: .small, symbol: "book") { [weak self] in
+        let readButton = InkButton(String(localized: "tonight_keep_reading", defaultValue: "Keep reading"), size: .small, symbol: "book") { [weak self] in
             self?.heroOpenAction?()
         }
         readButton.isEnabled = onOpen != nil
