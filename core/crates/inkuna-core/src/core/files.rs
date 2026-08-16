@@ -10,7 +10,13 @@ use crate::CoreError;
 /// Reads `src` once, hashing with BLAKE3 while writing the bytes to `dest`.
 /// The destination is fsynced so the later rename lands durable content.
 pub(crate) fn copy_and_hash(src: &Path, dest: &Path) -> Result<String, CoreError> {
-    let mut reader = File::open(src)?;
+    stream_and_hash(&mut File::open(src)?, dest)
+}
+
+/// [`copy_and_hash`] over an already-open stream — a shell-owned file
+/// descriptor — which need not be seekable: one sequential pass is all
+/// that happens here.
+pub(crate) fn stream_and_hash(reader: &mut dyn Read, dest: &Path) -> Result<String, CoreError> {
     let mut writer = File::create(dest)?;
     let mut hasher = blake3::Hasher::new();
     let mut buf = vec![0u8; 128 * 1024];

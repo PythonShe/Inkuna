@@ -127,10 +127,14 @@ data class ImportReport(
 
 /** The two phases a reader can actually perceive. */
 enum class ImportPhase {
-    /** Copying the picked document out of its provider into app cache. */
+    /**
+     * Fallback only: copying a stream-only virtual document into cache
+     * before it can travel to the core as a descriptor. Most files skip
+     * this phase entirely.
+     */
     Copying,
 
-    /** The core is hashing, deduping, parsing and committing. */
+    /** The core is streaming, hashing, deduping, parsing and committing. */
     Reading,
 }
 

@@ -2,12 +2,16 @@ package app.inkuna.android.importing
 
 import android.content.Context
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import app.inkuna.core.BookshelfInterface
+import app.inkuna.core.FdImport
 import app.inkuna.core.ImportOutcome
 import app.inkuna.core.ImportProgressListener
 import app.inkuna.android.model.LibraryStore
+import java.io.File
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,12 +39,20 @@ import kotlinx.coroutines.withContext
  * `Bookshelf` per data directory for the process lifetime, and `LibraryStore`
  * is the single place that owns it. This engine only ever *receives* it.
  *
+ * ## How files reach the core
+ *
+ * As file descriptors, not paths. SAF hands back a `content://` URI; the
+ * provider turns it into a real descriptor, which travels straight to the
+ * core — the core's copy into its own storage is the only copy. Staging
+ * into cache survives purely as the fallback for virtual documents whose
+ * provider can produce a stream but not a descriptor.
+ *
  * ## Why the work is chunked
  *
- * For disk, not feedback: staging each chunk's files into cache bounds
- * cache use to [CHUNK] books rather than the whole selection, while rayon
- * still parallelizes inside a chunk. Progress is real throughout — the
- * copy reports bytes, and `importBatch`'s listener reports every finished
+ * For bounded resources, not feedback: a chunk bounds open descriptors
+ * (and fallback cache copies) to [CHUNK] books rather than the whole
+ * selection, while rayon still parallelizes inside a chunk. Progress is
+ * real throughout — `importBatchFds`'s listener reports every finished
  * file while the core works.
  *
  * Nothing here touches the main thread: the core's methods are `suspend` and
@@ -51,17 +63,18 @@ object ImportEngine {
     private const val TAG = "InkunaImport"
 
     /**
-     * Files staged and handed to `importBatch` together. Three keeps rayon
-     * busy without letting three copies of a large book — plus the core's
-     * own staging copy — sit in cache at once.
+     * Files opened and handed to `importBatchFds` together. Three keeps
+     * rayon busy while bounding what a chunk holds open: three
+     * descriptors, and in the fallback case three cache copies.
      */
     private const val CHUNK = 3
 
     /**
-     * How much of one file's progress the copy accounts for. The core's
-     * pass (hash, dedupe, parse, commit) takes the rest and reports one
-     * event per *finished* file, so the bar holds this share until the
-     * chunk's first completion event lands.
+     * How much of one file's progress the fallback staging copy accounts
+     * for. The core's pass (hash, dedupe, parse, commit) takes the rest
+     * and reports one event per *finished* file, so the bar holds this
+     * share until the chunk's first completion event lands. Descriptor
+     * imports have no copy phase at all.
      */
     private const val COPY_SHARE = 0.45f
 
@@ -126,12 +139,12 @@ object ImportEngine {
             }
 
             uris.indices.chunked(CHUNK).forEach { chunk ->
-                val staged = mutableListOf<StagedDocument>()
+                val opened = mutableListOf<OpenDocument>()
                 try {
                     chunk.forEach { index ->
                         val name = names[index]
                         try {
-                            staged += ImportStaging.stage(context, uris[index], run, name) { copied, size ->
+                            opened += openDocument(context, uris[index], run, name) { copied, size ->
                                 val withinFile = if (size != null && size > 0) {
                                     (copied.toFloat() / size).coerceIn(0f, 1f)
                                 } else {
@@ -150,28 +163,26 @@ object ImportEngine {
                         } catch (error: Throwable) {
                             // One unreadable pick never costs the rest of the
                             // selection; it is reported by name instead.
-                            Log.w(TAG, "Could not stage $name", error)
+                            Log.w(TAG, "Could not open $name", error)
                             failures += ImportFailure.of(name, error)
                             completed++
                         }
                     }
 
-                    if (staged.isEmpty()) return@forEach
+                    if (opened.isEmpty()) return@forEach
 
                     _state.value = ImportState.Running(
                         completed = completed,
                         total = total,
-                        currentName = staged.first().displayName,
+                        currentName = opened.first().displayName,
                         phase = ImportPhase.Reading,
-                        // Hold the copy's share until the core's first
-                        // per-file completion event moves the bar for real.
-                        fraction = overall(completed, total, COPY_SHARE),
+                        fraction = overall(completed, total, 0f),
                     )
 
-                    val byPath = staged.associateBy { it.path }
                     // The core fires once per finished file, from its own
                     // worker threads; events arrive with strictly increasing
-                    // counts, and StateFlow.value is thread-safe to set.
+                    // counts, and StateFlow.value is thread-safe to set. On
+                    // the descriptor route `path` is the display name.
                     val base = completed
                     val listener = object : ImportProgressListener {
                         override fun onFileComplete(
@@ -183,23 +194,25 @@ object ImportEngine {
                             _state.value = ImportState.Running(
                                 completed = done,
                                 total = uris.size,
-                                currentName = byPath[path]?.displayName
-                                    ?: path.substringAfterLast('/'),
+                                currentName = path,
                                 phase = ImportPhase.Reading,
                                 fraction = overall(done, uris.size, 0f),
                             )
                         }
                     }
                     val outcomes = try {
-                        shelf.importBatch(staged.map { it.path }, listener)
+                        // Descriptor ownership transfers with this call;
+                        // the core closes every one, success or failure.
+                        shelf.importBatchFds(opened.map { it.detachForCore() }, listener)
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Throwable) {
-                        // importBatch throws only when the whole call fails
-                        // (the library itself is in trouble), never per item.
+                        // importBatchFds throws only when the whole call
+                        // fails (the library itself is in trouble), never
+                        // per item.
                         Log.e(TAG, "The import batch failed outright", error)
-                        staged.forEach { failures += ImportFailure.of(it.displayName, error) }
-                        completed += staged.size
+                        opened.forEach { failures += ImportFailure.of(it.displayName, error) }
+                        completed += opened.size
                         return@forEach
                     }
 
@@ -207,19 +220,17 @@ object ImportEngine {
                         when (outcome) {
                             is ImportOutcome.Imported -> added += ImportedBook.of(outcome.publication)
                             is ImportOutcome.Duplicate -> duplicates += ImportedBook.of(outcome.publication)
-                            is ImportOutcome.Failed -> {
-                                val name = byPath[outcome.path]?.displayName
-                                    ?: outcome.path.substringAfterLast('/')
-                                failures += ImportFailure.of(name, outcome.error)
-                            }
+                            is ImportOutcome.Failed ->
+                                failures += ImportFailure.of(outcome.path, outcome.error)
                         }
                     }
-                    completed += staged.size
+                    completed += opened.size
                 } finally {
-                    // Cache copies never outlive the chunk that made them,
-                    // whether it succeeded, failed, or was cancelled.
+                    // Undetached descriptors and fallback cache copies never
+                    // outlive the chunk, whether it succeeded, failed, or
+                    // was cancelled.
                     withContext(NonCancellable) {
-                        staged.forEach { it.file.delete() }
+                        opened.forEach { it.close() }
                     }
                 }
             }
@@ -242,4 +253,67 @@ object ImportEngine {
 
     private fun overall(completed: Int, total: Int, within: Float) =
         ((completed + within) / total).coerceIn(0f, 1f)
+
+    /**
+     * Opens one picked document for the core.
+     *
+     * The direct route asks the provider for a real descriptor, which is
+     * all the core needs — no shell-side copy at all. Virtual documents
+     * whose provider can only produce a stream fall back to staging into
+     * cache first (with byte progress), then travel as a descriptor to
+     * that copy.
+     */
+    private suspend fun openDocument(
+        context: Context,
+        uri: Uri,
+        run: ImportRun,
+        name: String,
+        onCopyProgress: (copied: Long, total: Long?) -> Unit,
+    ): OpenDocument {
+        val direct = withContext(Dispatchers.IO) {
+            try {
+                context.contentResolver.openFileDescriptor(uri, "r")
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                Log.i(TAG, "No direct descriptor for $name; staging instead", error)
+                null
+            }
+        }
+        if (direct != null) return OpenDocument(name, direct, staged = null)
+
+        val staged = ImportStaging.stage(context, uri, run, name, onCopyProgress)
+        return OpenDocument(
+            name,
+            ParcelFileDescriptor.open(staged.file, ParcelFileDescriptor.MODE_READ_ONLY),
+            staged.file,
+        )
+    }
+}
+
+/**
+ * One document opened for the core: a descriptor, plus the cache copy
+ * behind it when the provider forced the staging fallback.
+ */
+private class OpenDocument(
+    val displayName: String,
+    private var descriptor: ParcelFileDescriptor?,
+    private val staged: File?,
+) {
+    /**
+     * Hands the raw descriptor to the core, which owns and closes it from
+     * here; [close] then only has the cache copy left to deal with.
+     */
+    fun detachForCore(): FdImport {
+        val pfd = checkNotNull(descriptor) { "descriptor already detached" }
+        descriptor = null
+        return FdImport(pfd.detachFd(), displayName)
+    }
+
+    /** Idempotent: closes an undetached descriptor, deletes the cache copy. */
+    fun close() {
+        runCatching { descriptor?.close() }
+        descriptor = null
+        staged?.delete()
+    }
 }

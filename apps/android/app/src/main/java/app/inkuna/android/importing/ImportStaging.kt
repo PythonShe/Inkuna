@@ -16,11 +16,10 @@ import java.util.UUID
 import kotlin.coroutines.coroutineContext
 
 /**
- * One picked document, copied into app cache so the core can be handed a
- * real filesystem path.
+ * One picked document, copied into app cache.
  *
- * @param file the cache copy; deleted by [ImportRun.close] once the core
- *   has taken its own copy.
+ * @param file the cache copy; deleted the moment the chunk that made it
+ *   is done.
  * @param displayName the provider's name for the document, kept verbatim
  *   (CJK included) so failures and duplicates can be reported by the name
  *   the reader actually saw in the picker.
@@ -29,24 +28,21 @@ internal class StagedDocument(
     val file: File,
     val displayName: String,
     val source: Uri,
-) {
-    val path: String get() = file.absolutePath
-}
+)
 
 /**
- * The SAF bridge.
+ * The staging fallback.
  *
- * The Storage Access Framework hands back a `content://` URI; the core's
- * import pipeline takes a path and streams the file itself. So every picked
- * document is copied to `cacheDir/epub-import/<run>/<name>` first, imported
- * from there, and deleted immediately afterwards — successful, failed, or
+ * Most picked documents travel to the core as file descriptors and never
+ * touch this. A *virtual* document — one whose provider can produce a
+ * stream but not a descriptor — is copied to
+ * `cacheDir/epub-import/<run>/<name>` first, imported from a descriptor to
+ * that copy, and deleted immediately afterwards — successful, failed, or
  * cancelled. A whole run is a [ImportRun], which owns its directory and
  * removes it on close.
  *
- * Format detection in the core is by magic bytes, not by extension, so the
- * staged name only has to be *honest*: it becomes the fallback title for an
- * EPUB whose OPF carries none, and the `.txt` extension is the one case the
- * core does read (TXT has no magic bytes).
+ * The core takes the display name separately from the bytes, so the staged
+ * name only has to be honest enough for a human to recognize in the cache.
  */
 internal object ImportStaging {
     private const val TAG = "ImportStaging"
