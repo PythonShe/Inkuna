@@ -117,8 +117,9 @@ final class LibraryViewController: ScrollScreenViewController {
                 // Typing is not a query. A keystroke's reload waits out the
                 // burst before touching the core; the next keystroke cancels
                 // this sleep, so a fast typist costs one search, not eight.
-                // Only the search branch waits — appearing, switching
-                // segments, and library changes stay instant.
+                // Every reload with a query present waits — only an empty
+                // field (appearing, switching segments, library changes
+                // included) repaints at once.
                 if !trimmed.isEmpty {
                     try await Task.sleep(for: .milliseconds(200))
                 }

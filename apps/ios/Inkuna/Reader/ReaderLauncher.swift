@@ -29,7 +29,9 @@ enum ReaderLauncher {
                 let bookshelf = try await LibraryStore.shared.library()
                 let publications = try await bookshelf.list(shelf: .unfinished, sort: .recentlyOpened)
                 guard let publication = publications.first else {
-                    toast(symbol: "books.vertical", text: "Nothing to read yet — import a book first.", on: navigationController)
+                    // Covers both an empty library and one whose every book
+                    // is finished — the query is the unfinished shelf.
+                    toast(symbol: "books.vertical", text: "Nothing to keep reading right now.", on: navigationController)
                     return
                 }
                 let reader = ReaderViewController(publication: publication)

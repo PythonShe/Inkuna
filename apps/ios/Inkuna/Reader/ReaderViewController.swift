@@ -89,10 +89,6 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             self?.setMenu(visible: false)
             self?.presentThemeSheet()
         },
-        onSearch: { [weak self] in
-            self?.setMenu(visible: false)
-            self?.showSearch()
-        },
         onBookmark: { [weak self] in
             self?.placeBookmark()
         }
@@ -219,9 +215,12 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         super.viewDidDisappear(animated)
         endSession()
         // Leaving for good, not just being covered: nothing is left to open
-        // into.
+        // into, and the container's file handles go with us — nothing else
+        // ever closes the publication.
         if isMovingFromParent || isBeingDismissed {
             openTask?.cancel()
+            readiumPublication?.close()
+            readiumPublication = nil
         }
     }
 
@@ -327,8 +326,13 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
         // The reader may have been popped while the book was opening; a
         // navigator installed now would be a child of a hierarchy that is
-        // already off screen.
-        guard !Task.isCancelled, isViewLoaded else { return }
+        // already off screen. The freshly-opened container is closed on
+        // every path that does not hand it to `readiumPublication`, whose
+        // owner (viewDidDisappear) is the only other closer.
+        guard !Task.isCancelled, isViewLoaded else {
+            opened.publication.close()
+            return
+        }
 
         let navigator: EPUBNavigatorViewController
         do {
@@ -341,6 +345,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             logger.error("Navigator init for \(self.publication.id, privacy: .public) failed: \(error)")
             loadingIndicator.stopAnimating()
             openFailureLabel.isHidden = false
+            opened.publication.close()
             return
         }
 
@@ -498,6 +503,34 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     func navigator(_ navigator: Navigator, didFailToLoadResourceAt href: RelativeURL, withError error: ReadError) {
         logger.warning("Resource \(href.string, privacy: .public) failed to load: \(error)")
+    }
+
+    /**
+     Only http(s) leaves the app. An EPUB is untrusted content, and the
+     protocol's default implementation opens *any* scheme an installed app
+     registers — `tel:`, `shortcuts:`, a bank app's custom scheme; the
+     reader is told the link was not followed instead of it firing
+     silently. Mirrors the Android shell's external-link guard.
+     */
+    func navigator(_ navigator: Navigator, presentExternalURL url: URL) {
+        let scheme = url.scheme?.lowercased()
+        guard scheme == "http" || scheme == "https" else {
+            showLinkNotFollowed()
+            return
+        }
+        UIApplication.shared.open(url) { [weak self] opened in
+            if !opened { self?.showLinkNotFollowed() }
+        }
+    }
+
+    private func showLinkNotFollowed() {
+        // TODO(l10n): localize once the strings pass lands.
+        InkToastView.show(
+            symbol: "link",
+            text: "That link wasn't followed.",
+            in: view,
+            topInset: view.safeAreaInsets.top + 56
+        )
     }
 
     // MARK: Chrome
@@ -751,6 +784,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     // MARK: In-book search
 
+    /// Reachable only through the DEBUG deep-launch route above — the menu
+    /// no longer offers search, because the panel's placeholder results
+    /// would be shown against a real book. The plumbing stays for the
+    /// screenshot loop and for when the core's search spec lands.
     private func showSearch() {
         let panel: ReaderSearchPanel
         if let existing = searchPanel {
