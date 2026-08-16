@@ -604,11 +604,22 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         let currentResourceIndex = currentLocator.flatMap { resourceIndex(forHref: $0.href.string) }
         var rows: [ContentsSheetViewController.Row] = []
         var currentRowIndex: Int?
+        // The highlight rule, shared with the Android shell: highlight the
+        // last TOC entry whose resource index is <= the current resource
+        // index. Several entries inside one resource resolve to the first of
+        // them (the reader cannot tell them apart within a resource), and a
+        // resource carrying no TOC entry of its own highlights the preceding
+        // chapter.
+        var bestResourceIndex: Int?
         for (rowIndex, chapter) in coreChapters.enumerated() {
             let chapterResourceIndex = resourceIndex(forHref: chapter.href)
-            // The reader is "in" the last chapter that starts at or before
-            // its resource; chapters sharing a resource resolve to the first.
-            if let chapterResourceIndex, let currentResourceIndex, chapterResourceIndex <= currentResourceIndex {
+            if
+                let chapterResourceIndex,
+                let currentResourceIndex,
+                chapterResourceIndex <= currentResourceIndex,
+                bestResourceIndex.map({ chapterResourceIndex > $0 }) ?? true
+            {
+                bestResourceIndex = chapterResourceIndex
                 currentRowIndex = rowIndex
             }
             rows.append(ContentsSheetViewController.Row(
