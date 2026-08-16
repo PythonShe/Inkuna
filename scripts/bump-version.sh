@@ -4,11 +4,13 @@
 #   scripts/bump-version.sh <core|ios|android> <major|minor|patch|X.Y.Z> [--tag]
 #
 #   core      core/Cargo.toml [workspace.package] version (both crates inherit)
-#   ios       apps/ios/project.yml MARKETING_VERSION; CURRENT_PROJECT_VERSION +1
-#   android   apps/android/app/build.gradle.kts versionName; versionCode +1
+#   ios       apps/ios/project.yml MARKETING_VERSION; CURRENT_PROJECT_VERSION
+#   android   apps/android/app/build.gradle.kts versionName; versionCode
 #
-# The shells' build number (CFBundleVersion / versionCode) increments on EVERY
-# bump because stores require it to be monotonic per upload.
+# The shells' build number (CFBundleVersion / versionCode) is date-based
+# YYMMDDNN (e.g. 26081601 = first build on 2026-08-16): the date keeps it
+# monotonic across days, NN counts uploads within one day. It regenerates on
+# EVERY bump because stores require monotonicity per upload.
 #
 # --tag additionally commits the bump and creates the matching release tag
 # (ios-vX.Y.Z+N / android-vX.Y.Z+N) that triggers the release workflow when
@@ -21,7 +23,7 @@ BUMP="${2:-}"
 TAG_FLAG="${3:-}"
 
 usage() {
-  grep '^#' "$0" | sed 's/^# \{0,1\}//' | head -14
+  grep '^#' "$0" | sed 's/^# \{0,1\}//' | head -16
   exit 1
 }
 
@@ -42,6 +44,21 @@ bump_semver() { # current bump-kind-or-explicit
     patch) echo "${major}.${minor}.$((patch + 1))" ;;
     *) echo "error: bump must be major|minor|patch|X.Y.Z, got '$kind'" >&2; exit 1 ;;
   esac
+}
+
+next_build_number() { # previous-build
+  local prev="$1" today seq
+  today=$(date +%y%m%d)
+  if [[ "$prev" =~ ^${today}([0-9]{2})$ ]]; then
+    seq=$((10#${BASH_REMATCH[1]} + 1))
+    if [ "$seq" -gt 99 ]; then
+      echo "error: build $prev is already the 99th today; wait for tomorrow" >&2
+      exit 1
+    fi
+  else
+    seq=1
+  fi
+  printf '%s%02d\n' "$today" "$seq"
 }
 
 # BSD (macOS) and GNU sed disagree on -i; write via temp file instead.
@@ -75,7 +92,7 @@ case "$COMPONENT" in
     CUR=$(sed -n 's/.*MARKETING_VERSION: "\(.*\)"/\1/p' "$FILE")
     BUILD=$(sed -n 's/.*CURRENT_PROJECT_VERSION: "\(.*\)"/\1/p' "$FILE")
     NEW=$(bump_semver "$CUR" "$BUMP")
-    NEW_BUILD=$((BUILD + 1))
+    NEW_BUILD=$(next_build_number "$BUILD")
     sed_inplace "$FILE" \
       -e "s/MARKETING_VERSION: \"$CUR\"/MARKETING_VERSION: \"$NEW\"/" \
       -e "s/CURRENT_PROJECT_VERSION: \"$BUILD\"/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/"
@@ -88,7 +105,7 @@ case "$COMPONENT" in
     CUR=$(sed -n 's/.*versionName = "\(.*\)"/\1/p' "$FILE")
     BUILD=$(sed -n 's/.*versionCode = \([0-9]*\)/\1/p' "$FILE")
     NEW=$(bump_semver "$CUR" "$BUMP")
-    NEW_BUILD=$((BUILD + 1))
+    NEW_BUILD=$(next_build_number "$BUILD")
     sed_inplace "$FILE" \
       -e "s/versionName = \"$CUR\"/versionName = \"$NEW\"/" \
       -e "s/versionCode = $BUILD/versionCode = $NEW_BUILD/"
