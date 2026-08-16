@@ -27,8 +27,8 @@ android {
         applicationId = "app.inkuna.android"
         minSdk = 33
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 26081601
+        versionName = "0.5.3"
 
         // Mirrors ANDROID_ABIS in scripts/build-core-android.sh: local builds
         // package the x86_64 emulator slice too, CI releases pass
