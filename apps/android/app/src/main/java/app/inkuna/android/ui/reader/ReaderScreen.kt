@@ -11,7 +11,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,7 +33,6 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -50,7 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -185,7 +182,6 @@ private fun ReaderContent(
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     var themeSheetOpen by rememberSaveable { mutableStateOf(false) }
     var contentsSheetOpen by rememberSaveable { mutableStateOf(false) }
-    var searchOpen by rememberSaveable { mutableStateOf(false) }
     var toastCount by rememberSaveable { mutableIntStateOf(0) }
     var toastShown by rememberSaveable { mutableIntStateOf(0) }
     var toastVisible by remember { mutableStateOf(false) }
@@ -206,24 +202,11 @@ private fun ReaderContent(
         context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
     }
     val toggleChrome = {
-        when {
-            searchOpen -> {
-                searchOpen = false
-                chromeVisible = true
-            }
-            menuOpen -> menuOpen = false
-            else -> chromeVisible = !chromeVisible
-        }
-    }
-    val closeSearch = {
-        searchOpen = false
-        chromeVisible = true
+        if (menuOpen) menuOpen = false else chromeVisible = !chromeVisible
     }
 
     // Back closes the reader's own layers before it leaves the book.
-    BackHandler(enabled = searchOpen || menuOpen) {
-        if (searchOpen) closeSearch() else menuOpen = false
-    }
+    BackHandler(enabled = menuOpen) { menuOpen = false }
 
     // Reading sessions bracket the reader's visible lifetime — leaving the
     // book and backgrounding the app both end the sitting; they power Stats.
@@ -384,7 +367,7 @@ private fun ReaderContent(
 
         // Back button.
         AnimatedVisibility(
-            visible = chromeVisible && !searchOpen,
+            visible = chromeVisible,
             enter = fadeIn(tween(240, easing = InkMotion.easeQuiet)),
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
             modifier = Modifier
@@ -430,16 +413,9 @@ private fun ReaderContent(
                         themeSheetOpen = true
                     },
                 )
+                // TODO(core): in-book search rejoins this row once the core's
+                // CJK-aware index lands; `ReaderSearchPanel` waits for it.
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ReaderGlassButton(
-                        icon = Icons.Outlined.Search,
-                        contentDescription = stringResource(R.string.a11y_search_book),
-                        onClick = {
-                            menuOpen = false
-                            chromeVisible = false
-                            searchOpen = true
-                        },
-                    )
                     ReaderGlassButton(
                         icon = Icons.Outlined.Bookmark,
                         contentDescription = stringResource(R.string.a11y_place_bookmark),
@@ -459,7 +435,7 @@ private fun ReaderContent(
 
         // Menu toggle.
         AnimatedVisibility(
-            visible = chromeVisible && !searchOpen,
+            visible = chromeVisible,
             enter = fadeIn(tween(240, easing = InkMotion.easeQuiet)),
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
             modifier = Modifier
@@ -491,21 +467,6 @@ private fun ReaderContent(
                 } else {
                     Icons.Filled.Bookmark
                 },
-            )
-        }
-
-        if (searchOpen) {
-            // A scrim between the page and the panel: without a pointer-input
-            // node here, taps and drags aimed at the panel's quiet areas fall
-            // through to the navigator behind it.
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) { detectTapGestures { closeSearch() } }
-            )
-            ReaderSearchPanel(
-                topPadding = statusPad + 8.dp,
-                onClose = closeSearch,
             )
         }
     }
