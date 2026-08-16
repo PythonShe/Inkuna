@@ -30,11 +30,10 @@ data class ImportedBook(
 /**
  * Why one file did not become a book.
  *
- * The batch path flattens the core's typed `InkunaError` into a string
- * (`ImportOutcome.Failed.message` is `error.to_string()`), so the variant
- * has to be recovered from the message prefix — those prefixes are fixed by
- * `CoreError`'s `#[error(...)]` attributes and are effectively part of the
- * contract. [ImportFailure.of] is the single place that mapping lives.
+ * Both failure paths carry the same typed error since the FFI stopped
+ * flattening it: a batch item's `ImportOutcome.Failed.error` and a thrown
+ * [InkunaException] are classified by variant, never by message text.
+ * [ImportFailure.of] is the single place that mapping lives.
  */
 enum class ImportFailureKind {
     /** Recognized, but not importable yet — MOBI, PDF, CBZ, CBR, TXT. */
@@ -66,48 +65,38 @@ data class ImportFailure(
     val detail: String,
 ) {
     companion object {
-        private const val UNSUPPORTED = "unsupported format"
-        private const val INVALID = "invalid publication"
-        private const val ARCHIVE = "archive error"
-        private const val IO = "io error"
-        private const val DATABASE = "database error"
-        private const val NOT_FOUND = "publication not found"
-
-        /** Classifies a `ImportOutcome.Failed.message` from the batch path. */
-        fun of(name: String, message: String): ImportFailure {
-            val lower = message.lowercase(Locale.ROOT)
-            return when {
-                lower.startsWith(UNSUPPORTED) -> {
-                    val named = message.substringAfter(':', "").trim().takeIf { it.isNotEmpty() }
-                    ImportFailure(
-                        name = name,
-                        kind = if (named == null) ImportFailureKind.UnknownFormat
-                        else ImportFailureKind.UnsupportedFormat,
-                        format = named?.uppercase(Locale.ROOT),
-                        detail = message,
-                    )
-                }
-                lower.startsWith(INVALID) -> failure(name, ImportFailureKind.BrokenBook, message)
-                lower.startsWith(ARCHIVE) -> failure(name, ImportFailureKind.DamagedArchive, message)
-                lower.startsWith(IO) -> failure(name, ImportFailureKind.Unreadable, message)
-                lower.startsWith(DATABASE) || lower.startsWith(NOT_FOUND) ->
-                    failure(name, ImportFailureKind.LibraryError, message)
-                else -> failure(name, ImportFailureKind.BrokenBook, message)
-            }
+        /**
+         * Classifies the typed error a batch `Failed` item carries — the
+         * same [InkunaException] the single-file path throws, so both
+         * paths route through this one exhaustive `when`.
+         */
+        fun of(name: String, error: InkunaException): ImportFailure = when (error) {
+            is InkunaException.UnsupportedFormat -> ImportFailure(
+                name = name,
+                kind = if (error.format == null) ImportFailureKind.UnknownFormat
+                else ImportFailureKind.UnsupportedFormat,
+                format = error.format?.uppercase(Locale.ROOT),
+                detail = describe(error),
+            )
+            is InkunaException.InvalidPublication ->
+                failure(name, ImportFailureKind.BrokenBook, describe(error))
+            is InkunaException.Archive ->
+                failure(name, ImportFailureKind.DamagedArchive, describe(error))
+            is InkunaException.Io ->
+                failure(name, ImportFailureKind.Unreadable, describe(error))
+            is InkunaException.Database, is InkunaException.NotFound ->
+                failure(name, ImportFailureKind.LibraryError, describe(error))
         }
 
         /**
          * Classifies a thrown failure — the whole-batch throw and anything
-         * the shell's own staging step raises.
-         *
-         * `InkunaError` is a UniFFI `flat_error`, so a thrown
-         * [InkunaException] already carries the same Display string the
-         * batch path puts in `Failed.message`; it goes through the same
-         * classifier rather than a parallel `when` that could drift.
+         * the shell's own staging step raises. A thrown [InkunaException]
+         * goes through the typed classifier above rather than a parallel
+         * `when` that could drift.
          */
         fun of(name: String, error: Throwable): ImportFailure =
             if (error is InkunaException) {
-                of(name, describe(error))
+                of(name, error)
             } else {
                 failure(name, ImportFailureKind.Unreadable, describe(error))
             }

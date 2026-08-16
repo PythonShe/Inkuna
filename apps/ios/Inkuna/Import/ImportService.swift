@@ -101,10 +101,9 @@ enum ImportService {
 
         let outcomes: [Result<ImportOutcome, ImportFailureReason>]
         if readable.count == 1, let only = readable.first, let path = only.staged?.path(percentEncoded: false) {
-            // One file goes through `import`, which throws a *typed*
-            // `InkunaError` — the batch path flattens the same failure into
-            // a string (see `ImportFailureReason.init(coreMessage:)`), so
-            // the single-file path is worth keeping distinct.
+            // One file goes through `import`, which reports failure by
+            // throwing rather than by a `.failed` item; either way the
+            // error is the same typed `InkunaError`.
             do {
                 outcomes = [.success(try await shelf.import(path: path))]
             } catch let error as InkunaError {
@@ -157,10 +156,10 @@ enum ImportService {
             .imported(publication, fileName: file.fileName)
         case .success(.duplicate(let publication)):
             .duplicate(publication, fileName: file.fileName)
-        case .success(.failed(_, let message)):
+        case .success(.failed(_, let error)):
             // The path in a `.failed` item is our staging path, which means
             // nothing to the user — name the file they picked instead.
-            .failed(ImportFailure(fileName: file.fileName, reason: ImportFailureReason(coreMessage: message)))
+            .failed(ImportFailure(fileName: file.fileName, reason: ImportFailureReason(error)))
         case .failure(let reason):
             .failed(ImportFailure(fileName: file.fileName, reason: reason))
         }

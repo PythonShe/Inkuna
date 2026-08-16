@@ -8,7 +8,7 @@ import Foundation
 ///
 /// The core distinguishes its failure classes by `InkunaError` variant and
 /// the shell routes its messaging off the variant, never off a string —
-/// with one unavoidable exception noted in ``init(coreMessage:)``.
+/// the batch path carries the same typed error the single-file path throws.
 enum ImportFailureReason: Error, Sendable, Equatable {
     /// The file is a book Inkuna does not read yet. Carries the format the
     /// core detected from the file's magic bytes (`"mobi"`, `"cbz"`, …), or
@@ -36,50 +36,20 @@ enum ImportFailureReason: Error, Sendable, Equatable {
     /// message so a bug report is still actionable.
     case unknown(String)
 
-    /// Maps a thrown core error. `InkunaError` is a UniFFI *flat* error, so
-    /// each case carries the whole `Display` string in `message` rather
-    /// than the structured payload the Rust enum holds; the variant is
-    /// still the thing we switch on.
+    /// Maps a core error — thrown by the single-file path or carried by a
+    /// batch `.failed` item, which since the FFI de-flattening are the very
+    /// same `InkunaError`. The structured payload survives the boundary,
+    /// so the detected format arrives as a field, never parsed out of a
+    /// Display string.
     init(_ error: InkunaError) {
         switch error {
-        case .UnsupportedFormat(let message):
-            self = .unsupportedFormat(Self.formatName(fromUnsupported: message))
+        case .UnsupportedFormat(let format): self = .unsupportedFormat(format)
         case .Archive: self = .damagedArchive
         case .InvalidPublication: self = .invalidPublication
         case .Io: self = .storage
         case .Database: self = .database
         case .NotFound: self = .notFound
         }
-    }
-
-    /// Maps a batch item's failure message.
-    ///
-    /// `ImportOutcome.failed` carries only `error.to_string()` — the typed
-    /// variant is lost at the FFI boundary on the batch path (unlike the
-    /// single-file path, which throws a typed `InkunaError`). Recovering
-    /// the class therefore means matching the `thiserror` `Display`
-    /// prefixes declared in `inkuna-ffi`, which are stable strings in the
-    /// core's source. An unmatched message degrades to ``unknown(_:)``
-    /// carrying the original text, never to a wrong promise.
-    init(coreMessage message: String) {
-        switch true {
-        case message.hasPrefix("unsupported format"):
-            self = .unsupportedFormat(Self.formatName(fromUnsupported: message))
-        case message.hasPrefix("archive error"): self = .damagedArchive
-        case message.hasPrefix("invalid publication"): self = .invalidPublication
-        case message.hasPrefix("io error"): self = .storage
-        case message.hasPrefix("database error"): self = .database
-        case message.hasPrefix("publication not found"): self = .notFound
-        default: self = .unknown(message)
-        }
-    }
-
-    /// Pulls `cbz` out of `unsupported format: cbz`. The core omits the
-    /// suffix entirely when it recognized nothing, which is the `nil` case.
-    private static func formatName(fromUnsupported message: String?) -> String? {
-        guard let message, let separator = message.range(of: ": ") else { return nil }
-        let name = message[separator.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? nil : name
     }
 }
 

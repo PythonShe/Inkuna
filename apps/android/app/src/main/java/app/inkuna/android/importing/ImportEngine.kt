@@ -191,7 +191,7 @@ object ImportEngine {
                             is ImportOutcome.Failed -> {
                                 val name = byPath[outcome.path]?.displayName
                                     ?: outcome.path.substringAfterLast('/')
-                                failures += ImportFailure.of(name, outcome.message)
+                                failures += ImportFailure.of(name, outcome.error)
                             }
                         }
                     }

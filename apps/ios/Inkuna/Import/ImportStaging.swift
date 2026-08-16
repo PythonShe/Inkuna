@@ -98,10 +98,9 @@ enum ImportStaging {
     /// It matters: when an EPUB's metadata has no title the core falls back
     /// to the file stem, so this name can end up as the book's title. Kept
     /// byte-for-byte apart from Unicode normalization — file providers hand
-    /// back decomposed forms on some volumes, and a decomposed CJK or
-    /// Hangul title renders identically but compares and sorts differently
-    /// from every other string in the library, so it is normalized to NFC
-    /// here, once, at the boundary.
+    /// back decomposed forms on some volumes, and the core normalizes its
+    /// fallback title to NFC, so the staged name is normalized the same way
+    /// to keep it, the display name, and the eventual title in agreement.
     private static func stagedName(for url: URL) -> String {
         let name = url.lastPathComponent.precomposedStringWithCanonicalMapping
         // `lastPathComponent` cannot contain a separator, but it can be

@@ -10,33 +10,39 @@ use std::sync::Arc;
 
 uniffi::setup_scaffolding!("inkuna");
 
+/// Mirrors `CoreError` variant-for-variant, *structured*: no
+/// `flat_error`, so the shells receive fields, not a Display string to
+/// parse. `format` in `UnsupportedFormat` survives the boundary as the
+/// value the core detected, and nothing downstream ever needs to
+/// prefix-match an error message. The field is `detail` rather than
+/// `message` because the generated Kotlin exception classes would
+/// otherwise collide with `Throwable.message`.
 #[derive(Debug, thiserror::Error, uniffi::Error)]
-#[uniffi(flat_error)]
 pub enum InkunaError {
-    #[error("io error: {0}")]
-    Io(String),
-    #[error("database error: {0}")]
-    Database(String),
-    #[error("archive error: {0}")]
-    Archive(String),
-    #[error("unsupported format{}", .0.as_deref().map(|f| format!(": {f}")).unwrap_or_default())]
-    UnsupportedFormat(Option<String>),
-    #[error("invalid publication: {0}")]
-    InvalidPublication(String),
-    #[error("publication not found: {0}")]
-    NotFound(String),
+    #[error("io error: {detail}")]
+    Io { detail: String },
+    #[error("database error: {detail}")]
+    Database { detail: String },
+    #[error("archive error: {detail}")]
+    Archive { detail: String },
+    #[error("unsupported format{}", format.as_deref().map(|f| format!(": {f}")).unwrap_or_default())]
+    UnsupportedFormat { format: Option<String> },
+    #[error("invalid publication: {detail}")]
+    InvalidPublication { detail: String },
+    #[error("publication not found: {id}")]
+    NotFound { id: String },
 }
 
 impl From<inkuna_core::CoreError> for InkunaError {
     fn from(e: inkuna_core::CoreError) -> Self {
         use inkuna_core::CoreError as C;
         match e {
-            C::Io(e) => InkunaError::Io(e.to_string()),
-            C::Database(e) => InkunaError::Database(e.to_string()),
-            C::Archive(m) => InkunaError::Archive(m),
-            C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat(f),
-            C::InvalidPublication(m) => InkunaError::InvalidPublication(m),
-            C::NotFound(id) => InkunaError::NotFound(id),
+            C::Io(e) => InkunaError::Io { detail: e.to_string() },
+            C::Database(e) => InkunaError::Database { detail: e.to_string() },
+            C::Archive(m) => InkunaError::Archive { detail: m },
+            C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat { format: f },
+            C::InvalidPublication(m) => InkunaError::InvalidPublication { detail: m },
+            C::NotFound(id) => InkunaError::NotFound { id },
         }
     }
 }
@@ -222,13 +228,15 @@ impl From<Settings> for inkuna_core::Settings {
     }
 }
 
-#[derive(Debug, Clone, uniffi::Enum)]
+#[derive(Debug, uniffi::Enum)]
 pub enum ImportOutcome {
     Imported { publication: Publication },
     /// The library already holds this content; nothing was added.
     Duplicate { publication: Publication },
     /// Batch-only: one bad file never aborts the rest of a selection.
-    Failed { path: String, message: String },
+    /// Carries the same typed error the single-file path throws, so the
+    /// two paths classify failures identically.
+    Failed { path: String, error: InkunaError },
 }
 
 /// Absolutizes DB-relative paths against the library's data dir.
@@ -311,7 +319,7 @@ impl Bookshelf {
                     inkuna_core::BatchImportOutcome::Failed { path, error } => {
                         ImportOutcome::Failed {
                             path,
-                            message: error.to_string(),
+                            error: error.into(),
                         }
                     }
                 })
@@ -467,7 +475,7 @@ async fn blocking<T: Send + 'static>(
 ) -> Result<T, InkunaError> {
     tokio::task::spawn_blocking(work)
         .await
-        .map_err(|e| InkunaError::Io(format!("task join error: {e}")))?
+        .map_err(|e| InkunaError::Io { detail: format!("task join error: {e}") })?
 }
 
 #[uniffi::export]
