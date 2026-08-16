@@ -266,26 +266,26 @@ jobs:
       - name: Archive (xcodebuild)
         working-directory: apps/ios
         shell: bash
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
-          # Signing settings are passed on the command line, which applies them
-          # to every target — safe here because the Inkuna app is the project's
-          # only target (the Rust core is a prebuilt xcframework, not a signed
-          # dependency target). This keeps project.yml free of signing config
-          # so local simulator builds need no cert. No -allowProvisioningUpdates
-          # => no per-run certificate minting.
+          # The archive is built UNSIGNED. Command-line settings apply to every
+          # target, and the Readium SPM package targets (ReadiumZIPFoundation,
+          # CryptoSwift resource bundles, ...) reject a manually specified
+          # provisioning profile — so no signing settings may be passed here.
+          # CODE_SIGNING_ALLOWED=NO is the one override that is safe globally;
+          # the export step then signs the app with the imported Apple
+          # Distribution cert + "Inkuna App Store" profile. This also keeps
+          # project.yml free of signing config so local simulator builds need
+          # no cert. No -allowProvisioningUpdates => no per-run certificate
+          # minting.
           xcodebuild archive \
             -project Inkuna.xcodeproj \
             -scheme Inkuna \
             -configuration Release \
             -archivePath "$RUNNER_TEMP/Inkuna.xcarchive" \
             -destination "generic/platform=iOS" \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="Inkuna App Store"
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
       - name: Export IPA
         shell: bash
@@ -304,6 +304,8 @@ jobs:
             <string>app-store-connect</string>
             <key>signingStyle</key>
             <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
             <key>teamID</key>
             <string>${APPLE_TEAM_ID}</string>
             <key>provisioningProfiles</key>
