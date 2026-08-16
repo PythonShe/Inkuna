@@ -106,7 +106,9 @@ prefixed via `routing.prefixDefaultLocale`; `/` is a static 301 to `/en/`
 - **Literary serif stack** with CJK fallbacks (`Songti SC`,
   `Hiragino Mincho ProN`, `Yu Mincho`) — CJK readers are a primary audience.
 - **No personal information** (names, emails) anywhere on the site; link to
-  the GitHub organization/repo, not individuals.
+  the GitHub organization/repo, not individuals. Deliberate exception: the
+  support contact address `dev@zheng-she.com` on the support and privacy
+  pages — App Store Connect requires a reachable support contact.
 - Keep copy quiet and literary; no marketing superlatives, no screenshots of
   unfinished UI.
 - Set `lang` correctly: pages via the layout's `lang` prop, inline CJK text

@@ -15,6 +15,9 @@ const en = {
   "feature.p":
     "Have an idea that would make Inkuna better? Every suggestion is read and appreciated.",
   "feature.link": "Share an idea",
+  "email.h": "Email us",
+  "email.p":
+    "Prefer email? Questions, feedback, and support requests are all welcome.",
   "faq.h": "Common questions",
   faq: [
     {
@@ -51,6 +54,9 @@ const ja: typeof en = {
   "feature.p":
     "Inkuna をより良くするアイデアはありますか？ すべてのご意見に目を通しています。",
   "feature.link": "アイデアを共有する",
+  "email.h": "メールで問い合わせる",
+  "email.p":
+    "メールをご希望の方はこちらへ。ご質問・ご感想・サポートのご依頼をお待ちしています。",
   "faq.h": "よくある質問",
   faq: [
     {
@@ -85,6 +91,8 @@ const zh: typeof en = {
   "feature.h": "提出建议",
   "feature.p": "有让 Inkuna 更好的想法？每一条建议我们都会认真阅读。",
   "feature.link": "分享想法",
+  "email.h": "邮件联系",
+  "email.p": "更喜欢邮件？欢迎来信提问、反馈或寻求帮助。",
   "faq.h": "常见问题",
   faq: [
     {

@@ -30,6 +30,8 @@ const en = {
   "contact.p":
     "If you have questions about this policy, reach us through the GitHub repository.",
   "contact.link": "Contact us on GitHub",
+  "contact.email.pre": "Or email us at ",
+  "contact.email.post": ".",
 };
 
 const ja: typeof en = {
@@ -62,6 +64,8 @@ const ja: typeof en = {
   "contact.p":
     "本ポリシーについてのご質問は、GitHub リポジトリからお問い合わせください。",
   "contact.link": "GitHub で問い合わせる",
+  "contact.email.pre": "",
+  "contact.email.post": " 宛にメールでもご連絡いただけます。",
 };
 
 const zh: typeof en = {
@@ -93,6 +97,8 @@ const zh: typeof en = {
   "contact.h": "联系我们",
   "contact.p": "对本政策有任何疑问，请通过 GitHub 仓库联系我们。",
   "contact.link": "在 GitHub 联系我们",
+  "contact.email.pre": "也可发送邮件至 ",
+  "contact.email.post": "。",
 };
 
 export const privacy: Dictionary<typeof en> = { en, ja, zh };

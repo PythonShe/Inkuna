@@ -58,6 +58,11 @@ const t = useTranslations(privacy, lang);
       <a class="button" href="https://github.com/PythonShe/Inkuna/issues"
         >{t("contact.link")}</a
       >
+      <p class="email">
+        {t("contact.email.pre")}<a href="mailto:dev@zheng-she.com"
+          >dev@zheng-she.com</a
+        >{t("contact.email.post")}
+      </p>
     </section>
   </main>
   <Footer lang={lang} path="/privacy" />
@@ -119,6 +124,11 @@ const t = useTranslations(privacy, lang);
   }
   .contact p {
     margin-bottom: 1.25rem;
+  }
+  .contact .email {
+    margin-top: 1.25rem;
+    margin-bottom: 0;
+    font-size: 0.9rem;
   }
   .button {
     display: inline-block;
