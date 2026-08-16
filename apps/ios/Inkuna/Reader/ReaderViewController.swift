@@ -8,6 +8,19 @@ import UIKit
 // `Publication` record is the module-local `Publication` type and shadows
 // `ReadiumShared.Publication`, which is always written fully qualified here.
 
+/// The open reading session's id, held outside the view controller.
+///
+/// Session transitions ride the serialized core-write chain, which can
+/// outlive the reader: a slow predecessor still holds the chain when the
+/// reader is popped. The closures own this box outright, so the session that
+/// started always gets ended — a session captured `[weak self]` would
+/// guard-return on a deallocated reader and leave the row open until the
+/// book is next opened, losing every trailing idle minute.
+@MainActor
+private final class ReaderSession {
+    var id: String?
+}
+
 /// The reading screen: the core's publication rendered by Readium's
 /// `EPUBNavigatorViewController` on the selected page theme, under floating
 /// glass chrome — a back button, the position line, and a more button that
@@ -41,11 +54,14 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     /// chrome away.
     private var expectProgrammaticMove = true
 
-    /// The open reading session's id, owned by the serialized core queue.
-    private var sessionID: String?
+    /// The open reading session, captured strongly by the session closures
+    /// so it survives this controller.
+    private let session = ReaderSession()
     /// Tail of the serialized core-write chain: progress heartbeats and
     /// session transitions must reach the core in the order they happened.
     private var coreWriteChain: Task<Void, Never>?
+    /// The open in flight. Owned so popping the reader can cancel it.
+    private var openTask: Task<Void, Never>?
 
     private let logger = Logger(subsystem: "app.inkuna.ios", category: "reader")
 
@@ -186,7 +202,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             object: nil
         )
 
-        Task { await openPublication() }
+        openTask = Task { await openPublication() }
     }
 
     // MARK: Sessions
@@ -202,6 +218,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         endSession()
+        // Leaving for good, not just being covered: nothing is left to open
+        // into.
+        if isMovingFromParent || isBeingDismissed {
+            openTask?.cancel()
+        }
     }
 
     @objc private func appDidEnterBackground() {
@@ -215,16 +236,18 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     }
 
     private func startSession() {
-        enqueueCoreWrite("session start") { [weak self] bookshelf in
-            guard let self, self.sessionID == nil else { return }
-            self.sessionID = try await bookshelf.sessionStart(id: self.publication.id)
+        enqueueCoreWrite("session start") { [session, id = publication.id] bookshelf in
+            guard session.id == nil else { return }
+            session.id = try await bookshelf.sessionStart(id: id)
         }
     }
 
     private func endSession() {
-        enqueueCoreWrite("session end") { [weak self] bookshelf in
-            guard let self, let sessionID = self.sessionID else { return }
-            self.sessionID = nil
+        // The session box is captured strongly on purpose: this close must
+        // still run when the chain drains after the reader is gone.
+        enqueueCoreWrite("session end") { [session] bookshelf in
+            guard let sessionID = session.id else { return }
+            session.id = nil
             try await bookshelf.sessionEnd(sessionId: sessionID)
         }
     }
@@ -301,6 +324,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             openFailureLabel.isHidden = false
             return
         }
+
+        // The reader may have been popped while the book was opening; a
+        // navigator installed now would be a child of a hierarchy that is
+        // already off screen.
+        guard !Task.isCancelled, isViewLoaded else { return }
 
         let navigator: EPUBNavigatorViewController
         do {
