@@ -479,13 +479,13 @@ jobs:
 
             if (existing) {
               await api('PATCH', `/v1/betaBuildLocalizations/${existing.id}`, {
-                data: { type: 'betaBuildLocalizations', id: existing.id, attributes: { whatsToTest: notes } },
+                data: { type: 'betaBuildLocalizations', id: existing.id, attributes: { whatsNew: notes } },
               });
             } else {
               await api('POST', '/v1/betaBuildLocalizations', {
                 data: {
                   type: 'betaBuildLocalizations',
-                  attributes: { locale: LOCALE, whatsToTest: notes },
+                  attributes: { locale: LOCALE, whatsNew: notes },
                   relationships: { build: { data: { type: 'builds', id: build.id } } },
                 },
               });
