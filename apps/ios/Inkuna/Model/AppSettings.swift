@@ -30,6 +30,12 @@ final class AppSettings {
     /// must reach the core in the order the user made them.
     private var writeChain: Task<Void, Never>?
 
+    /// Whether a queued write is still waiting to run. It persists the
+    /// record as it stands when it executes, so every change made in the
+    /// meantime — a brightness drag emits one per tick — rides along on it
+    /// instead of queuing a core write of its own.
+    private var writeQueued = false
+
     private let logger = Logger(subsystem: "app.inkuna.ios", category: "settings")
 
     private init() {}
@@ -58,11 +64,10 @@ final class AppSettings {
                 // place for the next launch to migrate.
                 try await bookshelf.setSettings(settings: migrated)
                 removeLegacySettings()
-                record = migrated
+                if adoptStored(migrated) { persist() }
             } else {
-                record = current
+                if adoptStored(current) { persist() }
             }
-            loaded = true
         } catch {
             logger.warning("Settings load failed: \(error)")
         }
@@ -121,15 +126,40 @@ final class AppSettings {
     /// didn't touch.
     private var pendingRebase: [@MainActor (inout Settings) -> Void] = []
 
+    /// Takes the stored record as the loaded truth, replaying every change
+    /// queued while it was being read on top of it. Returns whether
+    /// anything was replayed — those changes still owe the core a write.
+    private func adoptStored(_ stored: Settings) -> Bool {
+        var settings = stored
+        let replayed = !pendingRebase.isEmpty
+        for pending in pendingRebase { pending(&settings) }
+        pendingRebase.removeAll()
+        record = settings
+        loaded = true
+        return replayed
+    }
+
     /// Applies one change to the in-memory record — the UI reads it back
-    /// synchronously — and appends a whole-record write to the serialized
-    /// chain. Failures are logged, never surfaced.
+    /// synchronously — and queues a whole-record write.
     private func mutate(_ transform: @escaping @MainActor (inout Settings) -> Void) {
         transform(&record)
         if !loaded { pendingRebase.append(transform) }
+        persist()
+    }
+
+    /// Queues one whole-record write behind whatever write is in flight, so
+    /// writes land in the order they were made. A write that has not started
+    /// yet already covers this change — it reads the record when it runs.
+    /// Failures are logged, never surfaced.
+    private func persist() {
+        guard !writeQueued else { return }
+        writeQueued = true
         let previous = writeChain
         writeChain = Task {
             await previous?.value
+            // From here on the record can still change under the awaits
+            // below, so a later change must queue a write of its own.
+            writeQueued = false
             do {
                 let bookshelf = try await LibraryStore.shared.library()
                 if !loaded {
@@ -138,11 +168,7 @@ final class AppSettings {
                     // writing it whole would erase them. Rebase instead:
                     // read the stored record and replay every change made
                     // since on top of it.
-                    var stored = try await bookshelf.settings()
-                    for pending in pendingRebase { pending(&stored) }
-                    pendingRebase.removeAll()
-                    record = stored
-                    loaded = true
+                    _ = adoptStored(try await bookshelf.settings())
                 }
                 try await bookshelf.setSettings(settings: record)
             } catch {

@@ -11,7 +11,8 @@ final class ShelfBookView: UIControl {
         self.publication = publication
         super.init(frame: .zero)
 
-        let author = publication.displayAuthors
+        // TODO(l10n): localize once the strings pass lands.
+        let author = publication.displayAuthors(unknownAuthor: "Unknown author")
         let cover = BookCoverView(
             title: publication.title,
             author: author,

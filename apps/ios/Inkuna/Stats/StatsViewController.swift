@@ -1,3 +1,4 @@
+import os
 import UIKit
 
 /// The Stats tab: reading facts, the month's reading calendar, and the
@@ -10,13 +11,18 @@ final class StatsViewController: ScrollScreenViewController {
     private let statsStack = UIStackView()
 
     /// The in-flight fetch; a new reload cancels its predecessor.
-    private var reloadTask: Task<Void, Never>?
+    /// `nonisolated(unsafe)` so the nonisolated `deinit` can cancel it; only
+    /// ever touched on the main actor.
+    nonisolated(unsafe) private var reloadTask: Task<Void, Never>?
     /// `nonisolated(unsafe)` so the nonisolated `deinit` can unregister it.
     /// Only ever touched on the main actor: assigned in `viewDidLoad`, read
     /// once at deinit, when no other reference to this screen survives.
     nonisolated(unsafe) private var libraryDidChangeObserver: NSObjectProtocol?
 
+    private let logger = Logger(subsystem: "app.inkuna.ios", category: "stats")
+
     deinit {
+        reloadTask?.cancel()
         if let libraryDidChangeObserver {
             NotificationCenter.default.removeObserver(libraryDidChangeObserver)
         }
@@ -69,10 +75,14 @@ final class StatsViewController: ScrollScreenViewController {
                 let inProgress = try await bookshelf.list(shelf: .reading, sort: .recentlyOpened)
                 guard !Task.isCancelled, let self else { return }
                 self.render(overview: overview, inProgress: inProgress)
+            } catch is CancellationError {
+                // The screen went away, or a newer reload took over.
+                return
             } catch {
                 // Keep whatever numbers are already on screen; the library
                 // screen owns the recovery path for a library that will
                 // not open.
+                self?.logger.warning("Stats reload failed: \(error)")
             }
         }
     }

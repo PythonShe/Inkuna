@@ -194,7 +194,8 @@ final class LibraryViewController: ScrollScreenViewController {
             let row = BookListRowView()
             row.configure(
                 title: publication.title,
-                author: publication.displayAuthors,
+                // TODO(l10n): localize once the strings pass lands.
+                author: publication.displayAuthors(unknownAuthor: "Unknown author"),
                 progress: publication.progression > 0 ? CGFloat(publication.progression) : nil,
                 seed: BookCoverView.coverSeed(for: publication.id),
                 coverPath: publication.coverPath,

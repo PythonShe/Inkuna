@@ -129,11 +129,11 @@ final class TonightViewController: ScrollScreenViewController {
         let card: UIView
         if let publication = continueReading {
             let percent = Int((publication.progression * 100).rounded())
-            let author = publication.authors.joined(separator: ", ")
+            // TODO(l10n): localize once the strings pass lands.
+            let author = publication.displayAuthors(unknownAuthor: "Unknown author")
             card = makeHeroCard(
                 title: publication.title,
-                // TODO(l10n): localize once the strings pass lands.
-                author: author.isEmpty ? "Unknown author" : author,
+                author: author,
                 progress: CGFloat(publication.progression),
                 caption: "\(percent)% read",
                 seed: BookCoverView.coverSeed(for: publication.id),

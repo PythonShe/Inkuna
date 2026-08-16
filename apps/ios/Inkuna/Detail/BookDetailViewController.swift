@@ -25,7 +25,13 @@ final class BookDetailViewController: UIViewController {
     private let logger = Logger(subsystem: "app.inkuna.ios", category: "detail")
 
     /// The in-flight refresh, cancelled by its successor.
-    private var refreshTask: Task<Void, Never>?
+    /// `nonisolated(unsafe)` so the nonisolated `deinit` can cancel it; only
+    /// ever touched on the main actor.
+    nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
+
+    deinit {
+        refreshTask?.cancel()
+    }
 
     init(publication: Publication) {
         self.publication = publication
@@ -77,7 +83,8 @@ final class BookDetailViewController: UIViewController {
 
         // MARK: Cover block
 
-        let author = publication.displayAuthors
+        // TODO(l10n): localize once the strings pass lands.
+        let author = publication.displayAuthors(unknownAuthor: "Unknown author")
         let cover = BookCoverView(
             title: publication.title,
             author: author,
@@ -157,6 +164,9 @@ final class BookDetailViewController: UIViewController {
                 self.progressBar.setProgress(CGFloat(publication.progression), animated: false)
                 self.metaLabel.text = self.positionText()
                 self.rebuildContents()
+            } catch is CancellationError {
+                // The screen was popped, or a newer refresh took over.
+                return
             } catch {
                 logger.warning("Refreshing detail for \(id, privacy: .public) failed: \(error)")
             }

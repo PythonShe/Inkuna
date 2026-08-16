@@ -3,6 +3,10 @@ import UIKit
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
+    /// The launch read of the settings record, cancelled if the scene goes
+    /// away before it lands.
+    private var launchTask: Task<Void, Never>?
+
     func scene(
         _ scene: UIScene,
         willConnectTo session: UISceneSession,
@@ -14,8 +18,9 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Settings live in the core; the launch screen holds for the one
         // local read before the first frame commits.
         let urlContexts = connectionOptions.urlContexts
-        Task { @MainActor in
+        launchTask = Task { @MainActor in
             await AppSettings.shared.load()
+            guard !Task.isCancelled else { return }
             let settings = AppSettings.shared
             // The in-app day/night side follows the reading theme, not the
             // system appearance.
@@ -31,6 +36,10 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             // Inkuna" from Files, Mail, Safari, a share sheet) arrives here.
             self.openIncomingDocuments(urlContexts, in: scene)
         }
+    }
+
+    func sceneDidDisconnect(_ scene: UIScene) {
+        launchTask?.cancel()
     }
 
     /// The same books, when the app is already running.
