@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inkuna</string>
+    <!-- Pengenalan -->
+    <string name="welcome_tagline">Pembaca buku minimalis tempat tinta bertemu cahaya bulan.</string>
+    <string name="welcome_begin">Mulai</string>
+    <string name="themepick_eyebrow">Satu ritual kecil</string>
+    <string name="themepick_title">Baca di siang hari, atau di malam hari</string>
+    <string name="themepick_sample">Lampu menyala redup, dan bulan mengambil alih tugas menerangi halaman.</string>
+    <string name="themepick_hint">Anda dapat mengubahnya kapan saja saat membaca.</string>
+    <string name="themepick_continue">Lanjut</string>
+    <!-- Tema membaca -->
+    <string name="theme_paper">Kertas</string>
+    <string name="theme_paper_subtitle">Cahaya siang yang hangat untuk membaca</string>
+    <string name="theme_calm">Tenang</string>
+    <string name="theme_calm_subtitle">Perkamen lembut</string>
+    <string name="theme_quiet">Hening</string>
+    <string name="theme_quiet_subtitle">Grafit lembut</string>
+    <string name="theme_moon">Bulan</string>
+    <string name="theme_moon_subtitle">Cahaya lampu untuk larut malam</string>
+    <!-- Tab -->
+    <string name="tab_tonight">Malam ini</string>
+    <string name="tab_library">Perpustakaan</string>
+    <string name="tab_search">Cari</string>
+    <string name="tab_stats">Statistik</string>
+    <!-- Malam ini -->
+    <string name="tonight_eyebrow">Malam ini</string>
+    <string name="tonight_title">Lanjutkan dari tempat Anda berhenti</string>
+    <string name="tonight_pages_left">Lima belas halaman lagi di bab ini</string>
+    <string name="tonight_percent_read">%1$d%% terbaca</string>
+    <string name="tonight_keep_reading">Lanjutkan membaca</string>
+    <string name="tonight_nightstand">Di nakas</string>
+    <string name="tonight_chip_fiction">Fiksi</string>
+    <string name="tonight_chip_essays">Esai</string>
+    <string name="tonight_chip_night_reads">Bacaan malam</string>
+    <!-- Perpustakaan -->
+    <string name="library_title">Perpustakaan</string>
+    <string name="library_search_placeholder">Cari di perpustakaan Anda</string>
+    <string name="library_seg_reading">Sedang dibaca</string>
+    <string name="library_seg_finished">Selesai</string>
+    <string name="library_seg_wishlist">Daftar keinginan</string>
+    <string name="library_empty_finished">Belum ada yang selesai. Tidak perlu terburu-buru.</string>
+    <string name="library_empty_wishlist">Belum ada apa pun di nakas.</string>
+    <string name="library_empty_query">Tidak ditemukan apa pun di rak.</string>
+    <string name="library_empty_reading">Belum ada apa pun di sini.</string>
+    <string name="library_empty_all">Belum ada apa pun di sini.</string>
+    <string name="library_unopenable">Perpustakaan tidak dapat dibuka.</string>
+    <string name="unknown_author">Penulis tidak dikenal</string>
+    <!-- Cari -->
+    <string name="search_title">Cari</string>
+    <string name="search_placeholder">Judul, penulis</string>
+    <string name="search_recently_added">Baru ditambahkan</string>
+    <!-- Statistik -->
+    <string name="stats_title">Membaca</string>
+    <string name="stats_in_progress">Sedang dibaca</string>
+    <string name="stats_pages_this_week">halaman minggu ini</string>
+    <string name="stats_hours_this_month">jam bulan ini</string>
+    <string name="stats_books_this_year">buku tahun ini</string>
+    <string name="stats_hours_half">%1$s½</string>
+    <string name="stats_hours_half_only">½</string>
+    <string name="stats_in_progress_empty">Belum ada yang sedang dibaca.</string>
+    <plurals name="stats_evenings">
+        <item quantity="other">%d malam membaca buku bulan ini.</item>
+    </plurals>
+    <!-- Detail buku -->
+    <string name="detail_contents">Daftar isi</string>
+    <string name="detail_no_contents">Buku ini tidak memiliki daftar isi.</string>
+    <!-- Pembaca -->
+    <string name="reader_menu_contents">Daftar isi · %1$d%%</string>
+    <string name="reader_menu_theme_type">Tema &amp; jenis huruf</string>
+    <string name="reader_search_placeholder">Cari di buku ini</string>
+    <string name="reader_search_empty">Tidak ditemukan apa pun di buku ini.</string>
+    <string name="reader_bookmark_placed">Penanda terpasang.</string>
+    <string name="reader_link_failed">Tautan ini tidak dapat dibuka.</string>
+    <string name="reader_page_info">hlm. %1$d dari %2$d · %3$d%%</string>
+    <string name="reader_chapter_page">hlm. %1$d</string>
+    <string name="reader_percent">%1$d%%</string>
+    <string name="reader_open_failed">Buku ini tidak dapat dibuka.</string>
+    <string name="reader_retry">Coba lagi</string>
+    <string name="reader_page_failed">Halaman ini tidak dapat ditampilkan.</string>
+    <string name="reader_bookmark_empty">Belum ada penanda.</string>
+    <string name="reader_bookmark_save_failed">Penanda tidak dapat disimpan.</string>
+    <!-- Aksesibilitas -->
+    <string name="a11y_back">Kembali</string>
+    <string name="a11y_close">Tutup</string>
+    <string name="a11y_reading_menu">Menu baca</string>
+    <string name="a11y_close_reading_menu">Tutup menu baca</string>
+    <string name="a11y_place_bookmark">Pasang penanda</string>
+    <string name="a11y_smaller_text">Perkecil teks</string>
+    <string name="a11y_larger_text">Perbesar teks</string>
+    <string name="a11y_page_brightness">Kecerahan halaman</string>
+    <string name="a11y_not_downloaded">Belum diunduh</string>
+    <string name="a11y_book_row">%1$s, %2$s</string>
+    <string name="a11y_chapter_row">Bab %1$s, %2$s, halaman %3$d</string>
+    <string name="a11y_chapter_row_no_page">Bab %1$s, %2$s</string>
+    <string name="a11y_theme_tile">%1$s. %2$s</string>
+    <string name="a11y_no_results">Tidak ada hasil</string>
+    <string name="a11y_toggle_reader_controls">Tampilkan atau sembunyikan kontrol baca</string>
+    <string name="a11y_calendar_day">%2$d %1$s</string>
+    <string name="a11y_calendar_day_read">%2$d %1$s, dibaca</string>
+    <string name="a11y_fact">%1$s %2$s</string>
+    <plurals name="a11y_result_count">
+        <item quantity="other">%d hasil</item>
+    </plurals>
+</resources>

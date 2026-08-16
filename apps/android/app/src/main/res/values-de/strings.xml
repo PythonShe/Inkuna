@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inkuna</string>
+    <!-- Erste Schritte -->
+    <string name="welcome_tagline">Ein minimalistischer Buch-Reader, in dem Tinte auf Mondlicht trifft.</string>
+    <string name="welcome_begin">Beginnen</string>
+    <string name="themepick_eyebrow">Ein kleines Ritual</string>
+    <string name="themepick_title">Tagsüber lesen – oder nachts</string>
+    <string name="themepick_sample">Die Lampe brannte herunter, und der Mond übernahm die Arbeit, die Seite zu beleuchten.</string>
+    <string name="themepick_hint">Sie können dies jederzeit beim Lesen ändern.</string>
+    <string name="themepick_continue">Weiter</string>
+    <!-- Lese-Designs -->
+    <string name="theme_paper">Papier</string>
+    <string name="theme_paper_subtitle">Warmes Tageslicht zum Lesen</string>
+    <string name="theme_calm">Ruhe</string>
+    <string name="theme_calm_subtitle">Weiches Pergament</string>
+    <string name="theme_quiet">Stille</string>
+    <string name="theme_quiet_subtitle">Leichtes Grafit</string>
+    <string name="theme_moon">Mond</string>
+    <string name="theme_moon_subtitle">Lampenlicht für späte Stunden</string>
+    <!-- Tabs -->
+    <string name="tab_tonight">Heute Abend</string>
+    <string name="tab_library">Bibliothek</string>
+    <string name="tab_search">Suchen</string>
+    <string name="tab_stats">Statistiken</string>
+    <!-- Heute Abend -->
+    <string name="tonight_eyebrow">Heute Abend</string>
+    <string name="tonight_title">Weiterlesen, wo Sie aufgehört haben</string>
+    <string name="tonight_pages_left">Noch fünfzehn Seiten in diesem Kapitel</string>
+    <string name="tonight_percent_read">%1$d%% gelesen</string>
+    <string name="tonight_keep_reading">Weiterlesen</string>
+    <string name="tonight_nightstand">Auf dem Nachttisch</string>
+    <string name="tonight_chip_fiction">Belletristik</string>
+    <string name="tonight_chip_essays">Essays</string>
+    <string name="tonight_chip_night_reads">Nachtlektüre</string>
+    <!-- Bibliothek -->
+    <string name="library_title">Bibliothek</string>
+    <string name="library_search_placeholder">Bibliothek durchsuchen</string>
+    <string name="library_seg_reading">Lesen</string>
+    <string name="library_seg_finished">Beendet</string>
+    <string name="library_seg_wishlist">Wunschliste</string>
+    <string name="library_empty_finished">Noch nichts beendet. Keine Eile.</string>
+    <string name="library_empty_wishlist">Noch nichts auf dem Nachttisch.</string>
+    <string name="library_empty_query">In den Regalen wurde nichts gefunden.</string>
+    <string name="library_empty_reading">Noch nichts hier.</string>
+    <string name="library_empty_all">Noch nichts hier.</string>
+    <string name="library_unopenable">Die Bibliothek konnte nicht geöffnet werden.</string>
+    <string name="unknown_author">Unbekannter Autor</string>
+    <!-- Suche -->
+    <string name="search_title">Suchen</string>
+    <string name="search_placeholder">Titel, Autoren</string>
+    <string name="search_recently_added">Kürzlich hinzugefügt</string>
+    <!-- Statistiken -->
+    <string name="stats_title">Lesen</string>
+    <string name="stats_in_progress">In Arbeit</string>
+    <string name="stats_pages_this_week">Seiten in dieser Woche</string>
+    <string name="stats_hours_this_month">Stunden in diesem Monat</string>
+    <string name="stats_books_this_year">Bücher in diesem Jahr</string>
+    <string name="stats_hours_half">%1$s½</string>
+    <string name="stats_hours_half_only">½</string>
+    <string name="stats_in_progress_empty">Noch nichts in Arbeit.</string>
+    <plurals name="stats_evenings">
+        <item quantity="one">Ein Abend mit einem Buch in diesem Monat.</item>
+        <item quantity="other">%d Abende mit einem Buch in diesem Monat.</item>
+    </plurals>
+    <!-- Buchdetails -->
+    <string name="detail_contents">Inhalt</string>
+    <string name="detail_no_contents">Dieses Buch enthält kein Inhaltsverzeichnis.</string>
+    <!-- Reader -->
+    <string name="reader_menu_contents">Inhalt · %1$d%%</string>
+    <string name="reader_menu_theme_type">Design &amp; Typografie</string>
+    <string name="reader_search_placeholder">In diesem Buch suchen</string>
+    <string name="reader_search_empty">In diesem Buch wurde nichts gefunden.</string>
+    <string name="reader_bookmark_placed">Lesezeichen gesetzt.</string>
+    <string name="reader_link_failed">Dieser Link konnte nicht geöffnet werden.</string>
+    <string name="reader_page_info">S. %1$d von %2$d · %3$d%%</string>
+    <string name="reader_chapter_page">S. %1$d</string>
+    <string name="reader_percent">%1$d%%</string>
+    <string name="reader_open_failed">Dieses Buch konnte nicht geöffnet werden.</string>
+    <string name="reader_retry">Erneut versuchen</string>
+    <string name="reader_page_failed">Diese Seite konnte nicht angezeigt werden.</string>
+    <string name="reader_bookmark_empty">Noch keine Lesezeichen.</string>
+    <string name="reader_bookmark_save_failed">Das Lesezeichen konnte nicht gespeichert werden.</string>
+    <!-- Barrierefreiheit -->
+    <string name="a11y_back">Zurück</string>
+    <string name="a11y_close">Schließen</string>
+    <string name="a11y_reading_menu">Lesemenü</string>
+    <string name="a11y_close_reading_menu">Lesemenü schließen</string>
+    <string name="a11y_place_bookmark">Lesezeichen setzen</string>
+    <string name="a11y_smaller_text">Kleinerer Text</string>
+    <string name="a11y_larger_text">Größerer Text</string>
+    <string name="a11y_page_brightness">Seitenhelligkeit</string>
+    <string name="a11y_not_downloaded">Nicht heruntergeladen</string>
+    <string name="a11y_book_row">%1$s, %2$s</string>
+    <string name="a11y_chapter_row">Kapitel %1$s, %2$s, Seite %3$d</string>
+    <string name="a11y_chapter_row_no_page">Kapitel %1$s, %2$s</string>
+    <string name="a11y_theme_tile">%1$s. %2$s</string>
+    <string name="a11y_no_results">Keine Ergebnisse</string>
+    <string name="a11y_toggle_reader_controls">Lesesteuerung ein- oder ausblenden</string>
+    <string name="a11y_calendar_day">%2$d. %1$s</string>
+    <string name="a11y_calendar_day_read">%2$d. %1$s, gelesen</string>
+    <string name="a11y_fact">%1$s %2$s</string>
+    <plurals name="a11y_result_count">
+        <item quantity="one">%d Ergebnis</item>
+        <item quantity="other">%d Ergebnisse</item>
+    </plurals>
+</resources>

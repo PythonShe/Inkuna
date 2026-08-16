@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pontos de entrada -->
+    <string name="import_add_books">Adicionar livros</string>
+    <string name="import_empty_title">Nada na estante ainda</string>
+    <string name="import_empty_body">Adicione um EPUB dos seus arquivos e ele estará esperando aqui.</string>
+    <string name="import_empty_footnote">EPUB hoje. Quadrinhos e mais por vir.</string>
+    <string name="import_empty_action">Adicionar seu primeiro livro</string>
+    <string name="a11y_import_add_books">Adicionar livros à sua biblioteca</string>
+    <!-- Progresso -->
+    <string name="import_progress_eyebrow">Adicionando à sua biblioteca</string>
+    <string name="import_phase_preparing">Preparando o arquivo…</string>
+    <string name="import_phase_copying">Copiando o arquivo</string>
+    <string name="import_phase_reading">Lendo o livro</string>
+    <string name="import_progress_count">%1$d de %2$d</string>
+    <string name="import_cancel">Cancelar</string>
+    <string name="a11y_import_progress">Importando, %1$d de %2$d</string>
+    <!-- Relatório -->
+    <string name="import_done">Concluir</string>
+    <string name="import_result_cancelled">Importação interrompida</string>
+    <string name="import_result_nothing">Nada adicionado</string>
+    <string name="import_result_already">Já está na sua biblioteca</string>
+    <plurals name="import_result_added">
+        <item quantity="one">1 livro adicionado</item>
+        <item quantity="other">%d livros adicionados</item>
+    </plurals>
+    <string name="import_section_added">Adicionados</string>
+    <string name="import_section_duplicates">Já está na sua biblioteca</string>
+    <string name="import_section_failures">Não adicionados</string>
+    <string name="import_unknown_author">Autor desconhecido</string>
+    <string name="import_unnamed_file">Este arquivo</string>
+    <!-- Motivos de erro -->
+    <string name="import_fail_unsupported">Arquivos %1$s ainda não são suportados</string>
+    <string name="import_fail_unknown_format">A Inkuna não conseguiu identificar este arquivo</string>
+    <string name="import_fail_broken">Este EPUB está faltando algo de que precisa</string>
+    <string name="import_fail_archive">Este arquivo está danificado</string>
+    <string name="import_fail_too_large">Este arquivo é grande demais para adicionar</string>
+    <string name="import_fail_unreadable">Não foi possível ler este arquivo.</string>
+    <string name="import_fail_library">Não foi possível gravar na sua biblioteca.</string>
+    <!-- Intent de entrada -->
+    <string name="import_intent_label">Adicionar à Inkuna</string>
+    <string name="import_intent_open_library">Abrir biblioteca</string>
+    <string name="import_intent_nothing">Não havia nada para adicionar.</string>
+</resources>

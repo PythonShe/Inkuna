@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Titik masuk -->
+    <string name="import_add_books">Tambahkan buku</string>
+    <string name="import_empty_title">Belum ada apa pun di rak</string>
+    <string name="import_empty_body">Tambahkan EPUB dari berkas Anda dan buku akan menunggu di sini.</string>
+    <string name="import_empty_footnote">EPUB hari ini. Komik dan lainnya menyusul.</string>
+    <string name="import_empty_action">Tambahkan buku pertama Anda</string>
+    <string name="a11y_import_add_books">Tambahkan buku ke perpustakaan Anda</string>
+    <!-- Kemajuan -->
+    <string name="import_progress_eyebrow">Menambahkan ke perpustakaan Anda</string>
+    <string name="import_phase_preparing">Menyiapkan berkas…</string>
+    <string name="import_phase_copying">Menyalin berkas</string>
+    <string name="import_phase_reading">Membaca buku</string>
+    <string name="import_progress_count">%1$d dari %2$d</string>
+    <string name="import_cancel">Batal</string>
+    <string name="a11y_import_progress">Mengimpor, %1$d dari %2$d</string>
+    <!-- Laporan -->
+    <string name="import_done">Selesai</string>
+    <string name="import_result_cancelled">Impor dihentikan</string>
+    <string name="import_result_nothing">Tidak ada yang ditambahkan</string>
+    <string name="import_result_already">Sudah ada di perpustakaan Anda</string>
+    <plurals name="import_result_added">
+        <item quantity="other">%d buku ditambahkan</item>
+    </plurals>
+    <string name="import_section_added">Ditambahkan</string>
+    <string name="import_section_duplicates">Sudah ada di perpustakaan Anda</string>
+    <string name="import_section_failures">Tidak ditambahkan</string>
+    <string name="import_unknown_author">Penulis tidak dikenal</string>
+    <string name="import_unnamed_file">Berkas ini</string>
+    <!-- Penyebab kegagalan -->
+    <string name="import_fail_unsupported">Berkas %1$s belum didukung</string>
+    <string name="import_fail_unknown_format">Inkuna tidak dapat mengenali jenis berkas ini</string>
+    <string name="import_fail_broken">EPUB ini kekurangan sesuatu yang dibutuhkannya</string>
+    <string name="import_fail_archive">Berkas ini rusak</string>
+    <string name="import_fail_too_large">Berkas ini terlalu besar untuk ditambahkan</string>
+    <string name="import_fail_unreadable">Berkas ini tidak dapat dibaca.</string>
+    <string name="import_fail_library">Tidak dapat menulis ke perpustakaan Anda.</string>
+    <!-- Intent masuk -->
+    <string name="import_intent_label">Tambahkan ke Inkuna</string>
+    <string name="import_intent_open_library">Buka perpustakaan</string>
+    <string name="import_intent_nothing">Tidak ada yang bisa ditambahkan.</string>
+</resources>
