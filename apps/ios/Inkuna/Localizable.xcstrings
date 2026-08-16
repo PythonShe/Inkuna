@@ -8953,67 +8953,67 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna couldn't get permission to read this file."
+            "value": "This file couldn't be read."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna 未获得读取该文件的权限。"
+            "value": "无法读取此文件。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna 未獲得讀取該檔案的權限。"
+            "value": "無法讀取此檔案。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkunaがこのファイルを読み取る権限を取得できませんでした。"
+            "value": "ファイルを読み込めませんでした。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna가 이 파일을 읽을 수 있는 권한을 얻지 못했습니다."
+            "value": "파일을 읽을 수 없습니다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna no obtuvo permiso para leer este archivo."
+            "value": "No se pudo leer este archivo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna n'a pas pu obtenir la permission de lire ce fichier."
+            "value": "Impossible de lire ce fichier."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna non ha ottenuto il permesso per leggere questo file."
+            "value": "Impossibile leggere questo file."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna не удалось получить разрешение на чтение этого файла."
+            "value": "Не удалось прочитать файл."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna ไม่ได้รับอนุญาตให้อ่านไฟล์นี้"
+            "value": "ไม่สามารถอ่านไฟล์นี้ได้"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkuna không nhận được quyền truy cập để đọc tệp này."
+            "value": "Không thể đọc tệp này."
           }
         }
       }
