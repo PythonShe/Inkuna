@@ -12,6 +12,7 @@ import app.inkuna.core.Bookshelf
 import app.inkuna.core.Chapter
 import app.inkuna.core.Publication as CorePublication
 import java.io.File
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -93,9 +94,11 @@ class ReaderViewModel(
      * than from the moment the Ready state is published: everything between
      * the two (positions, position count, chapters) can suspend, so a
      * cancellation or a throw there would otherwise leak the open file.
+     * An atomic get-and-set hands the instance to exactly one closer, and
+     * the instance is captured at scheduling time — a close queued for a
+     * failed attempt can never reach the container a retry opened after it.
      */
-    @Volatile
-    private var openPublication: Publication? = null
+    private val openPublication = AtomicReference<Publication?>(null)
 
     // Page turns arrive faster than writes need to land; a StateFlow
     // conflates them so a fast flick persists the settled page, not a queue
@@ -115,6 +118,28 @@ class ReaderViewModel(
      */
     private val writeLock = Mutex()
 
+    /**
+     * Tail of the FIFO chain every lifecycle-ordered write joins. The lock
+     * above makes writes atomic; this chain makes them *ordered*: a
+     * `sessionStart` asked for after a teardown must run after the whole
+     * teardown, or a rotation's stop→start round trip lets the queued
+     * `sessionEnd` close the session the restart just opened, silencing
+     * every heartbeat for the rest of the sitting. Only touched from the
+     * main thread (lifecycle callbacks and `onCleared`), so plain field
+     * handover is safe; the same shape as the iOS reader's write chain.
+     */
+    private var writeTail: Job? = null
+
+    private fun enqueueCoreWrite(block: suspend () -> Unit): Job {
+        val previous = writeTail
+        val job = LibraryStore.writes.launch {
+            previous?.join()
+            block()
+        }
+        writeTail = job
+        return job
+    }
+
     init {
         open()
         viewModelScope.launch {
@@ -131,14 +156,16 @@ class ReaderViewModel(
         stateFlow.value = UiState.Opening
         openJob = viewModelScope.launch {
             // A retry must not leave the failed attempt's container open.
-            closeOpenPublication()
+            // The snapshot happens here, synchronously, so the queued close
+            // can only ever touch the attempt that failed.
+            closeOpenPublicationAsync()
             stateFlow.value = try {
                 UiState.Ready(doOpen())
             } catch (e: Exception) {
                 Log.w(TAG, "opening $publicationId failed", e)
                 // Cancellation lands here too, and then no suspending close
                 // would run — hand it to the write scope, which outlives us.
-                LibraryStore.writes.launch { closeOpenPublication() }
+                closeOpenPublicationAsync()
                 UiState.Failed
             }
         }
@@ -169,7 +196,7 @@ class ReaderViewModel(
                 throw ReaderOpenException(error.message)
             }
         // Owned from here on, whatever the rest of this function does.
-        openPublication = publication
+        openPublication.set(publication)
 
         // Synthetic positions are the honest substitute for page numbers.
         // Reported once so the core can answer "p. N of M" everywhere.
@@ -289,7 +316,7 @@ class ReaderViewModel(
      * core at the next `sessionStart`.
      */
     fun onReaderVisible() {
-        LibraryStore.writes.launch {
+        enqueueCoreWrite {
             withContext(NonCancellable) {
                 writeLock.withLock {
                     if (sessionId != null) return@withLock
@@ -313,10 +340,12 @@ class ReaderViewModel(
      * order of these lines rather than of whichever thread woke first.
      */
     private fun endSitting(closePublication: Boolean) {
-        LibraryStore.writes.launch {
+        enqueueCoreWrite {
             persistPendingProgress()
             endSession()
-            if (closePublication) closeOpenPublication()
+            if (closePublication) {
+                openPublication.getAndSet(null)?.let { close(it) }
+            }
         }
     }
 
@@ -332,10 +361,19 @@ class ReaderViewModel(
         }
     }
 
+    /**
+     * Snapshots and releases the current container on the calling thread,
+     * then closes that exact instance off it. Capturing the reference
+     * before anything else can run is what keeps a close scheduled for a
+     * dead attempt away from the container a retry opens next.
+     */
+    private fun closeOpenPublicationAsync() {
+        val publication = openPublication.getAndSet(null) ?: return
+        LibraryStore.writes.launch { close(publication) }
+    }
+
     /** `Publication.close()` blocks, so it never runs on the main thread. */
-    private suspend fun closeOpenPublication() {
-        val publication = openPublication ?: return
-        openPublication = null
+    private suspend fun close(publication: Publication) {
         withContext(NonCancellable + Dispatchers.IO) {
             runCatching { publication.close() }
                 .onFailure { Log.w(TAG, "closing the publication failed", it) }
@@ -352,7 +390,10 @@ class ReaderViewModel(
      */
     fun addBookmark(locator: Locator, onPlaced: () -> Unit) {
         val shelf = bookshelf ?: return
-        LibraryStore.writes.launch {
+        enqueueCoreWrite {
+            // The main-thread confirmation hop stays outside the lock: held
+            // across it, every other reader write would queue behind main-
+            // thread availability.
             writeLock.withLock {
                 runCatching {
                     shelf.addBookmark(
@@ -360,9 +401,10 @@ class ReaderViewModel(
                         locator.toJSON().toString(),
                         locator.locations.totalProgression ?: 0.0,
                     )
-                }.onSuccess { withContext(Dispatchers.Main) { onPlaced() } }
-                    .onFailure { Log.w(TAG, "addBookmark failed", it) }
+                }
             }
+                .onSuccess { withContext(Dispatchers.Main) { onPlaced() } }
+                .onFailure { Log.w(TAG, "addBookmark failed", it) }
         }
     }
 
