@@ -1,5 +1,9 @@
 package app.inkuna.android.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,9 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
@@ -34,9 +40,10 @@ private val coverPalettes = listOf(
 )
 
 /**
- * A book cover placeholder: typographic title/author over a seeded palette.
+ * A book cover: the core-extracted art at [coverPath] when the book ships
+ * with any, faded in over the typographic title/author placeholder on a
+ * seeded palette that stands while the art decodes and for books without.
  * Covers stay rectangular (radius-xs) — books are not app icons.
- * TODO(core): render real cover art from the Rust core's metadata store.
  */
 @Composable
 fun BookCover(
@@ -44,6 +51,7 @@ fun BookCover(
     author: String,
     width: Dp,
     seed: Int,
+    coverPath: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val height = width * 1.5f
@@ -55,7 +63,8 @@ fun BookCover(
     val density = LocalDensity.current
     val titleSize = with(density) { maxOf(11.dp, width * 0.13f).toSp() }
     val authorSize = with(density) { maxOf(8.dp, width * 0.085f).toSp() }
-    Column(
+    val art by rememberCoverArt(coverPath, width)
+    Box(
         modifier = modifier
             .width(width)
             .height(height)
@@ -64,31 +73,47 @@ fun BookCover(
             .background(bg)
             // The title and author are always repeated by the row or screen
             // around the cover; announcing them twice is noise.
-            .clearAndSetSemantics {}
-            .padding(pad),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+            .clearAndSetSemantics {},
     ) {
-        // Below ~48dp the typographic cover degrades into overflow noise;
-        // a thumbnail is just the palette.
-        if (width < 48.dp) return@Column
-        Text(
-            text = title,
-            fontFamily = InkSerif,
-            fontWeight = FontWeight.Medium,
-            fontSize = titleSize,
-            lineHeight = titleSize * 1.25f,
-            color = fg,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = author,
-            fontFamily = InkSans,
-            fontWeight = FontWeight.Normal,
-            fontSize = authorSize,
-            color = fg.copy(alpha = 0.8f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(pad),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+        ) {
+            // Below ~48dp the typographic cover degrades into overflow
+            // noise; a thumbnail is just the palette.
+            if (width >= 48.dp) {
+                Text(
+                    text = title,
+                    fontFamily = InkSerif,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = titleSize,
+                    lineHeight = titleSize * 1.25f,
+                    color = fg,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = author,
+                    fontFamily = InkSans,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = authorSize,
+                    color = fg.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        AnimatedVisibility(visible = art != null, enter = fadeIn(), exit = fadeOut()) {
+            art?.let { bitmap ->
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
     }
 }

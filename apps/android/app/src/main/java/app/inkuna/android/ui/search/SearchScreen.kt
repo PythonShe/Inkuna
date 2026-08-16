@@ -61,6 +61,7 @@ fun SearchScreen(
                         author = book.author,
                         progress = book.progress,
                         seed = book.coverSeed,
+                        coverPath = null,
                         downloaded = book.downloaded,
                         onClick = { onOpenBook(book) },
                     )

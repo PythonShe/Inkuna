@@ -32,6 +32,7 @@ fun BookListRow(
     author: String,
     progress: Int?,
     seed: Int,
+    coverPath: String?,
     downloaded: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -45,7 +46,7 @@ fun BookListRow(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BookCover(title = title, author = author, width = 52.dp, seed = seed)
+        BookCover(title = title, author = author, width = 52.dp, seed = seed, coverPath = coverPath)
         Column(Modifier.weight(1f)) {
             Text(
                 title,

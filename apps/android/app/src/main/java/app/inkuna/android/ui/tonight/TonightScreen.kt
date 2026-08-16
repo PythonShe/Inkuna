@@ -141,6 +141,7 @@ private fun HeroCard(
             author = author,
             width = 96.dp,
             seed = seed,
+            coverPath = continueReading?.coverPath,
             modifier = if (open != null) Modifier.clickable(onClick = open) else Modifier,
         )
         Column(Modifier.weight(1f).padding(bottom = 4.dp)) {

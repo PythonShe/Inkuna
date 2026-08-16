@@ -34,6 +34,8 @@ data class LibraryRow(
     val author: String,
     val progress: Int?,
     val seed: Int,
+    /** Absolute path of the core-extracted cover art, if the book has any. */
+    val coverPath: String?,
 )
 
 /** What to show when there are no rows. */
@@ -163,6 +165,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         // read 1% on one shell and 2% on the other.
         progress = publication.progression.takeIf { it > 0.0 }?.let { (it * 100).roundToInt() },
         seed = coverSeed(publication.id),
+        coverPath = publication.coverPath,
     )
 
     private companion object {
