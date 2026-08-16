@@ -69,6 +69,24 @@
             "state": "translated",
             "value": "Inkuna"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna"
+          }
         }
       }
     },
@@ -139,6 +157,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tác giả chưa rõ"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbekannter Autor"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penulis tidak dikenal"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autor desconhecido"
           }
         }
       }
@@ -211,6 +247,24 @@
             "state": "translated",
             "value": "Quay lại"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kembali"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voltar"
+          }
         }
       }
     },
@@ -281,6 +335,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đóng"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tutup"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fechar"
           }
         }
       }
@@ -353,6 +425,24 @@
             "state": "translated",
             "value": "Trình đọc sách tối giản, nơi trang mực hòa cùng ánh trăng."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein minimalistischer Buch-Reader, in dem Tinte auf Mondlicht trifft."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pembaca buku minimalis tempat tinta bertemu cahaya bulan."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um leitor de livros minimalista onde a tinta encontra o luar."
+          }
         }
       }
     },
@@ -423,6 +513,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bắt đầu"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beginnen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mulai"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Começar"
           }
         }
       }
@@ -495,6 +603,24 @@
             "state": "translated",
             "value": "Một nghi thức nhỏ"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein kleines Ritual"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satu ritual kecil"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um pequeno ritual"
+          }
         }
       }
     },
@@ -565,6 +691,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đọc lúc ban ngày, hoặc khi đêm về"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tagsüber lesen – oder nachts"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baca di siang hari, atau di malam hari"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leia de dia, ou de noite"
           }
         }
       }
@@ -637,6 +781,24 @@
             "state": "translated",
             "value": "Ngọn đèn lụi dần, và vầng trăng tiếp tục công việc soi sáng trang sách."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Lampe brannte herunter, und der Mond übernahm die Arbeit, die Seite zu beleuchten."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lampu menyala redup, dan bulan mengambil alih tugas menerangi halaman."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A lâmpada ardia fraca, e a lua assumiu o trabalho de iluminar a página."
+          }
         }
       }
     },
@@ -707,6 +869,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bạn có thể thay đổi bất kỳ lúc nào khi đang đọc sách."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie können dies jederzeit beim Lesen ändern."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anda dapat mengubahnya kapan saja saat membaca."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Você pode mudar isso a qualquer momento durante a leitura."
           }
         }
       }
@@ -779,6 +959,24 @@
             "state": "translated",
             "value": "Tiếp tục"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiter"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lanjut"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuar"
+          }
         }
       }
     },
@@ -849,6 +1047,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trang giấy"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Papier"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kertas"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Papel"
           }
         }
       }
@@ -921,6 +1137,24 @@
             "state": "translated",
             "value": "Đọc sách êm dịu dưới ánh ban ngày"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warmes Tageslicht zum Lesen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cahaya siang yang hangat untuk membaca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leitura sob luz quente do dia"
+          }
         }
       }
     },
@@ -991,6 +1225,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tĩnh lặng"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruhe"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tenang"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calma"
           }
         }
       }
@@ -1063,6 +1315,24 @@
             "state": "translated",
             "value": "Sắc giấy da êm ái"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiches Pergament"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perkamen lembut"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pergaminho suave"
+          }
         }
       }
     },
@@ -1133,6 +1403,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trầm lắng"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stille"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hening"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Silêncio"
           }
         }
       }
@@ -1205,6 +1493,24 @@
             "state": "translated",
             "value": "Tông than chì dịu mắt"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leichtes Grafit"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grafit lembut"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grafite suave"
+          }
         }
       }
     },
@@ -1275,6 +1581,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ánh trăng"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mond"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bulan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lua"
           }
         }
       }
@@ -1347,6 +1671,24 @@
             "state": "translated",
             "value": "Ánh đèn ấm áp cho những giờ khuya"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lampenlicht für späte Stunden"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cahaya lampu untuk larut malam"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luz de lampião para horas tardias"
+          }
         }
       }
     },
@@ -1417,6 +1759,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tối nay"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heute Abend"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Malam ini"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta noite"
           }
         }
       }
@@ -1489,6 +1849,24 @@
             "state": "translated",
             "value": "Thư viện"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliothek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perpustakaan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biblioteca"
+          }
         }
       }
     },
@@ -1559,6 +1937,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tìm kiếm"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cari"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca"
           }
         }
       }
@@ -1631,6 +2027,24 @@
             "state": "translated",
             "value": "Thống kê"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistiken"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistik"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estatísticas"
+          }
         }
       }
     },
@@ -1701,6 +2115,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tối nay"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heute Abend"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Malam ini"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta noite"
           }
         }
       }
@@ -1773,6 +2205,24 @@
             "state": "translated",
             "value": "Đọc tiếp từ nơi bạn đã dừng"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiterlesen, wo Sie aufgehört haben"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lanjutkan dari tempat Anda berhenti"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue de onde parou"
+          }
         }
       }
     },
@@ -1843,6 +2293,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Còn mười lăm trang nữa trong chương này"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch fünfzehn Seiten in diesem Kapitel"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lima belas halaman lagi di bab ini"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faltam quinze páginas neste capítulo"
           }
         }
       }
@@ -1915,6 +2383,24 @@
             "state": "translated",
             "value": "Đã đọc %lld%%"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% gelesen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% terbaca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% lido"
+          }
         }
       }
     },
@@ -1985,6 +2471,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đọc tiếp"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiterlesen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lanjutkan membaca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuar lendo"
           }
         }
       }
@@ -2057,6 +2561,24 @@
             "state": "translated",
             "value": "Trên bàn đầu giường"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf dem Nachttisch"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Di nakas"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Na cabeceira"
+          }
         }
       }
     },
@@ -2127,6 +2649,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tiểu thuyết"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belletristik"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fiksi"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ficção"
           }
         }
       }
@@ -2199,6 +2739,24 @@
             "state": "translated",
             "value": "Tùy bút"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Essays"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esai"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ensaios"
+          }
         }
       }
     },
@@ -2269,6 +2827,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đọc đêm"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachtlektüre"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bacaan malam"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leituras noturnas"
           }
         }
       }
@@ -2341,6 +2917,24 @@
             "state": "translated",
             "value": "Thư viện"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliothek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perpustakaan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biblioteca"
+          }
         }
       }
     },
@@ -2411,6 +3005,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tìm kiếm trong thư viện"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliothek durchsuchen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cari di perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar na sua biblioteca"
           }
         }
       }
@@ -2483,6 +3095,24 @@
             "state": "translated",
             "value": "Đang đọc"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sedang dibaca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lendo"
+          }
         }
       }
     },
@@ -2553,6 +3183,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã xong"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beendet"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selesai"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Concluídos"
           }
         }
       }
@@ -2625,6 +3273,24 @@
             "state": "translated",
             "value": "Muốn đọc"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wunschliste"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daftar keinginan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lista de desejos"
+          }
         }
       }
     },
@@ -2695,6 +3361,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chưa có cuốn sách nào đọc xong. Không cần vội vã."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nichts beendet. Keine Eile."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belum ada yang selesai. Tidak perlu terburu-buru."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada concluído ainda. Sem pressa."
           }
         }
       }
@@ -2767,6 +3451,24 @@
             "state": "translated",
             "value": "Chưa có cuốn sách nào trên bàn đầu giường."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nichts auf dem Nachttisch."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belum ada apa pun di nakas."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada na cabeceira ainda."
+          }
         }
       }
     },
@@ -2837,6 +3539,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không tìm thấy sách phù hợp trong kho sách."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In den Regalen wurde nichts gefunden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak ditemukan apa pun di rak."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada encontrado nas estantes."
           }
         }
       }
@@ -2909,6 +3629,24 @@
             "state": "translated",
             "value": "Chưa có sách ở đây."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nichts hier."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belum ada apa pun di sini."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada por aqui ainda."
+          }
         }
       }
     },
@@ -2979,6 +3717,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chưa có sách ở đây."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nichts hier."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belum ada apa pun di sini."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada por aqui ainda."
           }
         }
       }
@@ -3051,6 +3807,24 @@
             "state": "translated",
             "value": "Không thể mở thư viện."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bibliothek konnte nicht geöffnet werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perpustakaan tidak dapat dibuka."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível abrir a biblioteca."
+          }
         }
       }
     },
@@ -3121,6 +3895,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tìm kiếm"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cari"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca"
           }
         }
       }
@@ -3193,6 +3985,24 @@
             "state": "translated",
             "value": "Tên sách, tác giả"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel, Autoren"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Judul, penulis"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Títulos, autores"
+          }
         }
       }
     },
@@ -3263,6 +4073,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mới thêm gần đây"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kürzlich hinzugefügt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baru ditambahkan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionados recentemente"
           }
         }
       }
@@ -3335,6 +4163,24 @@
             "state": "translated",
             "value": "Đọc sách"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membaca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leitura"
+          }
         }
       }
     },
@@ -3405,6 +4251,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đang đọc"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Arbeit"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sedang dibaca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Em andamento"
           }
         }
       }
@@ -3477,6 +4341,24 @@
             "state": "translated",
             "value": "trang trong tuần này"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seiten in dieser Woche"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "halaman minggu ini"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "páginas nesta semana"
+          }
         }
       }
     },
@@ -3547,6 +4429,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "giờ trong tháng này"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stunden in diesem Monat"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "jam bulan ini"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "horas neste mês"
           }
         }
       }
@@ -3619,6 +4519,24 @@
             "state": "translated",
             "value": "cuốn sách trong năm nay"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bücher in diesem Jahr"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "buku tahun ini"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "livros neste ano"
+          }
         }
       }
     },
@@ -3689,6 +4607,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ giờ rưỡi"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@½"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@½"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@½"
           }
         }
       }
@@ -3761,6 +4697,24 @@
             "state": "translated",
             "value": "nửa giờ"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½"
+          }
         }
       }
     },
@@ -3831,6 +4785,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chưa có cuốn sách nào đang đọc."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nichts in Arbeit."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belum ada yang sedang dibaca."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada em andamento ainda."
           }
         }
       }
@@ -3903,6 +4875,24 @@
             "state": "translated",
             "value": "Mục lục"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inhalt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daftar isi"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Índice"
+          }
         }
       }
     },
@@ -3973,6 +4963,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cuốn sách này không có mục lục."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Buch enthält kein Inhaltsverzeichnis."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buku ini tidak memiliki daftar isi."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este livro não tem índice."
           }
         }
       }
@@ -4045,6 +5053,24 @@
             "state": "translated",
             "value": "Mục lục · %lld%%"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inhalt · %lld%%"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daftar isi · %lld%%"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Índice · %lld%%"
+          }
         }
       }
     },
@@ -4115,6 +5141,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Giao diện & Kiểu chữ"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design & Typografie"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema & jenis huruf"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema e tipografia"
           }
         }
       }
@@ -4187,6 +5231,24 @@
             "state": "translated",
             "value": "Tìm kiếm trong cuốn sách này"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In diesem Buch suchen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cari di buku ini"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar neste livro"
+          }
         }
       }
     },
@@ -4257,6 +5319,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không tìm thấy nội dung trong cuốn sách này."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In diesem Buch wurde nichts gefunden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak ditemukan apa pun di buku ini."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada encontrado neste livro."
           }
         }
       }
@@ -4329,6 +5409,24 @@
             "state": "translated",
             "value": "Đã đánh dấu trang."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen gesetzt."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penanda terpasang."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcador adicionado."
+          }
         }
       }
     },
@@ -4399,6 +5497,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không thể mở liên kết này."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Link konnte nicht geöffnet werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tautan ini tidak dapat dibuka."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível abrir este link."
           }
         }
       }
@@ -4471,6 +5587,24 @@
             "state": "translated",
             "value": "Trang %lld / %lld · %lld%%"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S. %lld von %lld · %lld%%"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hlm. %lld dari %lld · %lld%%"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p. %lld de %lld · %lld%%"
+          }
         }
       }
     },
@@ -4542,6 +5676,24 @@
             "state": "translated",
             "value": "Trang %lld"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S. %lld"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hlm. %lld"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p. %lld"
+          }
         }
       }
     },
@@ -4609,6 +5761,24 @@
           }
         },
         "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
+        },
+        "pt": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld%%"
@@ -4684,6 +5854,24 @@
             "state": "translated",
             "value": "Không thể mở cuốn sách này."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Buch konnte nicht geöffnet werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buku ini tidak dapat dibuka."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível abrir este livro."
+          }
         }
       }
     },
@@ -4754,6 +5942,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Thử lại"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coba lagi"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tentar novamente"
           }
         }
       }
@@ -4826,6 +6032,24 @@
             "state": "translated",
             "value": "Không thể hiển thị trang này."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Seite konnte nicht angezeigt werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Halaman ini tidak dapat ditampilkan."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível mostrar esta página."
+          }
         }
       }
     },
@@ -4896,6 +6120,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chưa có nội dung để đánh dấu trang."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Lesezeichen."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belum ada penanda."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum marcador ainda."
           }
         }
       }
@@ -4968,6 +6210,24 @@
             "state": "translated",
             "value": "Không thể lưu dấu trang."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Lesezeichen konnte nicht gespeichert werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penanda tidak dapat disimpan."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível salvar o marcador."
+          }
         }
       }
     },
@@ -5038,6 +6298,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Menu đọc sách"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesemenü"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menu baca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menu de leitura"
           }
         }
       }
@@ -5110,6 +6388,24 @@
             "state": "translated",
             "value": "Đóng menu đọc sách"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesemenü schließen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tutup menu baca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fechar menu de leitura"
+          }
         }
       }
     },
@@ -5180,6 +6476,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đánh dấu trang"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen setzen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasang penanda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colocar marcador"
           }
         }
       }
@@ -5252,6 +6566,24 @@
             "state": "translated",
             "value": "Thu nhỏ cỡ chữ"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kleinerer Text"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perkecil teks"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diminuir texto"
+          }
         }
       }
     },
@@ -5322,6 +6654,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Phóng to cỡ chữ"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größerer Text"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perbesar teks"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aumentar texto"
           }
         }
       }
@@ -5394,6 +6744,24 @@
             "state": "translated",
             "value": "Độ sáng trang"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenhelligkeit"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kecerahan halaman"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brilho da página"
+          }
         }
       }
     },
@@ -5465,6 +6833,24 @@
             "state": "translated",
             "value": "Chưa tải về"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht heruntergeladen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belum diunduh"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não baixado"
+          }
         }
       }
     },
@@ -5532,6 +6918,24 @@
           }
         },
         "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
+        },
+        "pt": {
           "stringUnit": {
             "state": "translated",
             "value": "%@, %@"
@@ -5607,6 +7011,24 @@
             "state": "translated",
             "value": "Chương %@, %@, trang %lld"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapitel %@, %@, Seite %lld"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bab %@, %@, halaman %lld"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capítulo %@, %@, página %lld"
+          }
         }
       }
     },
@@ -5678,6 +7100,24 @@
             "state": "translated",
             "value": "Chương %@, %@"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapitel %@, %@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bab %@, %@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capítulo %@, %@"
+          }
         }
       }
     },
@@ -5745,6 +7185,24 @@
           }
         },
         "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. %@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. %@"
+          }
+        },
+        "pt": {
           "stringUnit": {
             "state": "translated",
             "value": "%@. %@"
@@ -5820,6 +7278,24 @@
             "state": "translated",
             "value": "Không có kết quả"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Ergebnisse"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak ada hasil"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sem resultados"
+          }
         }
       }
     },
@@ -5890,6 +7366,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hiện hoặc ẩn điều khiển đọc sách"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesesteuerung ein- oder ausblenden"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tampilkan atau sembunyikan kontrol baca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar ou ocultar controles de leitura"
           }
         }
       }
@@ -5962,6 +7456,24 @@
             "state": "translated",
             "value": "Ngày %2$lld %1$@"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld. %1$@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld %1$@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld de %1$@"
+          }
         }
       }
     },
@@ -6033,6 +7545,24 @@
             "state": "translated",
             "value": "Ngày %2$lld %1$@, đã đọc"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld. %1$@, gelesen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld %1$@, dibaca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld de %1$@, lido"
+          }
         }
       }
     },
@@ -6100,6 +7630,24 @@
           }
         },
         "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@"
+          }
+        },
+        "pt": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ %@"
@@ -6175,6 +7723,24 @@
             "state": "translated",
             "value": "Thêm sách"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bücher hinzufügen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambahkan buku"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar livros"
+          }
         }
       }
     },
@@ -6245,6 +7811,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chưa có cuốn sách nào trên giá"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch nichts im Regal"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belum ada apa pun di rak"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada na estante ainda"
           }
         }
       }
@@ -6317,6 +7901,24 @@
             "state": "translated",
             "value": "Thêm tệp EPUB từ Tệp, iCloud Drive hoặc bất kỳ nơi lưu trữ nào. Inkuna giữ một bản sao riêng, nên tệp gốc vẫn được giữ nguyên vẹn."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fügen Sie ein EPUB aus „Dateien“, iCloud Drive oder von einem anderen Ort hinzu. Inkuna legt eine eigene Kopie an; das Original bleibt, wo es ist."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambahkan EPUB dari File, iCloud Drive, atau tempat buku Anda berada. Inkuna menyimpan salinannya sendiri, jadi file asli tetap di tempatnya."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicione um EPUB de Arquivos, iCloud Drive ou de onde seus livros estiverem. A Inkuna guarda uma cópia própria, então o original fica onde está."
+          }
         }
       }
     },
@@ -6387,6 +7989,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hiện hỗ trợ định dạng EPUB. Truyện tranh và các định dạng khác sẽ sớm ra mắt."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heute EPUB. Comics und mehr folgen."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EPUB hari ini. Komik dan lainnya menyusul."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EPUB hoje. Quadrinhos e mais por vir."
           }
         }
       }
@@ -6459,6 +8079,24 @@
             "state": "translated",
             "value": "Thêm cuốn sách đầu tiên của bạn"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fügen Sie Ihr erstes Buch hinzu"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambahkan buku pertama Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar seu primeiro livro"
+          }
         }
       }
     },
@@ -6529,6 +8167,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Thêm sách vào thư viện"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bücher zur Bibliothek hinzufügen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambahkan buku ke perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar livros à sua biblioteca"
           }
         }
       }
@@ -6601,6 +8257,24 @@
             "state": "translated",
             "value": "Đang thêm vào thư viện"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zur Bibliothek hinzufügen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menambahkan ke perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionando à sua biblioteca"
+          }
         }
       }
     },
@@ -6671,6 +8345,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đang chuẩn bị tệp…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei wird vorbereitet…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menyiapkan berkas…"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparando o arquivo…"
           }
         }
       }
@@ -6743,6 +8435,24 @@
             "state": "translated",
             "value": "Đang sao chép tệp"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei wird kopiert"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menyalin berkas"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiando o arquivo"
+          }
         }
       }
     },
@@ -6813,6 +8523,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đang đọc thông tin sách"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Buch wird gelesen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membaca buku"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lendo o livro"
           }
         }
       }
@@ -6885,6 +8613,24 @@
             "state": "translated",
             "value": "%lld trên %lld"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld von %lld"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld dari %lld"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld de %lld"
+          }
         }
       }
     },
@@ -6955,6 +8701,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hủy"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbrechen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Batal"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar"
           }
         }
       }
@@ -7027,6 +8791,24 @@
             "state": "translated",
             "value": "Đang nhập, %lld trên %lld"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importiere %lld von %lld"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mengimpor, %lld dari %lld"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importando, %lld de %lld"
+          }
         }
       }
     },
@@ -7098,6 +8880,24 @@
             "state": "translated",
             "value": "Xong"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fertig"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selesai"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Concluir"
+          }
         }
       }
     },
@@ -7165,6 +8965,24 @@
           }
         },
         "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "pt": {
           "stringUnit": {
             "state": "translated",
             "value": "OK"
@@ -7240,6 +9058,24 @@
             "state": "translated",
             "value": "Đã dừng nhập sách"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import abgebrochen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impor dihentikan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importação interrompida"
+          }
         }
       }
     },
@@ -7310,6 +9146,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không có cuốn sách nào được thêm"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nichts hinzugefügt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak ada yang ditambahkan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada adicionado"
           }
         }
       }
@@ -7382,6 +9236,24 @@
             "state": "translated",
             "value": "Đã có trong thư viện"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits in Ihrer Bibliothek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sudah ada di perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Já está na sua biblioteca"
+          }
         }
       }
     },
@@ -7452,6 +9324,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã thêm %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ hinzugefügt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ditambahkan %@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionado %@"
           }
         }
       }
@@ -7524,6 +9414,24 @@
             "state": "translated",
             "value": "%@ đã có trong thư viện của bạn"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ ist bereits in Ihrer Bibliothek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sudah ada di perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ já está na sua biblioteca"
+          }
         }
       }
     },
@@ -7594,6 +9502,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không thể thêm %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ konnte nicht hinzugefügt werden"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak dapat menambahkan %@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível adicionar %@"
           }
         }
       }
@@ -7666,6 +9592,24 @@
             "state": "translated",
             "value": "1 cuốn đã có trong thư viện"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 war bereits in Ihrer Bibliothek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 sudah ada di perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 já estava na sua biblioteca"
+          }
         }
       }
     },
@@ -7736,6 +9680,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld cuốn đã có trong thư viện"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld waren bereits in Ihrer Bibliothek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld sudah ada di perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld já estavam na sua biblioteca"
           }
         }
       }
@@ -7808,6 +9770,24 @@
             "state": "translated",
             "value": "1 cuốn không thể thêm"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 konnte nicht hinzugefügt werden"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 tidak dapat ditambahkan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 não pôde ser adicionado"
+          }
         }
       }
     },
@@ -7878,6 +9858,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld cuốn không thể thêm"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld konnten nicht hinzugefügt werden"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld tidak dapat ditambahkan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld não puderam ser adicionados"
           }
         }
       }
@@ -7950,6 +9948,24 @@
             "state": "translated",
             "value": "bạn đã dừng các mục còn lại"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie haben den Rest abgebrochen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anda menghentikan sisanya"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "você interrompeu o restante"
+          }
         }
       }
     },
@@ -8020,6 +10036,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã thêm"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinzugefügt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ditambahkan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionados"
           }
         }
       }
@@ -8092,6 +10126,24 @@
             "state": "translated",
             "value": "Đã có trong thư viện"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits in Ihrer Bibliothek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sudah ada di perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Já está na sua biblioteca"
+          }
         }
       }
     },
@@ -8162,6 +10214,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không thể thêm"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht hinzugefügt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak ditambahkan"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não adicionados"
           }
         }
       }
@@ -8234,6 +10304,24 @@
             "state": "translated",
             "value": "Tác giả chưa rõ"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbekannter Autor"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penulis tidak dikenal"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autor desconhecido"
+          }
         }
       }
     },
@@ -8304,6 +10392,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tệp này"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datei"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berkas ini"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este arquivo"
           }
         }
       }
@@ -8376,6 +10482,24 @@
             "state": "translated",
             "value": "Đã thêm vào thư viện"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu Ihrer Bibliothek hinzugefügt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ditambahkan ke perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionado à sua biblioteca"
+          }
         }
       }
     },
@@ -8446,6 +10570,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã có trong thư viện"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits in Ihrer Bibliothek"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sudah ada di perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Já está na sua biblioteca"
           }
         }
       }
@@ -8518,6 +10660,24 @@
             "state": "translated",
             "value": "Tệp định dạng %@ chưa được hỗ trợ — Inkuna hiện hỗ trợ định dạng EPUB."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@-Dateien werden noch nicht unterstützt – Inkuna liest derzeit EPUB."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berkas %@ belum didukung — Inkuna membaca EPUB saat ini."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arquivos %@ ainda não são suportados — a Inkuna lê EPUB atualmente."
+          }
         }
       }
     },
@@ -8588,6 +10748,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inkuna không nhận dạng được định dạng tệp sách này."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ist keine Buchdatei, die Inkuna erkennt."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ini bukan berkas buku yang dikenali Inkuna."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este não é um arquivo de livro que a Inkuna reconhece."
           }
         }
       }
@@ -8660,6 +10838,24 @@
             "state": "translated",
             "value": "Inkuna không nhận dạng được định dạng tệp này"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna konnte nicht erkennen, um welche Datei es sich handelt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna tidak dapat mengenali jenis berkas ini"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Inkuna não conseguiu identificar este arquivo"
+          }
         }
       }
     },
@@ -8730,6 +10926,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tệp EPUB này thiếu dữ liệu cần thiết để đọc."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diesem EPUB fehlt etwas, das Inkuna zum Lesen benötigt."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EPUB ini kekurangan sesuatu yang dibutuhkan Inkuna untuk membacanya."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este EPUB está faltando algo que a Inkuna precisa para lê-lo."
           }
         }
       }
@@ -8802,6 +11016,24 @@
             "state": "translated",
             "value": "Tệp bị hỏng và không thể mở được."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei ist beschädigt und konnte nicht geöffnet werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berkas rusak dan tidak dapat dibuka."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O arquivo está danificado e não pôde ser aberto."
+          }
         }
       }
     },
@@ -8872,6 +11104,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tệp này quá lớn để Inkuna có thể thêm vào."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datei ist zu groß, um sie zu Inkuna hinzuzufügen."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berkas ini terlalu besar untuk ditambahkan ke Inkuna."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este arquivo é grande demais para a Inkuna adicionar."
           }
         }
       }
@@ -8944,6 +11194,24 @@
             "state": "translated",
             "value": "Không thể đọc tệp. Vui lòng kiểm tra tệp còn tồn tại và thiết bị còn đủ dung lượng."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei konnte nicht gelesen werden. Prüfen Sie, ob sie noch verfügbar ist und ob auf diesem Gerät genügend Speicherplatz vorhanden ist."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berkas tidak dapat dibaca. Periksa apakah berkas masih tersedia dan perangkat ini memiliki ruang penyimpanan."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível ler o arquivo. Verifique se ele ainda está disponível e se este dispositivo tem espaço."
+          }
         }
       }
     },
@@ -9014,6 +11282,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không thể đọc tệp này."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datei konnte nicht gelesen werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berkas ini tidak dapat dibaca."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível ler este arquivo."
           }
         }
       }
@@ -9086,6 +11372,24 @@
             "state": "translated",
             "value": "Không thể ghi dữ liệu vào thư viện."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Ihre Bibliothek konnte nicht geschrieben werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak dapat menulis ke perpustakaan Anda."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível gravar na sua biblioteca."
+          }
         }
       }
     },
@@ -9156,6 +11460,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sách bị mất khỏi thư viện trong lúc đang nhập."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Buch ist während des Imports aus der Bibliothek verschwunden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buku hilang dari perpustakaan saat proses impor."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O livro sumiu da biblioteca no meio da importação."
           }
         }
       }
@@ -9228,6 +11550,24 @@
             "state": "translated",
             "value": "Không thể mở thư viện nên không có sách nào được thêm."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Bibliothek ließ sich nicht öffnen, daher wurde nichts hinzugefügt."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perpustakaan Anda tidak dapat dibuka, jadi tidak ada yang ditambahkan."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua biblioteca não abriu, então nada foi adicionado."
+          }
         }
       }
     },
@@ -9298,6 +11638,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã xảy ra lỗi: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etwas ist schiefgelaufen: %@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terjadi kesalahan: %@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo deu errado: %@"
           }
         }
       }
@@ -9370,6 +11728,24 @@
             "state": "translated",
             "value": "Văn bản thuần túy"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiner Text"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teks biasa"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto simples"
+          }
         }
       }
     },
@@ -9441,6 +11817,24 @@
             "state": "translated",
             "value": "Truyện tranh CBZ"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CBZ-Comic"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komik CBZ"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quadrinho CBZ"
+          }
         }
       }
     },
@@ -9511,6 +11905,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Truyện tranh CBR"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CBR-Comic"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komik CBR"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quadrinho CBR"
           }
         }
       }
@@ -9687,6 +12099,54 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "%lld buổi tối đọc sách trong tháng này."
+                }
+              }
+            }
+          }
+        },
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Ein Abend mit einem Buch in diesem Monat."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Abende mit einem Buch in diesem Monat."
+                }
+              }
+            }
+          }
+        },
+        "id": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld malam membaca buku bulan ini."
+                }
+              }
+            }
+          }
+        },
+        "pt": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Uma noite com um livro neste mês."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld noites com um livro neste mês."
                 }
               }
             }
@@ -9870,6 +12330,54 @@
               }
             }
           }
+        },
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Ergebnis"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Ergebnisse"
+                }
+              }
+            }
+          }
+        },
+        "id": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld hasil"
+                }
+              }
+            }
+          }
+        },
+        "pt": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld resultado"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld resultados"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -10045,6 +12553,54 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "Đã thêm %lld cuốn sách"
+                }
+              }
+            }
+          }
+        },
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 Buch hinzugefügt"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Bücher hinzugefügt"
+                }
+              }
+            }
+          }
+        },
+        "id": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld buku ditambahkan"
+                }
+              }
+            }
+          }
+        },
+        "pt": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 livro adicionado"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld livros adicionados"
                 }
               }
             }
@@ -10228,6 +12784,54 @@
               }
             }
           }
+        },
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 Buch"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Bücher"
+                }
+              }
+            }
+          }
+        },
+        "id": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld buku"
+                }
+              }
+            }
+          }
+        },
+        "pt": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 livro"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld livros"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -10300,6 +12904,24 @@
             "state": "translated",
             "value": "Đang thêm vào thư viện"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zur Bibliothek hinzufügen"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menambahkan ke perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionando à sua biblioteca"
+          }
         }
       }
     },
@@ -10371,6 +12993,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đang thêm %@ vào thư viện"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wird zu Ihrer Bibliothek hinzugefügt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menambahkan %@ ke perpustakaan Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionando %@ à sua biblioteca"
           }
         }
       }
