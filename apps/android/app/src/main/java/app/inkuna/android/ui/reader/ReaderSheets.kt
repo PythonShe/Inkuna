@@ -127,7 +127,6 @@ fun ThemeTypeSheet(
     onDismiss: () -> Unit,
 ) {
     val ink = InkTheme.colors
-    val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     val sheetState = rememberModalBottomSheetState()
     val dismiss = rememberSheetDismiss(sheetState, onDismiss)
@@ -163,21 +162,21 @@ fun ThemeTypeSheet(
                 step = snapshot.textSizeStep,
                 onStep = { newStep ->
                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    scope.launch { settings.setTextSizeStep(newStep) }
+                    settings.setTextSizeStep(newStep)
                 },
             )
             Spacer(Modifier.height(14.dp))
             BrightnessRow(
                 brightness = snapshot.brightness,
                 onPreview = onBrightnessPreview,
-                onCommit = { value -> scope.launch { settings.setBrightness(value) } },
+                onCommit = { value -> settings.setBrightness(value) },
             )
             Spacer(Modifier.height(InkSpace.s4))
             ThemeGrid(
                 selected = snapshot.readingTheme,
                 onPick = { theme ->
                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    scope.launch { settings.setReadingTheme(theme) }
+                    settings.setReadingTheme(theme)
                 },
             )
         }

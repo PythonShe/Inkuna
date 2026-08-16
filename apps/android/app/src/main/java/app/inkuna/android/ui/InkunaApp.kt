@@ -11,15 +11,14 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
-import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -33,7 +32,6 @@ import app.inkuna.android.ui.onboarding.WelcomeScreen
 import app.inkuna.android.ui.reader.ReaderScreen
 import app.inkuna.android.ui.theme.InkMotion
 import app.inkuna.android.ui.theme.InkTheme
-import kotlinx.coroutines.launch
 
 private object Routes {
     const val WELCOME = "welcome"
@@ -77,7 +75,6 @@ private fun NavHostController.openReader(publicationId: String, chapterHref: Str
 @Composable
 fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
     val snapshot by settings.snapshot.collectAsState(initial)
-    val scope = rememberCoroutineScope()
     val night = snapshot.readingTheme.isNight
 
     // Keep the system bars and the per-app night qualifier (launch window
@@ -85,7 +82,7 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
     // system dark mode; the reading surface decides.
     val view = LocalView.current
     val context = LocalContext.current
-    androidx.compose.runtime.LaunchedEffect(night) {
+    LaunchedEffect(night) {
         (view.context as? Activity)?.window?.let { window ->
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !night
@@ -133,9 +130,9 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
             composable(Routes.THEME_PICK) {
                 ThemePickScreen(
                     selectedTheme = snapshot.readingTheme,
-                    onPick = { theme -> scope.launch { settings.setReadingTheme(theme) } },
+                    onPick = { theme -> settings.setReadingTheme(theme) },
                     onContinue = {
-                        scope.launch { settings.setOnboarded(true) }
+                        settings.setOnboarded(true)
                         nav.navigate(Routes.MAIN) {
                             popUpTo(Routes.WELCOME) { inclusive = true }
                             launchSingleTop = true

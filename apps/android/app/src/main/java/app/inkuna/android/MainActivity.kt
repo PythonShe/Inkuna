@@ -2,18 +2,14 @@ package app.inkuna.android
 
 import android.app.UiModeManager
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import app.inkuna.android.model.AppSettings
-import app.inkuna.android.model.LibraryStore
 import app.inkuna.android.ui.InkunaApp
 import app.inkuna.android.ui.reader.READER_NAVIGATOR_FRAGMENT_TAG
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 
 // A FragmentActivity because Readium's EPUB navigator is a Fragment; the
@@ -31,28 +27,27 @@ class MainActivity : FragmentActivity() {
             supportFragmentManager.beginTransaction().remove(restored).commitNow()
         }
         enableEdgeToEdge()
-        val settings = AppSettings(applicationContext)
-        // One blocking read so the first frame renders the right theme and
-        // start destination — the stand-in for iOS's synchronous defaults.
-        // AppSettings.snapshot swallows IO/corruption, so this cannot throw.
-        val initial = runBlocking { settings.snapshot.first() }
-        // Stamp the per-app night qualifier before anything composes: on a
-        // first run there is none yet, so the launch window would otherwise
-        // follow system dark mode and flash the wrong ground.
-        getSystemService(UiModeManager::class.java)?.setApplicationNightMode(
-            if (initial.readingTheme.isNight) UiModeManager.MODE_NIGHT_YES
-            else UiModeManager.MODE_NIGHT_NO
-        )
-        // Warm the core library off the main thread — opening runs schema
-        // migrations and an orphaned-file sweep synchronously. Failure is
-        // recoverable, not fatal: nothing is cached on error, so the first
-        // screen that needs the shelf retries and surfaces it.
+        val settings = AppSettings.get(applicationContext)
+        // Settings live in the core's database now, and opening it runs
+        // schema migrations and an orphaned-file sweep synchronously — so
+        // the load happens off the main thread while the launch window
+        // holds, the same way iOS holds its launch screen. The first frame
+        // then renders the right theme and start destination, and the core
+        // library is already warm. Load failure is recoverable, not fatal:
+        // it falls back to defaults, and the first screen that needs the
+        // shelf retries and surfaces the error.
         lifecycleScope.launch {
-            runCatching { LibraryStore.bookshelf(applicationContext) }
-                .onFailure { Log.w("Inkuna", "core library warm-up failed", it) }
-        }
-        setContent {
-            InkunaApp(settings = settings, initial = initial)
+            val initial = settings.load()
+            // Stamp the per-app night qualifier before anything composes:
+            // on a first run there is none yet, so the launch window would
+            // otherwise follow system dark mode and flash the wrong ground.
+            getSystemService(UiModeManager::class.java)?.setApplicationNightMode(
+                if (initial.readingTheme.isNight) UiModeManager.MODE_NIGHT_YES
+                else UiModeManager.MODE_NIGHT_NO
+            )
+            setContent {
+                InkunaApp(settings = settings, initial = initial)
+            }
         }
     }
 }
