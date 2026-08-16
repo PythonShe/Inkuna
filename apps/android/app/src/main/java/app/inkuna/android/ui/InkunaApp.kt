@@ -121,12 +121,14 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
         // Bookshelf queries and each row carries its own publication.
         var continueReading by remember { mutableStateOf<CorePublication?>(null) }
         val navEntry by nav.currentBackStackEntryAsState()
+        // Only a *successful* query moves the hero: an emptied library must
+        // clear it, while a load that threw keeps whatever was there.
         LaunchedEffect(navEntry) {
-            continueReading = runCatching {
+            runCatching {
                 LibraryStore.bookshelf(context)
-                    .list(Shelf.ALL, Sort.RECENTLY_OPENED)
+                    .list(Shelf.UNFINISHED, Sort.RECENTLY_OPENED)
                     .firstOrNull()
-            }.getOrNull() ?: continueReading
+            }.onSuccess { continueReading = it }
         }
         NavHost(
             navController = nav,

@@ -8,7 +8,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import app.inkuna.android.model.AppSettings
-import app.inkuna.android.model.DebugFixtures
 import app.inkuna.android.model.LibraryStore
 import app.inkuna.android.ui.InkunaApp
 import app.inkuna.android.ui.reader.READER_NAVIGATOR_FRAGMENT_TAG
@@ -51,10 +50,8 @@ class MainActivity : FragmentActivity() {
         // TODO(core): feed the library/tonight/stats screens from the
         // Bookshelf; PlaceholderLibrary stands in until then.
         lifecycleScope.launch {
-            runCatching {
-                LibraryStore.bookshelf(applicationContext)
-                DebugFixtures.importPending(applicationContext)
-            }.onFailure { Log.w("Inkuna", "core library warm-up failed", it) }
+            runCatching { LibraryStore.bookshelf(applicationContext) }
+                .onFailure { Log.w("Inkuna", "core library warm-up failed", it) }
         }
         setContent {
             InkunaApp(settings = settings, initial = initial)

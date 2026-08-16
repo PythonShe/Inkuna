@@ -1,6 +1,7 @@
 package app.inkuna.android.ui.library
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.inkuna.android.model.LibraryStore
@@ -128,7 +129,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 throw cancellation
             } catch (failure: Throwable) {
                 // A library that will not open is worth saying plainly
-                // rather than showing as an empty shelf.
+                // rather than showing as an empty shelf — and worth logging,
+                // so the cause is not lost behind the message.
+                Log.e(TAG, "The library would not open", failure)
                 _state.value = _state.value.copy(
                     rows = emptyList(),
                     emptiness = LibraryEmptiness.Shelf(LibraryEmptiness.Shelf.Kind.Unopenable),
@@ -148,6 +151,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     )
 
     private companion object {
+        const val TAG = "InkunaLibrary"
+
         // TODO(l10n): move to strings.xml with the rest of the l10n pass.
         const val UNKNOWN_AUTHOR = "Unknown author"
 
