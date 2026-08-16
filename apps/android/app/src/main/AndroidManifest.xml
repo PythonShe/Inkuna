@@ -50,9 +50,12 @@
 
             <!--
               The same book by extension, for providers that hand over
-              application/octet-stream. A filter that declares a mimeType
-              only ever matches a *typed* intent, so an untyped one is out
-              of reach here by design. host/pathPattern filters need a
+              application/octet-stream. The declared mimeType is matched
+              against the *resolved* type — the sender's explicit type, or
+              what the resolver infers from the provider's getType() /
+              the file extension — so a sender-untyped intent can still
+              land here when it resolves to octet-stream; one that resolves
+              to no type at all matches nothing. host/pathPattern filters need a
               scheme and a host wildcard to match at all; the case
               permutations are what Android requires, its pathPattern being
               case-sensitive and without alternation. The core detects

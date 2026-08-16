@@ -64,7 +64,13 @@ class ImportIntentActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         delivery = savedInstanceState?.getInt(STATE_DELIVERY, 0) ?: 0
-        incoming = urisFrom(intent)
+        // The URIs are restored alongside the counter: `setIntent` never
+        // reaches the relaunch record, so after a rotation `getIntent()`
+        // replays the FIRST delivery — trusting it would re-import that one
+        // under the newest delivery's number.
+        incoming = savedInstanceState
+            ?.getParcelableArrayList(STATE_URIS, Uri::class.java)
+            ?: urisFrom(intent)
         if (incoming.isEmpty()) {
             finish()
             return
@@ -85,11 +91,16 @@ class ImportIntentActivity : ComponentActivity() {
                                 // NEW_TASK so the library comes up in
                                 // Inkuna's own task rather than on top of
                                 // the caller's (Files, Gmail) back stack.
+                                // SINGLE_TOP because CLEAR_TOP alone would
+                                // finish and recreate a standard-launch
+                                // MainActivity — tearing down an open
+                                // reader — instead of onNewIntent-ing it.
                                 startActivity(
                                     Intent(this@ImportIntentActivity, MainActivity::class.java)
                                         .addFlags(
                                             Intent.FLAG_ACTIVITY_NEW_TASK or
-                                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                                Intent.FLAG_ACTIVITY_SINGLE_TOP
                                         )
                                 )
                             }
@@ -117,14 +128,21 @@ class ImportIntentActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putInt(STATE_DELIVERY, delivery)
+        outState.putParcelableArrayList(STATE_URIS, ArrayList(incoming))
     }
 
+    /**
+     * Only `content:` URIs are accepted. `EXTRA_STREAM` is a plain extra —
+     * StrictMode's file-URI check never sees it — so any installed app
+     * could otherwise hand this exported activity a `file:///data/user/0/…`
+     * path into our own sandbox and have it opened under our uid.
+     */
     private fun urisFrom(intent: Intent?): List<Uri> = when (intent?.action) {
         Intent.ACTION_VIEW -> listOfNotNull(intent.data)
         Intent.ACTION_SEND -> listOfNotNull(intent.streamExtra())
         Intent.ACTION_SEND_MULTIPLE -> intent.streamExtras()
         else -> emptyList()
-    }
+    }.filter { it.scheme == "content" }
 
     // minSdk 33 is Tiramisu, so the typed Parcelable getters are the only
     // ones needed — no deprecated fallback.
@@ -135,6 +153,7 @@ class ImportIntentActivity : ComponentActivity() {
 
     private companion object {
         const val STATE_DELIVERY = "inkuna.import.delivery"
+        const val STATE_URIS = "inkuna.import.uris"
     }
 }
 
@@ -156,11 +175,14 @@ private fun InboundImport(
     // rotation mid-import must not start the run a second time, while the
     // same book sent again — a new delivery — must.
     val selectionKey = "$delivery:" + uris.joinToString("|")
-    var startedFor by rememberSaveable { mutableStateOf<String?>(null) }
+    var started by rememberSaveable(selectionKey) { mutableStateOf(false) }
     LaunchedEffect(selectionKey) {
-        if (startedFor != selectionKey) {
-            startedFor = selectionKey
-            ImportEngine.start(context, uris)
+        // An in-app run may already be live. Waiting for Idle and asking
+        // again — instead of dropping the delivery — is what keeps this
+        // window from presenting a stranger's report as this book's.
+        while (!started) {
+            ImportEngine.state.first { it is ImportState.Idle }
+            started = ImportEngine.start(context, uris)
         }
     }
 
@@ -170,7 +192,10 @@ private fun InboundImport(
         onCancel = ImportEngine::cancel,
         onDismiss = {
             ImportEngine.dismiss()
-            onDone(report?.changedLibrary == true)
+            // Leaving is only right once OUR run's report was the one shown;
+            // dismissing the earlier run's report merely frees the engine
+            // for the waiting delivery above.
+            if (started) onDone(report?.changedLibrary == true)
         },
     )
 }

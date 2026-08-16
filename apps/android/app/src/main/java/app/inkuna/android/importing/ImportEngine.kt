@@ -88,16 +88,20 @@ object ImportEngine {
     val isRunning: Boolean get() = runJob?.isActive == true
 
     /**
-     * Starts importing [uris]. A second call while a run is live is ignored
+     * Starts importing [uris]. A second call while a run is live is refused
      * rather than queued — the sheet blocks the trigger, and silently
-     * stacking runs would make the progress count lie.
+     * stacking runs would make the progress count lie. The return value
+     * says whether THIS selection is now running: a caller whose delivery
+     * was refused must wait for [ImportState.Idle] and ask again, not
+     * present the live run's report as its own.
      */
     @Synchronized
-    fun start(context: Context, uris: List<Uri>) {
-        if (uris.isEmpty()) return
-        if (isRunning) return
+    fun start(context: Context, uris: List<Uri>): Boolean {
+        if (uris.isEmpty()) return false
+        if (isRunning) return false
         val appContext = context.applicationContext
         runJob = LibraryStore.writes.launch { execute(appContext, uris) }
+        return true
     }
 
     /** Cancels the live run; the partial report still surfaces. */
