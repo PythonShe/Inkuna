@@ -10,21 +10,27 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     ) {
         guard let windowScene = scene as? UIWindowScene else { return }
         let window = UIWindow(windowScene: windowScene)
-        let settings = AppSettings.shared
-        // The in-app day/night side follows the reading theme, not the
-        // system appearance.
-        window.overrideUserInterfaceStyle = settings.readingTheme.isNight ? .dark : .light
-        window.rootViewController = settings.hasCompletedOnboarding
-            ? MainTabBarController()
-            : RootNavigationController(rootViewController: WelcomeViewController())
-        window.makeKeyAndVisible()
         self.window = window
-        #if DEBUG
-        debugRoute()
-        #endif
-        // A book handed to us while the app was not running ("Open with
-        // Inkuna" from Files, Mail, Safari, a share sheet) arrives here.
-        openIncomingDocuments(connectionOptions.urlContexts, in: scene)
+        // Settings live in the core; the launch screen holds for the one
+        // local read before the first frame commits.
+        let urlContexts = connectionOptions.urlContexts
+        Task { @MainActor in
+            await AppSettings.shared.load()
+            let settings = AppSettings.shared
+            // The in-app day/night side follows the reading theme, not the
+            // system appearance.
+            window.overrideUserInterfaceStyle = settings.readingTheme.isNight ? .dark : .light
+            window.rootViewController = settings.hasCompletedOnboarding
+                ? MainTabBarController()
+                : RootNavigationController(rootViewController: WelcomeViewController())
+            window.makeKeyAndVisible()
+            #if DEBUG
+            self.debugRoute()
+            #endif
+            // A book handed to us while the app was not running ("Open with
+            // Inkuna" from Files, Mail, Safari, a share sheet) arrives here.
+            self.openIncomingDocuments(urlContexts, in: scene)
+        }
     }
 
     /// The same books, when the app is already running.
