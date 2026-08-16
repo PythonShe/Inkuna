@@ -31,6 +31,13 @@ final class ImportProgressOverlay: UIView {
     private var revealTask: Task<Void, Never>?
     private var shownAt: ContinuousClock.Instant?
 
+    /// The caller waiting on ``dismiss()``. Non-nil only while the fade is
+    /// in flight, which is also the single-resume guard: whoever gets here
+    /// first — the animator or its fallback — takes it and leaves nil.
+    private var dismissContinuation: CheckedContinuation<Void, Never>?
+    /// Belt to the animator's braces; cancelled by whichever finishes first.
+    private var dismissFallback: Task<Void, Never>?
+
     init(total: Int, onCancel: (@MainActor () -> Void)? = nil) {
         self.total = total
         self.onCancel = onCancel
@@ -91,17 +98,35 @@ final class ImportProgressOverlay: UIView {
         }
         spinner.stopAnimating()
         await withCheckedContinuation { continuation in
+            dismissContinuation = continuation
             let animator = InkMotion.quietAnimator(duration: InkMotion.fast)
             animator.addAnimations {
                 self.alpha = 0
                 self.card.transform = CGAffineTransform(scaleX: 0.98, y: 0.98)
             }
             animator.addCompletion { _ in
-                self.removeFromSuperview()
-                continuation.resume()
+                self.finishDismissal()
             }
             animator.startAnimation()
+            // An animation completion that never fires would strand the
+            // import flow's serialized chain — every later import would wait
+            // on it forever behind a scrim that keeps eating touches. The
+            // fade is 200ms-ish; well past that, the overlay leaves anyway.
+            dismissFallback = Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                self.finishDismissal()
+            }
         }
+    }
+
+    /// Ends the dismissal exactly once, whichever path gets here first.
+    private func finishDismissal() {
+        dismissFallback?.cancel()
+        dismissFallback = nil
+        guard let continuation = dismissContinuation else { return }
+        dismissContinuation = nil
+        removeFromSuperview()
+        continuation.resume()
     }
 
     // MARK: State

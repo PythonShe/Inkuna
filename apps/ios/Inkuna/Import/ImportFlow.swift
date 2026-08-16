@@ -109,7 +109,13 @@ final class ImportFlow: NSObject {
             .windows
             .first(where: \.isKeyWindow)
             ?? (scene as? UIWindowScene)?.windows.first
-        var controller = window?.rootViewController
+        return topmost(from: window?.rootViewController)
+    }
+
+    /// Walks a presentation stack to its tip — the only controller UIKit
+    /// will let anything be presented from.
+    static func topmost(from controller: UIViewController?) -> UIViewController? {
+        var controller = controller
         while let presented = controller?.presentedViewController {
             controller = presented
         }
@@ -180,7 +186,7 @@ final class ImportFlow: NSObject {
             NotificationCenter.default.post(name: .inkunaLibraryDidChange, object: nil)
         }
         await Self.waitUntilPresentable(presenter)
-        ImportFeedback.present(report, from: presenter)
+        ImportFeedback.present(report, from: Self.feedbackTarget(for: presenter))
         finish(report)
     }
 
@@ -199,6 +205,24 @@ final class ImportFlow: NSObject {
         }
     }
 
+    /// Where a finished import's report belongs.
+    ///
+    /// ``waitUntilPresentable(_:)`` is bounded, so the wait can end with the
+    /// presenter still busy — and UIKit refuses to present over a controller
+    /// that already has something modal up, which would drop the summary and
+    /// float the toast behind the sheet. Re-resolve the tip of the stack
+    /// instead, starting from the scene's key window when the presenter has
+    /// left the screen entirely (the reader switched tabs mid-import).
+    private static func feedbackTarget(for presenter: UIViewController) -> UIViewController {
+        guard presenter.viewIfLoaded?.window != nil else {
+            let scene = UIApplication.shared.connectedScenes
+                .first { $0.activationState == .foregroundActive }
+                ?? UIApplication.shared.connectedScenes.first
+            return Self.presenter(in: scene) ?? presenter
+        }
+        return topmost(from: presenter) ?? presenter
+    }
+
     /// Deletes inbound copies iOS made for us, and only those: anything
     /// outside our own container belongs to the reader.
     private static func consume(_ urls: [URL]) {
@@ -208,8 +232,13 @@ final class ImportFlow: NSObject {
             appropriateFor: nil,
             create: false
         ) else { return }
-        let inbox = documents.appending(path: "Inbox", directoryHint: .isDirectory).standardizedFileURL
-        for url in urls where url.standardizedFileURL.path.hasPrefix(inbox.path + "/") {
+        // Symlinks resolved on both sides: the container's documents URL is
+        // `/var/...` while inbound document URLs arrive as `/private/var/...`
+        // (or the reverse), and a bare prefix test on those never matches —
+        // the Inbox would fill up with copies nobody ever deletes. The
+        // trailing slash keeps a sibling like `Inbox-old` out of the test.
+        let inbox = documents.appending(path: "Inbox", directoryHint: .isDirectory).resolvingSymlinksInPath()
+        for url in urls where url.resolvingSymlinksInPath().path.hasPrefix(inbox.path + "/") {
             try? FileManager.default.removeItem(at: url)
         }
     }
