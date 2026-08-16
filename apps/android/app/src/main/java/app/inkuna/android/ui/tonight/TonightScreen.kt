@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import app.inkuna.android.R
 import app.inkuna.android.model.PlaceholderBook
 import app.inkuna.android.model.PlaceholderLibrary
+import app.inkuna.android.model.coverSeed
 import app.inkuna.core.Publication as CorePublication
 import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.components.InkButton
@@ -47,6 +48,7 @@ import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
+import kotlin.math.roundToInt
 
 @Composable
 fun TonightScreen(
@@ -64,7 +66,7 @@ fun TonightScreen(
         DisplayTitle(stringResource(R.string.tonight_title))
         Spacer(Modifier.height(28.dp))
         HeroCard(
-            book = PlaceholderLibrary.heroBook,
+            placeholder = PlaceholderLibrary.heroBook,
             onOpenBook = onOpenBook,
             continueReading = continueReading,
             onOpenReader = onOpenReader,
@@ -86,18 +88,47 @@ fun TonightScreen(
     }
 }
 
-// TODO(core): the hero card's cover, title, and progress still render the
-// placeholder book; only the "Keep reading" affordance is core-backed. The
-// library wiring workstream replaces the visuals with `continueReading`.
+/**
+ * The card shows the book it opens: whatever the core hands back as the
+ * most recently read publication, down to its cover colour. [placeholder]
+ * is the design's stand-in book, rendered only while the library is empty
+ * and there is nothing to continue.
+ */
 @Composable
 private fun HeroCard(
-    book: PlaceholderBook,
+    placeholder: PlaceholderBook,
     onOpenBook: (PlaceholderBook) -> Unit,
     continueReading: CorePublication?,
     onOpenReader: (CorePublication) -> Unit,
 ) {
     val ink = InkTheme.colors
-    val titleLabel = stringResource(R.string.a11y_book_row, book.title, book.author)
+    val unknownAuthor = stringResource(R.string.unknown_author)
+    val title = continueReading?.title ?: placeholder.title
+    val author = if (continueReading != null) {
+        continueReading.authors.joinToString(", ").ifEmpty { unknownAuthor }
+    } else {
+        placeholder.author
+    }
+    // Rounded like the library rows and iOS, so one book never reads 1% here
+    // and 2% a tab away.
+    val progress = continueReading
+        ?.let { (it.progression * 100).roundToInt().coerceIn(0, 100) }
+        ?: placeholder.progress
+    val seed = continueReading?.let { coverSeed(it.id) } ?: placeholder.coverSeed
+    // TODO(core): "pages left in this chapter" needs a chapter's position
+    // range, which the core does not expose yet. Real progress beats an
+    // invented page count, so the fraction stands in for it.
+    val caption = if (continueReading != null) {
+        stringResource(R.string.tonight_percent_read, progress)
+    } else {
+        stringResource(R.string.tonight_pages_left)
+    }
+    val open: () -> Unit = if (continueReading != null) {
+        { onOpenReader(continueReading) }
+    } else {
+        { onOpenBook(placeholder) }
+    }
+    val titleLabel = stringResource(R.string.a11y_book_row, title, author)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -109,46 +140,46 @@ private fun HeroCard(
         verticalAlignment = Alignment.Bottom,
     ) {
         BookCover(
-            title = book.title,
-            author = book.author,
+            title = title,
+            author = author,
             width = 96.dp,
-            seed = book.coverSeed,
-            modifier = Modifier.clickable { onOpenBook(book) },
+            seed = seed,
+            modifier = Modifier.clickable(onClick = open),
         )
         Column(Modifier.weight(1f).padding(bottom = 4.dp)) {
             // The card is deliberately not one accessibility element — the
             // inner button must stay reachable; the title carries the
             // detail affordance instead.
             Text(
-                book.title,
+                title,
                 style = InkType.heading,
                 color = ink.textDisplay,
                 modifier = Modifier
-                    .clickable { onOpenBook(book) }
+                    .clickable(onClick = open)
                     .semantics {
                         contentDescription = titleLabel
                         role = Role.Button
                     },
             )
             Text(
-                book.author,
+                author,
                 style = InkType.label.copy(fontWeight = FontWeight.Normal),
                 color = ink.textSecondary,
                 modifier = Modifier.padding(top = 3.dp),
             )
             Spacer(Modifier.height(14.dp))
-            InkProgressBar(book.progress, Modifier.fillMaxWidth())
+            InkProgressBar(progress, Modifier.fillMaxWidth())
             Spacer(Modifier.height(InkSpace.s2))
             Text(
-                stringResource(R.string.tonight_pages_left),
+                caption,
                 style = InkType.caption,
                 color = ink.textTertiary,
             )
             Spacer(Modifier.height(14.dp))
             InkButton(
                 text = stringResource(R.string.tonight_keep_reading),
-                // Reading needs a real book: until an import UI exists the
-                // library can be empty, and then there is nothing to open.
+                // Reading needs a real book, and the library can still be
+                // empty — a fresh install, or every book removed again.
                 onClick = { continueReading?.let(onOpenReader) },
                 size = InkButtonSize.Small,
                 icon = Icons.Outlined.AutoStories,

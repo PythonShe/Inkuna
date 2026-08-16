@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.inkuna.android.model.LibraryStore
+import app.inkuna.android.model.coverSeed
 import app.inkuna.core.Publication
 import app.inkuna.core.Shelf
 import app.inkuna.core.Sort
@@ -166,24 +167,5 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
         // TODO(l10n): move to strings.xml with the rest of the l10n pass.
         const val UNKNOWN_AUTHOR = "Unknown author"
-
-        /**
-         * A stable per-book seed for the generated cover.
-         *
-         * Deliberately not [String.hashCode]: FNV-1a keeps the colour of a
-         * book identical across processes and platforms.
-         *
-         * TODO(core): the core already extracts real cover art into
-         * `Publication.coverPath`; render it once `BookCover` accepts an
-         * image and falls back to the generated cover.
-         */
-        fun coverSeed(id: String): Int {
-            var hash = -0x340d631b7bdddcdbL // FNV-1a 64-bit offset basis
-            for (byte in id.toByteArray()) {
-                hash = hash xor (byte.toLong() and 0xff)
-                hash *= 0x100000001b3L
-            }
-            return (hash ushr 1).toInt() and Int.MAX_VALUE
-        }
     }
 }

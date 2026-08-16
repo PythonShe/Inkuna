@@ -31,6 +31,7 @@
     <string name="tonight_eyebrow">Tonight</string>
     <string name="tonight_title">Pick up where you left off</string>
     <string name="tonight_pages_left">Fifteen pages left in this chapter</string>
+    <string name="tonight_percent_read">%1$d%% read</string>
     <string name="tonight_keep_reading">Keep reading</string>
     <string name="tonight_nightstand">On the nightstand</string>
     <string name="tonight_chip_fiction">Fiction</string>
@@ -49,6 +50,7 @@
     <string name="library_empty_reading">Nothing here yet.</string>
     <string name="library_empty_all">Nothing here yet.</string>
     <string name="library_unopenable">The library couldn\'t be opened.</string>
+    <string name="unknown_author">Unknown author</string>
 
     <!-- Search -->
     <string name="search_title">Search</string>
