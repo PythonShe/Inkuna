@@ -113,10 +113,12 @@ final class ImportFlow: NSObject {
     }
 
     /// Walks a presentation stack to its tip — the only controller UIKit
-    /// will let anything be presented from.
+    /// will let anything be presented from. A tip that is already on its
+    /// way out is not a home: feedback attached to it would leave with it,
+    /// so the walk stops at its presenter instead.
     static func topmost(from controller: UIViewController?) -> UIViewController? {
         var controller = controller
-        while let presented = controller?.presentedViewController {
+        while let presented = controller?.presentedViewController, !presented.isBeingDismissed {
             controller = presented
         }
         return controller

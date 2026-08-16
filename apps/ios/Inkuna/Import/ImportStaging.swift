@@ -24,6 +24,16 @@ import Foundation
 ///
 /// Nothing here touches the main thread; call it from a detached task.
 enum ImportStaging {
+    /// The core's import ceiling, mirrored here so the *first* boundary a
+    /// hostile or broken provider crosses is the one that stops it: every
+    /// iOS import stages into Caches before the core sees a byte, and an
+    /// oversized item should be refused before that copy, not after.
+    static let maxImportBytes: UInt64 = 2 * 1024 * 1024 * 1024
+
+    /// The staged item outweighs [`maxImportBytes`]; surfaces per-file as
+    /// the same "too large" outcome the core's own ceiling produces.
+    struct FileTooLarge: Error {}
+
     /// Staging root, under Caches: these files are reconstructible and the
     /// system may reclaim them, which is exactly right for a copy that is
     /// deleted the moment the core has taken its own.
@@ -63,6 +73,15 @@ enum ImportStaging {
             error: &coordinationError
         ) { readable in
             do {
+                // Checked on the materialized item, after coordination has
+                // pulled a cloud placeholder down — the provider's claimed
+                // size beforehand is not something to trust. An item that
+                // reports no size passes; the core's own ceiling still
+                // guards the copy it makes.
+                let size = try readable.resourceValues(forKeys: [.fileSizeKey]).fileSize
+                if let size, UInt64(size) > Self.maxImportBytes {
+                    throw FileTooLarge()
+                }
                 try FileManager.default.copyItem(at: readable, to: destination)
             } catch {
                 copyError = error

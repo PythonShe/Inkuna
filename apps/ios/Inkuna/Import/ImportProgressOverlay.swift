@@ -86,6 +86,9 @@ final class ImportProgressOverlay: UIView {
     /// returns once it is gone so the caller can present its own feedback
     /// into a clear screen.
     func dismiss() async {
+        // A dismissal already in flight owns the continuation; entering
+        // again would overwrite it and strand the first caller forever.
+        guard dismissContinuation == nil else { return }
         revealTask?.cancel()
         revealTask = nil
         guard let shownAt else {
@@ -123,6 +126,7 @@ final class ImportProgressOverlay: UIView {
     private func finishDismissal() {
         dismissFallback?.cancel()
         dismissFallback = nil
+        shownAt = nil
         guard let continuation = dismissContinuation else { return }
         dismissContinuation = nil
         removeFromSuperview()

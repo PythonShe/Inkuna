@@ -106,7 +106,7 @@ enum ImportService {
     ) async -> [ImportItemOutcome] {
         let readable = staged.filter { $0.staged != nil }
         guard !readable.isEmpty else {
-            return staged.map { .failed(ImportFailure(fileName: $0.fileName, reason: .unreadableSource)) }
+            return staged.map { .failed(ImportFailure(fileName: $0.fileName, reason: $0.failureReason)) }
         }
 
         let outcomes: [Result<ImportOutcome, ImportFailureReason>]
@@ -164,7 +164,7 @@ enum ImportService {
         var answers = outcomes.makeIterator()
         return staged.map { file in
             guard file.staged != nil else {
-                return .failed(ImportFailure(fileName: file.fileName, reason: .unreadableSource))
+                return .failed(ImportFailure(fileName: file.fileName, reason: file.failureReason))
             }
             guard let outcome = answers.next() else {
                 // Cannot happen while the core honors input order and
@@ -226,10 +226,21 @@ private final class ChunkProgressListener: ImportProgressListener, @unchecked Se
 private struct StagedFile: Sendable {
     let fileName: String
     let staged: URL?
+    /// Why staging failed; meaningful only while `staged` is nil.
+    let failureReason: ImportFailureReason
 
     init(source: URL) {
         fileName = source.importDisplayName
-        staged = try? ImportStaging.stage(source)
+        do {
+            staged = try ImportStaging.stage(source)
+            failureReason = .unreadableSource
+        } catch is ImportStaging.FileTooLarge {
+            staged = nil
+            failureReason = .tooLarge
+        } catch {
+            staged = nil
+            failureReason = .unreadableSource
+        }
     }
 }
 
