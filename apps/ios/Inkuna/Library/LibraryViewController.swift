@@ -197,6 +197,7 @@ final class LibraryViewController: ScrollScreenViewController {
                 author: displayAuthor(publication),
                 progress: publication.progression > 0 ? CGFloat(publication.progression) : nil,
                 seed: BookCoverView.coverSeed(for: publication.id),
+                coverPath: publication.coverPath,
                 // The core owns every book's file, so a listed book is
                 // always on disk — there is no cloud-only state to badge.
                 downloaded: true

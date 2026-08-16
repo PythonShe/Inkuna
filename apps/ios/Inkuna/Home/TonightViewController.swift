@@ -108,6 +108,7 @@ final class TonightViewController: ScrollScreenViewController {
                 progress: CGFloat(publication.progression),
                 caption: "\(percent)% read",
                 seed: BookCoverView.coverSeed(for: publication.id),
+                coverPath: publication.coverPath,
                 onOpen: { [weak self] in
                     guard let self, let current = self.continueReading else { return }
                     ReaderLauncher.push(current, on: self.navigationController)
@@ -123,6 +124,7 @@ final class TonightViewController: ScrollScreenViewController {
                 progress: book.progress,
                 caption: PlaceholderLibrary.pagesLeftText,
                 seed: book.coverSeed,
+                coverPath: nil,
                 onOpen: nil
             )
         }
@@ -147,6 +149,7 @@ final class TonightViewController: ScrollScreenViewController {
         progress: CGFloat,
         caption: String,
         seed: Int,
+        coverPath: String?,
         onOpen: (() -> Void)?
     ) -> UIView {
         let card = UIView()
@@ -154,7 +157,7 @@ final class TonightViewController: ScrollScreenViewController {
         card.layer.cornerRadius = InkRadius.xl
         card.installInkShadow(.md)
 
-        let cover = BookCoverView(title: title, author: author, seed: seed)
+        let cover = BookCoverView(title: title, author: author, seed: seed, coverPath: coverPath)
         cover.widthAnchor.constraint(equalToConstant: 96).isActive = true
 
         let titleLabel = InkLabel()

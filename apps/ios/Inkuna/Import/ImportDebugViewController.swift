@@ -189,6 +189,7 @@ final class ImportDebugViewController: ScrollScreenViewController {
                 author: book.authors.joined(separator: ", "),
                 progress: CGFloat(book.progression),
                 seed: BookCoverView.coverSeed(for: book.id),
+                coverPath: book.coverPath,
                 downloaded: true
             )
             listStack.addArrangedSubview(row)

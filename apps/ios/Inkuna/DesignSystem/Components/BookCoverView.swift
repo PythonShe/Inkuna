@@ -1,12 +1,10 @@
 import UIKit
 
 /// Book cover (design-system `BookCover`): a 2:3 tile with the book
-/// shadow. Until real cover art flows from the core, it renders the
-/// design system's generated placeholder — a seeded ink-and-paper palette
-/// with the title set in serif.
-///
-/// TODO(core): accept cover images from the Rust core's metadata extraction
-/// and fall back to the generated cover only when a book ships without art.
+/// shadow. It renders the cover art the core extracted at import
+/// (`Publication.coverPath`), falling back to the design system's generated
+/// placeholder — a seeded ink-and-paper palette with the title set in serif
+/// — while the art decodes and for books that ship without any.
 final class BookCoverView: UIView {
     /// Seeded placeholder palettes from the design system (`BookCover.jsx`).
     private static let palettes: [(background: UInt32, foreground: UInt32)] = [
@@ -27,10 +25,6 @@ final class BookCoverView: UIView {
     ///
     /// FNV-1a, deliberately not `hashValue`: Swift seeds string hashing per
     /// process, so a book would change colour on every launch.
-    ///
-    /// TODO(core): the core already extracts real cover art into
-    /// `Publication.coverPath`; render it once this view accepts an image and
-    /// falls back to the generated cover.
     static func coverSeed(for id: String) -> Int {
         var hash: UInt64 = 0xcbf2_9ce4_8422_2325
         for byte in id.utf8 {
@@ -44,7 +38,9 @@ final class BookCoverView: UIView {
     private let titleLabel = InkLabel()
     private let authorLabel = InkLabel()
 
-    init(title: String, author: String, seed: Int) {
+    /// `coverPath` is the absolute path of the core-extracted cover image,
+    /// or nil for a book without art (the generated cover stays).
+    init(title: String, author: String, seed: Int, coverPath: String?) {
         super.init(frame: .zero)
         let palette = Self.palettes[abs(seed) % Self.palettes.count]
 
@@ -86,6 +82,36 @@ final class BookCoverView: UIView {
             authorLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -10),
             authorLabel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -10),
         ])
+
+        if let coverPath {
+            loadCoverArt(at: coverPath)
+        }
+    }
+
+    /// Decodes the cover off the main thread and fades it in over the
+    /// generated cover. Decode failure (a deleted or corrupt file) simply
+    /// leaves the generated cover standing — it is always presentable.
+    private func loadCoverArt(at path: String) {
+        Task { [weak self] in
+            let image = await Task.detached(priority: .userInitiated) {
+                await UIImage(contentsOfFile: path)?.byPreparingForDisplay()
+            }.value
+            guard let self, let image else { return }
+            let artView = UIImageView(image: image)
+            artView.contentMode = .scaleAspectFill
+            artView.alpha = 0
+            artView.translatesAutoresizingMaskIntoConstraints = false
+            self.content.addSubview(artView)
+            NSLayoutConstraint.activate([
+                artView.leadingAnchor.constraint(equalTo: self.content.leadingAnchor),
+                artView.trailingAnchor.constraint(equalTo: self.content.trailingAnchor),
+                artView.topAnchor.constraint(equalTo: self.content.topAnchor),
+                artView.bottomAnchor.constraint(equalTo: self.content.bottomAnchor),
+            ])
+            InkMotion.runQuiet {
+                artView.alpha = 1
+            }
+        }
     }
 
     @available(*, unavailable)

@@ -11,7 +11,7 @@ final class ShelfBookView: UIControl {
         self.book = book
         super.init(frame: .zero)
 
-        let cover = BookCoverView(title: book.title, author: book.author, seed: book.coverSeed)
+        let cover = BookCoverView(title: book.title, author: book.author, seed: book.coverSeed, coverPath: nil)
         cover.isUserInteractionEnabled = false
 
         let titleLabel = InkLabel()

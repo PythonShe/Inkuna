@@ -53,6 +53,7 @@ final class SearchViewController: ScrollScreenViewController {
                 author: book.author,
                 progress: book.progress,
                 seed: book.coverSeed,
+                coverPath: nil,
                 downloaded: book.downloaded
             )
             let tap = UITapGestureRecognizer(target: self, action: #selector(openRow(_:)))

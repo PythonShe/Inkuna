@@ -668,6 +668,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         let sheet = ContentsSheetViewController(
             bookTitle: publication.title,
             coverSeed: BookCoverView.coverSeed(for: publication.id),
+            coverPath: publication.coverPath,
             rows: rows,
             pageInfoText: pageInfoText()
         )

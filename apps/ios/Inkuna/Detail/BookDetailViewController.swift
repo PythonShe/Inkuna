@@ -57,7 +57,7 @@ final class BookDetailViewController: UIViewController {
 
         // MARK: Cover block
 
-        let cover = BookCoverView(title: book.title, author: book.author, seed: book.coverSeed)
+        let cover = BookCoverView(title: book.title, author: book.author, seed: book.coverSeed, coverPath: nil)
         cover.widthAnchor.constraint(equalToConstant: 150).isActive = true
 
         let titleLabel = InkLabel()
