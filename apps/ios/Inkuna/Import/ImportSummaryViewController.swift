@@ -124,9 +124,14 @@ final class ImportSummaryViewController: UIViewController {
             let row = Row(report.items[index])
 
             var content = UIListContentConfiguration.subtitleCell()
-            content.image = UIImage(
-                systemName: row.symbol,
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)
+            content.image = UIImage(systemName: row.symbol)
+            // A text style, not a fixed point size: the glyph grows with the
+            // row's title instead of shrinking beside it at accessibility
+            // sizes. `.body` is 17pt at the default size, so nothing moves
+            // for a reader who never changes it.
+            content.imageProperties.preferredSymbolConfiguration = UIImage.SymbolConfiguration(
+                textStyle: .body,
+                scale: .medium
             )
             content.imageProperties.tintColor = row.tint
             content.imageToTextPadding = InkSpacing.space3

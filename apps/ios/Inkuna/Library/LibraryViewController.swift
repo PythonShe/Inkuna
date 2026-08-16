@@ -114,6 +114,14 @@ final class LibraryViewController: ScrollScreenViewController {
 
         reloadTask = Task { [weak self] in
             do {
+                // Typing is not a query. A keystroke's reload waits out the
+                // burst before touching the core; the next keystroke cancels
+                // this sleep, so a fast typist costs one search, not eight.
+                // Only the search branch waits — appearing, switching
+                // segments, and library changes stay instant.
+                if !trimmed.isEmpty {
+                    try await Task.sleep(for: .milliseconds(200))
+                }
                 let bookshelf = try await LibraryStore.shared.library()
                 let rows: [Publication]
                 if trimmed.isEmpty {

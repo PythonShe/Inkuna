@@ -27,7 +27,7 @@ enum ReaderLauncher {
         Task {
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                let publications = try await bookshelf.list(shelf: .all, sort: .recentlyOpened)
+                let publications = try await bookshelf.list(shelf: .unfinished, sort: .recentlyOpened)
                 guard let publication = publications.first else {
                     toast(symbol: "books.vertical", text: "Nothing to read yet — import a book first.", on: navigationController)
                     return
