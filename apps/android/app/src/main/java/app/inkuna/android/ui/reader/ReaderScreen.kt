@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Text
@@ -188,6 +189,9 @@ private fun ReaderContent(
     var toastCount by rememberSaveable { mutableIntStateOf(0) }
     var toastShown by rememberSaveable { mutableIntStateOf(0) }
     var toastVisible by remember { mutableStateOf(false) }
+    // One toast slot, two things worth saying: the bookmark confirmation and
+    // a link the shell would not follow.
+    var toastMessage by rememberSaveable { mutableIntStateOf(R.string.reader_bookmark_placed) }
     // A programmatic jump (contents sheet) moves the locator; the auto-hide
     // below must not read that as a page turn.
     var jumping by remember { mutableStateOf(false) }
@@ -230,9 +234,19 @@ private fun ReaderContent(
 
     val navigatorListener = remember(book) {
         object : EpubNavigatorFragment.Listener {
+            /**
+             * Only http(s) leaves the app. An EPUB is untrusted content, and
+             * `intent:`, `market:`, `tel:` and friends would let a book aim
+             * an implicit intent at anything installed; the reader is told
+             * the link was not followed instead of it firing silently.
+             */
             override fun onExternalLinkActivated(url: AbsoluteUrl) {
-                runCatching {
+                val opened = url.isHttp && runCatching {
                     context.startActivity(Intent(Intent.ACTION_VIEW, url.toString().toUri()))
+                }.isSuccess
+                if (!opened) {
+                    toastMessage = R.string.reader_link_failed
+                    toastCount += 1
                 }
             }
         }
@@ -433,6 +447,7 @@ private fun ReaderContent(
                             navigator?.currentLocator?.value?.let { at ->
                                 viewModel.addBookmark(at) {
                                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    toastMessage = R.string.reader_bookmark_placed
                                     toastCount += 1
                                 }
                             }
@@ -460,7 +475,7 @@ private fun ReaderContent(
             )
         }
 
-        // Bookmark toast.
+        // Bookmark / blocked-link toast.
         AnimatedVisibility(
             visible = toastVisible,
             enter = fadeIn(tween(InkMotion.durFast, easing = InkMotion.easeQuiet)),
@@ -470,8 +485,12 @@ private fun ReaderContent(
                 .padding(top = statusPad + 56.dp),
         ) {
             InkToast(
-                text = stringResource(R.string.reader_bookmark_placed),
-                icon = Icons.Filled.Bookmark,
+                text = stringResource(toastMessage),
+                icon = if (toastMessage == R.string.reader_link_failed) {
+                    Icons.Outlined.LinkOff
+                } else {
+                    Icons.Filled.Bookmark
+                },
             )
         }
 

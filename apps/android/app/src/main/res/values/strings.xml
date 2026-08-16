@@ -72,6 +72,7 @@
     <string name="reader_search_placeholder">Search this book</string>
     <string name="reader_search_empty">Nothing found in this book.</string>
     <string name="reader_bookmark_placed">Bookmark placed.</string>
+    <string name="reader_link_failed">This link could not be opened.</string>
     <string name="reader_page_info">p. %1$d of %2$d · %3$d%%</string>
     <string name="reader_chapter_page">p. %1$d</string>
     <string name="reader_percent">%1$d%%</string>

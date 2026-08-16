@@ -247,17 +247,24 @@ class ReaderViewModel(
         }
     }
 
-    /** Persists a bookmark at [locator]; [onPlaced] confirms on success. */
+    /**
+     * Persists a bookmark at [locator]; [onPlaced] confirms on success.
+     *
+     * On the application write scope, like the session writes above: leaving
+     * the book the instant after the tap must not cancel the write. The
+     * confirmation ([onPlaced] drives haptics and the toast) is dispatched
+     * back to the main thread.
+     */
     fun addBookmark(locator: Locator, onPlaced: () -> Unit) {
         val shelf = bookshelf ?: return
-        viewModelScope.launch {
+        LibraryStore.writes.launch {
             runCatching {
                 shelf.addBookmark(
                     publicationId,
                     locator.toJSON().toString(),
                     locator.locations.totalProgression ?: 0.0,
                 )
-            }.onSuccess { onPlaced() }
+            }.onSuccess { withContext(Dispatchers.Main) { onPlaced() } }
                 .onFailure { Log.w(TAG, "addBookmark failed", it) }
         }
     }
