@@ -22,6 +22,11 @@ magick "$TMP/ios-1024.png" -alpha off \
 rsvg-convert -w 512 -h 512 "$FLAT" -o "$TMP/play-512.png"
 magick "$TMP/play-512.png" -alpha off "$BRAND/play-store-512.png"
 
+# Website: homepage beta callout uses the Liquid Glass render (exported from
+# Icon Composer to appicon-glass-256.png), downscaled for a 3rem display size.
+magick "$BRAND/appicon-glass-256.png" -resize 144x144 -depth 8 -strip \
+  "$ROOT/website/public/appicon-glass.png"
+
 # Website: apple-touch-icon (full-bleed opaque) + favicon.ico (transparent mark).
 rsvg-convert -w 180 -h 180 "$FLAT" -o "$TMP/touch-180.png"
 magick "$TMP/touch-180.png" -alpha off "$ROOT/website/public/apple-touch-icon.png"

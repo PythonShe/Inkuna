@@ -44,17 +44,13 @@ const t = useTranslations(home, lang);
       </li>
     </ul>
     <aside class="beta">
-      <svg class="beta-icon" viewBox="0 0 1024 1024" aria-hidden="true">
-        <rect
-          width="1024"
-          height="1024"
-          rx="230"
-          fill="#26262b"
-          stroke="var(--hairline)"
-          stroke-width="8"></rect>
-        <circle cx="512" cy="512" r="430" fill="#1a1a1e"></circle>
-        <circle cx="676" cy="389" r="266" fill="#f5f2ea"></circle>
-      </svg>
+      <img
+        class="beta-icon"
+        src="/appicon-glass.png"
+        alt=""
+        width="144"
+        height="144"
+      />
       <p>
         {t("beta.pre")}<a href="https://testflight.apple.com/join/VYVQyn1T"
           >TestFlight</a
@@ -140,12 +136,11 @@ const t = useTranslations(home, lang);
     padding: 1rem 1.25rem;
     margin-bottom: 1.4rem;
   }
-  /* App-icon tile keeps its own ink even in light mode. */
+  /* Liquid Glass icon render; its superellipse mask and depth are baked in. */
   .beta-icon {
     width: 3rem;
     height: 3rem;
     flex: none;
-    border-radius: 0.7rem;
   }
   .beta p {
     margin: 0;
