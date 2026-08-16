@@ -50,12 +50,14 @@
 
             <!--
               The same book by extension, for providers that hand over
-              application/octet-stream or no type at all. host/pathPattern
-              filters need a scheme and a host wildcard to match at all;
-              the case permutations are what Android requires, its
-              pathPattern being case-sensitive and without alternation.
-              The core detects format by magic bytes regardless, so a
-              mislabelled file is still answered honestly.
+              application/octet-stream. A filter that declares a mimeType
+              only ever matches a *typed* intent, so an untyped one is out
+              of reach here by design. host/pathPattern filters need a
+              scheme and a host wildcard to match at all; the case
+              permutations are what Android requires, its pathPattern being
+              case-sensitive and without alternation. The core detects
+              format by magic bytes regardless, so a mislabelled file is
+              still answered honestly.
             -->
             <intent-filter android:label="@string/import_intent_label">
                 <action android:name="android.intent.action.VIEW" />

@@ -53,12 +53,17 @@ class ImportIntentActivity : ComponentActivity() {
      * "the composition restarted" (same delivery, must not import twice)
      * from "the same book was sent again" (a new delivery, must import) —
      * the URI alone cannot tell those apart.
+     *
+     * Saved across recreation: the counter is half of the key the saved
+     * `startedFor` is compared against, so losing it on a rotation would
+     * read as a fresh delivery and import the same book twice.
      */
     private var delivery by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        delivery = savedInstanceState?.getInt(STATE_DELIVERY, 0) ?: 0
         incoming = urisFrom(intent)
         if (incoming.isEmpty()) {
             finish()
@@ -77,9 +82,15 @@ class ImportIntentActivity : ComponentActivity() {
                         delivery = delivery,
                         onDone = { addedSomething ->
                             if (addedSomething) {
+                                // NEW_TASK so the library comes up in
+                                // Inkuna's own task rather than on top of
+                                // the caller's (Files, Gmail) back stack.
                                 startActivity(
                                     Intent(this@ImportIntentActivity, MainActivity::class.java)
-                                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                        .addFlags(
+                                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                        )
                                 )
                             }
                             finish()
@@ -92,11 +103,20 @@ class ImportIntentActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // ComponentActivity does not do this for us, and a recreation
+        // replays getIntent() — without it a rotation after a second book
+        // arrived would re-run the *first* one.
+        setIntent(intent)
         val next = urisFrom(intent)
         if (next.isNotEmpty()) {
             incoming = next
             delivery++
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(STATE_DELIVERY, delivery)
     }
 
     private fun urisFrom(intent: Intent?): List<Uri> = when (intent?.action) {
@@ -112,6 +132,10 @@ class ImportIntentActivity : ComponentActivity() {
 
     private fun Intent.streamExtras(): List<Uri> =
         getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+
+    private companion object {
+        const val STATE_DELIVERY = "inkuna.import.delivery"
+    }
 }
 
 /**

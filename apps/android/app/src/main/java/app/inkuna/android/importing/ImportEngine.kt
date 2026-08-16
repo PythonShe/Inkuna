@@ -124,7 +124,9 @@ object ImportEngine {
         // name the reader saw in the picker.
         val names = uris.map { ImportStaging.displayName(context, it) }
 
-        _state.value = ImportState.Running(0, total, names.first(), ImportPhase.Copying, 0f)
+        // Reading, not Copying: the descriptor route never copies, and the
+        // staging callback below flips to Copying for the fallback alone.
+        _state.value = ImportState.Running(0, total, names.first(), ImportPhase.Reading, 0f)
 
         val run = ImportStaging.openRun(context)
         try {
