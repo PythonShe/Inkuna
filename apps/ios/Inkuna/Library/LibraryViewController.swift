@@ -194,7 +194,7 @@ final class LibraryViewController: ScrollScreenViewController {
             let row = BookListRowView()
             row.configure(
                 title: publication.title,
-                author: displayAuthor(publication),
+                author: publication.displayAuthors,
                 progress: publication.progression > 0 ? CGFloat(publication.progression) : nil,
                 seed: BookCoverView.coverSeed(for: publication.id),
                 coverPath: publication.coverPath,
@@ -211,15 +211,6 @@ final class LibraryViewController: ScrollScreenViewController {
 
     @objc private func openRow(_ recognizer: UITapGestureRecognizer) {
         guard let index = recognizer.view?.tag, publications.indices.contains(index) else { return }
-        // TODO(core): the detail screen still renders placeholder chapters,
-        // so a library row opens the reader directly rather than routing
-        // through a screen that cannot describe the book it was handed.
-        // Restore the row → detail → read path when detail is wired.
-        ReaderLauncher.push(publications[index], on: navigationController)
-    }
-
-    // TODO(l10n): localize once the strings pass lands.
-    private func displayAuthor(_ publication: Publication) -> String {
-        publication.authors.isEmpty ? "Unknown author" : publication.authors.joined(separator: ", ")
+        openBook(publications[index])
     }
 }

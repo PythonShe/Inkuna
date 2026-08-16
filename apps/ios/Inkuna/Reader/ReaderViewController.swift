@@ -34,6 +34,9 @@ private final class ReaderSession {
 final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     /// The core publication being read.
     private let publication: Publication
+    /// Where to open instead of the saved position: the chapter the reader
+    /// was asked to start at (a detail-screen contents row).
+    private let initialChapter: Chapter?
 
     private var navigator: EPUBNavigatorViewController?
     private var readiumPublication: ReadiumShared.Publication?
@@ -101,8 +104,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private var chromeVisible = true
     private var chromeAnimator: UIViewPropertyAnimator?
 
-    init(publication: Publication) {
+    init(publication: Publication, initialChapter: Chapter? = nil) {
         self.publication = publication
+        self.initialChapter = initialChapter
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -334,11 +338,19 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             return
         }
 
+        // Indexed before the navigator exists: the requested start chapter
+        // resolves against the reading order, exactly like a contents jump.
+        indexResources(of: opened.publication, positionsByReadingOrder: opened.positionsByReadingOrder)
+        var initialLocation = opened.initialLocation
+        if let initialChapter, let target = jumpLocator(for: initialChapter, in: opened.publication) {
+            initialLocation = target
+        }
+
         let navigator: EPUBNavigatorViewController
         do {
             navigator = try EPUBNavigatorViewController(
                 publication: opened.publication,
-                initialLocation: opened.initialLocation,
+                initialLocation: initialLocation,
                 config: EPUBNavigatorViewController.Configuration(preferences: readerPreferences())
             )
         } catch {
@@ -350,8 +362,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         }
 
         readiumPublication = opened.publication
-        currentLocator = opened.initialLocation
-        indexResources(of: opened.publication, positionsByReadingOrder: opened.positionsByReadingOrder)
+        currentLocator = initialLocation
 
         navigator.delegate = self
         addChild(navigator)
@@ -429,7 +440,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     ) {
         var indexByHref: [String: Int] = [:]
         for (index, link) in readiumPublication.readingOrder.enumerated() {
-            indexByHref[Self.normalizedResourceHref(link.href)] = index
+            indexByHref[ChapterHref.normalized(link.href)] = index
         }
         resourceIndexByHref = indexByHref
         firstPositionByResource = positionsByReadingOrder.map { $0.first?.locations.position }
@@ -679,7 +690,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     }
 
     private func jump(to chapter: Chapter) {
-        guard let navigator, let target = jumpLocator(for: chapter) else {
+        guard
+            let navigator,
+            let readiumPublication,
+            let target = jumpLocator(for: chapter, in: readiumPublication)
+        else {
             logger.warning("No jump target for chapter \(chapter.id, privacy: .public)")
             return
         }
@@ -693,15 +708,14 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     /// possibly with a fragment) against the publication's reading order —
     /// the same resolution Readium's own locator service performs, done
     /// synchronously against the indexed reading order.
-    private func jumpLocator(for chapter: Chapter) -> Locator? {
+    private func jumpLocator(for chapter: Chapter, in readiumPublication: ReadiumShared.Publication) -> Locator? {
         guard
-            let readiumPublication,
             let index = resourceIndex(forHref: chapter.href),
             readiumPublication.readingOrder.indices.contains(index)
         else { return nil }
         let link = readiumPublication.readingOrder[index]
         guard let mediaType = link.mediaType else { return nil }
-        let fragment = Self.splitFragment(chapter.href).fragment
+        let fragment = ChapterHref.splitFragment(chapter.href).fragment
         return Locator(
             href: link.url(),
             mediaType: mediaType,
@@ -714,26 +728,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     }
 
     private func resourceIndex(forHref href: String) -> Int? {
-        resourceIndexByHref[Self.normalizedResourceHref(href)]
-    }
-
-    private nonisolated static func splitFragment(_ href: String) -> (resource: String, fragment: String?) {
-        guard let hashIndex = href.firstIndex(of: "#") else { return (href, nil) }
-        return (
-            String(href[..<hashIndex]),
-            String(href[href.index(after: hashIndex)...])
-        )
-    }
-
-    /// Href comparison key: fragment off, leading slash off, percent-decoded
-    /// — so the core's package-root-relative hrefs and Readium's normalized
-    /// link hrefs meet in the middle (CJK resource names included).
-    private nonisolated static func normalizedResourceHref(_ href: String) -> String {
-        var resource = splitFragment(href).resource
-        if resource.hasPrefix("/") {
-            resource.removeFirst()
-        }
-        return resource.removingPercentEncoding ?? resource
+        resourceIndexByHref[ChapterHref.normalized(href)]
     }
 
     // MARK: Theme & type

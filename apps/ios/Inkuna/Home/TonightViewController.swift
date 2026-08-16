@@ -14,6 +14,13 @@ final class TonightViewController: ScrollScreenViewController {
     /// a destination.
     private var continueReading: Publication?
 
+    /// The rest of the unfinished shelf, behind the hero. Empty hides the
+    /// nightstand section entirely.
+    private var nightstand: [Publication] = []
+    /// The nightstand section's slot in the content stack (title + shelf),
+    /// rebuilt whenever the shelf changes.
+    private let shelfSection = UIStackView()
+
     nonisolated(unsafe) private var libraryDidChangeObserver: NSObjectProtocol?
 
     deinit {
@@ -51,11 +58,9 @@ final class TonightViewController: ScrollScreenViewController {
         contentStack.addArrangedSubview(chipRow)
         contentStack.setCustomSpacing(InkSpacing.space4, after: chipRow)
 
-        let shelfTitle = sectionTitle("On the nightstand")
-        contentStack.addArrangedSubview(shelfTitle)
-        contentStack.setCustomSpacing(InkSpacing.space4, after: shelfTitle)
-
-        contentStack.addArrangedSubview(shelfRow(books: PlaceholderLibrary.shelf))
+        shelfSection.axis = .vertical
+        contentStack.addArrangedSubview(shelfSection)
+        rebuildShelf()
 
         libraryDidChangeObserver = NotificationCenter.default.addObserver(
             forName: .inkunaLibraryDidChange,
@@ -87,12 +92,29 @@ final class TonightViewController: ScrollScreenViewController {
                 // A successful-but-empty answer clears the hero; only a
                 // failed load keeps the previous one.
                 self.continueReading = publications.first
+                // The shelf holds what the hero doesn't: the rest of the
+                // unfinished pile, most recently touched first, capped at a
+                // shelf's worth.
+                self.nightstand = Array(publications.dropFirst().prefix(8))
                 self.rebuildHero()
+                self.rebuildShelf()
             } catch {
                 // Keep whatever the card already shows; the library screen
                 // owns the recovery path for a library that will not open.
             }
         }
+    }
+
+    /// Shows the nightstand only when there is something on it — an empty
+    /// core shelf removes the section instead of rendering stand-ins.
+    private func rebuildShelf() {
+        shelfSection.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        guard !nightstand.isEmpty else { return }
+        // TODO(l10n): localize once the strings pass lands.
+        let shelfTitle = sectionTitle("On the nightstand")
+        shelfSection.addArrangedSubview(shelfTitle)
+        shelfSection.setCustomSpacing(InkSpacing.space4, after: shelfTitle)
+        shelfSection.addArrangedSubview(shelfRow(publications: nightstand))
     }
 
     private func rebuildHero() {
@@ -178,10 +200,13 @@ final class TonightViewController: ScrollScreenViewController {
         leftLabel.font = InkFont.caption
         leftLabel.textColor = InkColor.textTertiary
 
+        // The button opens the same book as the card; on the placeholder
+        // card there is nothing to open and it says so by being disabled.
         // TODO(l10n): localize once the strings pass lands.
         let readButton = InkButton("Keep reading", size: .small, symbol: "book") { [weak self] in
-            self?.openReader()
+            self?.heroOpenAction?()
         }
+        readButton.isEnabled = onOpen != nil
         let buttonRow = UIStackView(arrangedSubviews: [readButton, UIView()])
         buttonRow.axis = .horizontal
 

@@ -1,27 +1,27 @@
 import UIKit
 
 /// Opens the reader on a publication from the core library.
-///
-/// TODO(core): the library, detail, and tonight screens still render
-/// placeholder rows with no core identity, so every "keep reading" entry
-/// point funnels here and opens the reading position of the most recently
-/// opened core publication (falling back to the newest import). Once
-/// library wiring lands, those screens pass their own row's `Publication`
-/// and this helper keeps only the fetch-and-push mechanics.
 @MainActor
 enum ReaderLauncher {
-    /// Fetches the publication to read and pushes the reader, or explains
-    /// quietly why there is nothing to open. Never blocks the main thread —
-    /// the core work happens behind an `await`.
     /// Pushes the reader on a publication the caller already holds — the
-    /// path every screen that renders real core rows should take.
-    static func push(_ publication: Publication, on navigationController: UINavigationController?) {
+    /// path every screen takes. `startingAt` opens at that chapter instead
+    /// of the saved position (a detail-screen contents row).
+    static func push(
+        _ publication: Publication,
+        startingAt chapter: Chapter? = nil,
+        on navigationController: UINavigationController?
+    ) {
         guard let navigationController else { return }
-        let reader = ReaderViewController(publication: publication)
+        let reader = ReaderViewController(publication: publication, initialChapter: chapter)
         reader.hidesBottomBarWhenPushed = true
         navigationController.pushViewController(reader, animated: true)
     }
 
+    #if DEBUG
+    /// Fetches the most recently opened unfinished publication and pushes
+    /// the reader on it — the `-inkuna.debugScreen reader` deep launch,
+    /// which starts with no publication in hand. Never blocks the main
+    /// thread; the core work happens behind an `await`.
     static func push(on navigationController: UINavigationController?) {
         guard let navigationController else { return }
         Task {
@@ -53,4 +53,5 @@ enum ReaderLauncher {
             topInset: view.safeAreaInsets.top + 56
         )
     }
+    #endif
 }

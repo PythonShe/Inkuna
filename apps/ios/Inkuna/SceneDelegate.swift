@@ -78,9 +78,17 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             case "stats": main.select(.stats)
             case "detail":
                 guard let navigation = main.selectedViewController as? UINavigationController else { return }
-                let detail = BookDetailViewController(book: PlaceholderLibrary.heroBook)
-                detail.hidesBottomBarWhenPushed = true
-                navigation.pushViewController(detail, animated: false)
+                // The detail screen needs a real publication; deep-launch
+                // onto the newest import (fixture runs seed one first).
+                Task {
+                    guard
+                        let bookshelf = try? await LibraryStore.shared.library(),
+                        let publication = try? await bookshelf.list(shelf: .all, sort: .recentlyAdded).first
+                    else { return }
+                    let detail = BookDetailViewController(publication: publication)
+                    detail.hidesBottomBarWhenPushed = true
+                    navigation.pushViewController(detail, animated: false)
+                }
             case "reader":
                 guard let navigation = main.selectedViewController as? UINavigationController else { return }
                 ReaderLauncher.push(on: navigation)

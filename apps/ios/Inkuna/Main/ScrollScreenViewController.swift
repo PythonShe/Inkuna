@@ -84,7 +84,7 @@ class ScrollScreenViewController: UIViewController {
     }
 
     /// Horizontal cover shelf ("On the nightstand", "New this week").
-    func shelfRow(books: [PlaceholderBook]) -> UIView {
+    func shelfRow(publications: [Publication]) -> UIView {
         let shelfScroll = UIScrollView()
         shelfScroll.showsHorizontalScrollIndicator = false
         shelfScroll.clipsToBounds = false
@@ -96,9 +96,9 @@ class ScrollScreenViewController: UIViewController {
         shelf.translatesAutoresizingMaskIntoConstraints = false
         shelfScroll.addSubview(shelf)
 
-        for book in books {
-            let item = ShelfBookView(book: book)
-            item.onOpen = { [weak self] book in self?.openBook(book) }
+        for publication in publications {
+            let item = ShelfBookView(publication: publication)
+            item.onOpen = { [weak self] publication in self?.openBook(publication) }
             shelf.addArrangedSubview(item)
         }
 
@@ -113,18 +113,9 @@ class ScrollScreenViewController: UIViewController {
     }
 
     /// Full-page destinations slide the native tab bar away.
-    func openBook(_ book: PlaceholderBook) {
-        let detail = BookDetailViewController(book: book)
+    func openBook(_ publication: Publication) {
+        let detail = BookDetailViewController(publication: publication)
         detail.hidesBottomBarWhenPushed = true
         navigationController?.pushViewController(detail, animated: true)
-    }
-
-    /// Opens the reader on the core library's current book.
-    ///
-    /// TODO(core): placeholder rows carry no core identity yet, so which
-    /// book to read is decided by `ReaderLauncher`; library wiring will
-    /// make this take the tapped row's `Publication`.
-    func openReader() {
-        ReaderLauncher.push(on: navigationController)
     }
 }

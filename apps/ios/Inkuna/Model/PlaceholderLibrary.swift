@@ -19,13 +19,6 @@ struct PlaceholderBook: Hashable, Identifiable {
     let downloaded: Bool
 
     var percentText: String { "\(Int((progress * 100).rounded()))%" }
-    var metaText: String { "p. \(currentPage) of \(pageCount) · \(percentText)" }
-}
-
-struct PlaceholderChapter: Hashable {
-    let numeral: String
-    let title: String
-    let page: Int
 }
 
 enum PlaceholderLibrary {
@@ -40,31 +33,9 @@ enum PlaceholderLibrary {
 
     /// The book on the Tonight hero card.
     static var heroBook: PlaceholderBook { books[0] }
-    /// "On the nightstand" shelf on the Tonight screen.
-    static var shelf: [PlaceholderBook] { Array(books[1...4]) }
-    /// "New this week" row on the empty Search screen.
-    static var discover: [PlaceholderBook] { [books[3], books[4], books[5]] }
 
-    // MARK: Contents (hero book)
+    // MARK: Reader sample (until the core's in-book search lands)
 
-    static let chapters: [PlaceholderChapter] = [
-        PlaceholderChapter(numeral: "I", title: "The Sea Wall", page: 1),
-        PlaceholderChapter(numeral: "II", title: "Letters from the Capital", page: 38),
-        PlaceholderChapter(numeral: "III", title: "The Long Gallery", page: 84),
-        PlaceholderChapter(numeral: "IV", title: "A Debt of Ink", page: 141),
-        PlaceholderChapter(numeral: "V", title: "The Night Ferry", page: 210),
-        PlaceholderChapter(numeral: "VI", title: "What the Archivist Kept", page: 296),
-        PlaceholderChapter(numeral: "VII", title: "The Lamp and the Moon", page: 541),
-        PlaceholderChapter(numeral: "VIII", title: "The Turning Tide", page: 640),
-        PlaceholderChapter(numeral: "IX", title: "The Quiet Hours", page: 733),
-        PlaceholderChapter(numeral: "X", title: "Ashes and Vellum", page: 829),
-    ]
-
-    static let currentChapterIndex = 6
-
-    // MARK: Reader sample (until Readium renders real EPUB pages)
-
-    static let chapterEyebrow = "VII · The lamp and the moon"
     static let pagesLeftText = "Fifteen pages left in this chapter"
 
     /// Four pages of sample prose, one array of paragraphs per page.
