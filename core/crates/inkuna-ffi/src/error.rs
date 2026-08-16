@@ -21,6 +21,10 @@ pub enum InkunaError {
     UnsupportedFormat { format: Option<String> },
     #[error("invalid publication: {detail}")]
     InvalidPublication { detail: String },
+    /// The search index failed; it is derived data, so a shell can treat
+    /// this as "search unavailable right now".
+    #[error("search index error: {detail}")]
+    Search { detail: String },
     #[error("publication not found: {id}")]
     NotFound { id: String },
 }
@@ -35,6 +39,7 @@ impl From<inkuna_core::CoreError> for InkunaError {
             C::Archive(m) => InkunaError::Archive { detail: m },
             C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat { format: f },
             C::InvalidPublication(m) => InkunaError::InvalidPublication { detail: m },
+            C::Search(m) => InkunaError::Search { detail: m },
             C::NotFound(id) => InkunaError::NotFound { id },
         }
     }

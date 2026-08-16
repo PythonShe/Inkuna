@@ -46,6 +46,12 @@ pub enum CoreError {
     #[error("invalid publication: {0}")]
     InvalidPublication(String),
 
+    /// The tantivy search index failed — opening, writing, or querying
+    /// it. The index is derived data: a shell can treat this as "search
+    /// unavailable right now" and the next open rebuilds from the corpus.
+    #[error("search index error: {0}")]
+    Search(String),
+
     /// No entity with that id — a publication, bookmark, or session the
     /// caller named that the library does not hold. Carries the id.
     #[error("publication not found: {0}")]
