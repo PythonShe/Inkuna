@@ -86,6 +86,15 @@ class ReaderViewModel(
     private var bookshelf: Bookshelf? = null
     private var openJob: Job? = null
 
+    /**
+     * The Readium container, owned from the instant `open` succeeds rather
+     * than from the moment the Ready state is published: everything between
+     * the two (positions, position count, chapters) can suspend, so a
+     * cancellation or a throw there would otherwise leak the open file.
+     */
+    @Volatile
+    private var openPublication: Publication? = null
+
     // Page turns arrive faster than writes need to land; a StateFlow
     // conflates them so a fast flick persists the settled page, not a queue
     // of intermediate ones. The core expects one `updateProgress` per turn.
@@ -93,12 +102,24 @@ class ReaderViewModel(
     private var lastPersisted: Locator? = null
 
     private var sessionId: String? = null
-    private val sessionLock = Mutex()
+
+    /**
+     * Every core write this reader makes — progress, bookmarks, session
+     * start and end — passes through here, in the order it was asked for.
+     * Without it the final page turn and the session's closing write race
+     * on a multi-threaded scope, and a session closed before the last
+     * heartbeat keeps a stale end position (the core only heartbeats
+     * sessions with `ended_at IS NULL`).
+     */
+    private val writeLock = Mutex()
 
     init {
         open()
         viewModelScope.launch {
-            pendingProgress.filterNotNull().collect { locator -> persistProgress(locator) }
+            // The emitted value is deliberately ignored: the write always
+            // takes the newest pending locator, so a write that waited for
+            // the lock can never commit an older page than one that ran.
+            pendingProgress.filterNotNull().collect { persistPendingProgress() }
         }
     }
 
@@ -107,10 +128,15 @@ class ReaderViewModel(
         if (openJob?.isActive == true || stateFlow.value is UiState.Ready) return
         stateFlow.value = UiState.Opening
         openJob = viewModelScope.launch {
+            // A retry must not leave the failed attempt's container open.
+            closeOpenPublication()
             stateFlow.value = try {
                 UiState.Ready(doOpen())
             } catch (e: Exception) {
                 Log.w(TAG, "opening $publicationId failed", e)
+                // Cancellation lands here too, and then no suspending close
+                // would run — hand it to the write scope, which outlives us.
+                LibraryStore.writes.launch { closeOpenPublication() }
                 UiState.Failed
             }
         }
@@ -140,6 +166,8 @@ class ReaderViewModel(
                 asset.close()
                 throw ReaderOpenException(error.message)
             }
+        // Owned from here on, whatever the rest of this function does.
+        openPublication = publication
 
         // Synthetic positions are the honest substitute for page numbers.
         // Reported once so the core can answer "p. N of M" everywhere.
@@ -199,20 +227,31 @@ class ReaderViewModel(
         pendingProgress.value = locator
     }
 
-    private suspend fun persistProgress(locator: Locator) {
+    /**
+     * Writes the newest unpersisted page position, if there is one.
+     *
+     * The pending locator is read *inside* the lock rather than passed in:
+     * a caller that waited on the lock would otherwise commit whatever page
+     * it captured before waiting, letting an older locator land last.
+     */
+    private suspend fun persistPendingProgress() {
         val shelf = bookshelf ?: return
-        // The book-wide totalProgression, never the per-resource one.
-        val progression = locator.locations.totalProgression ?: return
-        lastPersisted = locator
         withContext(NonCancellable + Dispatchers.Default) {
-            runCatching {
-                shelf.updateProgress(
-                    publicationId,
-                    locator.toJSON().toString(),
-                    progression,
-                    locator.locations.position?.toUInt(),
-                )
-            }.onFailure { Log.w(TAG, "updateProgress failed", it) }
+            writeLock.withLock {
+                val locator = pendingProgress.value ?: return@withLock
+                if (locator === lastPersisted) return@withLock
+                // The book-wide totalProgression, never the per-resource one.
+                val progression = locator.locations.totalProgression ?: return@withLock
+                lastPersisted = locator
+                runCatching {
+                    shelf.updateProgress(
+                        publicationId,
+                        locator.toJSON().toString(),
+                        progression,
+                        locator.locations.position?.toUInt(),
+                    )
+                }.onFailure { Log.w(TAG, "updateProgress failed", it) }
+            }
         }
     }
 
@@ -225,25 +264,55 @@ class ReaderViewModel(
      */
     fun onReaderVisible() {
         LibraryStore.writes.launch {
-            sessionLock.withLock {
-                if (sessionId != null) return@withLock
-                val shelf = bookshelf ?: return@withLock
-                sessionId = runCatching { shelf.sessionStart(publicationId) }
-                    .onFailure { Log.w(TAG, "sessionStart failed", it) }
-                    .getOrNull()
+            withContext(NonCancellable) {
+                writeLock.withLock {
+                    if (sessionId != null) return@withLock
+                    val shelf = bookshelf ?: return@withLock
+                    sessionId = runCatching { shelf.sessionStart(publicationId) }
+                        .onFailure { Log.w(TAG, "sessionStart failed", it) }
+                        .getOrNull()
+                }
             }
         }
     }
 
     fun onReaderHidden() {
+        endSitting(closePublication = false)
+    }
+
+    /**
+     * The one teardown coroutine: the final page position lands first, then
+     * the session closes around it, and — when the reader is going away for
+     * good — the container is released. One coroutine, so the order is the
+     * order of these lines rather than of whichever thread woke first.
+     */
+    private fun endSitting(closePublication: Boolean) {
         LibraryStore.writes.launch {
-            sessionLock.withLock {
+            persistPendingProgress()
+            endSession()
+            if (closePublication) closeOpenPublication()
+        }
+    }
+
+    private suspend fun endSession() {
+        withContext(NonCancellable) {
+            writeLock.withLock {
                 val id = sessionId ?: return@withLock
                 sessionId = null
                 val shelf = bookshelf ?: return@withLock
                 runCatching { shelf.sessionEnd(id) }
                     .onFailure { Log.w(TAG, "sessionEnd failed", it) }
             }
+        }
+    }
+
+    /** `Publication.close()` blocks, so it never runs on the main thread. */
+    private suspend fun closeOpenPublication() {
+        val publication = openPublication ?: return
+        openPublication = null
+        withContext(NonCancellable + Dispatchers.IO) {
+            runCatching { publication.close() }
+                .onFailure { Log.w(TAG, "closing the publication failed", it) }
         }
     }
 
@@ -258,27 +327,24 @@ class ReaderViewModel(
     fun addBookmark(locator: Locator, onPlaced: () -> Unit) {
         val shelf = bookshelf ?: return
         LibraryStore.writes.launch {
-            runCatching {
-                shelf.addBookmark(
-                    publicationId,
-                    locator.toJSON().toString(),
-                    locator.locations.totalProgression ?: 0.0,
-                )
-            }.onSuccess { withContext(Dispatchers.Main) { onPlaced() } }
-                .onFailure { Log.w(TAG, "addBookmark failed", it) }
+            writeLock.withLock {
+                runCatching {
+                    shelf.addBookmark(
+                        publicationId,
+                        locator.toJSON().toString(),
+                        locator.locations.totalProgression ?: 0.0,
+                    )
+                }.onSuccess { withContext(Dispatchers.Main) { onPlaced() } }
+                    .onFailure { Log.w(TAG, "addBookmark failed", it) }
+            }
         }
     }
 
     override fun onCleared() {
-        // The last page turn may still sit unconsumed in the conflated
-        // flow; flush it on the application scope so it always lands.
-        pendingProgress.value?.let { last ->
-            if (last !== lastPersisted) {
-                LibraryStore.writes.launch { persistProgress(last) }
-            }
-        }
-        onReaderHidden()
-        (stateFlow.value as? UiState.Ready)?.book?.publication?.close()
+        // The last page turn may still sit unconsumed in the conflated flow.
+        // It flushes ahead of the session's closing write, and the container
+        // closes only once both have landed.
+        endSitting(closePublication = true)
         super.onCleared()
     }
 
