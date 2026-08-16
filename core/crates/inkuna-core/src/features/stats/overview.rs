@@ -135,15 +135,19 @@ impl Library {
 
 /// Local midnight of `date` in `tz`, as a unix timestamp. At a DST
 /// transition an ambiguous midnight takes the earlier reading, and a
-/// skipped midnight (a handful of zones spring forward at 00:00) rolls
-/// forward to the first instant the day actually has.
+/// skipped midnight rolls forward to the first instant that exists —
+/// scanning hour by hour, because the gap is not always one hour: a
+/// handful of zones spring forward at 00:00, and Pacific/Apia skipped
+/// December 30, 2011 *entirely* when Samoa crossed the date line, so the
+/// first valid instant can be a whole day away.
 fn local_midnight(tz: &Tz, date: NaiveDate) -> i64 {
     let midnight = date.and_time(NaiveTime::MIN);
-    match midnight.and_local_timezone(*tz) {
-        LocalResult::Single(dt) | LocalResult::Ambiguous(dt, _) => dt.timestamp(),
-        LocalResult::None => (midnight + Duration::hours(1))
-            .and_local_timezone(*tz)
-            .earliest()
-            .map_or_else(|| midnight.and_utc().timestamp(), |dt| dt.timestamp()),
+    for hour in 0..=48 {
+        match (midnight + Duration::hours(hour)).and_local_timezone(*tz) {
+            LocalResult::Single(dt) | LocalResult::Ambiguous(dt, _) => return dt.timestamp(),
+            LocalResult::None => {}
+        }
     }
+    // No tz database gap exceeds 48 hours; unreachable in practice.
+    midnight.and_utc().timestamp()
 }

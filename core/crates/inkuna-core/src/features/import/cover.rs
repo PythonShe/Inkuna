@@ -6,7 +6,7 @@
 //! import.
 
 use std::io::Cursor;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
 
 use image::imageops::FilterType;
 use image::ImageReader;
@@ -25,8 +25,19 @@ const MAX_COVER_HEIGHT: u32 = 900;
 /// before any pixel is allocated. The 16 MiB compressed cap upstream
 /// (`epub::archive`) does not bound decoded size — 16 MiB of PNG can
 /// inflate to gigabytes — so a source past this cap is stored as-is and
-/// left to the shells' own sampled decoders.
-const MAX_DECODE_PIXELS: u64 = 50_000_000;
+/// left to the shells' own sampled decoders. 24 MP (≈4000×6000, ~96 MB
+/// as RGBA8) admits any plausible real cover while keeping the worst
+/// admitted decode phone-sized.
+const MAX_DECODE_PIXELS: u64 = 24_000_000;
+
+/// One decode+encode at a time, process-wide. Import batches fan out on
+/// rayon and the legacy re-encode pass runs at startup; without this
+/// gate, peak transient memory scales with worker count — up to
+/// [`MAX_DECODE_PIXELS`]-sized RGBA buffers per thread — exactly when
+/// Android's low-memory killer and iOS jetsam are least forgiving.
+/// Covers are a small slice of import cost, so serializing them trades
+/// nothing measurable for a bounded peak.
+static DECODE_GATE: Mutex<()> = Mutex::new(());
 
 /// Lossy WebP quality. 80 is visually transparent at thumbnail sizes and
 /// roughly a quarter of an equivalent JPEG's bytes.
@@ -57,6 +68,7 @@ fn normalized(bytes: &[u8], extension: &str) -> Option<Cover> {
         // only stack generation loss.
         return None;
     }
+    let _decode_slot = DECODE_GATE.lock().unwrap();
     let decoded = ImageReader::new(Cursor::new(bytes))
         .with_guessed_format()
         .ok()?
@@ -91,7 +103,6 @@ impl Library {
     /// pass: a cover is derived data. Safe to run in the background at
     /// any time after open.
     pub fn optimize_covers(&self) -> Result<u32, CoreError> {
-        use rayon::prelude::*;
         let rows: Vec<(String, String)> = self.readers.with(|conn| {
             let mut stmt = conn
                 .prepare("SELECT id, cover_path FROM publications WHERE cover_path IS NOT NULL")?;
@@ -101,16 +112,18 @@ impl Library {
             Ok(rows)
         })?;
 
-        let changed = AtomicU32::new(0);
-        rows.par_iter()
-            .for_each(|(id, rel)| match self.optimize_cover(id, rel) {
-                Ok(true) => {
-                    changed.fetch_add(1, Ordering::Relaxed);
-                }
+        // Sequential on purpose: the decode dominates and [`DECODE_GATE`]
+        // serializes it anyway, so fanning out on rayon would only pin
+        // worker threads against the gate during app startup.
+        let mut changed = 0;
+        for (id, rel) in &rows {
+            match self.optimize_cover(id, rel) {
+                Ok(true) => changed += 1,
                 Ok(false) => {}
                 Err(error) => log::warn!("cover optimization skipped for {id}: {error}"),
-            });
-        Ok(changed.into_inner())
+            }
+        }
+        Ok(changed)
     }
 
     /// Normalizes one stored cover in place: write the WebP beside the

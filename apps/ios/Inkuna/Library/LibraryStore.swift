@@ -1,6 +1,7 @@
 // The UniFFI-generated bindings (Generated/InkunaCore.swift) are compiled
 // directly into this target, so core types need no import.
 import Foundation
+import os
 
 /// Thin app-side wrapper around the Rust core's `Library`.
 /// Owns the database location; all logic stays in the core.
@@ -16,6 +17,13 @@ actor LibraryStore {
     static let shared = LibraryStore()
 
     private var opened: Bookshelf?
+
+    /// The background cover-normalization pass, held on the actor so it
+    /// has a defined cancellation path and a second open can never queue
+    /// a second pass.
+    private var coverOptimization: Task<Void, Never>?
+
+    private let logger = Logger(subsystem: "app.inkuna.ios", category: "library")
 
     /// The core library, opened on first use.
     ///
@@ -43,9 +51,14 @@ actor LibraryStore {
         // Covers imported by older cores are full-resolution originals;
         // normalize them into the core's bounded WebP form off the
         // critical path. Idempotent and cheap when there is nothing to
-        // do; failing only means covers stay big until the next open.
-        Task.detached(priority: .utility) {
-            _ = try? await bookshelf.optimizeCovers()
+        // do; failing only means covers stay big until the next open —
+        // but a failure is still worth a trace in the log.
+        coverOptimization = Task(priority: .utility) { [logger] in
+            do {
+                _ = try await bookshelf.optimizeCovers()
+            } catch {
+                logger.warning("Cover optimization failed: \(error)")
+            }
         }
         return bookshelf
     }

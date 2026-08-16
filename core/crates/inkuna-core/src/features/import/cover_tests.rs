@@ -84,16 +84,30 @@ fn normalized_output_is_a_fixed_point() {
 
 #[test]
 fn dimension_bomb_passes_through_undecoded() {
-    // A GIF header declaring 65535×65535 (4.3 gigapixels) with no pixel
-    // data behind it: the pre-decode cap must refuse it from the header
-    // alone rather than letting a decoder try.
-    let bytes = b"GIF89a\xff\xff\xff\xff\x00\x00\x00".to_vec();
+    // A bare BMP header declaring 30000×30000 (900 megapixels) with no
+    // pixel data behind it: the pre-decode cap must refuse it from the
+    // header alone rather than letting a decoder try.
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"BM");
+    bytes.extend_from_slice(&54u32.to_le_bytes()); // declared file size
+    bytes.extend_from_slice(&0u32.to_le_bytes()); // reserved
+    bytes.extend_from_slice(&54u32.to_le_bytes()); // pixel data offset
+    bytes.extend_from_slice(&40u32.to_le_bytes()); // BITMAPINFOHEADER
+    bytes.extend_from_slice(&30_000i32.to_le_bytes()); // width
+    bytes.extend_from_slice(&30_000i32.to_le_bytes()); // height
+    bytes.extend_from_slice(&1u16.to_le_bytes()); // planes
+    bytes.extend_from_slice(&24u16.to_le_bytes()); // bits per pixel
+    bytes.extend_from_slice(&[0u8; 24]); // compression through palette
+    // The header must parse and must declare more pixels than the cap
+    // admits — otherwise the pass-through below could come from a mere
+    // decode failure and the test would pass with the cap deleted.
+    assert_eq!(dimensions(&bytes), (30_000, 30_000));
     let cover = normalize_cover(Cover {
         bytes: bytes.clone(),
-        extension: "gif".into(),
+        extension: "bmp".into(),
     });
     assert_eq!(cover.bytes, bytes);
-    assert_eq!(cover.extension, "gif");
+    assert_eq!(cover.extension, "bmp");
 }
 
 #[test]

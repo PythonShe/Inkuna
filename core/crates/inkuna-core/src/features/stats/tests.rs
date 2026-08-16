@@ -230,3 +230,33 @@ fn month_boundary_holds_across_dst_transition() {
     assert_eq!(overview.minutes_this_month, 0);
     assert!(overview.read_days.is_empty());
 }
+
+/// Samoa skipped December 30, 2011 entirely (UTC−10 → UTC+14). A Friday
+/// week start lands on that missing day, so the boundary must resolve to
+/// the first instant that exists (Dec 31 00:00 +14) rather than a
+/// UTC-midnight guess ten hours earlier — which would leak Thursday's
+/// sessions into the new week.
+#[test]
+fn week_boundary_survives_a_skipped_local_day() {
+    let (_dir, library, id) = library_with_book();
+    let apia = chrono_tz::Pacific::Apia;
+    let now = apia
+        .with_ymd_and_hms(2011, 12, 31, 12, 0, 0)
+        .unwrap()
+        .timestamp();
+    // Late Thursday Dec 29 local (still UTC−10): the prior week.
+    let thursday = apia
+        .with_ymd_and_hms(2011, 12, 29, 23, 0, 0)
+        .unwrap()
+        .timestamp();
+    insert_session(
+        &library, &id,
+        thursday, Some(thursday + 600), thursday + 600,
+        Some(0), Some(7),
+    );
+
+    let overview = library
+        .stats_overview_at(at(now), "Pacific/Apia", Weekday::Fri)
+        .unwrap();
+    assert_eq!(overview.pages_this_week, 0);
+}
