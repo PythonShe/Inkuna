@@ -58,17 +58,17 @@ final class StatsViewController: ScrollScreenViewController {
 
     private func reload() {
         reloadTask?.cancel()
-        // Stats bucketing follows the wall clock and week convention this
-        // device lives in; the core stores UTC instants and buckets them
-        // against exactly this offset.
-        let tzOffsetMinutes = Int32(TimeZone.current.secondsFromGMT() / 60)
-        let weekStartsMonday = Calendar.current.firstWeekday == 2
+        // Stats bucketing follows the zone and week convention this device
+        // lives in; the zone id (not a fixed offset) is what keeps
+        // week/month/year boundaries honest across DST.
+        let timezone = TimeZone.current.identifier
+        let weekStart = Weekday(firstWeekday: Calendar.current.firstWeekday)
         reloadTask = Task { [weak self] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
                 let overview = try await bookshelf.statsOverview(
-                    tzOffsetMinutes: tzOffsetMinutes,
-                    weekStartsMonday: weekStartsMonday
+                    timezone: timezone,
+                    weekStart: weekStart
                 )
                 // Reading, not unfinished: "in progress" means actually
                 // begun, so a freshly imported book stays off this list.
@@ -350,5 +350,21 @@ final class StatsViewController: ScrollScreenViewController {
             separator.heightAnchor.constraint(equalToConstant: 1 / traitCollection.displayScale),
         ])
         return container
+    }
+}
+
+private extension Weekday {
+    /// `Calendar.firstWeekday` is 1-based starting at Sunday; anything
+    /// out of range degrades to Sunday rather than trapping.
+    init(firstWeekday: Int) {
+        switch firstWeekday {
+        case 2: self = .monday
+        case 3: self = .tuesday
+        case 4: self = .wednesday
+        case 5: self = .thursday
+        case 6: self = .friday
+        case 7: self = .saturday
+        default: self = .sunday
+        }
     }
 }

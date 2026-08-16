@@ -13,6 +13,34 @@ pub struct StatsOverview {
     pub read_days: Vec<u8>,
 }
 
+/// First day of the caller's week — all seven, because
+/// `Calendar.firstWeekday` / `WeekFields.firstDayOfWeek` span all seven
+/// (ar-EG weeks start on Saturday).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum Weekday {
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday,
+    Sunday,
+}
+
+impl From<Weekday> for inkuna_core::Weekday {
+    fn from(day: Weekday) -> Self {
+        match day {
+            Weekday::Monday => inkuna_core::Weekday::Mon,
+            Weekday::Tuesday => inkuna_core::Weekday::Tue,
+            Weekday::Wednesday => inkuna_core::Weekday::Wed,
+            Weekday::Thursday => inkuna_core::Weekday::Thu,
+            Weekday::Friday => inkuna_core::Weekday::Fri,
+            Weekday::Saturday => inkuna_core::Weekday::Sat,
+            Weekday::Sunday => inkuna_core::Weekday::Sun,
+        }
+    }
+}
+
 impl From<inkuna_core::StatsOverview> for StatsOverview {
     fn from(s: inkuna_core::StatsOverview) -> Self {
         StatsOverview {
@@ -39,24 +67,19 @@ impl Bookshelf {
         blocking(move || Ok(library.session_end(&session_id)?)).await
     }
 
-    /// Stats screen numbers in the caller's local time.
+    /// Stats screen numbers in the caller's local calendar.
     ///
-    /// `tz_offset_minutes` is **minutes** east of UTC, accepted range
-    /// −1439..=1439 (e.g. 540 for JST, −480 for PST). An offset outside
-    /// that range is not an error — the numbers are silently bucketed in
-    /// UTC instead — so passing seconds by mistake yields plausible but
-    /// wrong buckets rather than a failure.
+    /// `timezone` is an IANA zone id (`Asia/Tokyo`) so day, week, month,
+    /// and year boundaries stay honest across DST transitions — a fixed
+    /// offset cannot do that. An unknown id is not an error: the numbers
+    /// are silently bucketed in UTC instead. `week_start` is the
+    /// locale's first day of the week.
     pub async fn stats_overview(
         &self,
-        tz_offset_minutes: i32,
-        week_starts_monday: bool,
+        timezone: String,
+        week_start: Weekday,
     ) -> Result<StatsOverview, InkunaError> {
         let library = self.0.clone();
-        blocking(move || {
-            Ok(library
-                .stats_overview(tz_offset_minutes, week_starts_monday)?
-                .into())
-        })
-        .await
+        blocking(move || Ok(library.stats_overview(&timezone, week_start.into())?.into())).await
     }
 }

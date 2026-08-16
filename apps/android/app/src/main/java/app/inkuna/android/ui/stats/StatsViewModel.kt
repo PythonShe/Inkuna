@@ -9,8 +9,9 @@ import app.inkuna.android.model.BookRow
 import app.inkuna.android.model.LibraryStore
 import app.inkuna.core.Shelf
 import app.inkuna.core.Sort
+import app.inkuna.core.Weekday
 import java.time.DayOfWeek
-import java.time.ZonedDateTime
+import java.time.ZoneId
 import java.time.temporal.WeekFields
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -56,18 +57,18 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
         reload = viewModelScope.launch {
             try {
                 val bookshelf = LibraryStore.bookshelf(getApplication())
-                // Stats bucketing follows the wall clock and week convention
-                // this device lives in; the core stores UTC instants and
-                // buckets them against exactly this offset.
+                // Stats bucketing follows the zone and week convention this
+                // device lives in; the zone id (not a fixed offset) is what
+                // keeps week/month/year boundaries honest across DST.
                 val overview = bookshelf.statsOverview(
-                    tzOffsetMinutes = ZonedDateTime.now().offset.totalSeconds / 60,
+                    timezone = ZoneId.systemDefault().id,
                     // The same locale the calendar grid renders with
                     // (LocalConfiguration), not Locale.getDefault() — the
                     // two diverge once per-app language lands, and the
                     // week bucketing must match the drawn first column.
-                    weekStartsMonday = WeekFields.of(
+                    weekStart = WeekFields.of(
                         getApplication<Application>().resources.configuration.locales[0]
-                    ).firstDayOfWeek == DayOfWeek.MONDAY,
+                    ).firstDayOfWeek.toCoreWeekday(),
                 )
                 // Reading, not unfinished: "in progress" means actually
                 // begun, so a freshly imported book stays off this list.
@@ -99,4 +100,15 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         const val TAG = "InkunaStats"
     }
+}
+
+/** The core's week-start enum for a `java.time` day. */
+private fun DayOfWeek.toCoreWeekday(): Weekday = when (this) {
+    DayOfWeek.MONDAY -> Weekday.MONDAY
+    DayOfWeek.TUESDAY -> Weekday.TUESDAY
+    DayOfWeek.WEDNESDAY -> Weekday.WEDNESDAY
+    DayOfWeek.THURSDAY -> Weekday.THURSDAY
+    DayOfWeek.FRIDAY -> Weekday.FRIDAY
+    DayOfWeek.SATURDAY -> Weekday.SATURDAY
+    DayOfWeek.SUNDAY -> Weekday.SUNDAY
 }

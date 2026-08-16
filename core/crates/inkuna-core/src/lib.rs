@@ -12,6 +12,9 @@ mod formats;
 mod test_support;
 
 pub use crate::core::error::CoreError;
+/// Re-exported for the stats API's `week_start` parameter, so consumers
+/// never need a direct chrono dependency.
+pub use chrono::Weekday;
 pub use features::import::{BatchImportOutcome, ImportOutcome};
 pub use features::library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};
 pub use features::settings::Settings;
