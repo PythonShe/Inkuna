@@ -2,63 +2,63 @@
 <resources>
     <string name="app_name">Inkuna</string>
 
-    <!-- Mở đầu -->
-    <string name="welcome_tagline">Trình đọc sách tối giản, nơi trang mực hòa cùng ánh trăng.</string>
+    
+    <string name="welcome_tagline">Trình đọc sách điện tử tối giản và thanh lịch.</string>
     <string name="welcome_begin">Bắt đầu</string>
-    <string name="themepick_eyebrow">Một nghi thức nhỏ</string>
-    <string name="themepick_title">Đọc lúc ban ngày, hoặc khi đêm về</string>
-    <string name="themepick_sample">Ngọn đèn lụi dần, và vầng trăng tiếp tục công việc soi sáng trang sách.</string>
+    <string name="themepick_eyebrow">Giao diện</string>
+    <string name="themepick_title">Đọc sách ban ngày hoặc ban đêm</string>
+    <string name="themepick_sample">Ánh đèn dịu dần và ánh trăng soi sáng trang sách.</string>
     <string name="themepick_hint">Bạn có thể thay đổi bất kỳ lúc nào khi đang đọc sách.</string>
     <string name="themepick_continue">Tiếp tục</string>
 
-    <!-- Giao diện đọc sách -->
+    
     <string name="theme_paper">Trang giấy</string>
-    <string name="theme_paper_subtitle">Đọc sách êm dịu dưới ánh ban ngày</string>
+    <string name="theme_paper_subtitle">Phù hợp đọc ban ngày</string>
     <string name="theme_calm">Tĩnh lặng</string>
-    <string name="theme_calm_subtitle">Sắc giấy da êm ái</string>
+    <string name="theme_calm_subtitle">Giấy màu êm dịu</string>
     <string name="theme_quiet">Trầm lắng</string>
-    <string name="theme_quiet_subtitle">Tông than chì dịu mắt</string>
+    <string name="theme_quiet_subtitle">Xám đậm dịu mắt</string>
     <string name="theme_moon">Ánh trăng</string>
-    <string name="theme_moon_subtitle">Ánh đèn ấm áp cho những giờ khuya</string>
+    <string name="theme_moon_subtitle">Phù hợp đọc ban đêm</string>
 
-    <!-- Thanh điều hướng -->
+    
     <string name="tab_tonight">Tối nay</string>
     <string name="tab_library">Thư viện</string>
     <string name="tab_search">Tìm kiếm</string>
     <string name="tab_stats">Thống kê</string>
 
-    <!-- Tối nay -->
+    
     <string name="tonight_eyebrow">Tối nay</string>
     <string name="tonight_title">Đọc tiếp từ nơi bạn đã dừng</string>
     <string name="tonight_pages_left">Còn mười lăm trang nữa trong chương này</string>
     <string name="tonight_percent_read">Đã đọc %1$d%%</string>
     <string name="tonight_keep_reading">Đọc tiếp</string>
-    <string name="tonight_nightstand">Trên bàn đầu giường</string>
+    <string name="tonight_nightstand">Danh sách muốn đọc</string>
     <string name="tonight_chip_fiction">Tiểu thuyết</string>
     <string name="tonight_chip_essays">Tùy bút</string>
     <string name="tonight_chip_night_reads">Đọc đêm</string>
 
-    <!-- Thư viện -->
+    
     <string name="library_title">Thư viện</string>
     <string name="library_search_placeholder">Tìm kiếm trong thư viện</string>
     <string name="library_seg_reading">Đang đọc</string>
     <string name="library_seg_finished">Đã xong</string>
     <string name="library_seg_wishlist">Muốn đọc</string>
-    <string name="library_empty_finished">Chưa có cuốn sách nào đọc xong. Không cần vội vã.</string>
-    <string name="library_empty_wishlist">Chưa có cuốn sách nào trên bàn đầu giường.</string>
-    <string name="library_empty_query">Không tìm thấy sách phù hợp trong kho sách.</string>
+    <string name="library_empty_finished">Chưa có cuốn sách nào đọc xong.</string>
+    <string name="library_empty_wishlist">Chưa có cuốn sách nào trong danh sách muốn đọc.</string>
+    <string name="library_empty_query">Không tìm thấy cuốn sách nào.</string>
     <string name="library_empty_reading">Chưa có sách ở đây.</string>
     <string name="library_empty_all">Chưa có sách ở đây.</string>
     <string name="library_unopenable">Không thể mở thư viện.</string>
     <string name="unknown_author">Tác giả chưa rõ</string>
 
-    <!-- Tìm kiếm -->
+    
     <string name="search_title">Tìm kiếm</string>
     <string name="search_placeholder">Tên sách, tác giả</string>
     <string name="search_recently_added">Mới thêm gần đây</string>
 
-    <!-- Thống kê -->
-    <string name="stats_title">Đọc sách</string>
+    
+    <string name="stats_title">Thống kê đọc sách</string>
     <string name="stats_in_progress">Đang đọc</string>
     <string name="stats_pages_this_week">trang trong tuần này</string>
     <string name="stats_hours_this_month">giờ trong tháng này</string>
@@ -70,11 +70,11 @@
         <item quantity="other">%d buổi tối đọc sách trong tháng này.</item>
     </plurals>
 
-    <!-- Chi tiết sách -->
+    
     <string name="detail_contents">Mục lục</string>
     <string name="detail_no_contents">Cuốn sách này không có mục lục.</string>
 
-    <!-- Trình đọc -->
+    
     <string name="reader_menu_contents">Mục lục · %1$d%%</string>
     <string name="reader_menu_theme_type">Giao diện &amp; Kiểu chữ</string>
     <string name="reader_search_placeholder">Tìm kiếm trong cuốn sách này</string>
@@ -90,7 +90,7 @@
     <string name="reader_bookmark_empty">Chưa có nội dung để đánh dấu trang.</string>
     <string name="reader_bookmark_save_failed">Không thể lưu dấu trang.</string>
 
-    <!-- Trợ năng -->
+    
     <string name="a11y_back">Quay lại</string>
     <string name="a11y_close">Đóng</string>
     <string name="a11y_reading_menu">Menu đọc sách</string>

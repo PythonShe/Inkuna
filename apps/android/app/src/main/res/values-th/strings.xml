@@ -2,63 +2,63 @@
 <resources>
     <string name="app_name">Inkuna</string>
 
-    <!-- การเริ่มต้นใช้งาน -->
-    <string name="welcome_tagline">แอปอ่านหนังสือสไตล์มินิมอล ที่ซึ่งน้ำหมึกบรรจบกับแสงจันทร์</string>
+    
+    <string name="welcome_tagline">แอปอ่านหนังสือสไตล์มินิมอลที่เรียบง่าย</string>
     <string name="welcome_begin">เริ่มต้น</string>
-    <string name="themepick_eyebrow">ธรรมเนียมเล็กๆ ในการอ่าน</string>
-    <string name="themepick_title">อ่านในยามกลางวัน หรือยามค่ำคืน</string>
-    <string name="themepick_sample">ตะเกียงหรี่แสงลง และดวงจันทร์เข้ามารับหน้าที่ส่องสว่างบนหน้ากระดาษแทน</string>
+    <string name="themepick_eyebrow">ธีมการอ่าน</string>
+    <string name="themepick_title">อ่านในเวลากลางวันหรือกลางคืน</string>
+    <string name="themepick_sample">แสงไฟหรี่ลง และแสงจันทร์ส่องสว่างบนหน้ากระดาษ</string>
     <string name="themepick_hint">คุณสามารถเปลี่ยนค่านี้ได้ตลอดเวลาขณะอ่าน</string>
     <string name="themepick_continue">ดำเนินการต่อ</string>
 
-    <!-- ธีมการอ่าน -->
+    
     <string name="theme_paper">กระดาษ</string>
-    <string name="theme_paper_subtitle">อ่านสบายตาในแสงกลางวัน</string>
+    <string name="theme_paper_subtitle">เหมาะสำหรับอ่านตอนกลางวัน</string>
     <string name="theme_calm">สงบนิ่ง</string>
-    <string name="theme_calm_subtitle">สัมผัสกระดาษสาอันนุ่มนวล</string>
+    <string name="theme_calm_subtitle">โทนกระดาษนุ่มนวล</string>
     <string name="theme_quiet">เงียบสงบ</string>
-    <string name="theme_quiet_subtitle">โทนกราไฟต์สบายตา</string>
+    <string name="theme_quiet_subtitle">โทนเทาเข้ม</string>
     <string name="theme_moon">แสงจันทร์</string>
-    <string name="theme_moon_subtitle">แสงตะเกียงสำหรับยามดึก</string>
+    <string name="theme_moon_subtitle">เหมาะสำหรับอ่านตอนกลางคืน</string>
 
-    <!-- แถบเมนู -->
+    
     <string name="tab_tonight">คืนนี้</string>
     <string name="tab_library">ชั้นหนังสือ</string>
     <string name="tab_search">ค้นหา</string>
-    <string name="tab_stats">สถิติการอ่าน</string>
+    <string name="tab_stats">สถิติ</string>
 
-    <!-- คืนนี้ -->
+    
     <string name="tonight_eyebrow">คืนนี้</string>
     <string name="tonight_title">อ่านต่อจากที่ค้างไว้</string>
     <string name="tonight_pages_left">เหลืออีก 15 หน้าในบทนี้</string>
     <string name="tonight_percent_read">อ่านแล้ว %1$d%%</string>
     <string name="tonight_keep_reading">อ่านต่อ</string>
-    <string name="tonight_nightstand">บนโต๊ะข้างเตียง</string>
+    <string name="tonight_nightstand">รายการที่อยากอ่าน</string>
     <string name="tonight_chip_fiction">นวนิยาย</string>
     <string name="tonight_chip_essays">ความเรียง</string>
     <string name="tonight_chip_night_reads">อ่านยามค่ำคืน</string>
 
-    <!-- ชั้นหนังสือ -->
+    
     <string name="library_title">ชั้นหนังสือ</string>
     <string name="library_search_placeholder">ค้นหาในชั้นหนังสือของคุณ</string>
     <string name="library_seg_reading">กำลังอ่าน</string>
     <string name="library_seg_finished">อ่านจบแล้ว</string>
     <string name="library_seg_wishlist">อยากอ่าน</string>
-    <string name="library_empty_finished">ยังไม่มีหนังสือที่อ่านจบ ไม่ต้องรีบร้อน</string>
-    <string name="library_empty_wishlist">ยังไม่มีหนังสือบนโต๊ะข้างเตียง</string>
-    <string name="library_empty_query">ไม่พบหนังสือที่ค้นหาในชั้น</string>
+    <string name="library_empty_finished">ยังไม่มีหนังสือที่อ่านจบ</string>
+    <string name="library_empty_wishlist">ยังไม่มีหนังสือในรายการที่อยากอ่าน</string>
+    <string name="library_empty_query">ไม่พบหนังสือที่ค้นหา</string>
     <string name="library_empty_reading">ยังไม่มีหนังสือในส่วนนี้</string>
     <string name="library_empty_all">ยังไม่มีหนังสือในส่วนนี้</string>
     <string name="library_unopenable">ไม่สามารถเปิดชั้นหนังสือได้</string>
     <string name="unknown_author">ไม่ระบุผู้แต่ง</string>
 
-    <!-- ค้นหา -->
+    
     <string name="search_title">ค้นหา</string>
     <string name="search_placeholder">ชื่อหนังสือ, ผู้แต่ง</string>
     <string name="search_recently_added">เพิ่มล่าสุด</string>
 
-    <!-- สถิติ -->
-    <string name="stats_title">การอ่าน</string>
+    
+    <string name="stats_title">สถิติการอ่าน</string>
     <string name="stats_in_progress">กำลังอ่าน</string>
     <string name="stats_pages_this_week">หน้าในสัปดาห์นี้</string>
     <string name="stats_hours_this_month">ชั่วโมงในเดือนนี้</string>
@@ -70,11 +70,11 @@
         <item quantity="other">อ่านหนังสือไป %d คืนในเดือนนี้</item>
     </plurals>
 
-    <!-- รายละเอียดหนังสือ -->
+    
     <string name="detail_contents">สารบัญ</string>
     <string name="detail_no_contents">หนังสือเล่มนี้ไม่มีสารบัญ</string>
 
-    <!-- เครื่องมืออ่าน -->
+    
     <string name="reader_menu_contents">สารบัญ · %1$d%%</string>
     <string name="reader_menu_theme_type">ธีมและรูปแบบอักษร</string>
     <string name="reader_search_placeholder">ค้นหาในหนังสือเล่มนี้</string>
@@ -90,7 +90,7 @@
     <string name="reader_bookmark_empty">ยังไม่มีหน้าที่สามารถคั่นได้</string>
     <string name="reader_bookmark_save_failed">ไม่สามารถบันทึกที่คั่นหน้าได้</string>
 
-    <!-- การเข้าถึง (Accessibility) -->
+    
     <string name="a11y_back">ย้อนกลับ</string>
     <string name="a11y_close">ปิด</string>
     <string name="a11y_reading_menu">เมนูการอ่าน</string>

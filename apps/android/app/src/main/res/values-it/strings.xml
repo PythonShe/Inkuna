@@ -2,63 +2,63 @@
 <resources>
     <string name="app_name">Inkuna</string>
 
-    <!-- Benvenuto -->
-    <string name="welcome_tagline">Un lettore di libri essenziale dove l\'inchiostro incontra il chiaro di luna.</string>
+    
+    <string name="welcome_tagline">Un lettore di libri essenziale ed elegante.</string>
     <string name="welcome_begin">Inizia</string>
-    <string name="themepick_eyebrow">Un piccolo rituale</string>
-    <string name="themepick_title">Leggi di giorno, o di notte</string>
-    <string name="themepick_sample">La lampada si affievoliva e la luna prese il compito di illuminare la pagina.</string>
+    <string name="themepick_eyebrow">Aspetto</string>
+    <string name="themepick_title">Leggi di giorno o di notte</string>
+    <string name="themepick_sample">La luce si affievolisce e la luna illumina la pagina.</string>
     <string name="themepick_hint">Puoi modificarlo in qualsiasi momento durante la lettura.</string>
     <string name="themepick_continue">Continua</string>
 
-    <!-- Temi di lettura -->
+    
     <string name="theme_paper">Carta</string>
-    <string name="theme_paper_subtitle">Lettura calda alla luce del giorno</string>
+    <string name="theme_paper_subtitle">Ideale per il giorno</string>
     <string name="theme_calm">Calma</string>
-    <string name="theme_calm_subtitle">Morbida pergamena</string>
+    <string name="theme_calm_subtitle">Pergamena morbida</string>
     <string name="theme_quiet">Silenzio</string>
-    <string name="theme_quiet_subtitle">Grafite tenue</string>
+    <string name="theme_quiet_subtitle">Grigio scuro</string>
     <string name="theme_moon">Luna</string>
-    <string name="theme_moon_subtitle">Luce di lampada per le ore tarde</string>
+    <string name="theme_moon_subtitle">Ideale per la notte</string>
 
-    <!-- Schede -->
+    
     <string name="tab_tonight">Stasera</string>
     <string name="tab_library">Libreria</string>
     <string name="tab_search">Cerca</string>
     <string name="tab_stats">Statistiche</string>
 
-    <!-- Stasera -->
+    
     <string name="tonight_eyebrow">Stasera</string>
     <string name="tonight_title">Riprendi da dove avevi interrotto</string>
     <string name="tonight_pages_left">Quindici pagine rimaste in questo capitolo</string>
     <string name="tonight_percent_read">%1$d%% letto</string>
     <string name="tonight_keep_reading">Continua a leggere</string>
-    <string name="tonight_nightstand">Sul comodino</string>
+    <string name="tonight_nightstand">Da leggere</string>
     <string name="tonight_chip_fiction">Narrativa</string>
     <string name="tonight_chip_essays">Saggi</string>
     <string name="tonight_chip_night_reads">Letture notturne</string>
 
-    <!-- Libreria -->
+    
     <string name="library_title">Libreria</string>
     <string name="library_search_placeholder">Cerca nella libreria</string>
     <string name="library_seg_reading">In lettura</string>
     <string name="library_seg_finished">Completati</string>
     <string name="library_seg_wishlist">Desideri</string>
-    <string name="library_empty_finished">Nessun libro completato finora. Senza fretta.</string>
-    <string name="library_empty_wishlist">Ancora nulla sul comodino.</string>
-    <string name="library_empty_query">Nessun risultato trovato tra gli scaffali.</string>
+    <string name="library_empty_finished">Nessun libro completato finora.</string>
+    <string name="library_empty_wishlist">Ancora nessun libro nella lista dei desideri.</string>
+    <string name="library_empty_query">Nessun libro trovato.</string>
     <string name="library_empty_reading">Non c\'è ancora nulla qui.</string>
     <string name="library_empty_all">Non c\'è ancora nulla qui.</string>
     <string name="library_unopenable">Impossibile aprire la libreria.</string>
     <string name="unknown_author">Autore sconosciuto</string>
 
-    <!-- Cerca -->
+    
     <string name="search_title">Cerca</string>
     <string name="search_placeholder">Titoli, autori</string>
     <string name="search_recently_added">Aggiunti di recente</string>
 
-    <!-- Statistiche -->
-    <string name="stats_title">Lettura</string>
+    
+    <string name="stats_title">Statistiche di lettura</string>
     <string name="stats_in_progress">In corso</string>
     <string name="stats_pages_this_week">pagine questa settimana</string>
     <string name="stats_hours_this_month">ore questo mese</string>
@@ -67,15 +67,15 @@
     <string name="stats_hours_half_only">½ ora</string>
     <string name="stats_in_progress_empty">Nessun libro in corso di lettura.</string>
     <plurals name="stats_evenings">
-        <item quantity="one">Una serata con un libro questo mese.</item>
-        <item quantity="other">%d serate con un libro questo mese.</item>
+        <item quantity="one">1 serata di lettura questo mese.</item>
+        <item quantity="other">%d serate di lettura questo mese.</item>
     </plurals>
 
-    <!-- Dettaglio libro -->
+    
     <string name="detail_contents">Indice</string>
     <string name="detail_no_contents">Questo libro non contiene un indice.</string>
 
-    <!-- Lettore -->
+    
     <string name="reader_menu_contents">Indice · %1$d%%</string>
     <string name="reader_menu_theme_type">Tema e caratteri</string>
     <string name="reader_search_placeholder">Cerca in questo libro</string>
@@ -91,7 +91,7 @@
     <string name="reader_bookmark_empty">Nulla da contrassegnare al momento.</string>
     <string name="reader_bookmark_save_failed">Impossibile salvare il segnalibro.</string>
 
-    <!-- Accessibilità -->
+    
     <string name="a11y_back">Indietro</string>
     <string name="a11y_close">Chiudi</string>
     <string name="a11y_reading_menu">Menu di lettura</string>

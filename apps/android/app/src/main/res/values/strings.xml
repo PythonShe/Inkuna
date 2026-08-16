@@ -2,16 +2,16 @@
 <resources>
     <string name="app_name">Inkuna</string>
 
-    <!-- Onboarding -->
-    <string name="welcome_tagline">A minimalist book reader where ink meets moonlight.</string>
+    
+    <string name="welcome_tagline">A clean, minimalist book reader.</string>
     <string name="welcome_begin">Begin</string>
-    <string name="themepick_eyebrow">One small ritual</string>
+    <string name="themepick_eyebrow">Appearance</string>
     <string name="themepick_title">Read by day, or by night</string>
     <string name="themepick_sample">The lamp burned low, and the moon took over the work of lighting the page.</string>
     <string name="themepick_hint">You can change this anytime while reading.</string>
     <string name="themepick_continue">Continue</string>
 
-    <!-- Reading themes -->
+    
     <string name="theme_paper">Paper</string>
     <string name="theme_paper_subtitle">Warm daylight reading</string>
     <string name="theme_calm">Calm</string>
@@ -21,64 +21,63 @@
     <string name="theme_moon">Moon</string>
     <string name="theme_moon_subtitle">Lamplight for late hours</string>
 
-    <!-- Tabs -->
+    
     <string name="tab_tonight">Tonight</string>
     <string name="tab_library">Library</string>
     <string name="tab_search">Search</string>
     <string name="tab_stats">Stats</string>
 
-    <!-- Tonight -->
+    
     <string name="tonight_eyebrow">Tonight</string>
     <string name="tonight_title">Pick up where you left off</string>
     <string name="tonight_pages_left">Fifteen pages left in this chapter</string>
     <string name="tonight_percent_read">%1$d%% read</string>
     <string name="tonight_keep_reading">Keep reading</string>
-    <string name="tonight_nightstand">On the nightstand</string>
+    <string name="tonight_nightstand">To read</string>
     <string name="tonight_chip_fiction">Fiction</string>
     <string name="tonight_chip_essays">Essays</string>
     <string name="tonight_chip_night_reads">Night reads</string>
 
-    <!-- Library -->
+    
     <string name="library_title">Library</string>
     <string name="library_search_placeholder">Search your library</string>
     <string name="library_seg_reading">Reading</string>
     <string name="library_seg_finished">Finished</string>
     <string name="library_seg_wishlist">Wishlist</string>
-    <string name="library_empty_finished">Nothing finished yet. No hurry.</string>
-    <string name="library_empty_wishlist">Nothing on the nightstand yet.</string>
-    <string name="library_empty_query">Nothing found in the stacks.</string>
+    <string name="library_empty_finished">No finished books yet.</string>
+    <string name="library_empty_wishlist">No books in your wishlist yet.</string>
+    <string name="library_empty_query">No books found.</string>
     <string name="library_empty_reading">Nothing here yet.</string>
     <string name="library_empty_all">Nothing here yet.</string>
     <string name="library_unopenable">The library couldn\'t be opened.</string>
     <string name="unknown_author">Unknown author</string>
 
-    <!-- Search -->
+    
     <string name="search_title">Search</string>
     <string name="search_placeholder">Titles, authors</string>
     <string name="search_recently_added">Recently added</string>
 
-    <!-- Stats -->
-    <string name="stats_title">Reading</string>
+    
+    <string name="stats_title">Reading stats</string>
     <string name="stats_in_progress">In progress</string>
     <string name="stats_pages_this_week">pages this week</string>
     <string name="stats_hours_this_month">hours this month</string>
     <string name="stats_books_this_year">books this year</string>
-    <!-- Whole hours plus a half, the design's "6½" voice; %1$s is the
-         locale-formatted whole count. -->
+    
     <string name="stats_hours_half">%1$s½</string>
-    <!-- Under an hour but past the half: the fraction stands alone. -->
+    
     <string name="stats_hours_half_only">½</string>
     <string name="stats_in_progress_empty">Nothing in progress yet.</string>
     <plurals name="stats_evenings">
-        <item quantity="one">One evening with a book this month.</item>
-        <item quantity="other">%d evenings with a book this month.</item>
+        <item quantity="one">1 evening with reading this month.</item>
+        <item quantity="other">%d evenings with reading this month.</item>
     </plurals>
 
-    <!-- Book detail -->
+    
     <string name="detail_contents">Contents</string>
     <string name="detail_no_contents">This book lists no contents.</string>
 
-    <!-- Reader -->
+    
     <string name="reader_menu_contents">Contents · %1$d%%</string>
     <string name="reader_menu_theme_type">Theme &amp; type</string>
     <string name="reader_search_placeholder">Search this book</string>
@@ -94,7 +93,7 @@
     <string name="reader_bookmark_empty">Nothing to bookmark yet.</string>
     <string name="reader_bookmark_save_failed">The bookmark couldn\'t be saved.</string>
 
-    <!-- Accessibility -->
+    
     <string name="a11y_back">Back</string>
     <string name="a11y_close">Close</string>
     <string name="a11y_reading_menu">Reading menu</string>
@@ -110,7 +109,7 @@
     <string name="a11y_theme_tile">%1$s. %2$s</string>
     <string name="a11y_no_results">No results</string>
     <string name="a11y_toggle_reader_controls">Show or hide reading controls</string>
-    <!-- %1$s is a localized month name, %2$d the day of the month. -->
+    
     <string name="a11y_calendar_day">%1$s %2$d</string>
     <string name="a11y_calendar_day_read">%1$s %2$d, read</string>
     <string name="a11y_fact">%1$s %2$s</string>

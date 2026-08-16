@@ -2,63 +2,63 @@
 <resources>
     <string name="app_name">Inkuna</string>
 
-    <!-- オンボーディング -->
-    <string name="welcome_tagline">インクと月光が巡り会う、静謐な読書体験。</string>
+    
+    <string name="welcome_tagline">シンプルで洗練された電子書籍リーダー。</string>
     <string name="welcome_begin">はじめる</string>
-    <string name="themepick_eyebrow">読書を彩るささやかな儀式</string>
-    <string name="themepick_title">昼の光のなかで、あるいは夜の静けさのなかで</string>
-    <string name="themepick_sample">ランプの灯が落ち、月がページを照らしはじめる。</string>
+    <string name="themepick_eyebrow">テーマ設定</string>
+    <string name="themepick_title">日中や夜間に合わせた読書モード</string>
+    <string name="themepick_sample">灯りが落ち着き、月明かりがページを照らし出す。</string>
     <string name="themepick_hint">この設定は読書中いつでも変更できます。</string>
     <string name="themepick_continue">次へ</string>
 
-    <!-- 読書テーマ -->
+    
     <string name="theme_paper">紙白</string>
-    <string name="theme_paper_subtitle">やわらかな陽光の下で</string>
+    <string name="theme_paper_subtitle">日中の読書に最適</string>
     <string name="theme_calm">羊皮紙</string>
-    <string name="theme_calm_subtitle">落ち着いた温もり</string>
+    <string name="theme_calm_subtitle">目に優しい羊皮紙</string>
     <string name="theme_quiet">石墨</string>
-    <string name="theme_quiet_subtitle">静謐なトーン</string>
+    <string name="theme_quiet_subtitle">落ち着いたダークグレー</string>
     <string name="theme_moon">月影</string>
-    <string name="theme_moon_subtitle">夜更けの灯火</string>
+    <string name="theme_moon_subtitle">夜間の読書に最適</string>
 
-    <!-- ナビゲーションタブ -->
+    
     <string name="tab_tonight">今夜の本</string>
     <string name="tab_library">本棚</string>
     <string name="tab_search">検索</string>
-    <string name="tab_stats">読書の記録</string>
+    <string name="tab_stats">統計</string>
 
-    <!-- 今夜の本 -->
+    
     <string name="tonight_eyebrow">今夜の本</string>
     <string name="tonight_title">前回の続きから読む</string>
     <string name="tonight_pages_left">この章の終わりまであと15ページ</string>
     <string name="tonight_percent_read">読了率 %1$d%%</string>
     <string name="tonight_keep_reading">続きを読む</string>
-    <string name="tonight_nightstand">枕元の一冊</string>
+    <string name="tonight_nightstand">読みたい本</string>
     <string name="tonight_chip_fiction">小説</string>
     <string name="tonight_chip_essays">随筆</string>
     <string name="tonight_chip_night_reads">夜読</string>
 
-    <!-- 本棚 -->
+    
     <string name="library_title">本棚</string>
     <string name="library_search_placeholder">本棚を検索</string>
     <string name="library_seg_reading">読書中</string>
     <string name="library_seg_finished">読了</string>
     <string name="library_seg_wishlist">読みたい</string>
-    <string name="library_empty_finished">読了した本はまだありません。ご自身のペースで。</string>
-    <string name="library_empty_wishlist">枕元にはまだ本が置かれていません。</string>
+    <string name="library_empty_finished">読了した本はまだありません。</string>
+    <string name="library_empty_wishlist">読みたい本リストにはまだ本がありません。</string>
     <string name="library_empty_query">該当する本は見つかりませんでした。</string>
     <string name="library_empty_reading">ここにはまだ本がありません。</string>
     <string name="library_empty_all">ここにはまだ本がありません。</string>
     <string name="library_unopenable">ライブラリを開けませんでした。</string>
     <string name="unknown_author">作者不明</string>
 
-    <!-- 検索 -->
+    
     <string name="search_title">検索</string>
     <string name="search_placeholder">書名、著者名</string>
     <string name="search_recently_added">最近追加した本</string>
 
-    <!-- 読書統計 -->
-    <string name="stats_title">読書</string>
+    
+    <string name="stats_title">読書統計</string>
     <string name="stats_in_progress">読書中</string>
     <string name="stats_pages_this_week">今週読んだページ数</string>
     <string name="stats_hours_this_month">今月の読書時間</string>
@@ -67,14 +67,14 @@
     <string name="stats_hours_half_only">30分</string>
     <string name="stats_in_progress_empty">現在読書中の本はありません。</string>
     <plurals name="stats_evenings">
-        <item quantity="other">今月本を開いた夜は %d 夜です。</item>
+        <item quantity="other">今月は %d 日の夜に読書をしました。</item>
     </plurals>
 
-    <!-- 書籍詳細 -->
+    
     <string name="detail_contents">目次</string>
     <string name="detail_no_contents">この本には目次がありません。</string>
 
-    <!-- リーダー -->
+    
     <string name="reader_menu_contents">目次 · %1$d%%</string>
     <string name="reader_menu_theme_type">フォントとテーマ</string>
     <string name="reader_search_placeholder">この本の中を検索</string>
@@ -90,7 +90,7 @@
     <string name="reader_bookmark_empty">しおりを挟む場所がありません。</string>
     <string name="reader_bookmark_save_failed">しおりを保存できませんでした。</string>
 
-    <!-- アクセシビリティ -->
+    
     <string name="a11y_back">戻る</string>
     <string name="a11y_close">閉じる</string>
     <string name="a11y_reading_menu">読書メニュー</string>

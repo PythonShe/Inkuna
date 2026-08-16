@@ -2,63 +2,63 @@
 <resources>
     <string name="app_name">Inkuna</string>
 
-    <!-- Начало работы -->
-    <string name="welcome_tagline">Минималистичная читалка, где чернила встречаются с лунным светом.</string>
+    
+    <string name="welcome_tagline">Минималистичное и удобное приложение для чтения.</string>
     <string name="welcome_begin">Начать</string>
-    <string name="themepick_eyebrow">Маленький ритуал</string>
+    <string name="themepick_eyebrow">Оформление</string>
     <string name="themepick_title">Чтение днем и ночью</string>
-    <string name="themepick_sample">Лампа догорала, и луна взяла на себя заботу освещать страницу.</string>
+    <string name="themepick_sample">Свет гаснет, и луна освещает страницу.</string>
     <string name="themepick_hint">Вы можете изменить это в любой момент во время чтения.</string>
     <string name="themepick_continue">Продолжить</string>
 
-    <!-- Темы чтения -->
+    
     <string name="theme_paper">Бумага</string>
-    <string name="theme_paper_subtitle">Теплое дневное чтение</string>
+    <string name="theme_paper_subtitle">Для дневного чтения</string>
     <string name="theme_calm">Покой</string>
     <string name="theme_calm_subtitle">Мягкий пергамент</string>
     <string name="theme_quiet">Тишина</string>
-    <string name="theme_quiet_subtitle">Приглушенный графит</string>
+    <string name="theme_quiet_subtitle">Темно-серый</string>
     <string name="theme_moon">Луна</string>
-    <string name="theme_moon_subtitle">Свет лампы для полуночных часов</string>
+    <string name="theme_moon_subtitle">Для ночного чтения</string>
 
-    <!-- Вкладки -->
+    
     <string name="tab_tonight">Сегодня</string>
     <string name="tab_library">Библиотека</string>
     <string name="tab_search">Поиск</string>
     <string name="tab_stats">Статистика</string>
 
-    <!-- Сегодня -->
+    
     <string name="tonight_eyebrow">Сегодня</string>
-    <string name="tonight_title">Продолжайте с места остановки</string>
+    <string name="tonight_title">Продолжить чтение</string>
     <string name="tonight_pages_left">Осталось 15 страниц в этой главе</string>
     <string name="tonight_percent_read">Прочитано %1$d%%</string>
     <string name="tonight_keep_reading">Читать дальше</string>
-    <string name="tonight_nightstand">На тумбочке</string>
+    <string name="tonight_nightstand">К прочтению</string>
     <string name="tonight_chip_fiction">Художественная литература</string>
     <string name="tonight_chip_essays">Эссе</string>
     <string name="tonight_chip_night_reads">Ночное чтение</string>
 
-    <!-- Библиотека -->
+    
     <string name="library_title">Библиотека</string>
     <string name="library_search_placeholder">Поиск по библиотеке</string>
     <string name="library_seg_reading">Читаю</string>
     <string name="library_seg_finished">Прочитано</string>
     <string name="library_seg_wishlist">В планах</string>
-    <string name="library_empty_finished">Пока ничего не прочитано. Спешить некуда.</string>
-    <string name="library_empty_wishlist">На тумбочке пока пусто.</string>
-    <string name="library_empty_query">На полках ничего не найдено.</string>
+    <string name="library_empty_finished">Пока нет прочитанных книг.</string>
+    <string name="library_empty_wishlist">В списке желаний пока нет книг.</string>
+    <string name="library_empty_query">Книги не найдены.</string>
     <string name="library_empty_reading">Здесь пока ничего нет.</string>
     <string name="library_empty_all">Здесь пока ничего нет.</string>
     <string name="library_unopenable">Не удалось открыть библиотеку.</string>
     <string name="unknown_author">Неизвестный автор</string>
 
-    <!-- Поиск -->
+    
     <string name="search_title">Поиск</string>
     <string name="search_placeholder">Названия, авторы</string>
     <string name="search_recently_added">Недавно добавленные</string>
 
-    <!-- Статистика -->
-    <string name="stats_title">Чтение</string>
+    
+    <string name="stats_title">Статистика чтения</string>
     <string name="stats_in_progress">В процессе</string>
     <string name="stats_pages_this_week">страниц за неделю</string>
     <string name="stats_hours_this_month">часов за месяц</string>
@@ -67,17 +67,17 @@
     <string name="stats_hours_half_only">½ ч</string>
     <string name="stats_in_progress_empty">Сейчас вы ничего не читаете.</string>
     <plurals name="stats_evenings">
-        <item quantity="one">%d вечер с книгой в этом месяце.</item>
-        <item quantity="few">%d вечера с книгой в этом месяце.</item>
-        <item quantity="many">%d вечеров с книгой в этом месяце.</item>
-        <item quantity="other">%d вечеров с книгой в этом месяце.</item>
+        <item quantity="one">%d вечер чтения в этом месяце.</item>
+        <item quantity="few">%d вечера чтения в этом месяце.</item>
+        <item quantity="many">%d вечеров чтения в этом месяце.</item>
+        <item quantity="other">%d вечеров чтения в этом месяце.</item>
     </plurals>
 
-    <!-- Детали книги -->
+    
     <string name="detail_contents">Оглавление</string>
     <string name="detail_no_contents">В этой книге нет оглавления.</string>
 
-    <!-- Читалка -->
+    
     <string name="reader_menu_contents">Оглавление · %1$d%%</string>
     <string name="reader_menu_theme_type">Оформление и шрифт</string>
     <string name="reader_search_placeholder">Искать в этой книге</string>
@@ -93,7 +93,7 @@
     <string name="reader_bookmark_empty">Пока нечего добавить в закладки.</string>
     <string name="reader_bookmark_save_failed">Не удалось сохранить закладку.</string>
 
-    <!-- Специальные возможности -->
+    
     <string name="a11y_back">Назад</string>
     <string name="a11y_close">Закрыть</string>
     <string name="a11y_reading_menu">Меню чтения</string>

@@ -1,57 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Inkuna</string>
-    <!-- Pengenalan -->
-    <string name="welcome_tagline">Pembaca buku minimalis tempat tinta bertemu cahaya bulan.</string>
+    
+    <string name="welcome_tagline">Pembaca e-book minimalis yang bersih dan elegan.</string>
     <string name="welcome_begin">Mulai</string>
-    <string name="themepick_eyebrow">Satu ritual kecil</string>
-    <string name="themepick_title">Baca di siang hari, atau di malam hari</string>
-    <string name="themepick_sample">Lampu menyala redup, dan bulan mengambil alih tugas menerangi halaman.</string>
+    <string name="themepick_eyebrow">Tampilan</string>
+    <string name="themepick_title">Baca di siang atau malam hari</string>
+    <string name="themepick_sample">Lampu meredup dan cahaya bulan menerangi halaman.</string>
     <string name="themepick_hint">Anda dapat mengubahnya kapan saja saat membaca.</string>
     <string name="themepick_continue">Lanjut</string>
-    <!-- Tema membaca -->
+    
     <string name="theme_paper">Kertas</string>
-    <string name="theme_paper_subtitle">Cahaya siang yang hangat untuk membaca</string>
+    <string name="theme_paper_subtitle">Cocok untuk siang hari</string>
     <string name="theme_calm">Tenang</string>
-    <string name="theme_calm_subtitle">Perkamen lembut</string>
+    <string name="theme_calm_subtitle">Kertas lembut</string>
     <string name="theme_quiet">Hening</string>
-    <string name="theme_quiet_subtitle">Grafit lembut</string>
+    <string name="theme_quiet_subtitle">Abu-abu gelap</string>
     <string name="theme_moon">Bulan</string>
-    <string name="theme_moon_subtitle">Cahaya lampu untuk larut malam</string>
-    <!-- Tab -->
+    <string name="theme_moon_subtitle">Cocok untuk malam hari</string>
+    
     <string name="tab_tonight">Malam ini</string>
     <string name="tab_library">Perpustakaan</string>
     <string name="tab_search">Cari</string>
     <string name="tab_stats">Statistik</string>
-    <!-- Malam ini -->
+    
     <string name="tonight_eyebrow">Malam ini</string>
     <string name="tonight_title">Lanjutkan dari tempat Anda berhenti</string>
     <string name="tonight_pages_left">Lima belas halaman lagi di bab ini</string>
     <string name="tonight_percent_read">%1$d%% terbaca</string>
     <string name="tonight_keep_reading">Lanjutkan membaca</string>
-    <string name="tonight_nightstand">Di nakas</string>
+    <string name="tonight_nightstand">Daftar baca</string>
     <string name="tonight_chip_fiction">Fiksi</string>
     <string name="tonight_chip_essays">Esai</string>
     <string name="tonight_chip_night_reads">Bacaan malam</string>
-    <!-- Perpustakaan -->
+    
     <string name="library_title">Perpustakaan</string>
     <string name="library_search_placeholder">Cari di perpustakaan Anda</string>
     <string name="library_seg_reading">Sedang dibaca</string>
     <string name="library_seg_finished">Selesai</string>
     <string name="library_seg_wishlist">Daftar keinginan</string>
-    <string name="library_empty_finished">Belum ada yang selesai. Tidak perlu terburu-buru.</string>
-    <string name="library_empty_wishlist">Belum ada apa pun di nakas.</string>
-    <string name="library_empty_query">Tidak ditemukan apa pun di rak.</string>
+    <string name="library_empty_finished">Belum ada buku yang selesai dibaca.</string>
+    <string name="library_empty_wishlist">Belum ada buku di daftar keinginan.</string>
+    <string name="library_empty_query">Tidak ditemukan buku yang cocok.</string>
     <string name="library_empty_reading">Belum ada apa pun di sini.</string>
     <string name="library_empty_all">Belum ada apa pun di sini.</string>
     <string name="library_unopenable">Perpustakaan tidak dapat dibuka.</string>
     <string name="unknown_author">Penulis tidak dikenal</string>
-    <!-- Cari -->
+    
     <string name="search_title">Cari</string>
     <string name="search_placeholder">Judul, penulis</string>
     <string name="search_recently_added">Baru ditambahkan</string>
-    <!-- Statistik -->
-    <string name="stats_title">Membaca</string>
+    
+    <string name="stats_title">Statistik membaca</string>
     <string name="stats_in_progress">Sedang dibaca</string>
     <string name="stats_pages_this_week">halaman minggu ini</string>
     <string name="stats_hours_this_month">jam bulan ini</string>
@@ -62,10 +62,10 @@
     <plurals name="stats_evenings">
         <item quantity="other">%d malam membaca buku bulan ini.</item>
     </plurals>
-    <!-- Detail buku -->
+    
     <string name="detail_contents">Daftar isi</string>
     <string name="detail_no_contents">Buku ini tidak memiliki daftar isi.</string>
-    <!-- Pembaca -->
+    
     <string name="reader_menu_contents">Daftar isi · %1$d%%</string>
     <string name="reader_menu_theme_type">Tema &amp; jenis huruf</string>
     <string name="reader_search_placeholder">Cari di buku ini</string>
@@ -80,7 +80,7 @@
     <string name="reader_page_failed">Halaman ini tidak dapat ditampilkan.</string>
     <string name="reader_bookmark_empty">Belum ada penanda.</string>
     <string name="reader_bookmark_save_failed">Penanda tidak dapat disimpan.</string>
-    <!-- Aksesibilitas -->
+    
     <string name="a11y_back">Kembali</string>
     <string name="a11y_close">Tutup</string>
     <string name="a11y_reading_menu">Menu baca</string>

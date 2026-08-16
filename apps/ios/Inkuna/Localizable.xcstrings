@@ -363,7 +363,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A minimalist book reader where ink meets moonlight."
+            "value": "A clean, minimalist book reader."
           }
         },
         "zh-Hans": {
@@ -381,67 +381,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "インクと月光が巡り会う、静謐な読書体験。"
+            "value": "シンプルで洗練された電子書籍リーダー。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "잉크와 달빛이 만나는 미니멀한 독서 공간."
+            "value": "심플하고 깔끔한 미니멀 전자책 리더."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un lector de libros minimalista donde la tinta se funde con la luz de la luna."
+            "value": "Un lector de libros minimalista y elegante."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un lecteur de livres minimaliste où l'encre rencontre le clair de lune."
+            "value": "Un lecteur de livres minimaliste et épuré."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un lettore di libri essenziale dove l'inchiostro incontra il chiaro di luna."
+            "value": "Un lettore di libri essenziale ed elegante."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Минималистичная читалка, где чернила встречаются с лунным светом."
+            "value": "Минималистичное и удобное приложение для чтения."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แอปอ่านหนังสือสไตล์มินิมอล ที่ซึ่งน้ำหมึกบรรจบกับแสงจันทร์"
+            "value": "แอปอ่านหนังสือสไตล์มินิมอลที่เรียบง่าย"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trình đọc sách tối giản, nơi trang mực hòa cùng ánh trăng."
+            "value": "Trình đọc sách điện tử tối giản và thanh lịch."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein minimalistischer Buch-Reader, in dem Tinte auf Mondlicht trifft."
+            "value": "Ein minimalistischer und eleganter E-Book-Reader."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pembaca buku minimalis tempat tinta bertemu cahaya bulan."
+            "value": "Pembaca e-book minimalis yang bersih dan elegan."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Um leitor de livros minimalista onde a tinta encontra o luar."
+            "value": "Um leitor de livros minimalista e elegante."
           }
         }
       }
@@ -541,7 +541,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "One small ritual"
+            "value": "Appearance"
           }
         },
         "zh-Hans": {
@@ -559,67 +559,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "読書を彩るささやかな儀式"
+            "value": "テーマ設定"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독서를 위한 작은 의식"
+            "value": "테마 설정"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un pequeño ritual"
+            "value": "Apariencia"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un petit rituel"
+            "value": "Apparence"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un piccolo rituale"
+            "value": "Aspetto"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Маленький ритуал"
+            "value": "Оформление"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ธรรมเนียมเล็กๆ ในการอ่าน"
+            "value": "ธีมการอ่าน"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Một nghi thức nhỏ"
+            "value": "Giao diện"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein kleines Ritual"
+            "value": "Erscheinungsbild"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Satu ritual kecil"
+            "value": "Tampilan"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Um pequeno ritual"
+            "value": "Aparência"
           }
         }
       }
@@ -648,13 +648,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "昼の光のなかで、あるいは夜の静けさのなかで"
+            "value": "日中や夜間に合わせた読書モード"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "낮의 빛 아래에서, 혹은 밤의 고요 속에서"
+            "value": "낮이나 밤에 맞춘 독서 모드"
           }
         },
         "es": {
@@ -672,7 +672,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leggi di giorno, o di notte"
+            "value": "Leggi di giorno o di notte"
           }
         },
         "ru": {
@@ -684,31 +684,31 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "อ่านในยามกลางวัน หรือยามค่ำคืน"
+            "value": "อ่านในเวลากลางวันหรือกลางคืน"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đọc lúc ban ngày, hoặc khi đêm về"
+            "value": "Đọc sách ban ngày hoặc ban đêm"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tagsüber lesen – oder nachts"
+            "value": "Tagsüber oder nachts lesen"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Baca di siang hari, atau di malam hari"
+            "value": "Baca di siang atau malam hari"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leia de dia, ou de noite"
+            "value": "Leia de dia ou de noite"
           }
         }
       }
@@ -737,67 +737,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ランプの灯が落ち、月がページを照らしはじめる。"
+            "value": "灯りが落ち着き、月明かりがページを照らし出す。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "램프의 불빛이 잦아들자, 달빛이 책장을 비추기 시작했다."
+            "value": "조명이 어두워지자 달빛이 책장을 비추었다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La lámpara tenue menguaba y la luna se hizo cargo de iluminar la página."
+            "value": "La luz se atenúa y la luna ilumina la página."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La lampe faiblissait et la lune prit le relais pour éclairer la page."
+            "value": "La lumière baisse et la lune éclaire la page."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "La lampada si affievoliva e la luna prese il compito di illuminare la pagina."
+            "value": "La luce si affievolisce e la luna illumina la pagina."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Лампа догорала, и луна взяла на себя заботу освещать страницу."
+            "value": "Свет гаснет, и луна освещает страницу."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ตะเกียงหรี่แสงลง และดวงจันทร์เข้ามารับหน้าที่ส่องสว่างบนหน้ากระดาษแทน"
+            "value": "แสงไฟหรี่ลง และแสงจันทร์ส่องสว่างบนหน้ากระดาษ"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ngọn đèn lụi dần, và vầng trăng tiếp tục công việc soi sáng trang sách."
+            "value": "Ánh đèn dịu dần và ánh trăng soi sáng trang sách."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Lampe brannte herunter, und der Mond übernahm die Arbeit, die Seite zu beleuchten."
+            "value": "Das Licht wird gedimmt und der Mond erhellt die Seite."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lampu menyala redup, dan bulan mengambil alih tugas menerangi halaman."
+            "value": "Lampu meredup dan cahaya bulan menerangi halaman."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "A lâmpada ardia fraca, e a lua assumiu o trabalho de iluminar a página."
+            "value": "A luz diminui e a lua ilumina a página."
           }
         }
       }
@@ -1093,67 +1093,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "やわらかな陽光の下で"
+            "value": "日中の読書に最適"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "따뜻한 햇살 아래의 독서"
+            "value": "낮 시간 독서에 적합"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lectura cálida a la luz del día"
+            "value": "Ideal para el día"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lecture chaleureuse en plein jour"
+            "value": "Idéal pour la journée"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lettura calda alla luce del giorno"
+            "value": "Ideale per il giorno"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Теплое дневное чтение"
+            "value": "Для дневного чтения"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "อ่านสบายตาในแสงกลางวัน"
+            "value": "เหมาะสำหรับอ่านตอนกลางวัน"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đọc sách êm dịu dưới ánh ban ngày"
+            "value": "Phù hợp đọc ban ngày"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Warmes Tageslicht zum Lesen"
+            "value": "Ideal für den Tag"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cahaya siang yang hangat untuk membaca"
+            "value": "Cocok untuk siang hari"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leitura sob luz quente do dia"
+            "value": "Ideal para o dia"
           }
         }
       }
@@ -1271,13 +1271,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "落ち着いた温もり"
+            "value": "目に優しい羊皮紙"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "부드러운 양피지"
+            "value": "눈이 편안한 양피지"
           }
         },
         "es": {
@@ -1295,7 +1295,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Morbida pergamena"
+            "value": "Pergamena morbida"
           }
         },
         "ru": {
@@ -1307,25 +1307,25 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สัมผัสกระดาษสาอันนุ่มนวล"
+            "value": "โทนกระดาษนุ่มนวล"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sắc giấy da êm ái"
+            "value": "Giấy màu êm dịu"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Weiches Pergament"
+            "value": "Sanftes Pergament"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Perkamen lembut"
+            "value": "Kertas lembut"
           }
         },
         "pt": {
@@ -1449,67 +1449,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "静謐なトーン"
+            "value": "落ち着いたダークグレー"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "차분한 흑연 톤"
+            "value": "차분한 다크 그레이"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grafito tenue"
+            "value": "Gris oscuro"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Graphite estompé"
+            "value": "Gris sombre"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grafite tenue"
+            "value": "Grigio scuro"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Приглушенный графит"
+            "value": "Темно-серый"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "โทนกราไฟต์สบายตา"
+            "value": "โทนเทาเข้ม"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tông than chì dịu mắt"
+            "value": "Xám đậm dịu mắt"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leichtes Grafit"
+            "value": "Dunkelgrau"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grafit lembut"
+            "value": "Abu-abu gelap"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grafite suave"
+            "value": "Grafite escuro"
           }
         }
       }
@@ -1627,67 +1627,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "夜更けの灯火"
+            "value": "夜間の読書に最適"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "깊은 밤을 위한 등불"
+            "value": "야간 독서에 적합"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Luz de lámpara para altas horas"
+            "value": "Ideal para la noche"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lumière de lampe pour les heures tardives"
+            "value": "Idéal pour la nuit"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Luce di lampada per le ore tarde"
+            "value": "Ideale per la notte"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Свет лампы для полуночных часов"
+            "value": "Для ночного чтения"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แสงตะเกียงสำหรับยามดึก"
+            "value": "เหมาะสำหรับอ่านตอนกลางคืน"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ánh đèn ấm áp cho những giờ khuya"
+            "value": "Phù hợp đọc ban đêm"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lampenlicht für späte Stunden"
+            "value": "Ideal für die Nacht"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cahaya lampu untuk larut malam"
+            "value": "Cocok untuk malam hari"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Luz de lampião para horas tardias"
+            "value": "Ideal para a noite"
           }
         }
       }
@@ -1983,13 +1983,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "読書の記録"
+            "value": "統計"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독서 기록"
+            "value": "통계"
           }
         },
         "es": {
@@ -2019,7 +2019,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สถิติการอ่าน"
+            "value": "สถิติ"
           }
         },
         "vi": {
@@ -2191,7 +2191,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Продолжайте с места остановки"
+            "value": "Продолжить чтение"
           }
         },
         "th": {
@@ -2499,7 +2499,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "On the nightstand"
+            "value": "To read"
           }
         },
         "zh-Hans": {
@@ -2517,67 +2517,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "枕元の一冊"
+            "value": "読みたい本"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "침대 곁 책들"
+            "value": "읽을 책 목록"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "En la mesita de noche"
+            "value": "Por leer"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sur la table de nuit"
+            "value": "À lire"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sul comodino"
+            "value": "Da leggere"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "На тумбочке"
+            "value": "К прочтению"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "บนโต๊ะข้างเตียง"
+            "value": "รายการที่อยากอ่าน"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trên bàn đầu giường"
+            "value": "Danh sách muốn đọc"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auf dem Nachttisch"
+            "value": "Leseliste"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Di nakas"
+            "value": "Daftar baca"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Na cabeceira"
+            "value": "Para ler"
           }
         }
       }
@@ -3300,7 +3300,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nothing finished yet. No hurry."
+            "value": "No finished books yet."
           }
         },
         "zh-Hans": {
@@ -3318,67 +3318,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "読了した本はまだありません。ご自身のペースで。"
+            "value": "読了した本はまだありません。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아직 완독한 책이 없습니다. 서두르지 않아도 괜찮습니다."
+            "value": "아직 완독한 책이 없습니다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aún no has terminado ningún libro. Sin prisas."
+            "value": "Aún no has terminado ningún libro."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aucun livre terminé pour le moment. Rien ne presse."
+            "value": "Aucun livre terminé pour le moment."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nessun libro completato finora. Senza fretta."
+            "value": "Nessun libro completato finora."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пока ничего не прочитано. Спешить некуда."
+            "value": "Пока нет прочитанных книг."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ยังไม่มีหนังสือที่อ่านจบ ไม่ต้องรีบร้อน"
+            "value": "ยังไม่มีหนังสือที่อ่านจบ"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chưa có cuốn sách nào đọc xong. Không cần vội vã."
+            "value": "Chưa có cuốn sách nào đọc xong."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Noch nichts beendet. Keine Eile."
+            "value": "Noch keine Bücher beendet."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Belum ada yang selesai. Tidak perlu terburu-buru."
+            "value": "Belum ada buku yang selesai dibaca."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nada concluído ainda. Sem pressa."
+            "value": "Nenhum livro concluído ainda."
           }
         }
       }
@@ -3389,7 +3389,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nothing on the nightstand yet."
+            "value": "No books in your wishlist yet."
           }
         },
         "zh-Hans": {
@@ -3407,67 +3407,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "枕元にはまだ本が置かれていません。"
+            "value": "読みたい本リストにはまだ本がありません。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "침대 곁에 아직 책이 없습니다."
+            "value": "위시리스트에 아직 책이 없습니다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aún no hay nada en la mesita de noche."
+            "value": "Aún no hay libros en tu lista de deseos."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rien sur la table de nuit pour l'instant."
+            "value": "Aucun livre dans votre liste d'envies pour l'instant."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ancora nulla sul comodino."
+            "value": "Ancora nessun libro nella lista dei desideri."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "На тумбочке пока пусто."
+            "value": "В списке желаний пока нет книг."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ยังไม่มีหนังสือบนโต๊ะข้างเตียง"
+            "value": "ยังไม่มีหนังสือในรายการที่อยากอ่าน"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chưa có cuốn sách nào trên bàn đầu giường."
+            "value": "Chưa có cuốn sách nào trong danh sách muốn đọc."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Noch nichts auf dem Nachttisch."
+            "value": "Noch keine Bücher auf der Wunschliste."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Belum ada apa pun di nakas."
+            "value": "Belum ada buku di daftar keinginan."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nada na cabeceira ainda."
+            "value": "Ainda não há livros na sua lista de desejos."
           }
         }
       }
@@ -3478,7 +3478,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nothing found in the stacks."
+            "value": "No books found."
           }
         },
         "zh-Hans": {
@@ -3502,61 +3502,61 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "서가에서 찾을 수 없습니다."
+            "value": "검색 결과가 없습니다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se encontró nada en las estanterías."
+            "value": "No se encontraron libros."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rien trouvé dans les rayons."
+            "value": "Aucun livre trouvé."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nessun risultato trovato tra gli scaffali."
+            "value": "Nessun libro trovato."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "На полках ничего не найдено."
+            "value": "Книги не найдены."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ไม่พบหนังสือที่ค้นหาในชั้น"
+            "value": "ไม่พบหนังสือที่ค้นหา"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không tìm thấy sách phù hợp trong kho sách."
+            "value": "Không tìm thấy cuốn sách nào."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "In den Regalen wurde nichts gefunden."
+            "value": "Keine passenden Bücher gefunden."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tidak ditemukan apa pun di rak."
+            "value": "Tidak ditemukan buku yang cocok."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nada encontrado nas estantes."
+            "value": "Nenhum livro encontrado."
           }
         }
       }
@@ -4101,7 +4101,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reading"
+            "value": "Reading stats"
           }
         },
         "zh-Hans": {
@@ -4119,67 +4119,67 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "読書"
+            "value": "読書統計"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독서"
+            "value": "독서 통계"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lectura"
+            "value": "Estadísticas de lectura"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lecture"
+            "value": "Statistiques de lecture"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lettura"
+            "value": "Statistiche di lettura"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Чтение"
+            "value": "Статистика чтения"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "การอ่าน"
+            "value": "สถิติการอ่าน"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đọc sách"
+            "value": "Thống kê đọc sách"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lesen"
+            "value": "Lesestatistiken"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Membaca"
+            "value": "Statistik membaca"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leitura"
+            "value": "Estatísticas de leitura"
           }
         }
       }
@@ -11936,13 +11936,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "One evening with a book this month."
+                  "value": "1 evening with reading this month."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld evenings with a book this month."
+                  "value": "%lld evenings with reading this month."
                 }
               }
             }
@@ -11978,7 +11978,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "今月本を開いた夜は %lld 夜です。"
+                  "value": "今月は %lld 日の夜に読書をしました。"
                 }
               }
             }
@@ -11990,7 +11990,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "이번 달에 책과 함께한 밤은 %lld일입니다."
+                  "value": "이번 달에 %lld일 밤 동안 독서했습니다."
                 }
               }
             }
@@ -12002,13 +12002,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Una noche con un libro este mes."
+                  "value": "1 noche de lectura este mes."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld noches con un libro este mes."
+                  "value": "%lld noches de lectura este mes."
                 }
               }
             }
@@ -12020,13 +12020,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld soirée passée avec un livre ce mois-ci."
+                  "value": "1 soirée de lecture ce mois-ci."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld soirées passées avec un livre ce mois-ci."
+                  "value": "%lld soirées de lecture ce mois-ci."
                 }
               }
             }
@@ -12038,13 +12038,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Una serata con un libro questo mese."
+                  "value": "1 serata di lettura questo mese."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld serate con un libro questo mese."
+                  "value": "%lld serate di lettura questo mese."
                 }
               }
             }
@@ -12056,25 +12056,25 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld вечер с книгой в этом месяце."
+                  "value": "%lld вечер чтения в этом месяце."
                 }
               },
               "few": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld вечера с книгой в этом месяце."
+                  "value": "%lld вечера чтения в этом месяце."
                 }
               },
               "many": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld вечеров с книгой в этом месяце."
+                  "value": "%lld вечеров чтения в этом месяце."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld вечеров с книгой в этом месяце."
+                  "value": "%lld вечеров чтения в этом месяце."
                 }
               }
             }
@@ -12110,13 +12110,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Ein Abend mit einem Buch in diesem Monat."
+                  "value": "1 Leseabend in diesem Monat."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld Abende mit einem Buch in diesem Monat."
+                  "value": "%lld Leseabende in diesem Monat."
                 }
               }
             }
@@ -12140,13 +12140,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Uma noite com um livro neste mês."
+                  "value": "1 noite de leitura neste mês."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld noites com um livro neste mês."
+                  "value": "%lld noites de leitura neste mês."
                 }
               }
             }
