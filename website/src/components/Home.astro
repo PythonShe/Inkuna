@@ -5,6 +5,7 @@ import Footer from "./Footer.astro";
 import { home } from "../i18n/home";
 import { type Lang } from "../i18n/locales";
 import { useTranslations } from "../i18n/utils";
+import { latestAndroidApkUrl } from "../lib/androidBeta";
 
 interface Props {
   lang: Lang;
@@ -12,6 +13,7 @@ interface Props {
 
 const { lang } = Astro.props;
 const t = useTranslations(home, lang);
+const androidApkUrl = await latestAndroidApkUrl();
 ---
 
 <Base
@@ -51,11 +53,18 @@ const t = useTranslations(home, lang);
         width="144"
         height="144"
       />
-      <p>
-        {t("beta.pre")}<a href="https://testflight.apple.com/join/VYVQyn1T"
-          >TestFlight</a
-        >{t("beta.post")}
-      </p>
+      <div>
+        <p>
+          {t("beta.pre")}<a href="https://testflight.apple.com/join/VYVQyn1T"
+            >TestFlight</a
+          >{t("beta.post")}
+        </p>
+        <p>
+          {t("betaAndroid.pre")}<a href={androidApkUrl}
+            >{t("betaAndroid.link")}</a
+          >{t("betaAndroid.post")}
+        </p>
+      </div>
     </aside>
     <p class="platforms">
       {t("platforms.pre")}<a href="https://github.com/PythonShe/Inkuna">GitHub</a
@@ -144,6 +153,9 @@ const t = useTranslations(home, lang);
   }
   .beta p {
     margin: 0;
+  }
+  .beta p + p {
+    margin-top: 0.35rem;
   }
   .platforms {
     font-size: 0.95rem;

@@ -14,6 +14,10 @@ on:
     paths:
       - "website/**"
       - ".github/workflows/deploy-website.yml"
+  # The homepage bakes in the latest android-v* release's APK link at build
+  # time; rebuild on every release publish so it never goes stale.
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -30,6 +34,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          # Release events fire on a tag ref; always deploy the site from
+          # main so a rebuild-for-APK-link never ships stale pages.
+          ref: main
 
       - name: Guard required secrets
         shell: bash
@@ -62,6 +70,10 @@ jobs:
 
       - name: Build site
         working-directory: website
+        env:
+          # Authenticates the build-time GitHub releases lookup (latest
+          # Android APK link) past the unauthenticated rate limit.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pnpm install --frozen-lockfile
           pnpm run build

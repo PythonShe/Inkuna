@@ -19,6 +19,9 @@ const en = {
   "features.license.post": ".",
   "beta.pre": "The iOS beta is open — join it on ",
   "beta.post": ".",
+  "betaAndroid.pre": "On Android, download the ",
+  "betaAndroid.link": "latest test APK",
+  "betaAndroid.post": ".",
   "platforms.pre":
     "Inkuna is in active development. Follow along or build it yourself on ",
   "platforms.post":
@@ -42,6 +45,9 @@ const ja: typeof en = {
   "features.license.post": "のもとで自由に使えるオープンソース。",
   "beta.pre": "iOS ベータ版を公開中 — ",
   "beta.post": " からご参加ください。",
+  "betaAndroid.pre": "Android では",
+  "betaAndroid.link": "最新のテスト版 APK",
+  "betaAndroid.post": "をダウンロードできます。",
   "platforms.pre": "Inkunaは現在開発中です。",
   "platforms.post":
     "で開発を追うことも、自分でビルドすることもできます — App Store / Google Playでの公開は、読書体験がそれに値するようになってから。",
@@ -64,6 +70,9 @@ const zh: typeof en = {
   "features.license.post": " 自由开源。",
   "beta.pre": "iOS 测试版已开放 —— 通过 ",
   "beta.post": " 加入。",
+  "betaAndroid.pre": "Android 用户可下载",
+  "betaAndroid.link": "最新测试版 APK",
+  "betaAndroid.post": "。",
   "platforms.pre": "Inkuna 正在积极开发中。欢迎在 ",
   "platforms.post":
     " 上关注或自行构建 —— App Store 与 Play 商店版本将在阅读体验足够成熟时发布。",

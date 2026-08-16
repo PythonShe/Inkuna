@@ -52,6 +52,11 @@ output. `pnpm-lock.yaml` is not: commit it with every dependency change.
 - `src/i18n/` — `locales.ts` (locale list), `utils.ts` (`useTranslations`),
   and one dictionary module per page or shared component (`home.ts`,
   `footer.ts`, `support.ts`, `privacy.ts`, …).
+- `src/lib/` — build-time helpers (e.g. `androidBeta.ts`, which resolves the
+  latest `android-v*` release's APK URL from the GitHub API during the build;
+  the deploy workflow re-runs on every release publish so the baked-in link
+  stays current, and falls back to the releases page when the API is
+  unreachable).
 - `public/` — files copied verbatim to the site root (`_headers`).
 - Planned growth: a changelog/blog section (use Astro content collections) —
   structure new work so it slots in cleanly.
