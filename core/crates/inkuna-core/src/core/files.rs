@@ -17,9 +17,9 @@ use crate::CoreError;
 /// an order of magnitude past that — no legitimate book is turned away —
 /// while still closing the case this exists for: a stream whose length
 /// nobody can know in advance (a SAF provider, a pipe) handing out bytes
-/// forever and filling the device before anyone notices. 2 GiB is also the
-/// last size that fits a signed 32-bit offset, which keeps the zip reader
-/// and every seek below it clear of their own limits.
+/// forever and filling the device before anyone notices. The round number
+/// is a product judgement, not a format boundary — the zip reader works in
+/// u64 offsets and would take more.
 pub(crate) const MAX_IMPORT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 /// Reads `src` once, hashing with BLAKE3 while writing the bytes to `dest`.
@@ -27,6 +27,15 @@ pub(crate) const MAX_IMPORT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// Fails with [`CoreError::FileTooLarge`] past [`MAX_IMPORT_BYTES`].
 pub(crate) fn copy_and_hash(src: &Path, dest: &Path) -> Result<String, CoreError> {
     stream_and_hash(&mut File::open(src)?, dest)
+}
+
+/// [`copy_and_hash`] without the import ceiling — migration's route alone.
+/// A v1 row's file was chosen and stored by an earlier version of this
+/// app, not handed over by an unknown provider; refusing it over its size
+/// would delete a reader's book and progress in the name of protecting
+/// them. New external bytes always come through the capped paths above.
+pub(crate) fn copy_and_hash_unbounded(src: &Path, dest: &Path) -> Result<String, CoreError> {
+    stream_and_hash_capped(&mut File::open(src)?, dest, u64::MAX)
 }
 
 /// [`copy_and_hash`] over an already-open stream — a shell-owned file

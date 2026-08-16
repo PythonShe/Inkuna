@@ -12,7 +12,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, Transaction};
 
-use crate::core::files::copy_and_hash;
+use crate::core::files::copy_and_hash_unbounded;
 use crate::CoreError;
 
 pub(crate) const SCHEMA_VERSION: i64 = 2;
@@ -147,7 +147,10 @@ fn adopt_legacy_rows(tx: &Transaction, data_dir: &Path) -> Result<(), CoreError>
     for (id, file_path, format) in rows {
         let rel = format!("books/{id}.{format}");
         let dest = data_dir.join(&rel);
-        match copy_and_hash(Path::new(&file_path), &dest) {
+        // Unbounded on purpose: the import ceiling guards new external
+        // streams, and dropping a legacy row because its book is large
+        // would be silent data loss at the one moment nobody could refuse.
+        match copy_and_hash_unbounded(Path::new(&file_path), &dest) {
             Ok(hash) if seen.insert(hash.clone()) => {
                 tx.execute(
                     "UPDATE publications SET file_path = ?1, content_hash = ?2 WHERE id = ?3",
