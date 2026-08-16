@@ -57,6 +57,10 @@ targets:
     info:
       path: Inkuna/Info.plist
       properties:
+        # Only standard OS crypto (HTTPS-exempt); answers the export
+        # compliance question so TestFlight builds don't wait on a manual
+        # answer in App Store Connect.
+        ITSAppUsesNonExemptEncryption: false
         # Generated launch screen with the app background color so night
         # launches don't flash light (the generated plist can't set it).
         UILaunchScreen:
