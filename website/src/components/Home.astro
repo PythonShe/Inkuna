@@ -1,8 +1,9 @@
 ---
-// The homepage, shared by every locale; strings come from src/i18n/ui.ts.
-import { getRelativeLocaleUrl } from "astro:i18n";
+// The homepage, shared by every locale; strings come from src/i18n/home.ts.
 import Base from "../layouts/Base.astro";
-import { languages, type Lang } from "../i18n/ui";
+import Footer from "./Footer.astro";
+import { home } from "../i18n/home";
+import { type Lang } from "../i18n/locales";
 import { useTranslations } from "../i18n/utils";
 
 interface Props {
@@ -10,7 +11,7 @@ interface Props {
 }
 
 const { lang } = Astro.props;
-const t = useTranslations(lang);
+const t = useTranslations(home, lang);
 ---
 
 <Base
@@ -47,26 +48,7 @@ const t = useTranslations(lang);
       >{t("platforms.post")}
     </p>
   </main>
-  <footer>
-    <span>© 2026 Inkuna</span>
-    <a href="https://github.com/PythonShe/Inkuna">{t("footer.source")}</a>
-    <a href="https://github.com/PythonShe/Inkuna/blob/main/LICENSE"
-      >{t("footer.license")}</a
-    >
-    <nav class="lang-switch" aria-label="Language">
-      {
-        (Object.entries(languages) as [Lang, string][]).map(([code, label]) => (
-          <a
-            href={getRelativeLocaleUrl(code, "/")}
-            lang={code}
-            aria-current={code === lang ? "page" : undefined}
-          >
-            {label}
-          </a>
-        ))
-      }
-    </nav>
-  </footer>
+  <Footer lang={lang} path="/" />
 </Base>
 
 <style>
@@ -137,26 +119,6 @@ const t = useTranslations(lang);
     background: var(--accent);
     border-radius: 0.5rem;
     padding: 1rem 1.25rem;
-  }
-  footer {
-    max-width: 40rem;
-    width: 100%;
-    margin: 0 auto;
-    padding: 2rem 1.5rem 3rem;
-    font-size: 0.85rem;
-    color: var(--ink-soft);
-    display: flex;
-    gap: 1.5rem;
-    flex-wrap: wrap;
-  }
-  .lang-switch {
-    margin-inline-start: auto;
-    display: flex;
-    gap: 1rem;
-  }
-  .lang-switch a[aria-current="page"] {
-    text-decoration: none;
-    color: var(--ink);
   }
   @media (max-width: 34rem) {
     .vertical-accent {

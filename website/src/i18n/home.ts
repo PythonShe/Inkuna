@@ -1,12 +1,4 @@
-export const languages = {
-  en: "English",
-  ja: "日本語",
-  zh: "中文",
-} as const;
-
-export type Lang = keyof typeof languages;
-
-export const defaultLang: Lang = "en";
+import type { Dictionary } from "./utils";
 
 // Strings that wrap a link are split into .pre / .post around the link text
 // so each locale keeps its own word order.
@@ -29,8 +21,6 @@ const en = {
     "Inkuna is in active development. Follow along or build it yourself on ",
   "platforms.post":
     " — App Store and Play Store releases will land when the reading experience earns them.",
-  "footer.source": "Source",
-  "footer.license": "License",
 };
 
 const ja: typeof en = {
@@ -51,8 +41,6 @@ const ja: typeof en = {
   "platforms.pre": "Inkunaは現在開発中です。",
   "platforms.post":
     "で開発を追うことも、自分でビルドすることもできます — App Store / Google Playでの公開は、読書体験がそれに値するようになってから。",
-  "footer.source": "ソースコード",
-  "footer.license": "ライセンス",
 };
 
 const zh: typeof en = {
@@ -73,8 +61,6 @@ const zh: typeof en = {
   "platforms.pre": "Inkuna 正在积极开发中。欢迎在 ",
   "platforms.post":
     " 上关注或自行构建 —— App Store 与 Play 商店版本将在阅读体验足够成熟时发布。",
-  "footer.source": "源代码",
-  "footer.license": "许可证",
 };
 
-export const ui: Record<Lang, typeof en> = { en, ja, zh };
+export const home: Dictionary<typeof en> = { en, ja, zh };

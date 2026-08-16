@@ -49,8 +49,9 @@ output. `pnpm-lock.yaml` is not: commit it with every dependency change.
   page's (or its component's) scoped `<style>` block.
 - `src/components/` — markup shared across routes (e.g. `Home.astro`, the
   homepage rendered by all three locale routes).
-- `src/i18n/` — `ui.ts` (locale list + per-locale string dictionaries) and
-  `utils.ts` (`useTranslations`).
+- `src/i18n/` — `locales.ts` (locale list), `utils.ts` (`useTranslations`),
+  and one dictionary module per page or shared component (`home.ts`,
+  `footer.ts`, `support.ts`, `privacy.ts`, …).
 - `public/` — files copied verbatim to the site root (`_headers`).
 - Planned growth: a changelog/blog section (use Astro content collections) —
   structure new work so it slots in cleanly.
@@ -63,9 +64,12 @@ prefixed via `routing.prefixDefaultLocale`; `/` is a static 301 to `/en/`
 (the old unprefixed English home), defined in the `redirects` block of
 `astro.config.mjs`. Conventions:
 
-- All user-facing strings live in the `src/i18n/ui.ts` dictionaries — never
-  hard-code copy in a shared component. Strings wrapping a link are split
-  into `.pre`/`.post` keys so each locale keeps its own word order.
+- All user-facing strings live in `src/i18n/` dictionaries — never hard-code
+  copy in a shared component. One dictionary module per page or shared
+  component (`home.ts`, `footer.ts`, `support.ts`, `privacy.ts`, …), each
+  exporting a `Dictionary<T>` consumed via `useTranslations(dict, lang)`;
+  never one grab-bag file for the whole site. Strings wrapping a link are
+  split into `.pre`/`.post` keys so each locale keeps its own word order.
 - Every content page should exist in all three locales: render one shared
   component per route, pass `localizedPath` to `Base` (emits
   hreflang/x-default alternates), and include the footer language switcher.
@@ -74,9 +78,14 @@ prefixed via `routing.prefixDefaultLocale`; `/` is a static 301 to `/en/`
   `astro:i18n`, never by string concatenation.
 - CJK has no true italics — pages must neutralize italic styles for CJK
   (`:lang(ja)`, `:lang(zh)`), as `Home.astro` does for the tagline.
-- Adding a locale: extend `languages` + `ui` in `src/i18n/ui.ts`, add the
-  locale to `astro.config.mjs`, and add the one-line page stubs under
+- Adding a locale: extend `languages` in `src/i18n/locales.ts`, add the
+  locale's entry to every dictionary module in `src/i18n/`, add the locale to
+  `astro.config.mjs`, and add the one-line page stubs under
   `src/pages/<locale>/`.
+- Adding a page: create its dictionary module in `src/i18n/` (all three
+  locales), a shared component in `src/components/`, and one-line stubs in
+  every `src/pages/<locale>/` directory; link it from the footer if it is a
+  permanent page.
 
 ## Conventions
 

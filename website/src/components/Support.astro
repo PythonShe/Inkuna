@@ -1,0 +1,153 @@
+---
+// The support page, shared by every locale.
+import { getRelativeLocaleUrl } from "astro:i18n";
+import Base from "../layouts/Base.astro";
+import Footer from "./Footer.astro";
+import { type Lang } from "../i18n/locales";
+import { support } from "../i18n/support";
+import { useTranslations } from "../i18n/utils";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(support, lang);
+const faq = t("faq");
+---
+
+<Base
+  title={t("meta.title")}
+  description={t("meta.description")}
+  lang={lang}
+  og={{ title: t("meta.title"), description: t("meta.description") }}
+  localizedPath="/support"
+>
+  <main>
+    <a class="brand" href={getRelativeLocaleUrl(lang, "/")}>Inkuna</a>
+    <h1>{t("h1")}</h1>
+    <p class="intro">{t("intro")}</p>
+
+    <div class="actions">
+      <section class="panel">
+        <h2>{t("bug.h")}</h2>
+        <p>{t("bug.p")}</p>
+        <a class="button" href="https://github.com/PythonShe/Inkuna/issues"
+          >{t("bug.link")}</a
+        >
+      </section>
+      <section class="panel">
+        <h2>{t("feature.h")}</h2>
+        <p>{t("feature.p")}</p>
+        <a class="button" href="https://github.com/PythonShe/Inkuna/issues"
+          >{t("feature.link")}</a
+        >
+      </section>
+    </div>
+
+    <section class="faq">
+      <h2>{t("faq.h")}</h2>
+      <dl>
+        {faq.map((item) => (
+          <div class="faq-item">
+            <dt>{item.q}</dt>
+            <dd>{item.a}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  </main>
+  <Footer lang={lang} path="/support" />
+</Base>
+
+<style>
+  main {
+    flex: 1;
+    width: 100%;
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 3rem;
+  }
+  .brand {
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .brand:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 6vw, 2.6rem);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    margin: 0.75rem 0 0.5rem;
+  }
+  .intro {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+    margin-bottom: 3rem;
+  }
+  .actions {
+    display: grid;
+    gap: 1.5rem;
+  }
+  .panel {
+    background: var(--accent);
+    border: 1px solid var(--hairline);
+    border-radius: 0.75rem;
+    padding: 1.5rem 1.75rem;
+  }
+  .panel h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  .panel p {
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+    margin-bottom: 1.25rem;
+  }
+  .button {
+    display: inline-block;
+    border: 1px solid var(--ink);
+    border-radius: 0.5rem;
+    padding: 0.5rem 1.1rem;
+    font-size: 0.9rem;
+    text-decoration: none;
+  }
+  .button:hover {
+    background: var(--ink);
+    color: var(--paper);
+    text-decoration: none;
+  }
+  .faq {
+    margin-top: 3rem;
+  }
+  .faq h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .faq-item {
+    padding: 1.1rem 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .faq-item dt {
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+  .faq-item dd {
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+  }
+  @media (min-width: 46rem) {
+    main {
+      padding-top: 5rem;
+    }
+  }
+</style>
