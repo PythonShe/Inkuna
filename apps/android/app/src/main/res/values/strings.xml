@@ -63,7 +63,11 @@
     <string name="stats_pages_this_week">pages this week</string>
     <string name="stats_hours_this_month">hours this month</string>
     <string name="stats_books_this_year">books this year</string>
-    <string name="stats_calendar_caption">Eleven evenings with a book this month.</string>
+    <string name="stats_in_progress_empty">Nothing in progress yet.</string>
+    <plurals name="stats_evenings">
+        <item quantity="one">One evening with a book this month.</item>
+        <item quantity="other">%d evenings with a book this month.</item>
+    </plurals>
 
     <!-- Book detail -->
     <string name="detail_contents">Contents</string>

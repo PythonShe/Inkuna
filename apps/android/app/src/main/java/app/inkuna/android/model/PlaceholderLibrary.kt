@@ -1,68 +1,35 @@
 package app.inkuna.android.model
 
-import androidx.annotation.StringRes
 import app.inkuna.android.R
 
 /**
- * Placeholder shelf mirroring the design prototype (and the iOS shell).
- * TODO(core): replace with `app.inkuna.core.Bookshelf` queries once the
- * reading-progress and metadata stores land. Book *content* (titles,
- * authors, prose, chapter names) is stand-in and never localizes; anything
- * that reads as UI copy carries a string resource instead.
+ * The last design-prototype stand-ins, each waiting on a core capability
+ * (and mirrored on iOS). Book *content* here is scenery and never
+ * localizes; anything that reads as UI copy carries a string resource.
  */
 data class PlaceholderBook(
-    val id: Int,
     val title: String,
     val author: String,
     /** 0..100 */
     val progress: Int,
-    val currentPage: Int,
-    val pageCount: Int,
     val coverSeed: Int,
-    val downloaded: Boolean,
 )
 
-/** A stat tile: a stand-in numeral with a localized caption. */
-data class PlaceholderFact(val value: String, @param:StringRes val captionRes: Int)
-
-data class PlaceholderChapter(val numeral: String, val title: String, val page: Int)
-
 object PlaceholderLibrary {
-    val books = listOf(
-        PlaceholderBook(0, "The Will of the Many", "James Islington", 40, 564, 1418, 0, downloaded = true),
-        PlaceholderBook(1, "Letters at Dusk", "I. Sato", 64, 198, 310, 2, downloaded = true),
-        PlaceholderBook(2, "Jade City", "Fonda Lee", 17, 87, 512, 3, downloaded = true),
-        PlaceholderBook(3, "West with the Night", "Beryl Markham", 33, 96, 294, 1, downloaded = false),
-        PlaceholderBook(4, "The Quiet Codex", "A. Moreno", 5, 21, 402, 4, downloaded = false),
-        PlaceholderBook(5, "A Winter Ledger", "H. Brandt", 1, 4, 356, 5, downloaded = true),
+    /** Tonight's hero card while the library holds nothing to continue. */
+    val heroBook = PlaceholderBook("The Will of the Many", "James Islington", 40, 0)
+
+    /** TODO(core): collection chips on Tonight need collections in the core. */
+    val tonightChips = listOf(
+        R.string.tonight_chip_fiction,
+        R.string.tonight_chip_essays,
+        R.string.tonight_chip_night_reads,
     )
 
-    val heroBook = books[0]
-
-    /** "On the nightstand" shelf on Tonight. */
-    val shelf = books.subList(1, 5)
-
-    /** "New this week" on the empty Search screen. */
-    val discover = listOf(books[3], books[4], books[5])
-
-    val chapters = listOf(
-        PlaceholderChapter("I", "The Sea Wall", 1),
-        PlaceholderChapter("II", "Letters from the Capital", 38),
-        PlaceholderChapter("III", "The Long Gallery", 84),
-        PlaceholderChapter("IV", "A Debt of Ink", 141),
-        PlaceholderChapter("V", "The Night Ferry", 210),
-        PlaceholderChapter("VI", "What the Archivist Kept", 296),
-        PlaceholderChapter("VII", "The Lamp and the Moon", 541),
-        PlaceholderChapter("VIII", "The Turning Tide", 640),
-        PlaceholderChapter("IX", "The Quiet Hours", 733),
-        PlaceholderChapter("X", "Ashes and Vellum", 829),
-    )
-
-    const val currentChapterIndex = 6
-
-    const val chapterEyebrow = "VII · The lamp and the moon"
-
-    /** Four sample pages, three paragraphs each. */
+    /**
+     * Four sample pages, three paragraphs each — the fake in-book search
+     * corpus. TODO(core): replace with core-backed in-book search.
+     */
     val samplePages: List<List<String>> = listOf(
         listOf(
             "The lamp burned low, and the moon took over the work of lighting the page. Outside, the city had gone quiet in the particular way it does after midnight — not silent, but hushed, as though it too were reading over her shoulder.",
@@ -84,25 +51,5 @@ object PlaceholderLibrary {
             "The chapter closed the way good chapters do — not with a door slammed, but with a lamp carried into the next room, its light still visible under the sill.",
             "Swipe to keep going, or rest here.",
         ),
-    )
-
-    // Stats — hardcoded prototype data. TODO(core): derive from recorded
-    // reading sessions. Month and weekday names are formatted from
-    // java.time in the caller's locale, never spelled out here.
-    val facts = listOf(
-        PlaceholderFact("214", R.string.stats_pages_this_week),
-        PlaceholderFact("6½", R.string.stats_hours_this_month),
-        PlaceholderFact("12", R.string.stats_books_this_year),
-    )
-    val calendarMonth: java.time.Month = java.time.Month.AUGUST
-    const val calendarLeadingBlanks = 6
-    const val calendarDayCount = 31
-    const val calendarToday = 14
-    val calendarReadDays = setOf(1, 2, 3, 5, 8, 9, 10, 11, 13, 14)
-
-    val tonightChips = listOf(
-        R.string.tonight_chip_fiction,
-        R.string.tonight_chip_essays,
-        R.string.tonight_chip_night_reads,
     )
 }
