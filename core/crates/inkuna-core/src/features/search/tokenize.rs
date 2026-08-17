@@ -164,13 +164,19 @@ impl Tokenizer for CjkUnigramTokenizer {
             match kind {
                 RunKind::Cjk => {
                     for (rel, c) in run.char_indices() {
-                        push(
-                            &mut tokens,
-                            &mut position,
-                            offset + rel,
-                            c.len_utf8(),
-                            fold_query(&c.to_string()),
-                        );
+                        // One token per *folded* char, not per source char:
+                        // the digraphs ヿ and ゟ each fold to two chars, and
+                        // the query side splits a folded run the same way.
+                        // Both then share the char range they came from.
+                        for folded in fold_query(&c.to_string()).chars() {
+                            push(
+                                &mut tokens,
+                                &mut position,
+                                offset + rel,
+                                c.len_utf8(),
+                                folded.to_string(),
+                            );
+                        }
                     }
                 }
                 // The gap keeps phrases from matching across non-CJK text.

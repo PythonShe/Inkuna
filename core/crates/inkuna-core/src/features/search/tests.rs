@@ -150,6 +150,79 @@ fn reconcile_rebuilds_a_missing_index() {
     assert_eq!(hits[0].publication.title, "月光書房");
 }
 
+/// Docs still in the index for `publication_id`, counted through a live
+/// query so deleted-but-unmerged docs do not count.
+fn indexed_docs(library: &Library, publication_id: &str) -> usize {
+    use tantivy::collector::Count;
+    use tantivy::query::TermQuery;
+    use tantivy::schema::IndexRecordOption;
+
+    let fields = library.search.fields();
+    let searcher = library.search.searcher().unwrap();
+    searcher
+        .search(
+            &TermQuery::new(
+                tantivy::Term::from_field_text(fields.publication_id, publication_id),
+                IndexRecordOption::Basic,
+            ),
+            &Count,
+        )
+        .unwrap()
+}
+
+#[test]
+fn reconcile_drops_docs_whose_publication_left_the_database() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let id = {
+        let library = Library::open(&data_dir).unwrap();
+        let id = imported_id(&library, &epub);
+        library.search.wait_for_reconcile();
+        assert!(indexed_docs(&library, &id) > 0);
+        id
+    };
+
+    // Drop the row behind the core's back — what a crash mid-remove, or an
+    // older build, leaves behind. Only reconcile can heal it.
+    let conn = rusqlite::Connection::open(data_dir.join("inkuna.db")).unwrap();
+    conn.execute("DELETE FROM publications WHERE id = ?1", [&id]).unwrap();
+    drop(conn);
+
+    let library = Library::open(&data_dir).unwrap();
+    library.search.wait_for_reconcile();
+    assert_eq!(indexed_docs(&library, &id), 0);
+}
+
+#[test]
+fn reconcile_leaves_an_up_to_date_index_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let id = {
+        let library = Library::open(&data_dir).unwrap();
+        let id = imported_id(&library, &epub);
+        library.search.wait_for_reconcile();
+        id
+    };
+
+    // A second open must recognize the book as already indexed; re-adding
+    // it would leave the old docs deleted-but-unmerged and re-index the
+    // whole library on every launch.
+    let library = Library::open(&data_dir).unwrap();
+    library.search.wait_for_reconcile();
+    let searcher = library.search.searcher().unwrap();
+    let deleted: u32 = searcher
+        .segment_readers()
+        .iter()
+        .map(|segment| segment.num_deleted_docs())
+        .sum();
+    assert_eq!(deleted, 0);
+    assert!(indexed_docs(&library, &id) > 0);
+}
+
 #[test]
 fn library_cjk_tokens_use_folded_compatibility_forms_and_new_han_blocks() {
     use tantivy::tokenizer::{TokenStream, Tokenizer};
@@ -164,6 +237,34 @@ fn library_cjk_tokens_use_folded_compatibility_forms_and_new_han_blocks() {
 
     let query = super::tokenize::analyze_query("ﾊ");
     assert_eq!(query.cjk_runs, vec![vec!['ハ']]);
+}
+
+#[test]
+fn library_cjk_digraphs_index_as_one_token_per_folded_char() {
+    use tantivy::tokenizer::{TokenStream, Tokenizer};
+
+    // ヿ (U+30FF) and ゟ (U+309F) are digraphs: NFKC expands each to two
+    // chars. The query side splits a folded run into single chars, so the
+    // index has to emit them separately or the phrase can never line up.
+    let mut tokenizer = super::tokenize::CjkUnigramTokenizer;
+    let mut stream = tokenizer.token_stream("ヿゟ");
+    let mut tokens = Vec::new();
+    while stream.advance() {
+        let token = stream.token();
+        tokens.push((token.text.clone(), token.position));
+    }
+    assert_eq!(
+        tokens,
+        vec![
+            ("コ".to_string(), 0),
+            ("ト".to_string(), 1),
+            ("よ".to_string(), 2),
+            ("り".to_string(), 3),
+        ]
+    );
+
+    let query = super::tokenize::analyze_query("ヿ");
+    assert_eq!(query.cjk_runs, vec![vec!['コ', 'ト']]);
 }
 
 #[test]
