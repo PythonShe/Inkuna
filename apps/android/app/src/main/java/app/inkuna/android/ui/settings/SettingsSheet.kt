@@ -73,6 +73,9 @@ import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
 import app.inkuna.android.ui.theme.ReadingTheme
 
+/** Hidden until accounts are real; see the TODO(accounts) at the group. */
+private const val SHOW_ACCOUNT_SETTINGS = false
+
 /**
  * The Account sheet — the design's newest settings page: the purely local
  * profile, preferences (evening reminder, night mode), account editing,
@@ -191,16 +194,21 @@ fun SettingsSheet(
             }
             Spacer(Modifier.height(InkSpace.s6))
 
-            GroupCard {
-                DisclosureRow(
-                    icon = { Icon(Icons.Outlined.ManageAccounts, null, tint = ink.textSecondary) },
-                    title = stringResource(R.string.settings_account_settings),
-                    onClick = { editingAccount = true },
-                )
-                // TODO(accounts): the design's "Sign out" row waits on real
-                // accounts; there is nothing to sign out of on a local one.
+            // TODO(accounts): the Account settings group is hidden until
+            // accounts are real — the local name/email editing it offered
+            // isn't worth a settings entry on its own (and the design's
+            // "Sign out" row waits on a real backend anyway). Flip the
+            // flag when accounts land; the editor dialog stays wired.
+            if (SHOW_ACCOUNT_SETTINGS) {
+                GroupCard {
+                    DisclosureRow(
+                        icon = { Icon(Icons.Outlined.ManageAccounts, null, tint = ink.textSecondary) },
+                        title = stringResource(R.string.settings_account_settings),
+                        onClick = { editingAccount = true },
+                    )
+                }
+                Spacer(Modifier.height(InkSpace.s6))
             }
-            Spacer(Modifier.height(InkSpace.s6))
 
             GroupCard {
                 UpdateRow(
