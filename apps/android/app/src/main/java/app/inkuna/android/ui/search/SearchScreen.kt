@@ -76,7 +76,7 @@ fun SearchScreen(
             }
             state.searched && state.results.isEmpty() && state.fullText.isEmpty() ->
                 EmptyState(stringResource(R.string.library_empty_query))
-            else -> {
+            state.searched -> {
                 Spacer(Modifier.height(InkSpace.s3))
                 state.results.forEach { row ->
                     BookListRow(
@@ -102,6 +102,7 @@ fun SearchScreen(
                     }
                 }
             }
+            else -> Unit
         }
     }
 }

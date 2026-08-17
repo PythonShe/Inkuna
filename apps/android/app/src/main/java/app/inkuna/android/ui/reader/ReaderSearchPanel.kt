@@ -122,8 +122,8 @@ fun ReaderSearchPanel(
     // it stands — inside the debounce, or mid-flight in the core.
     LaunchedEffect(query) {
         val trimmed = query.trim()
+        outcome = ReaderViewModel.SearchOutcome()
         if (!isSearchable(trimmed)) {
-            outcome = ReaderViewModel.SearchOutcome()
             return@LaunchedEffect
         }
         delay(SEARCH_DEBOUNCE_MS)
@@ -197,6 +197,7 @@ fun ReaderSearchPanel(
                 // "200 results" when there are 900 has been misinformed —
                 // and when the list is capped, say so ("200 of 900").
                 val countLabel = when {
+                    outcome.unavailable -> stringResource(R.string.reader_search_unavailable)
                     outcome.hits.isEmpty() -> stringResource(R.string.a11y_no_results)
                     outcome.total > outcome.hits.size ->
                         stringResource(R.string.a11y_result_count_capped, outcome.hits.size, outcome.total)

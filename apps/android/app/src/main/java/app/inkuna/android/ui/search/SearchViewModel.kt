@@ -66,7 +66,12 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setQuery(query: String) {
-        _state.value = _state.value.copy(query = query, searched = false)
+        _state.value = _state.value.copy(
+            query = query,
+            results = emptyList(),
+            fullText = emptyList(),
+            searched = false,
+        )
         reload()
     }
 
