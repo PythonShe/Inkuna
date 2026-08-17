@@ -3,6 +3,7 @@ package app.inkuna.android.ui.tonight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,9 +11,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,7 +44,6 @@ import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkButtonSize
 import app.inkuna.android.ui.components.InkChip
-import app.inkuna.android.ui.components.InkIconButton
 import app.inkuna.android.ui.components.InkProgressBar
 import app.inkuna.android.ui.components.inkShadow
 import app.inkuna.android.ui.main.DisplayTitle
@@ -87,11 +90,7 @@ fun TonightScreen(
                 Spacer(Modifier.height(6.dp))
                 DisplayTitle(stringResource(R.string.tonight_title))
             }
-            InkIconButton(
-                icon = Icons.Outlined.AccountCircle,
-                contentDescription = stringResource(R.string.settings_title),
-                onClick = { showSettings = true },
-            )
+            AccountAvatarButton(onClick = { showSettings = true })
         }
         Spacer(Modifier.height(28.dp))
         HeroCard(
@@ -118,6 +117,32 @@ fun TonightScreen(
             Spacer(Modifier.height(InkSpace.s4))
             ShelfRow(books = state.nightstand, onOpenBook = onOpenBook)
         }
+    }
+}
+
+/**
+ * The header's account affordance: a 40dp avatar disc — surface-colored
+ * circle, soft shadow, person glyph — top-aligned with the eyebrow/title
+ * block, per the design. Sized identically on iOS.
+ */
+@Composable
+private fun AccountAvatarButton(onClick: () -> Unit) {
+    val ink = InkTheme.colors
+    Box(
+        Modifier
+            .size(40.dp)
+            .inkShadow(2.dp, CircleShape)
+            .clip(CircleShape)
+            .background(ink.bgSurface)
+            .clickable(onClick = onClick, role = Role.Button),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Outlined.Person,
+            contentDescription = stringResource(R.string.settings_title),
+            tint = ink.textSecondary,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 

@@ -54,10 +54,7 @@ final class TonightViewController: ScrollScreenViewController {
 
         // The account affordance rides beside the header: this screen hides
         // the navigation bar, so there is no bar button item to put it in.
-        let accountButton = InkIconButton(
-            symbol: "person.crop.circle",
-            accessibilityLabel: String(localized: "settings_title", defaultValue: "Account")
-        ) { [weak self] in
+        let accountButton = AccountAvatarButton { [weak self] in
             self?.present(SettingsViewController(), animated: true)
         }
         let headerRow = UIStackView(arrangedSubviews: [headerText, UIView(), accountButton])
