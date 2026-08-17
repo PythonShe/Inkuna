@@ -84,7 +84,14 @@ cargo test                      # full workspace tests — must pass before comm
 - All text handling is UTF-8-safe; never index strings by byte offset in user
   data. Tests must include CJK fixtures (see `features/library/tests.rs` as
   the pattern).
-- Future search work uses tantivy + jieba-style tokenization, not SQLite FTS5.
+- Search is two engines over one corpus (`resource_text`), never SQLite
+  FTS5: library-wide ranked search is tantivy + jieba (`features/search/`,
+  index under `<data_dir>/index/`, reconciled against the DB on open) with
+  a CJK-unigram field so single-char and substring CJK queries match;
+  in-book search is an exact per-char NFKC+case-fold scan, because only a
+  scan can return every occurrence with char offsets and partial-word
+  Latin matches. The index is derived data — always rebuildable, never
+  the truth.
 
 ## 5. Naming & FFI Conventions
 

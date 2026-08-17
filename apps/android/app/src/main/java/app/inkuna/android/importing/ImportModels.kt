@@ -89,7 +89,14 @@ data class ImportFailure(
                 failure(name, ImportFailureKind.TooLarge, describe(error))
             is InkunaException.Io ->
                 failure(name, ImportFailureKind.Unreadable, describe(error))
-            is InkunaException.Database, is InkunaException.NotFound ->
+            // The search index is derived data the core writes alongside
+            // the book; a failure there is the library in trouble, not the
+            // file — the same thing the reader needs to hear.
+            is InkunaException.Database,
+            is InkunaException.NotFound,
+            is InkunaException.Search,
+            is InkunaException.InvalidPositionRanges,
+            ->
                 failure(name, ImportFailureKind.LibraryError, describe(error))
         }
 

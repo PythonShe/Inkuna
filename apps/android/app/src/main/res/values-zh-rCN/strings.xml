@@ -31,6 +31,9 @@
     <string name="tonight_eyebrow">今晚</string>
     <string name="tonight_title">继续上次的阅读</string>
     <string name="tonight_pages_left">本章还剩 15 页</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="other">本章还剩 %d 页</item>
+    </plurals>
     <string name="tonight_percent_read">已读 %1$d%%</string>
     <string name="tonight_keep_reading">继续阅读</string>
     <string name="tonight_nightstand">待读书单</string>
@@ -56,6 +59,7 @@
     <string name="search_title">搜索</string>
     <string name="search_placeholder">书名、作者</string>
     <string name="search_recently_added">最近添加</string>
+    <string name="search_in_books">在你的书里</string>
 
     
     <string name="stats_title">阅读统计</string>
@@ -79,6 +83,7 @@
     <string name="reader_menu_theme_type">版式与主题</string>
     <string name="reader_search_placeholder">搜索本书内容</string>
     <string name="reader_search_empty">未在本书中找到相关内容。</string>
+    <string name="reader_search_unavailable">搜索暂时不可用。</string>
     <string name="reader_bookmark_placed">书签已添加。</string>
     <string name="reader_link_failed">无法打开此链接。</string>
     <string name="reader_page_info">第 %1$d 页，共 %2$d 页 · %3$d%%</string>
@@ -96,6 +101,7 @@
     <string name="a11y_reading_menu">阅读菜单</string>
     <string name="a11y_close_reading_menu">关闭阅读菜单</string>
     <string name="a11y_place_bookmark">添加书签</string>
+    <string name="a11y_search_book">搜索本书内容</string>
     <string name="a11y_smaller_text">减小字号</string>
     <string name="a11y_larger_text">加大字号</string>
     <string name="a11y_page_brightness">页面亮度</string>
@@ -109,6 +115,7 @@
     <string name="a11y_calendar_day">%1$s%2$d日</string>
     <string name="a11y_calendar_day_read">%1$s%2$d日，已阅读</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%2$d 条结果中的 %1$d 条</string>
     <plurals name="a11y_result_count">
         <item quantity="other">%d 条结果</item>
     </plurals>

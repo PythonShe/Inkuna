@@ -31,6 +31,9 @@
     <string name="tonight_eyebrow">Tối nay</string>
     <string name="tonight_title">Đọc tiếp từ nơi bạn đã dừng</string>
     <string name="tonight_pages_left">Còn mười lăm trang nữa trong chương này</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="other">Còn %d trang nữa trong chương này</item>
+    </plurals>
     <string name="tonight_percent_read">Đã đọc %1$d%%</string>
     <string name="tonight_keep_reading">Đọc tiếp</string>
     <string name="tonight_nightstand">Danh sách muốn đọc</string>
@@ -56,6 +59,7 @@
     <string name="search_title">Tìm kiếm</string>
     <string name="search_placeholder">Tên sách, tác giả</string>
     <string name="search_recently_added">Mới thêm gần đây</string>
+    <string name="search_in_books">Trong sách của bạn</string>
 
     
     <string name="stats_title">Thống kê đọc sách</string>
@@ -79,6 +83,7 @@
     <string name="reader_menu_theme_type">Giao diện &amp; Kiểu chữ</string>
     <string name="reader_search_placeholder">Tìm kiếm trong cuốn sách này</string>
     <string name="reader_search_empty">Không tìm thấy nội dung trong cuốn sách này.</string>
+    <string name="reader_search_unavailable">Hiện không thể tìm kiếm.</string>
     <string name="reader_bookmark_placed">Đã đánh dấu trang.</string>
     <string name="reader_link_failed">Không thể mở liên kết này.</string>
     <string name="reader_page_info">Trang %1$d / %2$d · %3$d%%</string>
@@ -96,6 +101,7 @@
     <string name="a11y_reading_menu">Menu đọc sách</string>
     <string name="a11y_close_reading_menu">Đóng menu đọc sách</string>
     <string name="a11y_place_bookmark">Đánh dấu trang</string>
+    <string name="a11y_search_book">Tìm kiếm trong cuốn sách này</string>
     <string name="a11y_smaller_text">Thu nhỏ cỡ chữ</string>
     <string name="a11y_larger_text">Phóng to cỡ chữ</string>
     <string name="a11y_page_brightness">Độ sáng trang</string>
@@ -109,6 +115,7 @@
     <string name="a11y_calendar_day">Ngày %2$d %1$s</string>
     <string name="a11y_calendar_day_read">Ngày %2$d %1$s, đã đọc</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%1$d trong %2$d kết quả</string>
     <plurals name="a11y_result_count">
         <item quantity="other">%d kết quả</item>
     </plurals>

@@ -42,4 +42,21 @@ cargo run -p inkuna-ffi --bin uniffi-bindgen --release -- generate \
   --language kotlin \
   --out-dir "$GENERATED"
 
+# Strip AFTER bindgen, never before: uniffi-bindgen --library reads the UniFFI
+# metadata out of the static symbol table, so building with strip = "symbols"
+# makes it fail with "No UniFFI metadata found". Stripping the jniLibs copies
+# here leaves the target/ artifacts (and therefore bindgen) untouched while
+# taking ~2.2 MB off each shipped .so. JNA resolves the exports through .dynsym,
+# which --strip-all preserves.
+#
+# Set INKUNA_STRIP=0 to keep symbols when symbolicating a native crash locally.
+if [ "${INKUNA_STRIP:-1}" != "0" ]; then
+  STRIP="$(ls "$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/*/bin/llvm-strip | head -1)"
+  for so in "$JNI_LIBS"/*/libinkuna_ffi.so; do
+    before=$(wc -c < "$so")
+    "$STRIP" --strip-all "$so"
+    echo "stripped $(basename "$(dirname "$so")"): $((before / 1024))K -> $(($(wc -c < "$so") / 1024))K"
+  done
+fi
+
 echo "OK: $JNI_LIBS + $GENERATED"

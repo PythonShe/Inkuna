@@ -9,12 +9,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -42,22 +42,23 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.inkuna.android.R
-import app.inkuna.android.model.PlaceholderLibrary
 import app.inkuna.android.ui.components.glassModifier
 import app.inkuna.android.ui.stats.hairlineThickness
 import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
-
-private data class SearchHit(val pageIndex: Int, val snippet: String)
+import kotlinx.coroutines.delay
 
 /**
  * A single Han, Kana or Hangul character is a whole word — 月 and 书 are
@@ -81,45 +82,62 @@ internal fun isSearchable(query: String): Boolean {
 }
 
 /**
- * In-book search over the sample pages: first match per page.
- * TODO(core): route through the core's CJK-aware search index.
+ * The core's leading context can run long enough that a two-line
+ * tail-truncating text pushes the match itself off screen. Keep only the
+ * tail of the pre-text — enough to read into the match, never enough to
+ * hide it. Shared with the Search tab's excerpts.
  */
-private fun search(query: String): List<SearchHit> {
-    val trimmed = query.trim()
-    if (!isSearchable(trimmed)) return emptyList()
-    return PlaceholderLibrary.samplePages.mapIndexedNotNull { index, paragraphs ->
-        val text = paragraphs.joinToString(" ")
-        val at = text.indexOf(trimmed, ignoreCase = true)
-        if (at < 0) return@mapIndexedNotNull null
-        val start = (at - 34).coerceAtLeast(0)
-        val end = (at + trimmed.length + 46).coerceAtMost(text.length)
-        val snippet = buildString {
-            if (start > 0) append("…")
-            append(text.substring(start, end).trim())
-            if (end < text.length) append("…")
-        }
-        SearchHit(index, snippet)
-    }
+internal fun clampedLeadingContext(pre: String): String {
+    val budget = 16
+    return if (pre.length > budget) "…" + pre.takeLast(budget) else pre
 }
 
+/**
+ * A beat of quiet before the core is asked: a fast typist's keystrokes
+ * cancel their predecessors rather than queueing a query each.
+ */
+private const val SEARCH_DEBOUNCE_MS = 250L
+
+/**
+ * In-book search over the core's case-folded, CJK-aware index. Every hit
+ * carries a real place in the book, so tapping one moves the navigator
+ * there and leaves the panel behind.
+ */
 @Composable
 fun ReaderSearchPanel(
     topPadding: Dp,
+    viewModel: ReaderViewModel,
+    onSelect: (ReaderViewModel.SearchHit) -> Unit,
     onClose: () -> Unit,
 ) {
     val ink = InkTheme.colors
     var query by rememberSaveable { mutableStateOf("") }
-    val results = remember(query) { search(query) }
+    var outcome by remember { mutableStateOf(ReaderViewModel.SearchOutcome()) }
     val focusRequester = remember { FocusRequester() }
     val placeholder = stringResource(R.string.reader_search_placeholder)
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
+    // One effect per query: a new keystroke cancels the previous one where
+    // it stands — inside the debounce, or mid-flight in the core.
+    LaunchedEffect(query) {
+        val trimmed = query.trim()
+        outcome = ReaderViewModel.SearchOutcome()
+        if (!isSearchable(trimmed)) {
+            return@LaunchedEffect
+        }
+        delay(SEARCH_DEBOUNCE_MS)
+        outcome = viewModel.search(trimmed)
+    }
+
     val focusManager = LocalFocusManager.current
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = topPadding)
+            // The bottom margin keeps the grown panel off the screen edge
+            // when no keyboard is up; `imePadding` takes over when it is.
+            .padding(start = 14.dp, end = 14.dp, top = topPadding, bottom = 14.dp)
+            .navigationBarsPadding()
             .imePadding()
             // Taps on the panel's quiet areas stop here; without this they
             // reach the scrim behind and dismiss the search mid-typing.
@@ -175,14 +193,26 @@ fun ReaderSearchPanel(
                         .height(hairlineThickness())
                         .background(ink.borderHairline)
                 )
-                val countLabel = if (results.isEmpty()) {
-                    stringResource(R.string.a11y_no_results)
-                } else {
-                    pluralStringResource(R.plurals.a11y_result_count, results.size, results.size)
+                // The core's total, not the capped list: a reader told
+                // "200 results" when there are 900 has been misinformed —
+                // and when the list is capped, say so ("200 of 900").
+                val countLabel = when {
+                    outcome.unavailable -> stringResource(R.string.reader_search_unavailable)
+                    outcome.hits.isEmpty() -> stringResource(R.string.a11y_no_results)
+                    outcome.total > outcome.hits.size ->
+                        stringResource(R.string.a11y_result_count_capped, outcome.hits.size, outcome.total)
+                    else ->
+                        pluralStringResource(R.plurals.a11y_result_count, outcome.total, outcome.total)
                 }
-                if (results.isEmpty()) {
+                if (outcome.hits.isEmpty()) {
                     Text(
-                        stringResource(R.string.reader_search_empty),
+                        stringResource(
+                            if (outcome.unavailable) {
+                                R.string.reader_search_unavailable
+                            } else {
+                                R.string.reader_search_empty
+                            }
+                        ),
                         style = InkType.reading.copy(fontSize = 15.sp, lineHeight = 22.sp),
                         color = ink.textTertiary,
                         textAlign = TextAlign.Center,
@@ -198,28 +228,19 @@ fun ReaderSearchPanel(
                     LazyColumn(
                         modifier = Modifier
                             .padding(top = 4.dp)
-                            .heightInPanel()
-                            .semantics { liveRegion = LiveRegionMode.Polite },
+                            // Grows with results toward the keyboard or
+                            // screen edge, then scrolls — matching iOS.
+                            .weight(1f, fill = false)
+                            .semantics {
+                                liveRegion = LiveRegionMode.Polite
+                                contentDescription = countLabel
+                            },
                     ) {
-                        itemsIndexed(results, key = { _, hit -> hit.pageIndex }) { _, hit ->
-                            // TODO(core): jump the navigator to the hit's
-                            // locator once real in-book search lands; the
-                            // placeholder hits have no position in the
-                            // rendered book, so a tap just closes.
-                            Column(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onClose() }
-                                    .padding(horizontal = 4.dp, vertical = 11.dp)
-                            ) {
-                                Text(
-                                    hit.snippet,
-                                    style = InkType.reading.copy(fontSize = 15.sp, lineHeight = 22.sp),
-                                    color = ink.textDisplay,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                        items(
+                            outcome.hits,
+                            key = { hit -> "${hit.spineIndex}:${hit.charOffset}" },
+                        ) { hit ->
+                            SearchResultRow(hit = hit, onClick = { onSelect(hit) })
                         }
                     }
                 }
@@ -228,5 +249,43 @@ fun ReaderSearchPanel(
     }
 }
 
-/** Results scroll inside the panel instead of growing past the keyboard. */
-private fun Modifier.heightInPanel(): Modifier = heightIn(max = 320.dp)
+/**
+ * One hit: the snippet with the match lit in the accent, and the honest
+ * synthetic page it sits on — omitted rather than guessed when unknown.
+ */
+@Composable
+private fun SearchResultRow(hit: ReaderViewModel.SearchHit, onClick: () -> Unit) {
+    val ink = InkTheme.colors
+    // `snippetPre` / `snippetPost` already carry their own ellipses.
+    val snippet = remember(hit, ink.accentText) {
+        buildAnnotatedString {
+            append(clampedLeadingContext(hit.snippetPre))
+            withStyle(SpanStyle(color = ink.accentText, fontWeight = FontWeight.SemiBold)) {
+                append(hit.snippetMatch)
+            }
+            append(hit.snippetPost)
+        }
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 11.dp)
+    ) {
+        Text(
+            snippet,
+            style = InkType.reading.copy(fontSize = 15.sp, lineHeight = 22.sp),
+            color = ink.textDisplay,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        hit.position?.let { position ->
+            Text(
+                stringResource(R.string.reader_chapter_page, position),
+                style = InkType.caption,
+                color = ink.textTertiary,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+    }
+}

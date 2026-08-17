@@ -21,6 +21,16 @@ pub enum InkunaError {
     UnsupportedFormat { format: Option<String> },
     #[error("invalid publication: {detail}")]
     InvalidPublication { detail: String },
+    #[error("invalid position ranges: expected {expected} resources, received {actual} (zero count: {has_zero})")]
+    InvalidPositionRanges {
+        expected: u32,
+        actual: u32,
+        has_zero: bool,
+    },
+    /// The search index failed; it is derived data, so a shell can treat
+    /// this as "search unavailable right now".
+    #[error("search index error: {detail}")]
+    Search { detail: String },
     #[error("publication not found: {id}")]
     NotFound { id: String },
 }
@@ -35,6 +45,10 @@ impl From<inkuna_core::CoreError> for InkunaError {
             C::Archive(m) => InkunaError::Archive { detail: m },
             C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat { format: f },
             C::InvalidPublication(m) => InkunaError::InvalidPublication { detail: m },
+            C::InvalidPositionRanges { expected, actual, has_zero } => {
+                InkunaError::InvalidPositionRanges { expected, actual, has_zero }
+            }
+            C::Search(e) => InkunaError::Search { detail: e.to_string() },
             C::NotFound(id) => InkunaError::NotFound { id },
         }
     }

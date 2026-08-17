@@ -18,6 +18,7 @@ mod format;
 mod import;
 mod library;
 mod progress;
+mod search;
 mod settings;
 mod stats;
 
@@ -26,5 +27,7 @@ pub use error::InkunaError;
 pub use format::Format;
 pub use import::{FdImport, ImportOutcome, ImportProgressListener};
 pub use library::{Bookmark, Chapter, Publication, Shelf, Sort};
+pub use progress::ChapterPositionRange;
+pub use search::{BookSearchHit, BookSearchResults, LibrarySearchHit};
 pub use settings::Settings;
 pub use stats::StatsOverview;

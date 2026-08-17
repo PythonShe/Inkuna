@@ -17,6 +17,8 @@ pub use crate::core::error::CoreError;
 pub use chrono::Weekday;
 pub use features::import::{BatchImportOutcome, ImportOutcome};
 pub use features::library::{Bookmark, Chapter, Library, Publication, Shelf, Sort};
+pub use features::progress::ChapterPositionRange;
+pub use features::search::{BookSearchHit, BookSearchResults, LibrarySearchHit};
 pub use features::settings::Settings;
 pub use features::stats::StatsOverview;
 pub use formats::Format;

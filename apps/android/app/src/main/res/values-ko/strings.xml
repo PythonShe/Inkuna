@@ -31,6 +31,9 @@
     <string name="tonight_eyebrow">오늘 밤</string>
     <string name="tonight_title">읽던 곳에서 이어 읽기</string>
     <string name="tonight_pages_left">이 챕터가 15페이지 남았습니다</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="other">이 챕터가 %d페이지 남았습니다</item>
+    </plurals>
     <string name="tonight_percent_read">%1$d%% 읽음</string>
     <string name="tonight_keep_reading">계속 읽기</string>
     <string name="tonight_nightstand">읽을 책 목록</string>
@@ -56,6 +59,7 @@
     <string name="search_title">검색</string>
     <string name="search_placeholder">도서명, 저자</string>
     <string name="search_recently_added">최근 추가됨</string>
+    <string name="search_in_books">내 책 속에서</string>
 
     
     <string name="stats_title">독서 통계</string>
@@ -79,6 +83,7 @@
     <string name="reader_menu_theme_type">테마 및 글꼴</string>
     <string name="reader_search_placeholder">이 책에서 검색</string>
     <string name="reader_search_empty">책 안에서 결과를 찾을 수 없습니다.</string>
+    <string name="reader_search_unavailable">지금은 검색을 사용할 수 없습니다.</string>
     <string name="reader_bookmark_placed">북마크가 추가되었습니다.</string>
     <string name="reader_link_failed">이 링크를 열 수 없습니다.</string>
     <string name="reader_page_info">%1$d / %2$d쪽 · %3$d%%</string>
@@ -96,6 +101,7 @@
     <string name="a11y_reading_menu">독서 메뉴</string>
     <string name="a11y_close_reading_menu">독서 메뉴 닫기</string>
     <string name="a11y_place_bookmark">북마크 추가</string>
+    <string name="a11y_search_book">이 책에서 검색</string>
     <string name="a11y_smaller_text">글자 크기 축소</string>
     <string name="a11y_larger_text">글자 크기 확대</string>
     <string name="a11y_page_brightness">페이지 밝기</string>
@@ -109,6 +115,7 @@
     <string name="a11y_calendar_day">%1$s %2$d일</string>
     <string name="a11y_calendar_day_read">%1$s %2$d일, 읽음</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%2$d개 중 %1$d개의 결과</string>
     <plurals name="a11y_result_count">
         <item quantity="other">%d개의 결과</item>
     </plurals>

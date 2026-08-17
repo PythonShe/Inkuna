@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -76,6 +77,7 @@ fun TonightScreen(
         Spacer(Modifier.height(28.dp))
         HeroCard(
             continueReading = state.continueReading,
+            pagesLeftInChapter = state.pagesLeftInChapter,
             onOpenReader = onOpenReader,
         )
         Spacer(Modifier.height(InkSpace.s8))
@@ -109,6 +111,7 @@ fun TonightScreen(
 @Composable
 private fun HeroCard(
     continueReading: BookRow?,
+    pagesLeftInChapter: Int?,
     onOpenReader: (String) -> Unit,
 ) {
     val ink = InkTheme.colors
@@ -117,13 +120,17 @@ private fun HeroCard(
     val author = continueReading?.author ?: placeholder.author
     val progress = continueReading?.let { it.progress ?: 0 } ?: placeholder.progress
     val seed = continueReading?.seed ?: placeholder.coverSeed
-    // TODO(core): "pages left in this chapter" needs a chapter's position
-    // range, which the core does not expose yet. Real progress beats an
-    // invented page count, so the fraction stands in for it.
-    val caption = if (continueReading != null) {
-        stringResource(R.string.tonight_percent_read, progress)
-    } else {
-        stringResource(R.string.tonight_pages_left)
+    // The chapter's remaining synthetic positions when the core knows them
+    // — it learns a book's chapter ranges the first time the reader opens
+    // it — and the honest book-wide fraction until then.
+    val caption = when {
+        continueReading == null -> stringResource(R.string.tonight_pages_left)
+        pagesLeftInChapter != null -> pluralStringResource(
+            R.plurals.tonight_pages_left_chapter,
+            pagesLeftInChapter,
+            pagesLeftInChapter,
+        )
+        else -> stringResource(R.string.tonight_percent_read, progress)
     }
     val open: (() -> Unit)? = continueReading?.let { book -> { onOpenReader(book.id) } }
     val titleLabel = stringResource(R.string.a11y_book_row, title, author)

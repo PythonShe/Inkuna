@@ -31,6 +31,9 @@
     <string name="tonight_eyebrow">今夜の本</string>
     <string name="tonight_title">前回の続きから読む</string>
     <string name="tonight_pages_left">この章の終わりまであと15ページ</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="other">この章の終わりまであと%dページ</item>
+    </plurals>
     <string name="tonight_percent_read">読了率 %1$d%%</string>
     <string name="tonight_keep_reading">続きを読む</string>
     <string name="tonight_nightstand">読みたい本</string>
@@ -56,6 +59,7 @@
     <string name="search_title">検索</string>
     <string name="search_placeholder">書名、著者名</string>
     <string name="search_recently_added">最近追加した本</string>
+    <string name="search_in_books">蔵書の中</string>
 
     
     <string name="stats_title">読書統計</string>
@@ -79,6 +83,7 @@
     <string name="reader_menu_theme_type">フォントとテーマ</string>
     <string name="reader_search_placeholder">この本の中を検索</string>
     <string name="reader_search_empty">本の中に見つかりませんでした。</string>
+    <string name="reader_search_unavailable">検索は現在利用できません。</string>
     <string name="reader_bookmark_placed">しおりを挟みました。</string>
     <string name="reader_link_failed">リンクを開けませんでした。</string>
     <string name="reader_page_info">%1$d / %2$d ページ · %3$d%%</string>
@@ -96,6 +101,7 @@
     <string name="a11y_reading_menu">読書メニュー</string>
     <string name="a11y_close_reading_menu">読書メニューを閉じる</string>
     <string name="a11y_place_bookmark">しおりを挟む</string>
+    <string name="a11y_search_book">この本の中を検索</string>
     <string name="a11y_smaller_text">文字を小さく</string>
     <string name="a11y_larger_text">文字を大きく</string>
     <string name="a11y_page_brightness">画面の明るさ</string>
@@ -109,6 +115,7 @@
     <string name="a11y_calendar_day">%1$s%2$d日</string>
     <string name="a11y_calendar_day_read">%1$s%2$d日、読書済み</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%2$d 件中 %1$d 件の結果</string>
     <plurals name="a11y_result_count">
         <item quantity="other">%d 件の結果</item>
     </plurals>

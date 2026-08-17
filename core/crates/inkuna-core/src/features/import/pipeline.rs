@@ -440,6 +440,21 @@ impl Library {
         };
 
         if inserted {
+            // Outside the writer lock, from the texts already in hand.
+            // Derived data: a failure only delays searchability of this
+            // one book until the next open's reconcile pass.
+            if let Err(e) = self.search.index_publication(
+                &publication.id,
+                prepared
+                    .spine
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, (_, text))| {
+                        text.as_ref().map(|t| (idx as u32, t.as_ref()))
+                    }),
+            ) {
+                log::warn!("search indexing failed for {}: {e}", publication.id);
+            }
             Ok(ImportOutcome::Imported(publication))
         } else {
             // Lost the race: another import committed the same content

@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use rusqlite::Connection;
 
 use crate::core::db::{migrate, open_connection, ReaderPool, READER_POOL_SIZE};
+use crate::features::search::SearchIndex;
 use crate::CoreError;
 
 /// The library facade: one SQLite DB plus core-owned book/cover storage
@@ -18,6 +19,7 @@ pub struct Library {
     pub(crate) data_dir: PathBuf,
     pub(crate) writer: Mutex<Connection>,
     pub(crate) readers: ReaderPool,
+    pub(crate) search: SearchIndex,
 }
 
 impl Library {
@@ -39,11 +41,16 @@ impl Library {
         let mut writer = open_connection(&db_path)?;
         migrate(&mut writer, &data_dir)?;
         let readers = ReaderPool::open(&db_path, READER_POOL_SIZE)?;
+        let search = SearchIndex::open(&data_dir)?;
+        // Heal the index against the database off the open path; a fresh
+        // install and an unchanged library both make this a cheap no-op.
+        search.spawn_reconcile(db_path);
 
         let library = Library {
             data_dir,
             writer: Mutex::new(writer),
             readers,
+            search,
         };
         library.sweep()?;
         Ok(library)
@@ -71,6 +78,11 @@ impl Library {
         let _ = std::fs::remove_file(self.data_dir.join(&publication.file_path));
         if let Some(cover) = &publication.cover_path {
             let _ = std::fs::remove_file(self.data_dir.join(cover));
+        }
+        // Derived data: a failure here only leaves stale docs that the
+        // next open's reconcile drops, so the remove still succeeds.
+        if let Err(e) = self.search.delete_publication(id) {
+            log::warn!("search index delete failed for {id}: {e}");
         }
         Ok(())
     }

@@ -1,7 +1,28 @@
-//! Reading-progress writes: position, position count, finished state.
+//! Reading-progress writes: position, position count, per-resource
+//! position ranges, and finished state.
 
 use crate::bookshelf::{blocking, Bookshelf};
 use crate::error::InkunaError;
+
+/// One TOC entry's span of Readium synthetic positions; 1-based, both
+/// bounds inclusive. Sparse per chapter: entries whose href matches no
+/// spine resource are absent.
+#[derive(Debug, Clone, Copy, uniffi::Record)]
+pub struct ChapterPositionRange {
+    pub chapter_idx: u32,
+    pub start_position: u32,
+    pub end_position: u32,
+}
+
+impl From<inkuna_core::ChapterPositionRange> for ChapterPositionRange {
+    fn from(r: inkuna_core::ChapterPositionRange) -> Self {
+        ChapterPositionRange {
+            chapter_idx: r.chapter_idx,
+            start_position: r.start_position,
+            end_position: r.end_position,
+        }
+    }
+}
 
 #[uniffi::export(async_runtime = "tokio")]
 impl Bookshelf {
@@ -24,6 +45,37 @@ impl Bookshelf {
     pub async fn report_position_count(&self, id: String, count: u32) -> Result<(), InkunaError> {
         let library = self.0.clone();
         blocking(move || Ok(library.report_position_count(&id, count)?)).await
+    }
+
+    /// Once per book, after the navigator computes positions: one count per
+    /// reading-order resource, replacing any previous report and keeping
+    /// the publication's total in agreement. Supersedes
+    /// `report_position_count` when the full breakdown is in hand.
+    pub async fn report_position_ranges(
+        &self,
+        id: String,
+        counts: Vec<u32>,
+    ) -> Result<(), InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.report_position_ranges(&id, &counts)?)).await
+    }
+
+    /// Every TOC entry's position span, in chapter order; empty until the
+    /// shell has reported ranges. Powers "pages left in this chapter"
+    /// without opening the book.
+    pub async fn chapter_position_ranges(
+        &self,
+        id: String,
+    ) -> Result<Vec<ChapterPositionRange>, InkunaError> {
+        let library = self.0.clone();
+        blocking(move || {
+            Ok(library
+                .chapter_position_ranges(&id)?
+                .into_iter()
+                .map(Into::into)
+                .collect())
+        })
+        .await
     }
 
     /// Explicit finish/unfinish; unfinishing sticks at end-of-book because

@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/inkuna-core", "crates/inkuna-ffi"]
 
 [workspace.package]
-version = "0.4.3"
+version = "0.5.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 
@@ -11,6 +11,11 @@ license = "AGPL-3.0-only"
 # full optimization, single codegen unit for best cross-crate inlining,
 # fat LTO, debuginfo stripped. Panics stay unwinding so UniFFI can catch
 # them at the boundary instead of aborting the host app.
+#
+# Symbol stripping is NOT set here on purpose: iOS links a staticlib out of
+# this same profile and needs its symbol table to link at all. The Android
+# cdylib strips further via CARGO_PROFILE_RELEASE_STRIP in
+# scripts/build-core-android.sh.
 [profile.release]
 opt-level = 3
 codegen-units = 1

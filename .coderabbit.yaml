@@ -146,6 +146,15 @@ reviews:
     - '!apps/ios/AppIcon.icon/**'
     - '!apps/ios/Inkuna/Assets.xcassets/**'
 
+    # Localization catalogs. Translation churn (a new key fans out across 14
+    # locales) drowns a review in lines no reviewer can meaningfully judge.
+    # iOS keeps source + translations in one .xcstrings file, so it is
+    # excluded wholesale; on Android only the translated `values-*` catalogs
+    # go — the base `values/strings.xml` is English source (new keys, plural
+    # forms) and stays reviewable.
+    - '!**/*.xcstrings'
+    - '!apps/android/app/src/main/res/values-*/strings.xml'
+
     # Agent-authored archival docs. Live specs (`docs/repertoire/specs/`) and
     # the architecture ADR (`docs/dev/`) stay reviewable on purpose — the ADR
     # is the document structural changes are supposed to be checked against.

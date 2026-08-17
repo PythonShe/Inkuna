@@ -27,6 +27,10 @@
     <string name="tonight_eyebrow">Heute Abend</string>
     <string name="tonight_title">Weiterlesen, wo Sie aufgehört haben</string>
     <string name="tonight_pages_left">Noch fünfzehn Seiten in diesem Kapitel</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="one">Noch %d Seite in diesem Kapitel</item>
+        <item quantity="other">Noch %d Seiten in diesem Kapitel</item>
+    </plurals>
     <string name="tonight_percent_read">%1$d%% gelesen</string>
     <string name="tonight_keep_reading">Weiterlesen</string>
     <string name="tonight_nightstand">Leseliste</string>
@@ -50,6 +54,7 @@
     <string name="search_title">Suchen</string>
     <string name="search_placeholder">Titel, Autoren</string>
     <string name="search_recently_added">Kürzlich hinzugefügt</string>
+    <string name="search_in_books">In Ihren Büchern</string>
     
     <string name="stats_title">Lesestatistiken</string>
     <string name="stats_in_progress">In Arbeit</string>
@@ -71,6 +76,7 @@
     <string name="reader_menu_theme_type">Design &amp; Typografie</string>
     <string name="reader_search_placeholder">In diesem Buch suchen</string>
     <string name="reader_search_empty">In diesem Buch wurde nichts gefunden.</string>
+    <string name="reader_search_unavailable">Die Suche ist gerade nicht verfügbar.</string>
     <string name="reader_bookmark_placed">Lesezeichen gesetzt.</string>
     <string name="reader_link_failed">Dieser Link konnte nicht geöffnet werden.</string>
     <string name="reader_page_info">S. %1$d von %2$d · %3$d%%</string>
@@ -87,6 +93,7 @@
     <string name="a11y_reading_menu">Lesemenü</string>
     <string name="a11y_close_reading_menu">Lesemenü schließen</string>
     <string name="a11y_place_bookmark">Lesezeichen setzen</string>
+    <string name="a11y_search_book">In diesem Buch suchen</string>
     <string name="a11y_smaller_text">Kleinerer Text</string>
     <string name="a11y_larger_text">Größerer Text</string>
     <string name="a11y_page_brightness">Seitenhelligkeit</string>
@@ -100,6 +107,7 @@
     <string name="a11y_calendar_day">%2$d. %1$s</string>
     <string name="a11y_calendar_day_read">%2$d. %1$s, gelesen</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%1$d von %2$d Ergebnissen</string>
     <plurals name="a11y_result_count">
         <item quantity="one">%d Ergebnis</item>
         <item quantity="other">%d Ergebnisse</item>

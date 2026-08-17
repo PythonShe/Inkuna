@@ -79,5 +79,8 @@ for upcoming needs: deadpool-sqlite, notify, rayon, argon2, lofty.
 2. Import UI (document picker on both platforms; copy into app storage).
 3. Reader chrome: themes (ink/moonlight), typography controls, scrubber.
 4. Comics: CBZ via Readium; CBR via unrar in the core.
-5. Full-text search in core (tantivy + jieba).
+5. Full-text search in core — shipped: tantivy + jieba library-wide index
+   (plus a CJK-unigram field for single-char/substring queries) and an
+   exact case-folded scan for in-book search, both over the
+   `resource_text` corpus.
 6. Sync: core logic compiled to WASM on Cloudflare Workers.
