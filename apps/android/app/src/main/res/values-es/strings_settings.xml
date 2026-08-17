@@ -12,7 +12,7 @@
     <string name="settings_reminder_sub">Un aviso discreto a tu hora de lectura</string>
     <string name="settings_night">Modo noche</string>
     <string name="settings_account_settings">Ajustes de la cuenta</string>
-    <string name="settings_edit_name">Nombre</string>
+    <string name="settings_edit_name">Nombre de usuario</string>
     <string name="settings_edit_email">Correo electrónico</string>
     <string name="settings_save">Guardar</string>
     <string name="settings_cancel">Cancelar</string>

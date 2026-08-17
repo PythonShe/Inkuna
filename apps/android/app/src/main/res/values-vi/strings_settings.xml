@@ -12,7 +12,7 @@
     <string name="settings_reminder_sub">Lời nhắc nhẹ nhàng vào giờ đọc sách của bạn</string>
     <string name="settings_night">Chế độ ban đêm</string>
     <string name="settings_account_settings">Cài đặt tài khoản</string>
-    <string name="settings_edit_name">Tên</string>
+    <string name="settings_edit_name">Tên người dùng</string>
     <string name="settings_edit_email">Email</string>
     <string name="settings_save">Lưu</string>
     <string name="settings_cancel">Hủy</string>

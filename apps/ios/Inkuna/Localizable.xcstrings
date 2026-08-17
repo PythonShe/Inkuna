@@ -14583,85 +14583,85 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Name"
+            "value": "Username"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "姓名"
+            "value": "用户名"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "姓名"
+            "value": "使用者名稱"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "名前"
+            "value": "ユーザー名"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이름"
+            "value": "사용자 이름"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nombre"
+            "value": "Nombre de usuario"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nom"
+            "value": "Nom d’utilisateur"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nome"
+            "value": "Nome utente"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Имя"
+            "value": "Имя пользователя"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ชื่อ"
+            "value": "ชื่อผู้ใช้"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tên"
+            "value": "Tên người dùng"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Name"
+            "value": "Benutzername"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nama"
+            "value": "Nama pengguna"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nome"
+            "value": "Nome de usuário"
           }
         }
       }

@@ -257,7 +257,7 @@ final class SettingsViewController: UIViewController {
             preferredStyle: .alert
         )
         alert.addTextField { field in
-            field.placeholder = String(localized: "settings_edit_name", defaultValue: "Name")
+            field.placeholder = String(localized: "settings_edit_name", defaultValue: "Username")
             field.text = AppSettings.shared.accountName
             field.autocapitalizationType = .words
         }

@@ -12,7 +12,7 @@
     <string name="settings_reminder_sub">読書の時間をそっとお知らせ</string>
     <string name="settings_night">ナイトモード</string>
     <string name="settings_account_settings">アカウント設定</string>
-    <string name="settings_edit_name">名前</string>
+    <string name="settings_edit_name">ユーザー名</string>
     <string name="settings_edit_email">メールアドレス</string>
     <string name="settings_save">保存</string>
     <string name="settings_cancel">キャンセル</string>

@@ -12,7 +12,7 @@
     <string name="settings_reminder_sub">Тихое напоминание в час чтения</string>
     <string name="settings_night">Ночной режим</string>
     <string name="settings_account_settings">Настройки аккаунта</string>
-    <string name="settings_edit_name">Имя</string>
+    <string name="settings_edit_name">Имя пользователя</string>
     <string name="settings_edit_email">Эл. почта</string>
     <string name="settings_save">Сохранить</string>
     <string name="settings_cancel">Отмена</string>
