@@ -5,6 +5,11 @@ import UIKit
 /// cloud badge when the book still lives remotely.
 final class BookListRowView: UIView {
     private let coverContainer = UIView()
+    /// What the current cover view was built from. Reconfiguring with the
+    /// same identity keeps the existing `BookCoverView` — and its already
+    /// decoded art — in place, so a routine refresh never flashes the
+    /// placeholder.
+    private var coverIdentity: (title: String, author: String, seed: Int, coverPath: String?)?
     private let titleLabel = InkLabel()
     private let authorLabel = InkLabel()
     private let progressBar = InkProgressBar()
@@ -73,16 +78,20 @@ final class BookListRowView: UIView {
         accessibilityLabel = "\(title), \(author)"
         accessibilityTraits = .button
 
-        coverContainer.subviews.forEach { $0.removeFromSuperview() }
-        let cover = BookCoverView(title: title, author: author, seed: seed, coverPath: coverPath)
-        cover.translatesAutoresizingMaskIntoConstraints = false
-        coverContainer.addSubview(cover)
-        NSLayoutConstraint.activate([
-            cover.leadingAnchor.constraint(equalTo: coverContainer.leadingAnchor),
-            cover.trailingAnchor.constraint(equalTo: coverContainer.trailingAnchor),
-            cover.topAnchor.constraint(equalTo: coverContainer.topAnchor),
-            cover.bottomAnchor.constraint(equalTo: coverContainer.bottomAnchor),
-        ])
+        let identity = (title: title, author: author, seed: seed, coverPath: coverPath)
+        if coverIdentity == nil || coverIdentity! != identity {
+            coverIdentity = identity
+            coverContainer.subviews.forEach { $0.removeFromSuperview() }
+            let cover = BookCoverView(title: title, author: author, seed: seed, coverPath: coverPath)
+            cover.translatesAutoresizingMaskIntoConstraints = false
+            coverContainer.addSubview(cover)
+            NSLayoutConstraint.activate([
+                cover.leadingAnchor.constraint(equalTo: coverContainer.leadingAnchor),
+                cover.trailingAnchor.constraint(equalTo: coverContainer.trailingAnchor),
+                cover.topAnchor.constraint(equalTo: coverContainer.topAnchor),
+                cover.bottomAnchor.constraint(equalTo: coverContainer.bottomAnchor),
+            ])
+        }
 
         if let progress {
             progressBar.isHidden = false

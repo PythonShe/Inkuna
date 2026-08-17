@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Account/settings sheet's strings, split out of strings.xml the way
+  strings_import.xml is; they share one namespace with the other files.
+-->
+<resources>
+    <string name="settings_title">Akun</string>
+    <string name="settings_local_account">Di perangkat ini</string>
+    <string name="settings_default_name">Pembaca</string>
+    <string name="settings_preferences">Preferensi</string>
+    <string name="settings_reminder">Pengingat malam</string>
+    <string name="settings_reminder_sub">Pengingat lembut di jam membaca Anda</string>
+    <string name="settings_night">Mode malam</string>
+    <string name="settings_account_settings">Pengaturan akun</string>
+    <string name="settings_edit_name">Nama pengguna</string>
+    <string name="settings_edit_email">Email</string>
+    <string name="settings_save">Simpan</string>
+    <string name="settings_cancel">Batal</string>
+    <string name="settings_about">Tentang Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · tinta, cahaya bulan, dan halaman yang tenang</string>
+    <string name="settings_reminder_notif_title">Membaca malam</string>
+    <string name="settings_reminder_notif_body">Buku Anda menanti. Baca satu atau dua halaman?</string>
+    <string name="settings_notif_channel">Pengingat membaca</string>
+    <string name="settings_updates">Pembaruan aplikasi</string>
+    <string name="settings_update_current">Versi %1$s</string>
+    <string name="settings_update_check">Periksa</string>
+    <string name="settings_update_checking">Memeriksa…</string>
+    <string name="settings_update_uptodate">Anda sudah menggunakan versi terbaru</string>
+    <string name="settings_update_available">Versi %1$s telah tersedia</string>
+    <string name="settings_update_get">Perbarui</string>
+    <string name="settings_update_failed">Tidak dapat memeriksa pembaruan</string>
+</resources>

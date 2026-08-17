@@ -40,13 +40,13 @@
 
     <!-- Failure reasons. The core names the format it detected, so a comic
          or a Kindle file is told what it is rather than called an error. -->
-    <string name="import_fail_unsupported">%1$s files aren\'t supported yet</string>
-    <string name="import_fail_unknown_format">Inkuna couldn\'t tell what this file is</string>
-    <string name="import_fail_broken">This EPUB is missing something it needs</string>
-    <string name="import_fail_archive">This file is damaged</string>
-    <string name="import_fail_too_large">This file is too large to add</string>
-    <string name="import_fail_unreadable">This file couldn\'t be read</string>
-    <string name="import_fail_library">Your library couldn\'t be written to</string>
+    <string name="import_fail_unsupported">%1$s files aren\'t supported yet — Inkuna reads EPUB today.</string>
+    <string name="import_fail_unknown_format">Inkuna couldn\'t tell what this file is.</string>
+    <string name="import_fail_broken">This EPUB is missing something Inkuna needs to read it.</string>
+    <string name="import_fail_archive">The file is damaged and couldn\'t be opened.</string>
+    <string name="import_fail_too_large">This file is too large for Inkuna to add.</string>
+    <string name="import_fail_unreadable">This file couldn\'t be read.</string>
+    <string name="import_fail_library">Your library couldn\'t be written to.</string>
 
     <!-- Inbound ACTION_VIEW / ACTION_SEND -->
     <string name="import_intent_label">Add to Inkuna</string>

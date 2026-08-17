@@ -18,7 +18,10 @@ final class AppSettings {
         onboarded: false,
         readingTheme: ReadingTheme.paper.rawValue,
         textSizeStep: 2,
-        brightness: 0.78
+        brightness: 0.78,
+        eveningReminder: false,
+        accountName: "",
+        accountEmail: ""
     )
 
     /// Whether `record` reflects the stored settings. Stays false when the
@@ -210,6 +213,25 @@ final class AppSettings {
             let clamped = min(max(newValue, 0), 1)
             mutate { $0.brightness = clamped }
         }
+    }
+
+    /// Whether the daily evening reading reminder is on. The core stores
+    /// the choice; scheduling the local notification is the caller's job.
+    var eveningReminder: Bool {
+        get { record.eveningReminder }
+        set { mutate { $0.eveningReminder = newValue } }
+    }
+
+    /// Display name of the purely local account; empty means "not set".
+    var accountName: String {
+        get { record.accountName }
+        set { mutate { $0.accountName = newValue } }
+    }
+
+    /// Contact email of the purely local account; empty means "not set".
+    var accountEmail: String {
+        get { record.accountEmail }
+        set { mutate { $0.accountEmail = newValue } }
     }
 
     /// Cross-fades every window of the app into the theme's day/night side.

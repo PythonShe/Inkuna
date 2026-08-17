@@ -2,7 +2,6 @@ package app.inkuna.android.ui.reader
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -252,7 +251,6 @@ private fun StepperHalf(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BrightnessRow(
     brightness: Float,
@@ -275,14 +273,9 @@ private fun BrightnessRow(
             tint = ink.textTertiary,
             modifier = Modifier.size(18.dp),
         )
-        // Quiet thin track — the expressive default M3 slider is far too
-        // heavy for a reading surface.
-        val interaction = remember { MutableInteractionSource() }
-        val colors = SliderDefaults.colors(
-            thumbColor = ink.accent,
-            activeTrackColor = ink.accent,
-            inactiveTrackColor = ink.bgRecessed,
-        )
+        // The native M3 slider, only recolored to the ink palette — the
+        // platform's own handle, thumb-track gap, and touch feedback,
+        // matching the plain tinted UISlider on iOS.
         Slider(
             value = value,
             onValueChange = {
@@ -290,25 +283,11 @@ private fun BrightnessRow(
                 onPreview(it)
             },
             onValueChangeFinished = { onCommit(value) },
-            interactionSource = interaction,
-            thumb = {
-                Box(
-                    Modifier
-                        .size(18.dp)
-                        .clip(InkRadius.pillShape)
-                        .background(ink.accent)
-                )
-            },
-            track = { state ->
-                SliderDefaults.Track(
-                    sliderState = state,
-                    colors = colors,
-                    thumbTrackGapSize = 0.dp,
-                    trackInsideCornerSize = 2.dp,
-                    drawStopIndicator = null,
-                    modifier = Modifier.height(4.dp),
-                )
-            },
+            colors = SliderDefaults.colors(
+                thumbColor = ink.accent,
+                activeTrackColor = ink.accent,
+                inactiveTrackColor = ink.bgRecessed,
+            ),
             modifier = Modifier
                 .weight(1f)
                 .semantics { contentDescription = a11yLabel },

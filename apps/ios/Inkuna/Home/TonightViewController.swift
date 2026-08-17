@@ -47,12 +47,22 @@ final class TonightViewController: ScrollScreenViewController {
         super.viewDidLoad()
 
         let eyebrow = eyebrowLabel(String(localized: "tonight_eyebrow", defaultValue: "Tonight"))
-        contentStack.addArrangedSubview(eyebrow)
-        contentStack.setCustomSpacing(6, after: eyebrow)
-
         let title = displayTitle(String(localized: "tonight_title", defaultValue: "Pick up where you left off"))
-        contentStack.addArrangedSubview(title)
-        contentStack.setCustomSpacing(28, after: title)
+        let headerText = UIStackView(arrangedSubviews: [eyebrow, title])
+        headerText.axis = .vertical
+        headerText.spacing = 6
+
+        // The account affordance rides beside the header: this screen hides
+        // the navigation bar, so there is no bar button item to put it in.
+        let accountButton = AccountAvatarButton { [weak self] in
+            self?.present(SettingsViewController(), animated: true)
+        }
+        let headerRow = UIStackView(arrangedSubviews: [headerText, UIView(), accountButton])
+        headerRow.axis = .horizontal
+        headerRow.alignment = .top
+        headerRow.spacing = InkSpacing.space3
+        contentStack.addArrangedSubview(headerRow)
+        contentStack.setCustomSpacing(28, after: headerRow)
 
         contentStack.addArrangedSubview(heroContainer)
         contentStack.setCustomSpacing(InkSpacing.space8, after: heroContainer)
@@ -117,16 +127,24 @@ final class TonightViewController: ScrollScreenViewController {
                     pagesLeft = Self.pagesLeft(in: ranges, at: position)
                 }
                 guard let self, !Task.isCancelled else { return }
-                self.heroPagesLeft = pagesLeft
                 // A successful-but-empty answer clears the hero; only a
-                // failed load keeps the previous one.
-                self.continueReading = publications.first
-                // The shelf holds what the hero doesn't: the rest of the
-                // unfinished pile, most recently touched first, capped at a
-                // shelf's worth.
-                self.nightstand = Array(publications.dropFirst().prefix(8))
-                self.rebuildHero()
-                self.rebuildShelf()
+                // failed load keeps the previous one. The shelf holds what
+                // the hero doesn't: the rest of the unfinished pile, most
+                // recently touched first, capped at a shelf's worth.
+                let hero = publications.first
+                let shelf = Array(publications.dropFirst().prefix(8))
+                // Rebuild only what actually changed: tearing the views
+                // down repaints every cover from its placeholder, so an
+                // unchanged tab switch must leave them standing.
+                if hero != self.continueReading || pagesLeft != self.heroPagesLeft {
+                    self.continueReading = hero
+                    self.heroPagesLeft = pagesLeft
+                    self.rebuildHero()
+                }
+                if shelf != self.nightstand {
+                    self.nightstand = shelf
+                    self.rebuildShelf()
+                }
             } catch {
                 // Keep whatever the card already shows; the library screen
                 // owns the recovery path for a library that will not open.

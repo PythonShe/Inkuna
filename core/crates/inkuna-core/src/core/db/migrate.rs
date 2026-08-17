@@ -15,7 +15,7 @@ use rusqlite::{Connection, Transaction};
 use crate::core::files::copy_and_hash_unbounded;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 3;
+pub(crate) const SCHEMA_VERSION: i64 = 4;
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -119,6 +119,15 @@ CREATE TABLE resource_positions (
 );
 ";
 
+// 0004: local account profile and the evening-reminder preference. The
+// account is purely on-device (no server); empty strings mean "not set"
+// and shells render their own placeholder.
+const V4_SQL: &str = "
+ALTER TABLE settings ADD COLUMN evening_reminder INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE settings ADD COLUMN account_name     TEXT NOT NULL DEFAULT '';
+ALTER TABLE settings ADD COLUMN account_email    TEXT NOT NULL DEFAULT '';
+";
+
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
     loop {
         let version: i64 =
@@ -135,6 +144,7 @@ pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), Core
                 tx.execute_batch(V2_INDEX_SQL)?;
             }
             2 => tx.execute_batch(V3_SQL)?,
+            3 => tx.execute_batch(V4_SQL)?,
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Account/settings sheet's strings, split out of strings.xml the way
+  strings_import.xml is; they share one namespace with the other files.
+-->
+<resources>
+    <string name="settings_title">Аккаунт</string>
+    <string name="settings_local_account">На этом устройстве</string>
+    <string name="settings_default_name">Читатель</string>
+    <string name="settings_preferences">Настройки</string>
+    <string name="settings_reminder">Вечернее напоминание</string>
+    <string name="settings_reminder_sub">Тихое напоминание в час чтения</string>
+    <string name="settings_night">Ночной режим</string>
+    <string name="settings_account_settings">Настройки аккаунта</string>
+    <string name="settings_edit_name">Имя пользователя</string>
+    <string name="settings_edit_email">Эл. почта</string>
+    <string name="settings_save">Сохранить</string>
+    <string name="settings_cancel">Отмена</string>
+    <string name="settings_about">Об Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · чернила, лунный свет и тихие страницы</string>
+    <string name="settings_reminder_notif_title">Вечернее чтение</string>
+    <string name="settings_reminder_notif_body">Ваша книга ждёт. Может, страницу-другую?</string>
+    <string name="settings_notif_channel">Напоминания о чтении</string>
+    <string name="settings_updates">Обновления приложения</string>
+    <string name="settings_update_current">Версия %1$s</string>
+    <string name="settings_update_check">Проверить</string>
+    <string name="settings_update_checking">Проверка…</string>
+    <string name="settings_update_uptodate">У вас последняя версия</string>
+    <string name="settings_update_available">Доступна версия %1$s</string>
+    <string name="settings_update_get">Обновить</string>
+    <string name="settings_update_failed">Не удалось проверить обновления</string>
+</resources>

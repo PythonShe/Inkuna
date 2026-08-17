@@ -15,7 +15,8 @@ impl Library {
         self.readers.with(|conn| {
             let stored = conn
                 .query_row(
-                    "SELECT onboarded, reading_theme, text_size_step, brightness
+                    "SELECT onboarded, reading_theme, text_size_step, brightness,
+                            evening_reminder, account_name, account_email
                      FROM settings WHERE id = 1",
                     [],
                     |row| {
@@ -24,6 +25,9 @@ impl Library {
                             reading_theme: row.get(1)?,
                             text_size_step: row.get(2)?,
                             brightness: row.get(3)?,
+                            evening_reminder: row.get(4)?,
+                            account_name: row.get(5)?,
+                            account_email: row.get(6)?,
                         })
                     },
                 )
@@ -50,18 +54,25 @@ impl Library {
         };
         let conn = self.writer.lock().unwrap();
         conn.execute(
-            "INSERT INTO settings (id, onboarded, reading_theme, text_size_step, brightness)
-             VALUES (1, ?1, ?2, ?3, ?4)
+            "INSERT INTO settings (id, onboarded, reading_theme, text_size_step, brightness,
+                                   evening_reminder, account_name, account_email)
+             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(id) DO UPDATE SET
-                 onboarded      = excluded.onboarded,
-                 reading_theme  = excluded.reading_theme,
-                 text_size_step = excluded.text_size_step,
-                 brightness     = excluded.brightness",
+                 onboarded        = excluded.onboarded,
+                 reading_theme    = excluded.reading_theme,
+                 text_size_step   = excluded.text_size_step,
+                 brightness       = excluded.brightness,
+                 evening_reminder = excluded.evening_reminder,
+                 account_name     = excluded.account_name,
+                 account_email    = excluded.account_email",
             rusqlite::params![
                 settings.onboarded,
                 settings.reading_theme,
                 text_size_step,
                 brightness,
+                settings.evening_reminder,
+                settings.account_name,
+                settings.account_email,
             ],
         )?;
         Ok(())

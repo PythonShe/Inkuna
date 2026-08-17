@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Account/settings sheet's strings, split out of strings.xml the way
+  strings_import.xml is; they share one namespace with the other files.
+-->
+<resources>
+    <string name="settings_title">帳戶</string>
+    <string name="settings_local_account">僅存於本裝置</string>
+    <string name="settings_default_name">讀者</string>
+    <string name="settings_preferences">偏好設定</string>
+    <string name="settings_reminder">晚間提醒</string>
+    <string name="settings_reminder_sub">在你的閱讀時刻輕聲提醒</string>
+    <string name="settings_night">夜間模式</string>
+    <string name="settings_account_settings">帳戶設定</string>
+    <string name="settings_edit_name">使用者名稱</string>
+    <string name="settings_edit_email">電子郵件</string>
+    <string name="settings_save">儲存</string>
+    <string name="settings_cancel">取消</string>
+    <string name="settings_about">關於 Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · 墨色、月光與靜謐書頁</string>
+    <string name="settings_reminder_notif_title">晚間閱讀</string>
+    <string name="settings_reminder_notif_body">你的書在等你。讀上一兩頁吧？</string>
+    <string name="settings_notif_channel">閱讀提醒</string>
+    <string name="settings_updates">應用程式更新</string>
+    <string name="settings_update_current">版本 %1$s</string>
+    <string name="settings_update_check">檢查</string>
+    <string name="settings_update_checking">檢查中…</string>
+    <string name="settings_update_uptodate">已是最新版本</string>
+    <string name="settings_update_available">新版本 %1$s 已就緒</string>
+    <string name="settings_update_get">取得更新</string>
+    <string name="settings_update_failed">無法檢查更新</string>
+</resources>

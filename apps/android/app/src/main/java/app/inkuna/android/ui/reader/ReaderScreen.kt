@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -51,12 +52,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -200,26 +203,35 @@ private fun ReaderContent(
     var brightnessPreview by remember { mutableStateOf<Float?>(null) }
 
     var navigator by remember { mutableStateOf<EpubNavigatorFragment?>(null) }
-    var locator by remember { mutableStateOf(book.initialLocator) }
+    // Held as a State the chrome reads inside its own scopes: a bare read
+    // in this body would recompose all of ReaderContent on every locator
+    // emission, and Readium emits several per page turn.
+    val locatorState = remember { mutableStateOf(book.initialLocator) }
 
     // Under TalkBack a page-forward gesture *is* a scroll, so auto-hiding on
     // page turns would strand an exploring reader with no way back out.
     val touchExploration = remember(context) {
         context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
     }
-    val toggleChrome = {
-        when {
-            searchOpen -> {
-                searchOpen = false
-                chromeVisible = true
+    // Remembered so the navigator host's modifier (below) stays stable
+    // across recompositions; the bodies read the state they need when run.
+    val toggleChrome = remember {
+        {
+            when {
+                searchOpen -> {
+                    searchOpen = false
+                    chromeVisible = true
+                }
+                menuOpen -> menuOpen = false
+                else -> chromeVisible = !chromeVisible
             }
-            menuOpen -> menuOpen = false
-            else -> chromeVisible = !chromeVisible
         }
     }
-    val closeSearch = {
-        searchOpen = false
-        chromeVisible = true
+    val closeSearch = remember {
+        {
+            searchOpen = false
+            chromeVisible = true
+        }
     }
 
     // Back closes the reader's own layers before it leaves the book.
@@ -255,15 +267,25 @@ private fun ReaderContent(
     }
 
     val toggleLabel = stringResource(R.string.a11y_toggle_reader_controls)
-    ReaderNavigatorHost(
-        navigatorFactory = book.navigatorFactory,
-        initialLocator = book.initialLocator,
-        initialPreferences = readingPreferences(snapshot),
-        listener = navigatorListener,
-        onNavigator = { navigator = it },
-        modifier = Modifier
+    // The preferences the fragment is built with. Remembered so the effect
+    // below can tell a real change from its own first run.
+    val initialPreferences = remember(book) { readingPreferences(snapshot) }
+    // The shared reading band (ReaderMetrics, mirrored by the iOS shell):
+    // phones pad off the larger of the status-bar and cutout insets so a
+    // notch never crowds the text; tablets get the fixed generous band.
+    // Readium's own insets padding is disabled in ReaderNavigatorHost, so
+    // this is the one and only vertical padding the page gets.
+    val cutoutTop = WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
+    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
+    val contentTop = ReaderMetrics.contentTop(max(statusPad, cutoutTop), isTablet)
+    val contentBottom = ReaderMetrics.contentBottom(navPad, isTablet)
+    // Hoisted so the fragment host's modifier is one stable value: rebuilt
+    // per recomposition, the fresh semantics lambda would re-update the
+    // AndroidView's modifier node on every page turn.
+    val hostModifier = remember(contentTop, contentBottom, toggleLabel, toggleChrome) {
+        Modifier
             .fillMaxSize()
-            .padding(top = statusPad, bottom = navPad + 26.dp)
+            .padding(top = contentTop, bottom = contentBottom)
             // The WebView owns raw touch; TalkBack still needs a named way
             // to reach the chrome.
             .semantics {
@@ -271,20 +293,39 @@ private fun ReaderContent(
                     toggleChrome()
                     true
                 }
-            },
+            }
+    }
+    ReaderNavigatorHost(
+        navigatorFactory = book.navigatorFactory,
+        initialLocator = book.initialLocator,
+        initialPreferences = initialPreferences,
+        listener = navigatorListener,
+        onNavigator = { navigator = it },
+        modifier = hostModifier,
     )
 
     // The design system's reading themes and type scale, routed through
-    // Readium's user preferences instead of fighting the navigator.
+    // Readium's user preferences instead of fighting the navigator. The
+    // fragment was just built with [initialPreferences]; re-submitting the
+    // same values would re-inject CSS into every freshly created WebView.
+    var submittedPreferences by remember(book) { mutableStateOf(initialPreferences) }
     LaunchedEffect(navigator, snapshot.readingTheme, snapshot.textSizeStep) {
-        navigator?.submitPreferences(readingPreferences(snapshot))
+        val nav = navigator ?: return@LaunchedEffect
+        val preferences = readingPreferences(snapshot)
+        if (preferences == submittedPreferences) return@LaunchedEffect
+        submittedPreferences = preferences
+        nav.submitPreferences(preferences)
     }
 
     // Edge taps turn pages (reading-progression aware); everything else
     // toggles the chrome.
     DisposableEffect(navigator) {
         val nav = navigator ?: return@DisposableEffect onDispose {}
-        val pageTurns = DirectionalNavigationAdapter(nav, animatedTransition = true)
+        // animatedTransition deliberately off (Readium's own default): an
+        // animated turn across a resource boundary scrolls the pager while
+        // the next chapter's WebView is still loading, which reads as a
+        // stuttering half-blank slide. Snapping is instant and honest.
+        val pageTurns = DirectionalNavigationAdapter(nav)
         val chromeTaps = object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 toggleChrome()
@@ -303,8 +344,8 @@ private fun ReaderContent(
     LaunchedEffect(navigator, touchExploration) {
         val nav = navigator ?: return@LaunchedEffect
         nav.currentLocator.collect { current ->
-            val previous = locator
-            locator = current
+            val previous = locatorState.value
+            locatorState.value = current
             viewModel.onLocatorChanged(current)
             // A turn is a move between two *known* places. The navigator's
             // early emissions refine the restored locator (filling in the
@@ -328,21 +369,13 @@ private fun ReaderContent(
         }
     }
 
-    // Honest numbers: Readium's synthetic positions, never invented pages.
-    val position = locator?.locations?.position
-    val progression = locator?.locations?.totalProgression ?: book.core.progression
-    val percent = (progression * 100).roundToInt().coerceIn(0, 100)
-    val pageInfo = if (position != null && book.positionCount > 0) {
-        stringResource(R.string.reader_page_info, position, book.positionCount, percent)
-    } else {
-        stringResource(R.string.reader_percent, percent)
-    }
-
-    val jumpTo: (Locator) -> Unit = { target ->
-        navigator?.let { nav ->
-            jumping = true
-            nav.go(target)
-            chromeVisible = true
+    val jumpTo: (Locator) -> Unit = remember {
+        { target ->
+            navigator?.let { nav ->
+                jumping = true
+                nav.go(target)
+                chromeVisible = true
+            }
         }
     }
 
@@ -379,9 +412,15 @@ private fun ReaderContent(
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = navPad + 4.dp),
+                .padding(bottom = navPad + ReaderMetrics.footerLift),
         ) {
-            Text(pageInfo, style = InkType.caption, color = foreground.copy(alpha = 0.55f))
+            // locatorState is read here, inside this content lambda, so a
+            // page turn recomposes the footer text alone.
+            Text(
+                readerPageInfo(locatorState.value, book),
+                style = InkType.caption,
+                color = foreground.copy(alpha = 0.55f),
+            )
         }
 
         // Back button.
@@ -409,7 +448,7 @@ private fun ReaderContent(
                 slideOutVertically(tween(240, easing = InkMotion.easeQuiet)) { it / 10 },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = navPad + 26.dp + 46.dp + 12.dp),
+                .padding(end = 16.dp, bottom = contentBottom + 46.dp + 12.dp),
         ) {
             Column(
                 horizontalAlignment = Alignment.End,
@@ -417,7 +456,10 @@ private fun ReaderContent(
                 modifier = Modifier.padding(start = 16.dp).widthIn(max = 320.dp),
             ) {
                 ReaderMenuPill(
-                    text = stringResource(R.string.reader_menu_contents, percent),
+                    text = stringResource(
+                        R.string.reader_menu_contents,
+                        readerPercent(locatorState.value, book),
+                    ),
                     icon = Icons.AutoMirrored.Outlined.List,
                     onClick = {
                         menuOpen = false
@@ -466,7 +508,7 @@ private fun ReaderContent(
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = navPad + 26.dp),
+                .padding(end = 16.dp, bottom = contentBottom),
         ) {
             ReaderGlassButton(
                 icon = if (menuOpen) Icons.Outlined.Close else Icons.Outlined.MoreHoriz,
@@ -534,6 +576,7 @@ private fun ReaderContent(
     }
 
     if (contentsSheetOpen) {
+        val locator = locatorState.value
         val currentChapterIndex = remember(locator, book) {
             viewModel.currentChapterIndex(locator)
         }
@@ -541,7 +584,7 @@ private fun ReaderContent(
             publication = book.core,
             chapters = book.chapters,
             currentChapterIndex = currentChapterIndex,
-            pageInfo = pageInfo,
+            pageInfo = readerPageInfo(locator, book),
             onSelect = { chapter -> viewModel.chapterLocator(chapter)?.let(jumpTo) },
             onDismiss = { contentsSheetOpen = false },
         )
@@ -569,6 +612,26 @@ private fun ReaderOpenFailed(
             onClick = onRetry,
             size = InkButtonSize.Small,
         )
+    }
+}
+
+/** Whole-book percentage at [locator], falling back to the core's saved
+ *  progression until the navigator has said where it is. */
+private fun readerPercent(locator: Locator?, book: ReaderViewModel.ReaderBook): Int {
+    val progression = locator?.locations?.totalProgression ?: book.core.progression
+    return (progression * 100).roundToInt().coerceIn(0, 100)
+}
+
+/** Honest numbers: Readium's synthetic positions, never invented pages.
+ *  Deliberately not restartable — the caller's scope owns the state read. */
+@Composable
+private fun readerPageInfo(locator: Locator?, book: ReaderViewModel.ReaderBook): String {
+    val position = locator?.locations?.position
+    val percent = readerPercent(locator, book)
+    return if (position != null && book.positionCount > 0) {
+        stringResource(R.string.reader_page_info, position, book.positionCount, percent)
+    } else {
+        stringResource(R.string.reader_percent, percent)
     }
 }
 

@@ -150,10 +150,12 @@ reviews:
     # locales) drowns a review in lines no reviewer can meaningfully judge.
     # iOS keeps source + translations in one .xcstrings file, so it is
     # excluded wholesale; on Android only the translated `values-*` catalogs
-    # go — the base `values/strings.xml` is English source (new keys, plural
-    # forms) and stays reviewable.
+    # go — every `strings*.xml` there (strings.xml, strings_import.xml,
+    # strings_settings.xml, and any future split) — while the base
+    # `values/strings*.xml` files are English source (new keys, plural
+    # forms) and stay reviewable, as do non-l10n `values-night/` resources.
     - '!**/*.xcstrings'
-    - '!apps/android/app/src/main/res/values-*/strings.xml'
+    - '!apps/android/app/src/main/res/values-*/strings*.xml'
 
     # Agent-authored archival docs. Live specs (`docs/repertoire/specs/`) and
     # the architecture ADR (`docs/dev/`) stay reviewable on purpose — the ADR

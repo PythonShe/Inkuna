@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Account/settings sheet's strings, split out of strings.xml the way
+  strings_import.xml is; they share one namespace with the other files.
+-->
+<resources>
+    <string name="settings_title">บัญชี</string>
+    <string name="settings_local_account">บนอุปกรณ์นี้</string>
+    <string name="settings_default_name">นักอ่าน</string>
+    <string name="settings_preferences">การตั้งค่า</string>
+    <string name="settings_reminder">การแจ้งเตือนยามค่ำ</string>
+    <string name="settings_reminder_sub">เตือนเบา ๆ เมื่อถึงเวลาอ่านหนังสือ</string>
+    <string name="settings_night">โหมดกลางคืน</string>
+    <string name="settings_account_settings">การตั้งค่าบัญชี</string>
+    <string name="settings_edit_name">ชื่อผู้ใช้</string>
+    <string name="settings_edit_email">อีเมล</string>
+    <string name="settings_save">บันทึก</string>
+    <string name="settings_cancel">ยกเลิก</string>
+    <string name="settings_about">เกี่ยวกับ Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · น้ำหมึก แสงจันทร์ และหน้ากระดาษอันเงียบสงบ</string>
+    <string name="settings_reminder_notif_title">อ่านหนังสือยามค่ำ</string>
+    <string name="settings_reminder_notif_body">หนังสือของคุณรออยู่ อ่านสักหน้าสองหน้าไหม</string>
+    <string name="settings_notif_channel">การแจ้งเตือนการอ่าน</string>
+    <string name="settings_updates">การอัปเดตแอป</string>
+    <string name="settings_update_current">เวอร์ชัน %1$s</string>
+    <string name="settings_update_check">ตรวจสอบ</string>
+    <string name="settings_update_checking">กำลังตรวจสอบ…</string>
+    <string name="settings_update_uptodate">คุณใช้เวอร์ชันล่าสุดแล้ว</string>
+    <string name="settings_update_available">เวอร์ชัน %1$s พร้อมแล้ว</string>
+    <string name="settings_update_get">อัปเดต</string>
+    <string name="settings_update_failed">ตรวจสอบการอัปเดตไม่ได้</string>
+</resources>

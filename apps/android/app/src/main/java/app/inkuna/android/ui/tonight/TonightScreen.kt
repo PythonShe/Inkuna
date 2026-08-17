@@ -3,15 +3,21 @@ package app.inkuna.android.ui.tonight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,6 +52,7 @@ import app.inkuna.android.ui.main.EyebrowText
 import app.inkuna.android.ui.main.ScrollScreen
 import app.inkuna.android.ui.main.SectionTitle
 import app.inkuna.android.ui.main.ShelfRow
+import app.inkuna.android.ui.settings.SettingsSheet
 import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
@@ -70,10 +77,22 @@ fun TonightScreen(
     // TODO(core): chips become real collection filters once collections land.
     var selectedChip by rememberSaveable { mutableStateOf(0) }
 
+    // The account affordance lives beside the header — this screen has no
+    // top app bar to put it in; the sheet hosts the design's Account page.
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    if (showSettings) {
+        SettingsSheet(onDismiss = { showSettings = false })
+    }
+
     ScrollScreen(innerPadding) {
-        EyebrowText(stringResource(R.string.tonight_eyebrow))
-        Spacer(Modifier.height(6.dp))
-        DisplayTitle(stringResource(R.string.tonight_title))
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                EyebrowText(stringResource(R.string.tonight_eyebrow))
+                Spacer(Modifier.height(6.dp))
+                DisplayTitle(stringResource(R.string.tonight_title))
+            }
+            AccountAvatarButton(onClick = { showSettings = true })
+        }
         Spacer(Modifier.height(28.dp))
         HeroCard(
             continueReading = state.continueReading,
@@ -98,6 +117,45 @@ fun TonightScreen(
             SectionTitle(stringResource(R.string.tonight_nightstand))
             Spacer(Modifier.height(InkSpace.s4))
             ShelfRow(books = state.nightstand, onOpenBook = onOpenBook)
+        }
+    }
+}
+
+/**
+ * The header's account affordance: a 40dp avatar disc top-aligned with
+ * the eyebrow/title block, sized identically on iOS. The design's disc
+ * form with its soft shadow, but on the recessed tone — the bright
+ * surface fill suited a photo avatar and read as a white coin behind a
+ * bare glyph.
+ */
+@Composable
+private fun AccountAvatarButton(onClick: () -> Unit) {
+    val ink = InkTheme.colors
+    // The tap target is a 48dp box per the platform minimum; the visual
+    // disc stays 40dp inside it, offset so the disc sits exactly where
+    // the bare 40dp box did — top-aligned with the eyebrow, flush right.
+    Box(
+        Modifier
+            .offset(x = 4.dp, y = (-4).dp)
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick, role = Role.Button),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(40.dp)
+                .inkShadow(2.dp, CircleShape)
+                .clip(CircleShape)
+                .background(ink.bgRecessed),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.Person,
+                contentDescription = stringResource(R.string.settings_title),
+                tint = ink.textSecondary,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }
