@@ -48,6 +48,7 @@ xcodebuild -project Inkuna.xcodeproj -scheme Inkuna \
 
 - Apple Books is the reference for feel: interruptible transitions, spring
   physics, haptics. Nothing user-facing ships janky-but-works.
-- User-visible strings will be localized (CJK audiences are primary); avoid
-  burying literals deep in code — keep them at view-controller level so the
-  l10n pass stays mechanical.
+- User-visible strings are localized into 14 languages via the
+  `Inkuna/Localizable.xcstrings` catalog (CJK audiences are primary). Never
+  hard-code a user-facing literal; add the key to the catalog and keep the call
+  site at view-controller level.

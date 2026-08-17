@@ -52,6 +52,8 @@ signing.
 
 ## 3. Quality Bar
 
-- CJK audiences are primary: per-app language (minSdk 33 `LocaleManager`) is
-  a planned feature; all user-visible strings go to `strings.xml` resources —
-  no hardcoded literals in composables once real UI lands.
+- CJK audiences are primary: the app ships 14 languages and per-app language
+  selection is wired (`res/xml/locales_config.xml`, referenced by
+  `android:localeConfig` in the manifest). All user-visible strings go to
+  `strings.xml` resources, with each translation in a sibling
+  `values-<locale>/` — never a hardcoded literal in a composable.

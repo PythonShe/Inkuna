@@ -159,17 +159,30 @@ Generated artifacts are never committed: `apps/ios/Generated/`,
 
 ## Translations
 
-Localization is only partly wired up, so check before starting work:
+Both apps are fully localized and ship 14 languages: English, German, Spanish,
+French, Indonesian, Italian, Japanese, Korean, Portuguese, Russian, Thai,
+Vietnamese, and Simplified and Traditional Chinese. English is the source
+language everywhere.
 
-- **Website** — maintainer-only, so this one goes through an issue rather than a
-  pull request. `website/src/pages/ja/` and `zh/` are hand-authored pages
-  alongside the English `index.astro`; adding a language means adding a page.
-  Offer the translated copy in the issue and it gets landed from there.
-- **Android** — strings are externalized in
-  `apps/android/app/src/main/res/values/strings.xml`. A translation is a new
-  `values-<locale>/strings.xml`; none exist yet.
-- **iOS** — not localizable yet. There is no string catalog, so strings have to
-  be extracted before any translation can land. Open an issue first.
+- **iOS** — one string catalog, `apps/ios/Inkuna/Localizable.xcstrings`. Open it
+  in Xcode rather than editing the JSON by hand; it lists every key with its
+  translation state per language.
+- **Android** — `apps/android/app/src/main/res/values/strings.xml` holds the
+  English source, and each translation is a sibling
+  `values-<locale>/strings.xml` (`values-de`, `values-zh-rCN`, …).
+- **Website** — maintainer-only, and only `en`, `ja` and `zh` so far. It uses
+  Astro's built-in i18n routing: `website/src/i18n/locales.ts` declares the
+  locales, dictionary modules beside it (`home.ts`, `privacy.ts`, `support.ts`,
+  `footer.ts`) hold the strings, and `website/src/pages/<lang>/` holds the
+  routes. Raise website translations in an issue rather than a pull request.
+
+Improving an existing translation is a welcome pull request and doesn't need an
+issue first. Adding a fourteenth-plus language does — the two apps are expected
+to stay in step, so a new locale means both catalogs in the same change.
+
+Two conventions to match: translations are formal where the language marks it
+(German *Sie*, Indonesian *Anda*), and Portuguese is a single Brazilian-flavored
+locale using *você*.
 
 ## Commits
 
