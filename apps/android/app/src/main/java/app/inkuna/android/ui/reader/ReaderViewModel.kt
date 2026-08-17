@@ -30,10 +30,14 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.positionsByReadingOrder
+import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.getOrElse
 import org.readium.r2.shared.util.http.DefaultHttpClient
+import org.readium.r2.shared.util.resource.Resource
+import org.readium.r2.shared.util.resource.TransformingContainer
+import org.readium.r2.shared.util.resource.TransformingResource
 import org.readium.r2.shared.util.toUrl
 import org.readium.r2.streamer.PublicationOpener
 import org.readium.r2.streamer.parser.DefaultPublicationParser
@@ -209,6 +213,11 @@ class ReaderViewModel(
                 assetRetriever = assetRetriever,
                 pdfFactory = null,
             ),
+            // Every XHTML resource gets the fragmentation fix injected
+            // before the WebView ever paginates it; see fixFragmentation.
+            onCreatePublication = {
+                container = TransformingContainer(container, ::fixFragmentation)
+            },
         )
         val publication = opener
             .open(asset, allowUserInteraction = false)
@@ -575,5 +584,49 @@ class ReaderViewModel(
                 ReaderViewModel(application, publicationId, initialChapterHref)
             }
         }
+    }
+}
+
+/**
+ * Books frequently ship `page-break-inside: avoid` on whole paragraphs or
+ * wrapper divs; the column fragmenter then carries the entire block to the
+ * next page, leaving the bottom of the previous one blank. Appended after
+ * the author's styles, this lets running text fragment normally again.
+ * Headings, figures, images and tables keep Readium CSS's own
+ * keep-together rules — those are small and typographically right.
+ */
+private const val FRAGMENTATION_FIX_STYLE =
+    "<style>" +
+        "p, blockquote, li, dd, div, section, aside {" +
+        "break-inside: auto !important;" +
+        "page-break-inside: auto !important;" +
+        "-webkit-column-break-inside: auto !important;" +
+        "}" +
+        "</style>"
+
+private val FRAGMENTATION_FIX_EXTENSIONS = setOf("xhtml", "html", "htm")
+
+/**
+ * Injects [FRAGMENTATION_FIX_STYLE] at the end of an XHTML resource's
+ * `<head>`. Anything else — including NCX, which also has a `</head>` —
+ * passes through untouched, as does a document the marker isn't found in
+ * (a non-UTF-8 file decodes to garbage and safely misses it too).
+ */
+private fun fixFragmentation(url: Url, resource: Resource): Resource {
+    if (url.extension?.value?.lowercase() !in FRAGMENTATION_FIX_EXTENSIONS) return resource
+    return TransformingResource(resource) { bytes ->
+        val html = bytes.toString(Charsets.UTF_8)
+        val head = html.lastIndexOf("</head>", ignoreCase = true)
+        Try.success(
+            if (head < 0) {
+                bytes
+            } else {
+                buildString(html.length + FRAGMENTATION_FIX_STYLE.length) {
+                    append(html, 0, head)
+                    append(FRAGMENTATION_FIX_STYLE)
+                    append(html, head, html.length)
+                }.toByteArray()
+            },
+        )
     }
 }
