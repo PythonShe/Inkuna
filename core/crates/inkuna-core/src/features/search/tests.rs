@@ -50,14 +50,23 @@ fn in_book_matches_partial_words_and_folds_case() {
 fn in_book_counts_all_occurrences_and_caps_hits() {
     let (_dir, library, id) = library_with_book();
 
-    // "e" appears in "Second chapter text." three times plus ch01 has none.
+    // "e" appears in "Second chapter text." exactly three times.
     let all = library.search_in_book(&id, "e", 50).unwrap();
-    assert!(all.total >= 3);
+    assert_eq!(all.total, 3);
     assert_eq!(all.hits.len() as u32, all.total);
 
     let capped = library.search_in_book(&id, "e", 1).unwrap();
     assert_eq!(capped.total, all.total);
     assert_eq!(capped.hits.len(), 1);
+}
+
+#[test]
+fn in_book_reports_overlapping_occurrences() {
+    let folded = super::fold::fold_text("哈哈哈");
+    let needle = super::fold::fold_query("哈哈");
+
+    let occurrences: Vec<_> = folded.occurrences(&needle).collect();
+    assert_eq!(occurrences, vec![(0, 2), (1, 3)]);
 }
 
 #[test]

@@ -81,18 +81,20 @@ impl FoldedText {
             .unwrap_or(self.orig_char_count)
     }
 
-    /// Non-overlapping occurrences of the folded needle, as original-text
-    /// char ranges `[start, end)`. The needle must be non-empty.
+    /// Every occurrence of the folded needle, including overlapping matches,
+    /// as original-text char ranges `[start, end)`.
     pub(super) fn occurrences<'a>(
         &'a self,
         needle: &'a str,
     ) -> impl Iterator<Item = (u32, u32)> + 'a {
-        self.folded.match_indices(needle).map(move |(byte, m)| {
-            let start = self.orig_char_at(byte);
-            let end = self.orig_char_at(byte + m.len());
-            // A match ending inside one original char's fold expansion
-            // (the first `s` of `ß` → `ss`) still covers that char.
-            (start, end.max(start + 1))
+        self.folded.char_indices().filter_map(move |(byte, _)| {
+            self.folded.get(byte..)?.starts_with(needle).then(|| {
+                let start = self.orig_char_at(byte);
+                let end = self.orig_char_at(byte + needle.len());
+                // A match ending inside one original char's fold expansion
+                // (the first `s` of `ß` → `ss`) still covers that char.
+                (start, end.max(start + 1))
+            })
         })
     }
 }
