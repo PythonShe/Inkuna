@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import app.inkuna.android.model.AppSettings
+import app.inkuna.android.reminder.EveningReminder
 import app.inkuna.android.ui.InkunaApp
 import app.inkuna.android.ui.reader.READER_NAVIGATOR_FRAGMENT_TAG
 import kotlinx.coroutines.launch
@@ -48,6 +49,13 @@ class MainActivity : FragmentActivity() {
             )
             setContent {
                 InkunaApp(settings = settings, initial = initial)
+            }
+            // Re-anchor the pending reminder to the current timezone: the
+            // enqueued delay is elapsed time, so a zone change while the app
+            // slept would fire the nudge at the old zone's 21:00. REPLACE
+            // policy makes this idempotent.
+            if (initial.eveningReminder) {
+                EveningReminder.schedule(applicationContext)
             }
             // Warm the WebView provider behind the first frame: the first
             // WebView a process creates pays for loading the provider and

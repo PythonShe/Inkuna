@@ -5,17 +5,19 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import app.inkuna.android.MainActivity
 import app.inkuna.android.R
 import java.time.Duration
-import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /**
  * The daily evening reading reminder — one quiet notification at the
@@ -37,8 +39,11 @@ object EveningReminder {
     private val readingHour: LocalTime = LocalTime.of(21, 0)
 
     fun schedule(context: Context) {
-        val now = LocalDateTime.now()
-        var next = LocalDateTime.of(LocalDate.now(), readingHour)
+        // Zoned instants, not LocalDateTime: the initial delay is elapsed
+        // time, so wall-clock arithmetic would land the nudge an hour off
+        // across a DST transition and stay anchored to a left timezone.
+        val now = ZonedDateTime.now(ZoneId.systemDefault())
+        var next = now.with(readingHour)
         if (!next.isAfter(now)) next = next.plusDays(1)
         val request = OneTimeWorkRequestBuilder<EveningReminderWorker>()
             .setInitialDelay(Duration.between(now, next))
@@ -76,7 +81,12 @@ object EveningReminder {
                 android.app.PendingIntent.getActivity(
                     context,
                     0,
-                    context.packageManager.getLaunchIntentForPackage(context.packageName),
+                    // Explicit over getLaunchIntentForPackage: that lookup is
+                    // nullable and costs a package-manager round trip on the
+                    // worker thread.
+                    Intent(context, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    },
                     android.app.PendingIntent.FLAG_IMMUTABLE,
                 ),
             )
@@ -92,8 +102,12 @@ class EveningReminderWorker(
     parameters: WorkerParameters,
 ) : Worker(context, parameters) {
     override fun doWork(): Result {
+        // cancelUniqueWork only signals a running worker; without these
+        // guards a toggle-off landing mid-run would still post tonight's
+        // nudge and re-arm tomorrow's chain against the stored "off".
+        if (isStopped) return Result.success()
         EveningReminder.postNotification(applicationContext)
-        EveningReminder.schedule(applicationContext)
+        if (!isStopped) EveningReminder.schedule(applicationContext)
         return Result.success()
     }
 }
