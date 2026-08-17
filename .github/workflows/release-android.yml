@@ -249,3 +249,7 @@ jobs:
           body_path: /tmp/release_notes.md
           fail_on_unmatched_files: true
           files: dist/*.apk
+          # Android owns the repo-wide "Latest" badge — it is the only track
+          # that ships a downloadable artifact. Stated explicitly so it never
+          # depends on whether an iOS release published before or after.
+          make_latest: true

@@ -527,3 +527,8 @@ jobs:
           draft: false
           generate_release_notes: false
           body_path: /tmp/release_notes.md
+          # GitHub keeps a single repo-wide "Latest" pointer, and the two
+          # release trains would otherwise claim it by completion order. It
+          # belongs to Android, whose releases carry a downloadable APK; an
+          # iOS release is a notes-only marker with no asset to offer.
+          make_latest: false
