@@ -230,11 +230,24 @@ final class SettingsViewController: UIViewController {
         selectionFeedback.selectionChanged()
     }
 
+    /// The theme flip queued behind the switch's own thumb animation;
+    /// cancelled and re-queued when the switch is flipped again first.
+    private var pendingNightFlip: DispatchWorkItem?
+
     private func nightToggled() {
-        // The canonical day/night pair from onboarding: the switch flips
-        // between Paper and Moon, exactly like the design's toggle.
-        AppSettings.shared.readingTheme = nightSwitch.isOn ? .moon : .paper
         selectionFeedback.selectionChanged()
+        let night = nightSwitch.isOn
+        // The canonical day/night pair from onboarding: the switch flips
+        // between Paper and Moon, exactly like the design's toggle. The
+        // flip waits for the thumb to land: the window cross-fade
+        // snapshots the screen, and a switch caught mid-animation reads
+        // as an uncomfortable blink.
+        pendingNightFlip?.cancel()
+        let flip = DispatchWorkItem {
+            AppSettings.shared.readingTheme = night ? .moon : .paper
+        }
+        pendingNightFlip = flip
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: flip)
     }
 
     private func presentAccountEditor() {
