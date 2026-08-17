@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -130,21 +131,32 @@ fun TonightScreen(
 @Composable
 private fun AccountAvatarButton(onClick: () -> Unit) {
     val ink = InkTheme.colors
+    // The tap target is a 48dp box per the platform minimum; the visual
+    // disc stays 40dp inside it, offset so the disc sits exactly where
+    // the bare 40dp box did — top-aligned with the eyebrow, flush right.
     Box(
         Modifier
-            .size(40.dp)
-            .inkShadow(2.dp, CircleShape)
+            .offset(x = 4.dp, y = (-4).dp)
+            .size(48.dp)
             .clip(CircleShape)
-            .background(ink.bgRecessed)
             .clickable(onClick = onClick, role = Role.Button),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            Icons.Outlined.Person,
-            contentDescription = stringResource(R.string.settings_title),
-            tint = ink.textSecondary,
-            modifier = Modifier.size(20.dp),
-        )
+        Box(
+            Modifier
+                .size(40.dp)
+                .inkShadow(2.dp, CircleShape)
+                .clip(CircleShape)
+                .background(ink.bgRecessed),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.Person,
+                contentDescription = stringResource(R.string.settings_title),
+                tint = ink.textSecondary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 

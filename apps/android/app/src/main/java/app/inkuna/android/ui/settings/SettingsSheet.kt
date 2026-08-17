@@ -1,6 +1,8 @@
 package app.inkuna.android.ui.settings
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -39,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,8 +60,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import app.inkuna.android.BuildConfig
 import app.inkuna.android.R
@@ -98,10 +100,16 @@ fun SettingsSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
-    // The night flip queued behind the switch's own thumb animation;
-    // cancelled and re-queued when the switch is flipped again first.
+    // The switch's optimistic position while the deferred flip (owned by
+    // the ViewModel, so it survives the sheet's dismissal) is in flight;
+    // cleared once the committed theme lands.
     var pendingNight by remember { mutableStateOf<Boolean?>(null) }
-    var nightFlip by remember { mutableStateOf<Job?>(null) }
+    LaunchedEffect(snapshot.readingTheme) { pendingNight = null }
+
+    // The VM outlives the sheet; every opening starts from a fresh
+    // "current version" line instead of a stale check verdict.
+    LaunchedEffect(Unit) { model.resetUpdateState() }
+
     val animatedDismiss: () -> Unit = {
         scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
     }
@@ -175,12 +183,7 @@ fun SettingsSheet(
                     checked = pendingNight ?: snapshot.readingTheme.isNight,
                     onCheckedChange = { on ->
                         pendingNight = on
-                        nightFlip?.cancel()
-                        nightFlip = scope.launch {
-                            delay(250)
-                            model.setNightMode(on)
-                            pendingNight = null
-                        }
+                        model.setNightModeDeferred(on)
                     },
                 )
                 // TODO(accounts): the design's "Redeem a code" row needs a
@@ -203,19 +206,13 @@ fun SettingsSheet(
                 UpdateRow(
                     state = updateState,
                     onCheck = model::checkForUpdate,
-                    onGet = { url ->
-                        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
-                    },
+                    onGet = { url -> openWebPage(context, url) },
                 )
                 Hairline()
                 DisclosureRow(
                     icon = { Icon(Icons.Outlined.Info, null, tint = ink.textSecondary) },
                     title = stringResource(R.string.settings_about),
-                    onClick = {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, "https://inkuna.app".toUri()),
-                        )
-                    },
+                    onClick = { openWebPage(context, "https://inkuna.app") },
                 )
             }
             Spacer(Modifier.height(InkSpace.s8))
@@ -339,7 +336,13 @@ private fun UpdateRow(
                 text = stringResource(R.string.settings_update_get),
                 onClick = { onGet(state.url) },
             )
-            SettingsViewModel.UpdateState.Checking -> Unit
+            // The spinner holds the pill's slot so the row doesn't reflow
+            // while the check (up to the 10s+10s timeouts) is in flight.
+            SettingsViewModel.UpdateState.Checking -> CircularProgressIndicator(
+                color = ink.accentText,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(18.dp),
+            )
             else -> PillAction(
                 text = stringResource(R.string.settings_update_check),
                 onClick = onCheck,
@@ -406,6 +409,15 @@ private fun AccountEditDialog(
             }
         },
     )
+}
+
+/** A browserless device turns the tap into a no-op instead of a crash. */
+private fun openWebPage(context: Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+    } catch (_: ActivityNotFoundException) {
+        // Nothing can render the page; swallowing beats taking the app down.
+    }
 }
 
 // MARK-style shared row scaffolding below.
