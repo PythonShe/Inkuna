@@ -193,9 +193,11 @@ final class SearchViewController: ScrollScreenViewController {
                 coverPath: publication.coverPath,
                 downloaded: true
             )
+            row.isAccessibilityElement = false
 
             let excerptLabel = InkLabel()
             excerptLabel.attributedText = Self.excerpt(for: hit)
+            excerptLabel.isAccessibilityElement = false
             excerptLabel.numberOfLines = 2
             excerptLabel.lineBreakMode = .byTruncatingTail
 
@@ -203,12 +205,32 @@ final class SearchViewController: ScrollScreenViewController {
             column.axis = .vertical
             column.spacing = 2
             column.isLayoutMarginsRelativeArrangement = true
+            column.isUserInteractionEnabled = false
             // The excerpt hangs under the row's text, clear of the cover.
             column.layoutMargins = UIEdgeInsets(top: 0, left: 0, bottom: InkSpacing.space3, right: 0)
-            column.tag = index
-            let tap = UITapGestureRecognizer(target: self, action: #selector(openFullTextRow(_:)))
-            column.addGestureRecognizer(tap)
-            resultsStack.addArrangedSubview(column)
+
+            let control = UIControl()
+            control.tag = index
+            control.isAccessibilityElement = true
+            let author = publication.displayAuthors(unknownAuthor: String(localized: "unknown_author", defaultValue: "Unknown author"))
+            control.accessibilityLabel = [publication.title, author, Self.excerpt(for: hit).string]
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
+            control.accessibilityTraits = .button
+            control.addAction(UIAction { [weak self, weak control] _ in
+                guard let control else { return }
+                self?.openFullTextRow(control)
+            }, for: .touchUpInside)
+
+            column.translatesAutoresizingMaskIntoConstraints = false
+            control.addSubview(column)
+            NSLayoutConstraint.activate([
+                column.leadingAnchor.constraint(equalTo: control.leadingAnchor),
+                column.trailingAnchor.constraint(equalTo: control.trailingAnchor),
+                column.topAnchor.constraint(equalTo: control.topAnchor),
+                column.bottomAnchor.constraint(equalTo: control.bottomAnchor),
+            ])
+            resultsStack.addArrangedSubview(control)
         }
     }
 
@@ -245,8 +267,8 @@ final class SearchViewController: ScrollScreenViewController {
         openBook(publications[index])
     }
 
-    @objc private func openFullTextRow(_ recognizer: UITapGestureRecognizer) {
-        guard let index = recognizer.view?.tag, fullTextHits.indices.contains(index) else { return }
-        openBook(fullTextHits[index].publication)
+    @objc private func openFullTextRow(_ control: UIControl) {
+        guard fullTextHits.indices.contains(control.tag) else { return }
+        openBook(fullTextHits[control.tag].publication)
     }
 }

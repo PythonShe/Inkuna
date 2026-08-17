@@ -52,6 +52,7 @@ enum ImportFailureReason: Error, Sendable, Equatable {
         case .FileTooLarge: self = .tooLarge
         case .Io: self = .storage
         case .Database: self = .database
+        case .InvalidPositionRanges: self = .libraryUnavailable
         case .NotFound: self = .notFound
         // The search index is derived data and no part of import; if one of
         // its failures ever surfaces here it is a bug worth reporting with
