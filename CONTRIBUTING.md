@@ -86,10 +86,15 @@ touches:
 | your change touches | base branch |
 |---------------------|-------------|
 | anything under `core/` | `dev/core` |
-| everything else — `apps/ios/`, `apps/android/`, `website/`, `docs/`, `scripts/`, repo root | `dev/shells` |
+| `apps/ios/` or `apps/android/` | `dev/shells` |
 
 A change that spans both — an FFI signature plus the shell code that calls it —
 counts as touching `core/`, so it goes to `dev/core` as a single pull request.
+
+**`website/`, `docs/`, `scripts/` and the repository root are maintained
+directly and are not open to pull requests.** That includes the `CLAUDE.md` /
+`AGENTS.md` files, the build scripts, and the site. If you spot something wrong
+in any of them, open an issue rather than a patch.
 
 The flow:
 
@@ -131,20 +136,17 @@ per-platform commands. Run `cd core && cargo test` before opening a pull
 request: nothing runs it on the pull request itself, and the release workflows
 will fail on a regression that reaches them.
 
-The website (`website/`) uses **pnpm**, not npm or yarn — `pnpm install`, then
-`pnpm dev` / `pnpm build`. Run `corepack enable pnpm` once and the version
-pinned by the `packageManager` field is fetched for you. Commit
-`pnpm-lock.yaml` with any
-dependency change; a pull request that adds a `package-lock.json` or
-`yarn.lock` will be sent back.
+The website (`website/`) is maintainer-only, but it builds locally if you want
+to run it: **pnpm**, never npm or yarn — `corepack enable pnpm` once, then
+`pnpm install` and `pnpm dev` / `pnpm build` inside `website/`.
 
 ## Project layout and local rules
 
 Each component carries its own `CLAUDE.md` with rules specific to it — read the
-one for the directory you're touching, plus the root `CLAUDE.md` for
-repo-wide constraints. `AGENTS.md` files are verbatim copies for other tooling;
-if you edit a `CLAUDE.md`, copy it over its sibling `AGENTS.md` in the same
-commit.
+one for the directory you're touching, plus the root `CLAUDE.md` for repo-wide
+constraints. They are reference, not something to patch: like the rest of the
+repository root they are maintained directly, and `AGENTS.md` files are just
+verbatim copies of them for other tooling.
 
 Changes to `core/crates/inkuna-ffi` require regenerating bindings with **both**
 `scripts/build-core-ios.sh` and `scripts/build-core-android.sh` before the
@@ -159,8 +161,10 @@ Generated artifacts are never committed: `apps/ios/Generated/`,
 
 Localization is only partly wired up, so check before starting work:
 
-- **Website** — `website/src/pages/ja/` and `zh/` are hand-authored pages
-  alongside the English `index.astro`. Adding a language means adding a page.
+- **Website** — maintainer-only, so this one goes through an issue rather than a
+  pull request. `website/src/pages/ja/` and `zh/` are hand-authored pages
+  alongside the English `index.astro`; adding a language means adding a page.
+  Offer the translated copy in the issue and it gets landed from there.
 - **Android** — strings are externalized in
   `apps/android/app/src/main/res/values/strings.xml`. A translation is a new
   `values-<locale>/strings.xml`; none exist yet.
