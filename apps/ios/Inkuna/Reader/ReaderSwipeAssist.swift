@@ -14,17 +14,39 @@ import WebKit
 /// that swipe — a fling on the resource's last page while the outer scroll
 /// view never picked up the drag — and drives the turn through the
 /// navigator instead, so the boundary feels like any other page.
+///
+/// Eligibility is captured at touch-down, not at swipe recognition: the
+/// inner scroll view tracks the finger 1:1, so by recognition time a swipe
+/// from the second-to-last page has already dragged it within a page of
+/// the edge and a live check would double the native turn. At touch-down
+/// the offset is page-aligned unless a previous turn's snap was caught
+/// mid-flight — the two cases (settled on the outermost page, frozen while
+/// snapping into it) are precisely the ones that need rescuing.
 @MainActor
 final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     private weak var navigator: EPUBNavigatorViewController?
 
+    /// The visible spread's outer (pagination) scroll view and per-direction
+    /// eligibility, captured by the touch-down recognizer.
+    private weak var outerScrollView: UIScrollView?
+    private var eligibleLeft = false
+    private var eligibleRight = false
+
     init(navigator: EPUBNavigatorViewController) {
         self.navigator = navigator
         super.init()
+
+        // Fires at touch-down, before any movement; purely observational.
+        let touchDown = UILongPressGestureRecognizer(target: self, action: #selector(touchedDown))
+        touchDown.minimumPressDuration = 0
+        touchDown.allowableMovement = .greatestFiniteMagnitude
+        touchDown.cancelsTouchesInView = false
+        touchDown.delegate = self
+        navigator.view.addGestureRecognizer(touchDown)
+
         for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
             let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(swiped))
             recognizer.direction = direction
-            // Purely observational: the scroll views keep the touch stream.
             recognizer.cancelsTouchesInView = false
             recognizer.delegate = self
             navigator.view.addGestureRecognizer(recognizer)
@@ -38,36 +60,50 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         true
     }
 
-    @objc private func swiped(_ recognizer: UISwipeGestureRecognizer) {
+    @objc private func touchedDown(_ recognizer: UILongPressGestureRecognizer) {
+        guard recognizer.state == .began else { return }
+        eligibleLeft = false
+        eligibleRight = false
+        outerScrollView = nil
         guard
             let navigator,
-            // Vertical-writing publications page on the other axis.
+            // Vertical-writing publications page on the other axis, and
+            // scroll mode has no page snaps to rescue.
             navigator.presentation.axis == .horizontal,
-            let webView = visibleWebView(in: navigator.view),
-            let outer = nearestScrollView(above: webView)
+            !navigator.presentation.scroll,
+            let webView = visibleWebView(in: navigator.view)
         else { return }
-
-        // The outer scroll view picked the pan up (the inner was settled at
-        // its edge), so the native resource turn is already under way.
-        if outer.isTracking || outer.isDragging || outer.isDecelerating { return }
+        outerScrollView = nearestScrollView(above: webView)
 
         let inner = webView.scrollView
         let pageWidth = inner.bounds.width
         guard pageWidth > 0 else { return }
-
         // Geometric, not logical: a leftward swipe always asks for more
-        // content on the right, whatever the reading progression — which is
-        // exactly what `goRight` means, so RTL needs no special casing.
-        let remaining = recognizer.direction == .left
-            ? inner.contentSize.width - inner.bounds.width - inner.contentOffset.x
-            : inner.contentOffset.x
+        // content on the right, whatever the reading progression — which
+        // is exactly what `goRight` means, so RTL needs no special casing.
+        let remainingLeft = inner.contentSize.width - inner.bounds.width - inner.contentOffset.x
+        let remainingRight = inner.contentOffset.x
+        // Under one page of travel left in a direction means this touch's
+        // page is the resource's outermost there: at rest the offset is
+        // page-aligned (a full page or more remains anywhere deeper), and
+        // a mid-snap freeze under a page was already headed to the edge.
+        let threshold = pageWidth - 4
+        eligibleLeft = remainingLeft < threshold
+        eligibleRight = remainingRight < threshold
+    }
 
-        // Fire only when this swipe's page is the resource's outermost in
-        // that direction: settled on it (remaining ≈ 0) or still snapping
-        // into it from the previous turn (remaining < one page). Anywhere
-        // deeper in the resource the inner scroll view handles the turn
-        // itself, and doubling it here would skip a page.
-        guard remaining < pageWidth * 0.95 else { return }
+    @objc private func swiped(_ recognizer: UISwipeGestureRecognizer) {
+        guard
+            let navigator,
+            recognizer.direction == .left ? eligibleLeft : eligibleRight
+        else { return }
+
+        // The outer scroll view picked the pan up (the inner was settled at
+        // its edge), so the native resource turn is already under way.
+        if let outer = outerScrollView,
+           outer.isTracking || outer.isDragging || outer.isDecelerating {
+            return
+        }
 
         let direction = recognizer.direction
         Task {
