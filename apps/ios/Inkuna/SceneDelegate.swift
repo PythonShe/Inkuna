@@ -107,6 +107,8 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             case "reader":
                 guard let navigation = main.selectedViewController as? UINavigationController else { return }
                 ReaderLauncher.push(on: navigation)
+            case "settings":
+                main.present(SettingsViewController(), animated: false)
             default:
                 break
             }
