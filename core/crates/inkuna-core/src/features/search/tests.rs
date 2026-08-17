@@ -151,6 +151,22 @@ fn reconcile_rebuilds_a_missing_index() {
 }
 
 #[test]
+fn library_cjk_tokens_use_folded_compatibility_forms_and_new_han_blocks() {
+    use tantivy::tokenizer::{TokenStream, Tokenizer};
+
+    let mut tokenizer = super::tokenize::CjkUnigramTokenizer;
+    let mut stream = tokenizer.token_stream("ﾊ\u{30000}");
+    assert!(stream.advance());
+    assert_eq!(stream.token().text, "ハ");
+    assert!(stream.advance());
+    assert_eq!(stream.token().text, "\u{30000}");
+    assert!(!stream.advance());
+
+    let query = super::tokenize::analyze_query("ﾊ");
+    assert_eq!(query.cjk_runs, vec![vec!['ハ']]);
+}
+
+#[test]
 fn fullwidth_latin_folds_to_ascii() {
     let (_dir, library, id) = library_with_book();
 

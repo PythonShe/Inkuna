@@ -37,6 +37,7 @@ pub(super) fn is_cjk(c: char) -> bool {
         | '\u{F900}'..='\u{FAFF}' // CJK compatibility ideographs
         | '\u{FF66}'..='\u{FF9D}' // half-width katakana
         | '\u{20000}'..='\u{2FA1F}' // CJK extensions B..F + supplement
+        | '\u{30000}'..='\u{323AF}' // CJK extensions G + H
     )
 }
 
@@ -168,7 +169,7 @@ impl Tokenizer for CjkUnigramTokenizer {
                             &mut position,
                             offset + rel,
                             c.len_utf8(),
-                            c.to_string(),
+                            fold_query(&c.to_string()),
                         );
                     }
                 }
@@ -202,7 +203,7 @@ pub(super) fn analyze_query(query: &str) -> QueryTerms {
     for (_, run, kind) in runs(query) {
         match kind {
             RunKind::Cjk => {
-                terms.cjk_runs.push(run.chars().collect());
+                terms.cjk_runs.push(fold_query(run).chars().collect());
                 for token in JIEBA.cut(run, true) {
                     terms.word_shoulds.push(token.word.to_string());
                 }
