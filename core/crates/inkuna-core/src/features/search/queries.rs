@@ -138,7 +138,7 @@ impl Library {
                         .and_offset(offset)
                         .order_by_score(),
                 )
-                .map_err(|e| CoreError::Search(e.to_string()))?;
+                .map_err(|e| CoreError::Search(e))?;
             if ranked.is_empty() {
                 break;
             }

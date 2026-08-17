@@ -73,8 +73,8 @@ fn register_tokenizers(index: &Index) {
 fn open_index(dir: &Path) -> Result<Index, CoreError> {
     std::fs::create_dir_all(dir)?;
     let mmap = tantivy::directory::MmapDirectory::open(dir)
-        .map_err(|e| CoreError::Search(e.to_string()))?;
-    Index::open_or_create(mmap, schema().0).map_err(|e| CoreError::Search(e.to_string()))
+        .map_err(|e| CoreError::Search(tantivy::TantivyError::OpenDirectoryError(e)))?;
+    Index::open_or_create(mmap, schema().0).map_err(|e| CoreError::Search(e))
 }
 
 impl SearchIndex {
@@ -95,12 +95,12 @@ impl SearchIndex {
         let (_, fields) = schema();
         let writer = index
             .writer_with_num_threads(1, WRITER_MEMORY_BYTES)
-            .map_err(|e| CoreError::Search(e.to_string()))?;
+            .map_err(|e| CoreError::Search(e))?;
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
             .try_into()
-            .map_err(|e: tantivy::TantivyError| CoreError::Search(e.to_string()))?;
+            .map_err(|e: tantivy::TantivyError| CoreError::Search(e))?;
         Ok(SearchIndex {
             index,
             writer: Arc::new(Mutex::new(writer)),
@@ -120,7 +120,7 @@ impl SearchIndex {
     pub(super) fn searcher(&self) -> Result<Searcher, CoreError> {
         self.reader
             .reload()
-            .map_err(|e| CoreError::Search(e.to_string()))?;
+            .map_err(|e| CoreError::Search(e))?;
         Ok(self.reader.searcher())
     }
 
@@ -132,8 +132,11 @@ impl SearchIndex {
         publication_id: &str,
         resources: impl IntoIterator<Item = (u32, &'a str)>,
     ) -> Result<(), CoreError> {
-        let writer = self.writer.lock().unwrap();
-        add_publication(&writer, self.fields, publication_id, resources)?;
+        let mut writer = self.writer.lock().unwrap();
+        if let Err(e) = add_publication(&writer, self.fields, publication_id, resources) {
+            let _ = writer.rollback();
+            return Err(e);
+        }
         commit(writer)
     }
 
@@ -192,7 +195,7 @@ fn add_publication<'a>(
                 fields.body_word => body,
                 fields.body_uni => body,
             ))
-            .map_err(|e| CoreError::Search(e.to_string()))?;
+            .map_err(|e| CoreError::Search(e))?;
     }
     Ok(())
 }
@@ -200,10 +203,13 @@ fn add_publication<'a>(
 fn commit(
     mut writer: std::sync::MutexGuard<'_, IndexWriter>,
 ) -> Result<(), CoreError> {
-    writer
-        .commit()
-        .map(|_| ())
-        .map_err(|e| CoreError::Search(e.to_string()))
+    match writer.commit() {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            let _ = writer.rollback();
+            Err(CoreError::Search(e))
+        }
+    }
 }
 
 fn reconcile(
@@ -225,17 +231,17 @@ fn reconcile(
         .reader_builder()
         .reload_policy(ReloadPolicy::Manual)
         .try_into()
-        .map_err(|e: tantivy::TantivyError| CoreError::Search(e.to_string()))?;
+        .map_err(|e: tantivy::TantivyError| CoreError::Search(e))?;
     let searcher = reader.searcher();
     let mut indexed = HashSet::new();
     for segment in searcher.segment_readers() {
         let inverted = segment
             .inverted_index(fields.publication_id)
-            .map_err(|e| CoreError::Search(e.to_string()))?;
+            .map_err(|e| CoreError::Search(e))?;
         let mut terms = inverted
             .terms()
             .stream()
-            .map_err(|e| CoreError::Search(e.to_string()))?;
+            .map_err(|e| CoreError::Search(e.into()))?;
         while terms.advance() {
             indexed.insert(String::from_utf8_lossy(terms.key()).into_owned());
         }
@@ -279,7 +285,7 @@ pub(super) fn doc_fields(
     use tantivy::schema::Value;
     let doc: TantivyDocument = searcher
         .doc(address)
-        .map_err(|e| CoreError::Search(e.to_string()))?;
+        .map_err(|e| CoreError::Search(e))?;
     let publication_id = doc
         .get_first(fields.publication_id)
         .and_then(|v| v.as_str())

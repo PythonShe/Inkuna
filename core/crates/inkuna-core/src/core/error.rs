@@ -50,7 +50,7 @@ pub enum CoreError {
     /// it. The index is derived data: a shell can treat this as "search
     /// unavailable right now" and the next open rebuilds from the corpus.
     #[error("search index error: {0}")]
-    Search(String),
+    Search(#[source] tantivy::TantivyError),
 
     /// No entity with that id — a publication, bookmark, or session the
     /// caller named that the library does not hold. Carries the id.

@@ -39,7 +39,7 @@ impl From<inkuna_core::CoreError> for InkunaError {
             C::Archive(m) => InkunaError::Archive { detail: m },
             C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat { format: f },
             C::InvalidPublication(m) => InkunaError::InvalidPublication { detail: m },
-            C::Search(m) => InkunaError::Search { detail: m },
+            C::Search(e) => InkunaError::Search { detail: e.to_string() },
             C::NotFound(id) => InkunaError::NotFound { id },
         }
     }
