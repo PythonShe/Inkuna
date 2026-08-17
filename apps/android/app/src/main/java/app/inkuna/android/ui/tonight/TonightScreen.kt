@@ -122,10 +122,10 @@ fun TonightScreen(
 
 /**
  * The header's account affordance: a 40dp avatar disc top-aligned with
- * the eyebrow/title block, sized identically on iOS. Recessed rather
- * than the design's surface+shadow: that treatment suited a photo
- * avatar, while a glyph on bright surface read as a white coin — this
- * matches the Account sheet's own avatar idiom.
+ * the eyebrow/title block, sized identically on iOS. The design's disc
+ * form with its soft shadow, but on the recessed tone — the bright
+ * surface fill suited a photo avatar and read as a white coin behind a
+ * bare glyph.
  */
 @Composable
 private fun AccountAvatarButton(onClick: () -> Unit) {
@@ -133,6 +133,7 @@ private fun AccountAvatarButton(onClick: () -> Unit) {
     Box(
         Modifier
             .size(40.dp)
+            .inkShadow(2.dp, CircleShape)
             .clip(CircleShape)
             .background(ink.bgRecessed)
             .clickable(onClick = onClick, role = Role.Button),

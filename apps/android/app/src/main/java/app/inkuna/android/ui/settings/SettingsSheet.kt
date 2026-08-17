@@ -41,6 +41,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -55,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import app.inkuna.android.BuildConfig
 import app.inkuna.android.R
@@ -94,6 +97,11 @@ fun SettingsSheet(
     // Explicit dismissals must animate the sheet away first, or it snaps.
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+
+    // The night flip queued behind the switch's own thumb animation;
+    // cancelled and re-queued when the switch is flipped again first.
+    var pendingNight by remember { mutableStateOf<Boolean?>(null) }
+    var nightFlip by remember { mutableStateOf<Job?>(null) }
     val animatedDismiss: () -> Unit = {
         scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
     }
@@ -155,12 +163,25 @@ fun SettingsSheet(
                     },
                 )
                 Hairline()
+                // The flip waits for the thumb to land, like iOS: the
+                // whole-app theme change mid-animation reads as a blink.
+                // The switch shows the pending value meanwhile — it is
+                // state-driven, so without the override it wouldn't move
+                // until the deferred commit lands.
                 ToggleRow(
                     icon = { Icon(Icons.Outlined.DarkMode, null, tint = ink.textSecondary) },
                     title = stringResource(R.string.settings_night),
                     subtitle = stringResource(ReadingTheme.Moon.subtitleRes),
-                    checked = snapshot.readingTheme.isNight,
-                    onCheckedChange = model::setNightMode,
+                    checked = pendingNight ?: snapshot.readingTheme.isNight,
+                    onCheckedChange = { on ->
+                        pendingNight = on
+                        nightFlip?.cancel()
+                        nightFlip = scope.launch {
+                            delay(250)
+                            model.setNightMode(on)
+                            pendingNight = null
+                        }
+                    },
                 )
                 // TODO(accounts): the design's "Redeem a code" row needs a
                 // redemption backend; the account is purely local today.
