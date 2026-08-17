@@ -211,11 +211,26 @@ final class SettingsViewController: UIViewController {
 
     // MARK: Actions
 
+    /// The in-flight enable, tracked so a toggle-off can supersede it —
+    /// an untracked task finishing after "off" would re-add the request
+    /// and silently revert the user's final choice.
+    private var reminderTask: Task<Void, Never>?
+
     private func reminderToggled() {
+        reminderTask?.cancel()
         if reminderSwitch.isOn {
-            Task { @MainActor [weak self] in
+            reminderTask = Task { @MainActor [weak self] in
                 guard let self else { return }
                 if await EveningReminder.enable() {
+                    // enable() ignores cancellation (center.add is not
+                    // cancellable), so re-read the last user intent: if the
+                    // switch went off while we were suspended, undo the add
+                    // instead of committing it.
+                    guard self.reminderSwitch.isOn else {
+                        EveningReminder.disable()
+                        AppSettings.shared.eveningReminder = false
+                        return
+                    }
                     AppSettings.shared.eveningReminder = true
                 } else {
                     // Permission declined: the choice cannot take effect.
