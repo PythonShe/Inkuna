@@ -31,6 +31,10 @@
     <string name="tonight_eyebrow">Esta noche</string>
     <string name="tonight_title">Continúa donde lo dejaste</string>
     <string name="tonight_pages_left">Quedan quince páginas en este capítulo</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="one">Queda %d página en este capítulo</item>
+        <item quantity="other">Quedan %d páginas en este capítulo</item>
+    </plurals>
     <string name="tonight_percent_read">%1$d %% leído</string>
     <string name="tonight_keep_reading">Seguir leyendo</string>
     <string name="tonight_nightstand">Por leer</string>
@@ -56,6 +60,7 @@
     <string name="search_title">Buscar</string>
     <string name="search_placeholder">Títulos, autores</string>
     <string name="search_recently_added">Añadidos recientemente</string>
+    <string name="search_in_books">En tus libros</string>
 
     
     <string name="stats_title">Estadísticas de lectura</string>
@@ -80,6 +85,7 @@
     <string name="reader_menu_theme_type">Tema y tipografía</string>
     <string name="reader_search_placeholder">Buscar en este libro</string>
     <string name="reader_search_empty">No se encontró nada en este libro.</string>
+    <string name="reader_search_unavailable">La búsqueda no está disponible ahora mismo.</string>
     <string name="reader_bookmark_placed">Marcador añadido.</string>
     <string name="reader_link_failed">No se pudo abrir este enlace.</string>
     <string name="reader_page_info">pág. %1$d de %2$d · %3$d %%</string>
@@ -97,6 +103,7 @@
     <string name="a11y_reading_menu">Menú de lectura</string>
     <string name="a11y_close_reading_menu">Cerrar menú de lectura</string>
     <string name="a11y_place_bookmark">Añadir marcador</string>
+    <string name="a11y_search_book">Buscar en este libro</string>
     <string name="a11y_smaller_text">Texto más pequeño</string>
     <string name="a11y_larger_text">Texto más grande</string>
     <string name="a11y_page_brightness">Brillo de página</string>
@@ -110,6 +117,7 @@
     <string name="a11y_calendar_day">%2$d de %1$s</string>
     <string name="a11y_calendar_day_read">%2$d de %1$s, leído</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%1$d de %2$d resultados</string>
     <plurals name="a11y_result_count">
         <item quantity="one">%d resultado</item>
         <item quantity="other">%d resultados</item>

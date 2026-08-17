@@ -31,6 +31,10 @@
     <string name="tonight_eyebrow">Tonight</string>
     <string name="tonight_title">Pick up where you left off</string>
     <string name="tonight_pages_left">Fifteen pages left in this chapter</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="one">1 page left in this chapter</item>
+        <item quantity="other">%d pages left in this chapter</item>
+    </plurals>
     <string name="tonight_percent_read">%1$d%% read</string>
     <string name="tonight_keep_reading">Keep reading</string>
     <string name="tonight_nightstand">To read</string>
@@ -56,6 +60,7 @@
     <string name="search_title">Search</string>
     <string name="search_placeholder">Titles, authors</string>
     <string name="search_recently_added">Recently added</string>
+    <string name="search_in_books">In your books</string>
 
     
     <string name="stats_title">Reading stats</string>
@@ -82,6 +87,7 @@
     <string name="reader_menu_theme_type">Theme &amp; type</string>
     <string name="reader_search_placeholder">Search this book</string>
     <string name="reader_search_empty">Nothing found in this book.</string>
+    <string name="reader_search_unavailable">Search isn\'t available right now.</string>
     <string name="reader_bookmark_placed">Bookmark placed.</string>
     <string name="reader_link_failed">This link could not be opened.</string>
     <string name="reader_page_info">p. %1$d of %2$d · %3$d%%</string>
@@ -99,6 +105,7 @@
     <string name="a11y_reading_menu">Reading menu</string>
     <string name="a11y_close_reading_menu">Close reading menu</string>
     <string name="a11y_place_bookmark">Place bookmark</string>
+    <string name="a11y_search_book">Search this book</string>
     <string name="a11y_smaller_text">Smaller text</string>
     <string name="a11y_larger_text">Larger text</string>
     <string name="a11y_page_brightness">Page brightness</string>
@@ -113,6 +120,7 @@
     <string name="a11y_calendar_day">%1$s %2$d</string>
     <string name="a11y_calendar_day_read">%1$s %2$d, read</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%1$d of %2$d results</string>
     <plurals name="a11y_result_count">
         <item quantity="one">%d result</item>
         <item quantity="other">%d results</item>

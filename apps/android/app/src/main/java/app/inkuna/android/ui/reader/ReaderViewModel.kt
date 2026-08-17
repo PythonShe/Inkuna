@@ -75,6 +75,11 @@ class ReaderViewModel(
         /** Readium synthetic position count; 0 until computable. */
         val positionCount: Int,
         val chapters: List<ReaderChapter>,
+        /** 1-based position each reading-order resource starts at, by
+         *  reading-order index; empty when positions are uncomputable. */
+        val resourceStarts: List<Int>,
+        /** How many synthetic positions each resource holds, same order. */
+        val resourceCounts: List<Int>,
     )
 
     /** A core TOC entry resolved against Readium's synthetic positions. */
@@ -209,8 +214,13 @@ class ReaderViewModel(
         // Reported once so the core can answer "p. N of M" everywhere.
         val positionsByResource = publication.positionsByReadingOrder()
         val positionCount = positionsByResource.sumOf { it.size }
-        if (positionCount > 0 && core.positionCount != positionCount.toUInt()) {
-            shelf.reportPositionCount(core.id, positionCount.toUInt())
+        if (positionCount > 0) {
+            // Per-resource counts, not just the total: the core derives each
+            // chapter's position range from them, which is what "pages left
+            // in this chapter" and a search hit's "p. N" are built on.
+            runCatching {
+                shelf.reportPositionRanges(core.id, positionsByResource.map { it.size.toUInt() })
+            }.onFailure { Log.w(TAG, "reportPositionRanges failed", it) }
         }
 
         val chapters = shelf.chapters(core.id).map { chapter ->
@@ -249,6 +259,10 @@ class ReaderViewModel(
             initialLocator = initialLocator,
             positionCount = positionCount,
             chapters = chapters,
+            resourceStarts = positionsByResource.map {
+                it.firstOrNull()?.locations?.position ?: 0
+            },
+            resourceCounts = positionsByResource.map { it.size },
         )
     }
 
@@ -286,6 +300,100 @@ class ReaderViewModel(
         val book = (stateFlow.value as? UiState.Ready)?.book ?: return null
         val url = Url(chapter.href) ?: return null
         return book.publication.locatorFromLink(Link(href = url))
+    }
+
+    /**
+     * One in-book search hit, projected stable for Compose off the core's
+     * record (UniFFI records are `var`-fielded and recompose on every read).
+     */
+    data class SearchHit(
+        /** Reading-order index of the resource the hit sits in. */
+        val spineIndex: Int,
+        /** Package-relative href of that resource. */
+        val href: String,
+        /** Char offset of the match — with [spineIndex], a stable key. */
+        val charOffset: Long,
+        val snippetPre: String,
+        val snippetMatch: String,
+        val snippetPost: String,
+        /** In-resource progression, 0..1: the jump target's precision. */
+        val progression: Double,
+        /** Readium synthetic position of the hit, when computable. */
+        val position: Int?,
+    )
+
+    /** What one search answered: hits, the true total, and whether it ran. */
+    data class SearchOutcome(
+        val hits: List<SearchHit> = emptyList(),
+        /** The core's total, which may exceed [hits] — the cap is ours. */
+        val total: Int = 0,
+        /** The index is derived data; a failure means "not right now". */
+        val unavailable: Boolean = false,
+    )
+
+    /**
+     * In-book search through the core's case-folded, CJK-aware index.
+     *
+     * Suspends on the caller's coroutine, so a debounced caller cancelling
+     * a keystroke cancels the query with it. Positions are resolved here,
+     * against the same Readium synthetic positions the footer counts in.
+     */
+    suspend fun search(query: String): SearchOutcome {
+        val book = (stateFlow.value as? UiState.Ready)?.book ?: return SearchOutcome()
+        val shelf = bookshelf ?: return SearchOutcome()
+        val results = try {
+            shelf.searchInBook(publicationId, query, SEARCH_LIMIT)
+        } catch (cancellation: kotlinx.coroutines.CancellationException) {
+            throw cancellation
+        } catch (failure: Throwable) {
+            Log.w(TAG, "searchInBook failed", failure)
+            return SearchOutcome(unavailable = true)
+        }
+        return SearchOutcome(
+            hits = results.hits.map { hit ->
+                // The href is authoritative; the core's spine index is the
+                // fallback for a resource this navigator spells differently.
+                val resource = Url(hit.href)
+                    ?.let { readingOrderIndex(book.publication, it) }
+                    ?: hit.spineIdx.toInt()
+                SearchHit(
+                    spineIndex = resource,
+                    href = hit.href,
+                    charOffset = hit.charOffset.toLong(),
+                    snippetPre = hit.snippetPre,
+                    snippetMatch = hit.snippetMatch,
+                    snippetPost = hit.snippetPost,
+                    progression = hit.progression,
+                    position = positionOf(book, resource, hit.progression),
+                )
+            },
+            total = results.total.toInt(),
+        )
+    }
+
+    /**
+     * Where a hit falls in Readium's synthetic positions: the resource's
+     * first position plus the whole positions its progression covers,
+     * clamped inside the resource. Null when positions are unknown — an
+     * honest blank beats an invented page.
+     */
+    private fun positionOf(book: ReaderBook, resource: Int, progression: Double): Int? {
+        val start = book.resourceStarts.getOrNull(resource) ?: return null
+        val count = book.resourceCounts.getOrNull(resource) ?: return null
+        if (start <= 0 || count <= 0) return null
+        val within = (progression.coerceIn(0.0, 1.0) * count).toInt().coerceIn(0, count - 1)
+        return start + within
+    }
+
+    /** The navigator jump target for a search hit. */
+    fun searchLocator(hit: SearchHit): Locator? {
+        val book = (stateFlow.value as? UiState.Ready)?.book ?: return null
+        val url = Url(hit.href) ?: return null
+        val locator = book.publication.locatorFromLink(Link(href = url)) ?: return null
+        return locator.copyWithLocations(
+            progression = hit.progression,
+            position = hit.position,
+        )
     }
 
     /** One call per page turn, from the navigator's locator flow. */
@@ -433,6 +541,10 @@ class ReaderViewModel(
 
     companion object {
         private const val TAG = "InkunaReader"
+
+        /** More hits than a panel can be scrolled through in one sitting;
+         *  the true total is reported separately. */
+        private const val SEARCH_LIMIT = 200u
 
         fun factory(publicationId: String, initialChapterHref: String? = null) = viewModelFactory {
             initializer {

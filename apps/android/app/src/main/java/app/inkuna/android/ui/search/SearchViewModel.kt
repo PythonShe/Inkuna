@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import app.inkuna.android.R
 import app.inkuna.android.model.BookRow
 import app.inkuna.android.model.LibraryStore
+import app.inkuna.android.ui.reader.isSearchable
 import app.inkuna.core.Shelf
 import app.inkuna.core.Sort
 import kotlinx.coroutines.CancellationException
@@ -25,10 +26,24 @@ import kotlinx.coroutines.launch
  */
 class SearchViewModel(application: Application) : AndroidViewModel(application) {
 
+    /**
+     * One full-text hit: the book, and the core's three-piece excerpt so a
+     * row can light the matched run. `match` can be empty — the core then
+     * hands back the resource's opening text as `post`.
+     */
+    data class FullTextRow(
+        val book: BookRow,
+        val excerptPre: String,
+        val excerptMatch: String,
+        val excerptPost: String,
+    )
+
     data class UiState(
         val query: String = "",
         /** Search hits for the trimmed query; meaningless while empty. */
         val results: List<BookRow> = emptyList(),
+        /** Books whose *text* matches, ranked; empty hides the section. */
+        val fullText: List<FullTextRow> = emptyList(),
         /** The discover shelf; empty hides it (an empty library has
          *  nothing to discover). */
         val discover: List<BookRow> = emptyList(),
@@ -74,6 +89,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     ensureActive()
                     _state.value = _state.value.copy(
                         results = emptyList(),
+                        fullText = emptyList(),
                         discover = discover,
                         searched = false,
                         failed = false,
@@ -82,8 +98,36 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     val results = bookshelf.searchLibrary(trimmed)
                         .map { BookRow.from(it, unknownAuthor) }
                     ensureActive()
+                    // Titles and authors answer first; the text of the books
+                    // follows, and only for a query worth reading pages for
+                    // (the reader's own rule — one CJK character counts).
+                    val fullText = if (isSearchable(trimmed)) {
+                        try {
+                            bookshelf.searchAllBooks(trimmed, FULL_TEXT_CAPACITY)
+                                .map { hit ->
+                                    FullTextRow(
+                                        book = BookRow.from(hit.publication, unknownAuthor),
+                                        excerptPre = hit.excerptPre,
+                                        excerptMatch = hit.excerptMatch,
+                                        excerptPost = hit.excerptPost,
+                                    )
+                                }
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation
+                        } catch (failure: Throwable) {
+                            // The index is derived data: a search that is
+                            // unavailable quietly leaves the section out
+                            // rather than failing the whole screen.
+                            Log.w(TAG, "Full-text search is unavailable", failure)
+                            emptyList()
+                        }
+                    } else {
+                        emptyList()
+                    }
+                    ensureActive()
                     _state.value = _state.value.copy(
                         results = results,
+                        fullText = fullText,
                         searched = true,
                         failed = false,
                     )
@@ -94,6 +138,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 Log.e(TAG, "The library would not open", failure)
                 _state.value = _state.value.copy(
                     results = emptyList(),
+                    fullText = emptyList(),
                     discover = emptyList(),
                     searched = false,
                     failed = true,
@@ -110,5 +155,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
         /** A shelf's worth of discoveries. */
         const val DISCOVER_CAPACITY = 8
+
+        /** One screenful of books whose text matches — never the library. */
+        const val FULL_TEXT_CAPACITY = 20u
     }
 }

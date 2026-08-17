@@ -31,6 +31,10 @@
     <string name="tonight_eyebrow">Stasera</string>
     <string name="tonight_title">Riprendi da dove avevi interrotto</string>
     <string name="tonight_pages_left">Quindici pagine rimaste in questo capitolo</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="one">%d pagina rimasta in questo capitolo</item>
+        <item quantity="other">%d pagine rimaste in questo capitolo</item>
+    </plurals>
     <string name="tonight_percent_read">%1$d%% letto</string>
     <string name="tonight_keep_reading">Continua a leggere</string>
     <string name="tonight_nightstand">Da leggere</string>
@@ -56,6 +60,7 @@
     <string name="search_title">Cerca</string>
     <string name="search_placeholder">Titoli, autori</string>
     <string name="search_recently_added">Aggiunti di recente</string>
+    <string name="search_in_books">Nei tuoi libri</string>
 
     
     <string name="stats_title">Statistiche di lettura</string>
@@ -80,6 +85,7 @@
     <string name="reader_menu_theme_type">Tema e caratteri</string>
     <string name="reader_search_placeholder">Cerca in questo libro</string>
     <string name="reader_search_empty">Nessun risultato trovato in questo libro.</string>
+    <string name="reader_search_unavailable">La ricerca non è disponibile al momento.</string>
     <string name="reader_bookmark_placed">Segnalibro inserito.</string>
     <string name="reader_link_failed">Impossibile aprire questo link.</string>
     <string name="reader_page_info">p. %1$d di %2$d · %3$d%%</string>
@@ -97,6 +103,7 @@
     <string name="a11y_reading_menu">Menu di lettura</string>
     <string name="a11y_close_reading_menu">Chiudi menu di lettura</string>
     <string name="a11y_place_bookmark">Inserisci segnalibro</string>
+    <string name="a11y_search_book">Cerca in questo libro</string>
     <string name="a11y_smaller_text">Testo più piccolo</string>
     <string name="a11y_larger_text">Testo più grande</string>
     <string name="a11y_page_brightness">Luminosità pagina</string>
@@ -110,6 +117,7 @@
     <string name="a11y_calendar_day">%2$d %1$s</string>
     <string name="a11y_calendar_day_read">%2$d %1$s, letto</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%1$d di %2$d risultati</string>
     <plurals name="a11y_result_count">
         <item quantity="one">%d risultato</item>
         <item quantity="other">%d risultati</item>

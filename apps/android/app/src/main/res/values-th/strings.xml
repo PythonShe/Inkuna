@@ -31,6 +31,9 @@
     <string name="tonight_eyebrow">คืนนี้</string>
     <string name="tonight_title">อ่านต่อจากที่ค้างไว้</string>
     <string name="tonight_pages_left">เหลืออีก 15 หน้าในบทนี้</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="other">เหลืออีก %d หน้าในบทนี้</item>
+    </plurals>
     <string name="tonight_percent_read">อ่านแล้ว %1$d%%</string>
     <string name="tonight_keep_reading">อ่านต่อ</string>
     <string name="tonight_nightstand">รายการที่อยากอ่าน</string>
@@ -56,6 +59,7 @@
     <string name="search_title">ค้นหา</string>
     <string name="search_placeholder">ชื่อหนังสือ, ผู้แต่ง</string>
     <string name="search_recently_added">เพิ่มล่าสุด</string>
+    <string name="search_in_books">ในหนังสือของคุณ</string>
 
     
     <string name="stats_title">สถิติการอ่าน</string>
@@ -79,6 +83,7 @@
     <string name="reader_menu_theme_type">ธีมและรูปแบบอักษร</string>
     <string name="reader_search_placeholder">ค้นหาในหนังสือเล่มนี้</string>
     <string name="reader_search_empty">ไม่พบผลการค้นหาในหนังสือเล่มนี้</string>
+    <string name="reader_search_unavailable">ค้นหาไม่พร้อมใช้งานในขณะนี้</string>
     <string name="reader_bookmark_placed">คั่นหน้าเรียบร้อยแล้ว</string>
     <string name="reader_link_failed">ไม่สามารถเปิดลิงก์นี้ได้</string>
     <string name="reader_page_info">หน้า %1$d จาก %2$d · %3$d%%</string>
@@ -96,6 +101,7 @@
     <string name="a11y_reading_menu">เมนูการอ่าน</string>
     <string name="a11y_close_reading_menu">ปิดเมนูการอ่าน</string>
     <string name="a11y_place_bookmark">คั่นหน้านี้</string>
+    <string name="a11y_search_book">ค้นหาในหนังสือเล่มนี้</string>
     <string name="a11y_smaller_text">ลดขนาดตัวอักษร</string>
     <string name="a11y_larger_text">เพิ่มขนาดตัวอักษร</string>
     <string name="a11y_page_brightness">ความสว่างของหน้า</string>
@@ -109,6 +115,7 @@
     <string name="a11y_calendar_day">%2$d %1$s</string>
     <string name="a11y_calendar_day_read">%2$d %1$s อ่านแล้ว</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%1$d จาก %2$d ผลลัพธ์</string>
     <plurals name="a11y_result_count">
         <item quantity="other">%d ผลลัพธ์</item>
     </plurals>

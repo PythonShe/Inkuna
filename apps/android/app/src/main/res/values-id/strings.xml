@@ -27,6 +27,9 @@
     <string name="tonight_eyebrow">Malam ini</string>
     <string name="tonight_title">Lanjutkan dari tempat Anda berhenti</string>
     <string name="tonight_pages_left">Lima belas halaman lagi di bab ini</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="other">%d halaman lagi di bab ini</item>
+    </plurals>
     <string name="tonight_percent_read">%1$d%% terbaca</string>
     <string name="tonight_keep_reading">Lanjutkan membaca</string>
     <string name="tonight_nightstand">Daftar baca</string>
@@ -50,6 +53,7 @@
     <string name="search_title">Cari</string>
     <string name="search_placeholder">Judul, penulis</string>
     <string name="search_recently_added">Baru ditambahkan</string>
+    <string name="search_in_books">Di buku Anda</string>
     
     <string name="stats_title">Statistik membaca</string>
     <string name="stats_in_progress">Sedang dibaca</string>
@@ -70,6 +74,7 @@
     <string name="reader_menu_theme_type">Tema &amp; jenis huruf</string>
     <string name="reader_search_placeholder">Cari di buku ini</string>
     <string name="reader_search_empty">Tidak ditemukan apa pun di buku ini.</string>
+    <string name="reader_search_unavailable">Pencarian sedang tidak tersedia.</string>
     <string name="reader_bookmark_placed">Penanda terpasang.</string>
     <string name="reader_link_failed">Tautan ini tidak dapat dibuka.</string>
     <string name="reader_page_info">hlm. %1$d dari %2$d · %3$d%%</string>
@@ -86,6 +91,7 @@
     <string name="a11y_reading_menu">Menu baca</string>
     <string name="a11y_close_reading_menu">Tutup menu baca</string>
     <string name="a11y_place_bookmark">Pasang penanda</string>
+    <string name="a11y_search_book">Cari di buku ini</string>
     <string name="a11y_smaller_text">Perkecil teks</string>
     <string name="a11y_larger_text">Perbesar teks</string>
     <string name="a11y_page_brightness">Kecerahan halaman</string>
@@ -99,6 +105,7 @@
     <string name="a11y_calendar_day">%2$d %1$s</string>
     <string name="a11y_calendar_day_read">%2$d %1$s, dibaca</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%1$d dari %2$d hasil</string>
     <plurals name="a11y_result_count">
         <item quantity="other">%d hasil</item>
     </plurals>

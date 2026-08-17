@@ -31,6 +31,9 @@
     <string name="tonight_eyebrow">今晚</string>
     <string name="tonight_title">繼續上次的閱讀</string>
     <string name="tonight_pages_left">本章還剩 15 頁</string>
+    <plurals name="tonight_pages_left_chapter">
+        <item quantity="other">本章還剩 %d 頁</item>
+    </plurals>
     <string name="tonight_percent_read">已讀 %1$d%%</string>
     <string name="tonight_keep_reading">繼續閱讀</string>
     <string name="tonight_nightstand">待讀書單</string>
@@ -56,6 +59,7 @@
     <string name="search_title">搜尋</string>
     <string name="search_placeholder">書名、作者</string>
     <string name="search_recently_added">最近加入</string>
+    <string name="search_in_books">在你的書中</string>
 
     
     <string name="stats_title">閱讀統計</string>
@@ -79,6 +83,7 @@
     <string name="reader_menu_theme_type">版面與主題</string>
     <string name="reader_search_placeholder">搜尋本書內容</string>
     <string name="reader_search_empty">未在本書中找到相關內容。</string>
+    <string name="reader_search_unavailable">搜尋暫時無法使用。</string>
     <string name="reader_bookmark_placed">書籤已加入。</string>
     <string name="reader_link_failed">無法開啟此連結。</string>
     <string name="reader_page_info">第 %1$d 頁，共 %2$d 頁 · %3$d%%</string>
@@ -96,6 +101,7 @@
     <string name="a11y_reading_menu">閱讀選單</string>
     <string name="a11y_close_reading_menu">關閉閱讀選單</string>
     <string name="a11y_place_bookmark">加入書籤</string>
+    <string name="a11y_search_book">搜尋本書內容</string>
     <string name="a11y_smaller_text">縮小字級</string>
     <string name="a11y_larger_text">加大字級</string>
     <string name="a11y_page_brightness">頁面亮度</string>
@@ -109,6 +115,7 @@
     <string name="a11y_calendar_day">%1$s%2$d日</string>
     <string name="a11y_calendar_day_read">%1$s%2$d日，已閱讀</string>
     <string name="a11y_fact">%1$s %2$s</string>
+    <string name="a11y_result_count_capped">%2$d 條結果中的 %1$d 條</string>
     <plurals name="a11y_result_count">
         <item quantity="other">%d 條結果</item>
     </plurals>
