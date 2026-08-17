@@ -1,9 +1,9 @@
 import Foundation
 
 // The last placeholder content standing, each entry waiting on a core
-// capability that does not exist yet: the sample pages on the in-book
-// search spec, the tonight chips on collections, the hero stand-in on
-// nothing — it renders only in an empty library and is inert by design.
+// capability that does not exist yet: the tonight chips on collections,
+// the hero stand-in on nothing — it renders only in an empty library and
+// is inert by design.
 
 struct PlaceholderBook: Hashable {
     let title: String
@@ -23,35 +23,11 @@ enum PlaceholderLibrary {
         coverSeed: 0
     )
 
-    // MARK: Reader sample (until the core's in-book search lands)
-
+    /// The stand-in card's caption, invented like the rest of that card;
+    /// a real book's caption comes from the core.
     static var pagesLeftText: String {
         String(localized: "tonight_pages_left", defaultValue: "Fifteen pages left in this chapter")
     }
-
-    /// Four pages of sample prose, one array of paragraphs per page.
-    static let samplePages: [[String]] = [
-        [
-            "The lamp burned low, and the moon took over the work of lighting the page. Outside, the city had gone quiet in the particular way it does after midnight — not silent, but hushed, as though it too were reading over her shoulder.",
-            "She turned the page with a thumb worn soft by ten thousand such turnings. The paper made its small dry sound, the sound of a door closing gently in another room.",
-            "“Stay,” the chapter seemed to say. And she stayed — one more page, then one more, the old bargain readers make with the night and always, gladly, lose.",
-        ],
-        [
-            "By the window the tea had gone cold an hour ago. It didn’t matter. Some rituals are about the object; this one was about the light, the ink, and the staying.",
-            "The book had come to her third-hand, its spine already broken in at the good chapters, like a trail worn by earlier travellers. She liked that. A book that has been loved arrives already warm.",
-            "Somewhere below, a late tram sighed along its rails. She read the same sentence twice, not because it was difficult but because it deserved it.",
-        ],
-        [
-            "There is an hour — readers know it — when the house finishes settling and the margins seem to widen, when even the clock lowers its voice.",
-            "In that hour the story stopped being words. The sea wall was under her hands; the archivist’s lamp was her lamp; the letters from the capital were addressed, plainly, to her.",
-            "She reached for the cold tea anyway, out of loyalty.",
-        ],
-        [
-            "One more page, she told the night. The night, which has heard this promise from every reader since ink was first set to paper, said nothing and let her keep it badly.",
-            "The chapter closed the way good chapters do — not with a door slammed, but with a lamp carried into the next room, its light still visible under the sill.",
-            "Swipe to keep going, or rest here.",
-        ],
-    ]
 
     // MARK: Stats screen
 

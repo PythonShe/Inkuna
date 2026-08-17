@@ -1,4 +1,10 @@
+import ReadiumShared
 import UIKit
+
+// The UniFFI bindings are compiled into this target, so `Publication` below
+// is the core's record; the Readium import is for `Locator`, which decodes
+// the core's stored position — the same shell-side read the detail screen
+// does.
 
 /// The Tonight (home) tab: pick up where you left off, filter chips, and
 /// the nightstand shelf.
@@ -13,6 +19,11 @@ final class TonightViewController: ScrollScreenViewController {
     /// `nil` renders the design's placeholder card — inert scenery, never
     /// a destination.
     private var continueReading: Publication?
+
+    /// Pages left in the chapter the hero book is parked in, when the
+    /// stored position and the core's chapter ranges can produce one.
+    /// `nil` falls the caption back to the honest percentage.
+    private var heroPagesLeft: Int?
 
     /// The rest of the unfinished shelf, behind the hero. Empty hides the
     /// nightstand section entirely.
@@ -94,7 +105,19 @@ final class TonightViewController: ScrollScreenViewController {
                 // Unfinished, not all: a book just finished must not be the
                 // "keep reading" hero merely for being touched last.
                 let publications = try await bookshelf.list(shelf: .unfinished, sort: .recentlyOpened)
+                // The hero's caption wants the chapter it is parked in;
+                // the ranges come from the core, the position from the
+                // stored locator.
+                var pagesLeft: Int?
+                if
+                    let hero = publications.first,
+                    let position = Self.storedPosition(of: hero),
+                    let ranges = try? await bookshelf.chapterPositionRanges(id: hero.id)
+                {
+                    pagesLeft = Self.pagesLeft(in: ranges, at: position)
+                }
                 guard let self, !Task.isCancelled else { return }
+                self.heroPagesLeft = pagesLeft
                 // A successful-but-empty answer clears the hero; only a
                 // failed load keeps the previous one.
                 self.continueReading = publications.first
@@ -109,6 +132,33 @@ final class TonightViewController: ScrollScreenViewController {
                 // owns the recovery path for a library that will not open.
             }
         }
+    }
+
+    /// The synthetic position the book is parked at, read out of the
+    /// stored Readium locator — the same shell-side decode the detail
+    /// screen does. Nil for a book never opened in a build that reports
+    /// positions.
+    private static func storedPosition(of publication: Publication) -> UInt32? {
+        guard
+            let locatorJSON = publication.locator,
+            let locator = try? Locator(jsonString: locatorJSON),
+            let position = locator.locations.position, position > 0
+        else { return nil }
+        return UInt32(position)
+    }
+
+    /// Pages left in the chapter holding `position`. Chapter ranges are
+    /// 1-based and inclusive, and several may contain one position when a
+    /// resource carries nested entries — the innermost (greatest start)
+    /// wins, the same "closest preceding entry" rule the contents sheet
+    /// highlights by. Zero or less is not a caption worth showing.
+    private static func pagesLeft(in ranges: [ChapterPositionRange], at position: UInt32) -> Int? {
+        let containing = ranges
+            .filter { $0.startPosition <= position && position <= $0.endPosition }
+            .max { $0.startPosition < $1.startPosition }
+        guard let containing else { return nil }
+        let left = Int(containing.endPosition) - Int(position)
+        return left > 0 ? left : nil
     }
 
     /// Shows the nightstand only when there is something on it — an empty
@@ -128,12 +178,21 @@ final class TonightViewController: ScrollScreenViewController {
         if let publication = continueReading {
             let percent = Int((publication.progression * 100).rounded())
             let author = publication.displayAuthors(unknownAuthor: String(localized: "unknown_author", defaultValue: "Unknown author"))
-            let percentFormat = NSLocalizedString("tonight_percent_read", comment: "")
+            // What is left of the chapter when the core can say, the
+            // book-wide percentage when it cannot.
+            let caption: String
+            if let heroPagesLeft {
+                let format = NSLocalizedString("tonight_pages_left_count", comment: "")
+                caption = String.localizedStringWithFormat(format, Int64(heroPagesLeft))
+            } else {
+                let percentFormat = NSLocalizedString("tonight_percent_read", comment: "")
+                caption = String.localizedStringWithFormat(percentFormat, Int64(percent))
+            }
             card = makeHeroCard(
                 title: publication.title,
                 author: author,
                 progress: CGFloat(publication.progression),
-                caption: String.localizedStringWithFormat(percentFormat, Int64(percent)),
+                caption: caption,
                 seed: BookCoverView.coverSeed(for: publication.id),
                 coverPath: publication.coverPath,
                 onOpen: { [weak self] in

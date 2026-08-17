@@ -158,16 +158,14 @@ final class ReaderMenuPill: UIControl {
 }
 
 /// The fanned-out reading menu above the more button: Contents · %,
-/// Theme & type, then the bookmark circle. No search affordance until the
-/// core's real, CJK-aware search lands — offering the placeholder panel's
-/// invented results against a real book would be worse than offering
-/// nothing.
+/// Theme & type, then the search and bookmark circles.
 final class ReaderMenuView: UIView {
     let contentsPill: ReaderMenuPill
 
     init(
         onContents: @escaping @MainActor () -> Void,
         onTheme: @escaping @MainActor () -> Void,
+        onSearch: @escaping @MainActor () -> Void,
         onBookmark: @escaping @MainActor () -> Void
     ) {
         contentsPill = ReaderMenuPill(
@@ -182,13 +180,18 @@ final class ReaderMenuView: UIView {
             symbol: "textformat.size",
             handler: onTheme
         )
+        let searchButton = ReaderGlassButton(
+            symbol: "magnifyingglass",
+            accessibilityLabel: String(localized: "a11y_search_book", defaultValue: "Search this book"),
+            handler: onSearch
+        )
         let bookmarkButton = ReaderGlassButton(
             symbol: "bookmark",
             accessibilityLabel: String(localized: "a11y_place_bookmark", defaultValue: "Place bookmark"),
             handler: onBookmark
         )
 
-        let circleRow = UIStackView(arrangedSubviews: [bookmarkButton])
+        let circleRow = UIStackView(arrangedSubviews: [searchButton, bookmarkButton])
         circleRow.axis = .horizontal
         circleRow.spacing = 10
 

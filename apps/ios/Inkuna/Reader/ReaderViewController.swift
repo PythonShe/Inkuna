@@ -46,6 +46,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private var resourceIndexByHref: [String: Int] = [:]
     /// First synthetic position of each reading-order resource, index-aligned.
     private var firstPositionByResource: [Int?] = []
+    /// How many synthetic positions each reading-order resource holds,
+    /// index-aligned — what turns a hit's in-resource progression into a
+    /// page number.
+    private var positionCountByResource: [Int] = []
     /// Synthetic position count, reported to the core once known.
     private var positionCount: Int?
     /// The flattened TOC from the core, fetched once at open.
@@ -91,6 +95,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         onTheme: { [weak self] in
             self?.setMenu(visible: false)
             self?.presentThemeSheet()
+        },
+        onSearch: { [weak self] in
+            self?.setMenu(visible: false)
+            self?.showSearch()
         },
         onBookmark: { [weak self] in
             self?.placeBookmark()
@@ -285,7 +293,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         didRunDebugRoute = true
         switch UserDefaults.standard.string(forKey: "inkuna.debugReaderUI") {
         case "menu": setMenu(visible: true)
-        case "search": showSearch()
+        case "search":
+            showSearch()
+            if let query = UserDefaults.standard.string(forKey: "inkuna.debugSearchQuery") {
+                searchPanel?.debugSetQuery(query)
+            }
         case "contents": presentContents()
         case "theme": presentThemeSheet()
         case "immersed": setChrome(visible: false)
@@ -443,18 +455,23 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         }
         resourceIndexByHref = indexByHref
         firstPositionByResource = positionsByReadingOrder.map { $0.first?.locations.position }
+        positionCountByResource = positionsByReadingOrder.map(\.count)
         let count = positionsByReadingOrder.reduce(0) { $0 + $1.count }
         positionCount = count > 0 ? count : nil
     }
 
-    /// Reports the synthetic position count to the core — once per book is
-    /// the contract, so only when it is new or changed.
+    /// Reports the per-resource position ranges to the core — once per book
+    /// is the contract, so only when the total is new or changed. The ranges
+    /// carry the position count with them and are what the core turns into
+    /// per-chapter spans ("pages left in this chapter").
     private func reportPositionCountIfNeeded() {
         guard let positionCount, positionCount > 0 else { return }
-        let count = UInt32(positionCount)
-        guard publication.positionCount != count else { return }
-        enqueueCoreWrite("report position count") { [id = publication.id] bookshelf in
-            try await bookshelf.reportPositionCount(id: id, count: count)
+        // Always re-report: a matching total can still mean missing
+        // per-resource ranges (a library whose books were opened before
+        // ranges existed), and the write is one small transaction.
+        let counts = positionCountByResource.map(UInt32.init)
+        enqueueCoreWrite("report position ranges") { [id = publication.id] bookshelf in
+            try await bookshelf.reportPositionRanges(id: id, counts: counts)
         }
     }
 
@@ -774,20 +791,18 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     // MARK: In-book search
 
-    /// Reachable only through the DEBUG deep-launch route above — the menu
-    /// no longer offers search, because the panel's placeholder results
-    /// would be shown against a real book. The plumbing stays for the
-    /// screenshot loop and for when the core's search spec lands.
     private func showSearch() {
         let panel: ReaderSearchPanel
         if let existing = searchPanel {
             panel = existing
         } else {
-            // TODO(core): real in-book, CJK-aware search is the search
-            // spec; the panel stays on its placeholder results until then.
-            panel = ReaderSearchPanel(basePage: currentLocator?.locations.position ?? 1)
+            panel = ReaderSearchPanel(
+                search: { [weak self] query in await self?.runSearch(query) ?? nil },
+                positionForHit: { [weak self] hit in self?.position(of: hit) ?? nil }
+            )
             panel.onClose = { [weak self] in self?.hideSearch() }
-            panel.onJump = { [weak self] _ in
+            panel.onJump = { [weak self] hit in
+                self?.jump(to: hit)
                 self?.hideSearch()
             }
             panel.alpha = 0
@@ -831,6 +846,66 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         }
         animator.startAnimation()
         setChrome(visible: true)
+    }
+
+    /// One in-book search through the core. A failure is not an error the
+    /// reader interrupts reading for: the panel shows its empty state and
+    /// the reason goes to the log.
+    private func runSearch(_ query: String) async -> BookSearchResults? {
+        do {
+            let bookshelf = try await LibraryStore.shared.library()
+            return try await bookshelf.searchInBook(
+                id: publication.id,
+                query: query,
+                limit: ReaderSearchPanel.hitLimit
+            )
+        } catch {
+            logger.warning("Search in \(self.publication.id, privacy: .public) failed: \(error)")
+            return nil
+        }
+    }
+
+    /// The hit's synthetic position: where its resource starts, plus its
+    /// in-resource progression across that resource's positions. Nil until
+    /// the navigator has computed positions, so the row simply drops the
+    /// page line rather than inventing one.
+    private func position(of hit: BookSearchHit) -> Int? {
+        guard
+            let index = resourceIndex(forHref: hit.href),
+            firstPositionByResource.indices.contains(index),
+            let first = firstPositionByResource[index],
+            positionCountByResource.indices.contains(index)
+        else { return nil }
+        let count = positionCountByResource[index]
+        guard count > 0 else { return first }
+        let offset = Int((hit.progression * Double(count)).rounded(.down))
+        return first + min(max(offset, 0), count - 1)
+    }
+
+    /// Jumps to a search hit: its resource, at the hit's in-resource
+    /// progression — the same reading-order resolution the contents jumps
+    /// use, since the core's href is package-relative like a TOC entry's.
+    private func jump(to hit: BookSearchHit) {
+        guard
+            let navigator,
+            let readiumPublication,
+            let index = resourceIndex(forHref: hit.href),
+            readiumPublication.readingOrder.indices.contains(index)
+        else {
+            logger.warning("No jump target for hit in \(hit.href, privacy: .public)")
+            return
+        }
+        let link = readiumPublication.readingOrder[index]
+        guard let mediaType = link.mediaType else { return }
+        let target = Locator(
+            href: link.url(),
+            mediaType: mediaType,
+            locations: Locator.Locations(progression: min(max(hit.progression, 0), 1))
+        )
+        expectProgrammaticMove = true
+        Task {
+            _ = await navigator.go(to: target, options: NavigatorGoOptions(animated: false))
+        }
     }
 
     // MARK: Position
