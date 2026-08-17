@@ -196,9 +196,8 @@ final class LibraryViewController: ScrollScreenViewController {
     }
 
     private func render(rows: [Publication], emptiness: Emptiness) {
-        listStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-
         guard !rows.isEmpty else {
+            listStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
             switch emptiness {
             case .shelf(let message):
                 listStack.addArrangedSubview(paddedEmptyState(message))
@@ -210,8 +209,31 @@ final class LibraryViewController: ScrollScreenViewController {
             return
         }
 
+        // Reuse the rows already on screen: reconfiguring in place keeps
+        // each row's cover view — and its decoded art — in the hierarchy,
+        // so the routine viewWillAppear refresh updates text and progress
+        // without the covers blinking back in over the placeholder.
+        var reusable = listStack.arrangedSubviews.compactMap { $0 as? BookListRowView }
+        if reusable.count != listStack.arrangedSubviews.count {
+            // An empty state stood here; clear it before listing.
+            listStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+            reusable = []
+        }
+        while reusable.count > rows.count {
+            reusable.removeLast().removeFromSuperview()
+        }
+
         for (index, publication) in rows.enumerated() {
-            let row = BookListRowView()
+            let row: BookListRowView
+            if index < reusable.count {
+                row = reusable[index]
+            } else {
+                row = BookListRowView()
+                let tap = UITapGestureRecognizer(target: self, action: #selector(openRow(_:)))
+                row.addGestureRecognizer(tap)
+                listStack.addArrangedSubview(row)
+            }
+            row.tag = index
             row.configure(
                 title: publication.title,
                 author: publication.displayAuthors(unknownAuthor: String(localized: "unknown_author", defaultValue: "Unknown author")),
@@ -222,10 +244,6 @@ final class LibraryViewController: ScrollScreenViewController {
                 // always on disk — there is no cloud-only state to badge.
                 downloaded: true
             )
-            let tap = UITapGestureRecognizer(target: self, action: #selector(openRow(_:)))
-            row.addGestureRecognizer(tap)
-            row.tag = index
-            listStack.addArrangedSubview(row)
         }
     }
 

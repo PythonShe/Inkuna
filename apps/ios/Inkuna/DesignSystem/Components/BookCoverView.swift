@@ -158,7 +158,13 @@ final class BookCoverView: UIView {
     }
 
     private func showCoverArt(_ image: UIImage, animated: Bool) {
-        artView?.removeFromSuperview()
+        // A cover already showing art only swaps the bitmap (a re-decode at
+        // a new size bucket) — replacing the view would flash.
+        if let artView {
+            artView.image = image
+            artView.alpha = 1
+            return
+        }
         let artView = UIImageView(image: image)
         self.artView = artView
         artView.contentMode = .scaleAspectFill

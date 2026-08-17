@@ -16,6 +16,11 @@ final class SearchViewController: ScrollScreenViewController {
     private var publications: [Publication] = []
     /// Books whose text matched, in the core's ranking.
     private var fullTextHits: [LibrarySearchHit] = []
+    /// What the last render drew. The routine viewWillAppear reload almost
+    /// always comes back identical, and rebuilding identical rows flashes
+    /// every cover back in over its placeholder — so an unchanged result
+    /// leaves the views standing.
+    private var rendered: (rows: [Publication], hits: [LibrarySearchHit], discover: Bool)?
     /// The in-flight fetch. Held so a fast typist's keystrokes cancel their
     /// predecessors instead of racing each other onto the list.
     private var reloadTask: Task<Void, Never>?
@@ -113,13 +118,20 @@ final class SearchViewController: ScrollScreenViewController {
                 guard !Task.isCancelled, let self else { return }
                 self.publications = rows
                 self.fullTextHits = hits
-                self.render(rows: rows, discover: trimmed.isEmpty)
+                let discover = trimmed.isEmpty
+                if let rendered = self.rendered,
+                   rendered.rows == rows, rendered.hits == hits, rendered.discover == discover {
+                    return
+                }
+                self.rendered = (rows, hits, discover)
+                self.render(rows: rows, discover: discover)
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled, let self else { return }
                 self.publications = []
                 self.fullTextHits = []
+                self.rendered = nil
                 self.renderEmpty(String(localized: "library_unopenable", defaultValue: "The library couldn't be opened."))
             }
         }
