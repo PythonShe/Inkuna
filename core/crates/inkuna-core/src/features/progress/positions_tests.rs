@@ -52,6 +52,58 @@ fn report_derives_cumulative_starts_and_chapter_spans() {
 }
 
 #[test]
+fn report_rejects_mismatched_and_zero_resource_counts() {
+    let (_dir, library, id) = library_with_book();
+    library.report_position_ranges(&id, &[10, 5]).unwrap();
+
+    assert!(matches!(
+        library.report_position_ranges(&id, &[10]),
+        Err(CoreError::InvalidPositionRanges {
+            expected: 2,
+            actual: 1,
+            has_zero: false,
+        })
+    ));
+    assert!(matches!(
+        library.report_position_ranges(&id, &[10, 0]),
+        Err(CoreError::InvalidPositionRanges {
+            expected: 2,
+            actual: 2,
+            has_zero: true,
+        })
+    ));
+    assert_eq!(library.publication(&id).unwrap().position_count, Some(15));
+    assert_eq!(library.chapter_position_ranges(&id).unwrap().len(), 3);
+}
+
+#[test]
+fn chapter_ranges_follow_spine_order_when_toc_is_shuffled() {
+    let (_dir, library, id) = library_with_book();
+    library.report_position_ranges(&id, &[10, 5]).unwrap();
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE chapters SET idx = CASE
+                WHEN href = 'OEBPS/text/ch02.xhtml' THEN 0
+                WHEN href = 'OEBPS/text/ch01.xhtml' THEN 1
+                ELSE 2
+             END WHERE publication_id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+
+    assert_eq!(
+        library.chapter_position_ranges(&id).unwrap(),
+        vec![
+            ChapterPositionRange { chapter_idx: 0, start_position: 11, end_position: 15 },
+            ChapterPositionRange { chapter_idx: 1, start_position: 1, end_position: 10 },
+            ChapterPositionRange { chapter_idx: 2, start_position: 1, end_position: 10 },
+        ]
+    );
+}
+
+#[test]
 fn re_report_replaces_and_empty_report_clears() {
     let (_dir, library, id) = library_with_book();
 

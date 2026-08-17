@@ -46,6 +46,15 @@ pub enum CoreError {
     #[error("invalid publication: {0}")]
     InvalidPublication(String),
 
+    /// The shell reported a position breakdown that does not match the
+    /// publication's reading order or contains an empty resource range.
+    #[error("invalid position ranges: expected {expected} resources, received {actual} (zero count: {has_zero})")]
+    InvalidPositionRanges {
+        expected: u32,
+        actual: u32,
+        has_zero: bool,
+    },
+
     /// The tantivy search index failed — opening, writing, or querying
     /// it. The index is derived data: a shell can treat this as "search
     /// unavailable right now" and the next open rebuilds from the corpus.

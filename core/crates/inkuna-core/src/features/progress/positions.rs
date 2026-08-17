@@ -30,6 +30,23 @@ impl Library {
             return Err(CoreError::NotFound(id.to_string()));
         }
 
+        let resource_count: usize = tx
+            .query_row(
+                "SELECT COUNT(*) FROM resources WHERE publication_id = ?1",
+                [id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .max(0) as usize;
+        if !counts.is_empty()
+            && (counts.len() != resource_count || counts.iter().any(|&count| count == 0))
+        {
+            return Err(CoreError::InvalidPositionRanges {
+                expected: resource_count.min(u32::MAX as usize) as u32,
+                actual: counts.len().min(u32::MAX as usize) as u32,
+                has_zero: counts.contains(&0),
+            });
+        }
+
         tx.execute("DELETE FROM resource_positions WHERE publication_id = ?1", [id])?;
         let mut start: i64 = 1;
         {
@@ -118,20 +135,21 @@ impl Library {
             .collect();
 
         let mut out = Vec::with_capacity(placed.len());
-        for (i, &(chapter_idx, spine_idx)) in placed.iter().enumerate() {
+        for &(chapter_idx, spine_idx) in &placed {
             let Some(&(_, start, count)) = range_for(spine_idx) else {
                 continue;
             };
-            // First following chapter on a *different* resource bounds this
-            // one; fragment siblings on the same resource share its span.
-            let end = placed[i + 1..]
+            // Chapter navigation order is independent of the reading order.
+            // Bound a chapter by the next TOC resource in spine order, not by
+            // the next entry in the TOC vector.
+            let end = placed
                 .iter()
-                .find(|&&(_, next)| next != spine_idx)
-                .and_then(|&(_, next)| range_for(next))
+                .map(|&(_, resource)| resource)
+                .filter(|&resource| resource > spine_idx)
+                .min()
+                .and_then(range_for)
                 .map(|&(_, next_start, _)| next_start.saturating_sub(1))
                 .unwrap_or(last);
-            // A TOC ordered against the spine (or a resource with zero
-            // positions) degrades to the chapter's own resource span.
             let own_end = start + count.saturating_sub(1);
             out.push(ChapterPositionRange {
                 chapter_idx,
