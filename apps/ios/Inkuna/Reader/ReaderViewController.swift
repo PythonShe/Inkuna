@@ -475,20 +475,31 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         "</style>"
 
     /// Injects `fragmentationFixStyle` at the end of each XHTML resource's
-    /// `<head>`. Anything else — including NCX, which also has a `</head>`
-    /// — passes through untouched, as does a document the marker isn't
-    /// found in.
+    /// `<head>`. The splice is done on raw bytes, never through a decoded
+    /// string: the ASCII marker survives any ASCII-compatible encoding
+    /// (including legacy CJK ones) unchanged, and in UTF-16 its interleaved
+    /// NULs mean the marker simply isn't found — the resource passes
+    /// through untouched instead of being blanked by a failed decode.
+    /// NCX and non-XHTML resources are never touched.
     private nonisolated static func fixingFragmentation(_ container: Container) -> Container {
-        container.map { href, resource in
+        let style = Data(fragmentationFixStyle.utf8)
+        // XHTML mandates lowercase; the uppercase form covers stray HTML.
+        let markers = [Data("</head>".utf8), Data("</HEAD>".utf8)]
+        return container.map { href, resource in
             guard
                 let ext = href.pathExtension?.rawValue,
                 ["xhtml", "html", "htm"].contains(ext)
             else { return resource }
-            return resource.mapAsString { html in
-                guard let head = html.range(of: "</head>", options: [.caseInsensitive, .backwards]) else {
-                    return html
+            return TransformingResource(resource) { result in
+                result.map { data in
+                    guard let head = markers.lazy
+                        .compactMap({ data.range(of: $0, options: .backwards) })
+                        .first
+                    else { return data }
+                    var fixed = data
+                    fixed.insert(contentsOf: style, at: head.lowerBound)
+                    return fixed
                 }
-                return html.replacingCharacters(in: head, with: fragmentationFixStyle + "</head>")
             }
         }
     }

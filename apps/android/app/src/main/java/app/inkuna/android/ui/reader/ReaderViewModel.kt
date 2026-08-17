@@ -606,27 +606,49 @@ private const val FRAGMENTATION_FIX_STYLE =
 
 private val FRAGMENTATION_FIX_EXTENSIONS = setOf("xhtml", "html", "htm")
 
+private val FRAGMENTATION_FIX_STYLE_BYTES = FRAGMENTATION_FIX_STYLE.toByteArray(Charsets.US_ASCII)
+
+/** XHTML mandates lowercase; the uppercase form covers stray HTML. */
+private val HEAD_CLOSE_MARKERS = listOf(
+    "</head>".toByteArray(Charsets.US_ASCII),
+    "</HEAD>".toByteArray(Charsets.US_ASCII),
+)
+
 /**
  * Injects [FRAGMENTATION_FIX_STYLE] at the end of an XHTML resource's
- * `<head>`. Anything else — including NCX, which also has a `</head>` —
- * passes through untouched, as does a document the marker isn't found in
- * (a non-UTF-8 file decodes to garbage and safely misses it too).
+ * `<head>`. The splice is done on raw bytes, never through a decoded
+ * string: the ASCII marker survives any ASCII-compatible encoding
+ * (including legacy CJK ones) unchanged, and in UTF-16 its interleaved
+ * NULs mean the marker simply isn't found — the resource passes through
+ * untouched instead of being corrupted by a lossy decode round-trip.
+ * NCX and non-XHTML resources are never touched.
  */
 private fun fixFragmentation(url: Url, resource: Resource): Resource {
     if (url.extension?.value?.lowercase() !in FRAGMENTATION_FIX_EXTENSIONS) return resource
     return TransformingResource(resource) { bytes ->
-        val html = bytes.toString(Charsets.UTF_8)
-        val head = html.lastIndexOf("</head>", ignoreCase = true)
+        val head = HEAD_CLOSE_MARKERS.firstNotNullOfOrNull { marker ->
+            bytes.lastIndexOf(marker).takeIf { it >= 0 }
+        }
         Try.success(
-            if (head < 0) {
+            if (head == null) {
                 bytes
             } else {
-                buildString(html.length + FRAGMENTATION_FIX_STYLE.length) {
-                    append(html, 0, head)
-                    append(FRAGMENTATION_FIX_STYLE)
-                    append(html, head, html.length)
-                }.toByteArray()
+                ByteArray(bytes.size + FRAGMENTATION_FIX_STYLE_BYTES.size).also { out ->
+                    bytes.copyInto(out, 0, 0, head)
+                    FRAGMENTATION_FIX_STYLE_BYTES.copyInto(out, head)
+                    bytes.copyInto(out, head + FRAGMENTATION_FIX_STYLE_BYTES.size, head, bytes.size)
+                }
             },
         )
     }
+}
+
+private fun ByteArray.lastIndexOf(needle: ByteArray): Int {
+    outer@ for (start in size - needle.size downTo 0) {
+        for (i in needle.indices) {
+            if (this[start + i] != needle[i]) continue@outer
+        }
+        return start
+    }
+    return -1
 }
