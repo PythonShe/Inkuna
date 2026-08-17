@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Account/settings sheet's strings, split out of strings.xml the way
+  strings_import.xml is; they share one namespace with the other files.
+-->
+<resources>
+    <string name="settings_title">Tài khoản</string>
+    <string name="settings_local_account">Trên thiết bị này</string>
+    <string name="settings_default_name">Độc giả</string>
+    <string name="settings_preferences">Tùy chọn</string>
+    <string name="settings_reminder">Nhắc nhở buổi tối</string>
+    <string name="settings_reminder_sub">Lời nhắc nhẹ nhàng vào giờ đọc sách của bạn</string>
+    <string name="settings_night">Chế độ ban đêm</string>
+    <string name="settings_account_settings">Cài đặt tài khoản</string>
+    <string name="settings_edit_name">Tên</string>
+    <string name="settings_edit_email">Email</string>
+    <string name="settings_save">Lưu</string>
+    <string name="settings_cancel">Hủy</string>
+    <string name="settings_about">Về Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · mực, ánh trăng và những trang sách yên tĩnh</string>
+    <string name="settings_reminder_notif_title">Đọc sách buổi tối</string>
+    <string name="settings_reminder_notif_body">Cuốn sách của bạn đang chờ. Đọc một hai trang nhé?</string>
+    <string name="settings_notif_channel">Nhắc nhở đọc sách</string>
+    <string name="settings_updates">Cập nhật ứng dụng</string>
+    <string name="settings_update_current">Phiên bản %1$s</string>
+    <string name="settings_update_check">Kiểm tra</string>
+    <string name="settings_update_checking">Đang kiểm tra…</string>
+    <string name="settings_update_uptodate">Bạn đang dùng bản mới nhất</string>
+    <string name="settings_update_available">Phiên bản %1$s đã sẵn sàng</string>
+    <string name="settings_update_get">Tải bản cập nhật</string>
+    <string name="settings_update_failed">Không thể kiểm tra cập nhật</string>
+</resources>

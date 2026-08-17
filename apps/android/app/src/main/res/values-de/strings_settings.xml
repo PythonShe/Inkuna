@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Account/settings sheet's strings, split out of strings.xml the way
+  strings_import.xml is; they share one namespace with the other files.
+-->
+<resources>
+    <string name="settings_title">Konto</string>
+    <string name="settings_local_account">Auf diesem Gerät</string>
+    <string name="settings_default_name">Leser</string>
+    <string name="settings_preferences">Einstellungen</string>
+    <string name="settings_reminder">Abendliche Erinnerung</string>
+    <string name="settings_reminder_sub">Eine leise Erinnerung zu Ihrer Lesestunde</string>
+    <string name="settings_night">Nachtmodus</string>
+    <string name="settings_account_settings">Kontoeinstellungen</string>
+    <string name="settings_edit_name">Name</string>
+    <string name="settings_edit_email">E-Mail</string>
+    <string name="settings_save">Sichern</string>
+    <string name="settings_cancel">Abbrechen</string>
+    <string name="settings_about">Über Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · Tinte, Mondlicht und stille Seiten</string>
+    <string name="settings_reminder_notif_title">Abendlektüre</string>
+    <string name="settings_reminder_notif_body">Ihr Buch wartet. Eine Seite oder zwei?</string>
+    <string name="settings_notif_channel">Leseerinnerungen</string>
+    <string name="settings_updates">App-Updates</string>
+    <string name="settings_update_current">Version %1$s</string>
+    <string name="settings_update_check">Prüfen</string>
+    <string name="settings_update_checking">Wird geprüft…</string>
+    <string name="settings_update_uptodate">Sie sind auf dem neuesten Stand</string>
+    <string name="settings_update_available">Version %1$s ist bereit</string>
+    <string name="settings_update_get">Laden</string>
+    <string name="settings_update_failed">Updates konnten nicht geprüft werden</string>
+</resources>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Account/settings sheet's strings, split out of strings.xml the way
+  strings_import.xml is; they share one namespace with the other files.
+-->
+<resources>
+    <string name="settings_title">Account</string>
+    <string name="settings_local_account">On this device</string>
+    <string name="settings_default_name">Reader</string>
+    <string name="settings_preferences">Preferences</string>
+    <string name="settings_reminder">Evening reminder</string>
+    <string name="settings_reminder_sub">A quiet nudge at your reading hour</string>
+    <string name="settings_night">Night mode</string>
+    <string name="settings_account_settings">Account settings</string>
+    <string name="settings_edit_name">Name</string>
+    <string name="settings_edit_email">Email</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_about">About Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · ink, moonlight, and quiet pages</string>
+    <string name="settings_reminder_notif_title">Evening reading</string>
+    <string name="settings_reminder_notif_body">Your book is waiting. A quiet page or two?</string>
+    <string name="settings_notif_channel">Reading reminders</string>
+    <string name="settings_updates">App updates</string>
+    <string name="settings_update_current">Version %1$s</string>
+    <string name="settings_update_check">Check</string>
+    <string name="settings_update_checking">Checking…</string>
+    <string name="settings_update_uptodate">You’re up to date</string>
+    <string name="settings_update_available">Version %1$s is ready</string>
+    <string name="settings_update_get">Get update</string>
+    <string name="settings_update_failed">Couldn’t check for updates</string>
+</resources>

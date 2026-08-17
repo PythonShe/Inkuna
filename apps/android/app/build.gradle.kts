@@ -87,6 +87,9 @@ android {
 
     buildFeatures {
         compose = true
+        // The settings sheet's footer and the update checker read
+        // BuildConfig.VERSION_NAME / VERSION_CODE.
+        buildConfig = true
     }
 
     compileOptions {
@@ -111,6 +114,9 @@ dependencies {
     // and drives the core contract from a ViewModel.
     implementation("androidx.fragment:fragment-ktx:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
+    // The evening reminder: WorkManager survives reboots without a boot
+    // receiver, so the daily nudge is one self-chaining worker.
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
     // Readium renders and paginates; the Rust core owns storage, metadata,
     // and progress behind the FFI and never renders.

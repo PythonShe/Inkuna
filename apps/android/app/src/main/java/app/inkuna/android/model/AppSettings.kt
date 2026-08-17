@@ -54,6 +54,11 @@ class AppSettings private constructor(private val context: Context) {
         val rawReadingTheme: String = ReadingTheme.Paper.name.lowercase(),
         val textSizeStep: Int = DEFAULT_TEXT_SIZE_STEP,
         val brightness: Float = DEFAULT_BRIGHTNESS,
+        /** Daily evening reading reminder; scheduling is the shell's job. */
+        val eveningReminder: Boolean = false,
+        /** Purely local account profile; empty means "not set". */
+        val accountName: String = "",
+        val accountEmail: String = "",
     )
 
     private val _snapshot = MutableStateFlow(Snapshot())
@@ -146,6 +151,12 @@ class AppSettings private constructor(private val context: Context) {
     fun setBrightness(value: Float) =
         update { it.copy(brightness = value.coerceIn(0f, 1f)) }
 
+    fun setEveningReminder(value: Boolean) =
+        update { it.copy(eveningReminder = value) }
+
+    fun setAccount(name: String, email: String) =
+        update { it.copy(accountName = name.trim(), accountEmail = email.trim()) }
+
     /**
      * Every change made while [loaded] is false, in order. When a write
      * finally reaches the core they are replayed over the *stored* record,
@@ -203,6 +214,9 @@ class AppSettings private constructor(private val context: Context) {
         rawReadingTheme = readingTheme,
         textSizeStep = textSizeStep.toInt().coerceIn(0, TEXT_SIZE_STEPS.lastIndex),
         brightness = brightness.toFloat().coerceIn(0f, 1f),
+        eveningReminder = eveningReminder,
+        accountName = accountName,
+        accountEmail = accountEmail,
     )
 
     private fun Snapshot.toRecord() = Settings(
@@ -210,6 +224,9 @@ class AppSettings private constructor(private val context: Context) {
         readingTheme = rawReadingTheme,
         textSizeStep = textSizeStep.toUByte(),
         brightness = brightness.toDouble(),
+        eveningReminder = eveningReminder,
+        accountName = accountName,
+        accountEmail = accountEmail,
     )
 
     private object LegacyKeys {

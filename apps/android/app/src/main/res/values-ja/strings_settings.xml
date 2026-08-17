@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Account/settings sheet's strings, split out of strings.xml the way
+  strings_import.xml is; they share one namespace with the other files.
+-->
+<resources>
+    <string name="settings_title">アカウント</string>
+    <string name="settings_local_account">この端末のみ</string>
+    <string name="settings_default_name">読書家</string>
+    <string name="settings_preferences">環境設定</string>
+    <string name="settings_reminder">夜のリマインダー</string>
+    <string name="settings_reminder_sub">読書の時間をそっとお知らせ</string>
+    <string name="settings_night">ナイトモード</string>
+    <string name="settings_account_settings">アカウント設定</string>
+    <string name="settings_edit_name">名前</string>
+    <string name="settings_edit_email">メール</string>
+    <string name="settings_save">保存</string>
+    <string name="settings_cancel">キャンセル</string>
+    <string name="settings_about">Inkuna について</string>
+    <string name="settings_footer">Inkuna %1$s · インクと月明かり、静かなページ</string>
+    <string name="settings_reminder_notif_title">夜の読書</string>
+    <string name="settings_reminder_notif_body">本が待っています。静かに1、2ページいかがですか？</string>
+    <string name="settings_notif_channel">読書リマインダー</string>
+    <string name="settings_updates">アプリの更新</string>
+    <string name="settings_update_current">バージョン %1$s</string>
+    <string name="settings_update_check">確認</string>
+    <string name="settings_update_checking">確認中…</string>
+    <string name="settings_update_uptodate">最新の状態です</string>
+    <string name="settings_update_available">バージョン %1$s が利用可能</string>
+    <string name="settings_update_get">アップデートを入手</string>
+    <string name="settings_update_failed">更新を確認できませんでした</string>
+</resources>

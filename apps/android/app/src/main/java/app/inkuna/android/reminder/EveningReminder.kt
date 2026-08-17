@@ -1,0 +1,99 @@
+package app.inkuna.android.reminder
+
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.content.pm.PackageManager
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.Worker
+import androidx.work.WorkerParameters
+import app.inkuna.android.R
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+
+/**
+ * The daily evening reading reminder — one quiet notification at the
+ * reading hour. The on/off choice lives in the core's settings record;
+ * this owns only the platform scheduling.
+ *
+ * A self-chaining one-time worker instead of periodic work: WorkManager's
+ * periodic interval drifts from run time, while re-enqueueing against the
+ * next reading hour keeps the nudge at the hour it promises. WorkManager
+ * persists the chain across reboots, so no boot receiver is needed.
+ */
+object EveningReminder {
+    private const val WORK_NAME = "evening-reminder"
+    private const val CHANNEL_ID = "reading-reminders"
+    private const val NOTIFICATION_ID = 1
+
+    // TODO(settings): make the reading hour configurable; 21:00 is the
+    // fixed "evening" for now.
+    private val readingHour: LocalTime = LocalTime.of(21, 0)
+
+    fun schedule(context: Context) {
+        val now = LocalDateTime.now()
+        var next = LocalDateTime.of(LocalDate.now(), readingHour)
+        if (!next.isAfter(now)) next = next.plusDays(1)
+        val request = OneTimeWorkRequestBuilder<EveningReminderWorker>()
+            .setInitialDelay(Duration.between(now, next))
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    fun cancel(context: Context) {
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+    }
+
+    internal fun postNotification(context: Context) {
+        // The permission can be revoked after scheduling; a silent skip
+        // matches a nudge's manners better than a crash.
+        val granted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) return
+
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                context.getString(R.string.settings_notif_channel),
+                // Low importance: a banner-less, sound-less entry — the
+                // design promises "a quiet nudge", not an interruption.
+                NotificationManager.IMPORTANCE_LOW,
+            ),
+        )
+        val notification = Notification.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.settings_reminder_notif_title))
+            .setContentText(context.getString(R.string.settings_reminder_notif_body))
+            .setContentIntent(
+                android.app.PendingIntent.getActivity(
+                    context,
+                    0,
+                    context.packageManager.getLaunchIntentForPackage(context.packageName),
+                    android.app.PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
+            .setAutoCancel(true)
+            .build()
+        manager.notify(NOTIFICATION_ID, notification)
+    }
+}
+
+/** Posts tonight's nudge, then enqueues tomorrow's. */
+class EveningReminderWorker(
+    context: Context,
+    parameters: WorkerParameters,
+) : Worker(context, parameters) {
+    override fun doWork(): Result {
+        EveningReminder.postNotification(applicationContext)
+        EveningReminder.schedule(applicationContext)
+        return Result.success()
+    }
+}

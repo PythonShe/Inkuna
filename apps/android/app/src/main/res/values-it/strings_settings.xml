@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Account/settings sheet's strings, split out of strings.xml the way
+  strings_import.xml is; they share one namespace with the other files.
+-->
+<resources>
+    <string name="settings_title">Account</string>
+    <string name="settings_local_account">Su questo dispositivo</string>
+    <string name="settings_default_name">Lettore</string>
+    <string name="settings_preferences">Preferenze</string>
+    <string name="settings_reminder">Promemoria serale</string>
+    <string name="settings_reminder_sub">Un discreto invito all’ora della lettura</string>
+    <string name="settings_night">Modalità notte</string>
+    <string name="settings_account_settings">Impostazioni account</string>
+    <string name="settings_edit_name">Nome</string>
+    <string name="settings_edit_email">E-mail</string>
+    <string name="settings_save">Salva</string>
+    <string name="settings_cancel">Annulla</string>
+    <string name="settings_about">Informazioni su Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · inchiostro, luna e pagine quiete</string>
+    <string name="settings_reminder_notif_title">Lettura serale</string>
+    <string name="settings_reminder_notif_body">Il tuo libro ti aspetta. Una pagina o due?</string>
+    <string name="settings_notif_channel">Promemoria di lettura</string>
+    <string name="settings_updates">Aggiornamenti</string>
+    <string name="settings_update_current">Versione %1$s</string>
+    <string name="settings_update_check">Verifica</string>
+    <string name="settings_update_checking">Verifica in corso…</string>
+    <string name="settings_update_uptodate">Sei aggiornato</string>
+    <string name="settings_update_available">La versione %1$s è pronta</string>
+    <string name="settings_update_get">Scarica</string>
+    <string name="settings_update_failed">Impossibile verificare gli aggiornamenti</string>
+</resources>

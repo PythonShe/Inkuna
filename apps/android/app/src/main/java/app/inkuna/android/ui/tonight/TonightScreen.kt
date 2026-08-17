@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +40,7 @@ import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkButtonSize
 import app.inkuna.android.ui.components.InkChip
+import app.inkuna.android.ui.components.InkIconButton
 import app.inkuna.android.ui.components.InkProgressBar
 import app.inkuna.android.ui.components.inkShadow
 import app.inkuna.android.ui.main.DisplayTitle
@@ -46,6 +48,7 @@ import app.inkuna.android.ui.main.EyebrowText
 import app.inkuna.android.ui.main.ScrollScreen
 import app.inkuna.android.ui.main.SectionTitle
 import app.inkuna.android.ui.main.ShelfRow
+import app.inkuna.android.ui.settings.SettingsSheet
 import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
@@ -70,10 +73,26 @@ fun TonightScreen(
     // TODO(core): chips become real collection filters once collections land.
     var selectedChip by rememberSaveable { mutableStateOf(0) }
 
+    // The account affordance lives beside the header — this screen has no
+    // top app bar to put it in; the sheet hosts the design's Account page.
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    if (showSettings) {
+        SettingsSheet(onDismiss = { showSettings = false })
+    }
+
     ScrollScreen(innerPadding) {
-        EyebrowText(stringResource(R.string.tonight_eyebrow))
-        Spacer(Modifier.height(6.dp))
-        DisplayTitle(stringResource(R.string.tonight_title))
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                EyebrowText(stringResource(R.string.tonight_eyebrow))
+                Spacer(Modifier.height(6.dp))
+                DisplayTitle(stringResource(R.string.tonight_title))
+            }
+            InkIconButton(
+                icon = Icons.Outlined.AccountCircle,
+                contentDescription = stringResource(R.string.settings_title),
+                onClick = { showSettings = true },
+            )
+        }
         Spacer(Modifier.height(28.dp))
         HeroCard(
             continueReading = state.continueReading,
