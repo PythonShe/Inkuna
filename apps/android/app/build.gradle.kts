@@ -64,7 +64,25 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // R8 is what makes material-icons-extended affordable: the artifact
+            // dexes ~8.5k icons x 5 themes (~78 MB of dex), of which this app
+            // references 23. Without shrinking they all ship. Keep rules for
+            // the reflective JNA/UniFFI boundary live in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
+    }
+
+    packaging {
+        // The APK is distributed standalone via GitHub releases rather than
+        // as a Play AAB, so download size beats install footprint: compress
+        // the 14 MB Rust core instead of storing it page-aligned. Costs a
+        // second on-device copy at install time (extractNativeLibs=true).
+        jniLibs.useLegacyPackaging = true
     }
 
     buildFeatures {
