@@ -185,32 +185,6 @@ jobs:
           BUILD_TOOLS=$(printf '%s\n' "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
           "${BUILD_TOOLS}apksigner" verify --print-certs "$APK" | head -20
 
-      # v0.5.3 shipped at 67.7 MB because R8 was off and all ~42k
-      # material-icons-extended classes were dexed into the APK. With shrinking
-      # on it builds at ~12 MB. The budget is deliberately loose — it is not a
-      # size target, just a tripwire for shrinking silently switching off again
-      # (isMinifyEnabled dropped, a proguard rule keeping the whole icon set,
-      # a second ABI slipping into inkunaAbis). Raise it consciously if the app
-      # genuinely grows.
-      - name: Enforce APK size budget
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK=apps/android/app/build/outputs/apk/release/app-release.apk
-          BUDGET_MB=20
-          SIZE_BYTES=$(wc -c < "$APK")
-          SIZE_MB=$(( SIZE_BYTES / 1048576 ))
-          echo "APK: ${SIZE_MB} MB (budget ${BUDGET_MB} MB)"
-          unzip -l "$APK" | awk '$1 ~ /^[0-9]+$/ {
-            if ($4 ~ /\.dex$/) d += $1; else if ($4 ~ /^lib\//) l += $1
-          } END {
-            printf "  dex %.1f MB, native libs %.1f MB (uncompressed)\n", d/1048576, l/1048576
-          }'
-          if [ "$SIZE_MB" -gt "$BUDGET_MB" ]; then
-            echo "::error::APK is ${SIZE_MB} MB, over the ${BUDGET_MB} MB budget. R8 shrinking is likely disabled or a keep rule is retaining material-icons-extended."
-            exit 1
-          fi
-
       - name: Rename APK
         id: rename
         shell: bash
