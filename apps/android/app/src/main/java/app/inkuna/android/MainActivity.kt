@@ -2,6 +2,7 @@ package app.inkuna.android
 
 import android.app.UiModeManager
 import android.os.Bundle
+import android.webkit.WebView
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
@@ -47,6 +48,17 @@ class MainActivity : FragmentActivity() {
             )
             setContent {
                 InkunaApp(settings = settings, initial = initial)
+            }
+            // Warm the WebView provider behind the first frame: the first
+            // WebView a process creates pays for loading the provider and
+            // spinning up the renderer, and unwarmed that bill lands inside
+            // the reader's push animation instead of here, where nothing
+            // is moving. The instance itself is discarded; only the
+            // process-wide initialization is the point.
+            window.decorView.post {
+                if (!isDestroyed) {
+                    WebView(this@MainActivity).destroy()
+                }
             }
         }
     }

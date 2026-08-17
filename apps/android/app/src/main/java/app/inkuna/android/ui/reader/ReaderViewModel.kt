@@ -154,7 +154,10 @@ class ReaderViewModel(
 
     init {
         open()
-        viewModelScope.launch {
+        // Collected off Main: the write itself already runs on Default, but
+        // a Main-dispatched collector would still cost the UI thread one
+        // hop per page turn, on the same frames the WebView is loading.
+        viewModelScope.launch(Dispatchers.Default) {
             // The emitted value is deliberately ignored: the write always
             // takes the newest pending locator, so a write that waited for
             // the lock can never commit an older page than one that ran.
@@ -183,7 +186,13 @@ class ReaderViewModel(
         }
     }
 
-    private suspend fun doOpen(): ReaderBook {
+    /**
+     * The whole open runs on [Dispatchers.Default]: Readium's parser and
+     * `positionsByReadingOrder` do their XML and position work on the
+     * caller's dispatcher, and on Main they would stall the reader's push
+     * animation for the entire parse of the book.
+     */
+    private suspend fun doOpen(): ReaderBook = withContext(Dispatchers.Default) {
         val shelf = LibraryStore.bookshelf(app)
         bookshelf = shelf
         val core = shelf.publication(publicationId)
@@ -266,7 +275,7 @@ class ReaderViewModel(
             runCatching { Locator.fromJSON(JSONObject(raw)) }.getOrNull()
         }
 
-        return ReaderBook(
+        ReaderBook(
             core = core,
             publication = publication,
             navigatorFactory = EpubNavigatorFactory(publication),

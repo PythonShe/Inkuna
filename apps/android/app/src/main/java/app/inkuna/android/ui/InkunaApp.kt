@@ -161,6 +161,18 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
             composable(
                 Routes.READER,
                 arguments = listOf(navArgument("chapter") { nullable = true }),
+                // The reader hosts a live WebView: fading it composites the
+                // whole page through an animated alpha layer every frame, so
+                // its push and pop slide without the fade. The pop rides the
+                // system back gesture, which commits mid-slide — the default
+                // sharp ease-out plays the remainder in a blink, so leaving
+                // a book takes the slow duration on the quiet curve instead.
+                enterTransition = {
+                    slideInHorizontally(tween(InkMotion.durMed, easing = pageEasing)) { it }
+                },
+                popExitTransition = {
+                    slideOutHorizontally(tween(InkMotion.durSlow, easing = InkMotion.easeQuiet)) { it }
+                },
             ) { entry ->
                 ReaderScreen(
                     publicationId = entry.arguments?.getString("publicationId").orEmpty(),
