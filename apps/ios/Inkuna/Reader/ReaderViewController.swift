@@ -191,7 +191,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             // Pills reflow at accessibility sizes instead of overflowing.
             menuView.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: InkSpacing.space4),
             pageInfoLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            pageInfoLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            pageInfoLabel.bottomAnchor.constraint(
+                equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                constant: -ReaderMetrics.footerLift
+            ),
         ])
         updatePageInfo()
 
@@ -571,6 +574,20 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             text: String(localized: "reader_link_failed", defaultValue: "This link could not be opened."),
             in: view,
             topInset: view.safeAreaInsets.top + 56
+        )
+    }
+
+    // MARK: Reading band
+
+    /// The shared reading band (`ReaderMetrics`, mirrored by the Android
+    /// shell). Readium applies a delegate-provided inset verbatim — it does
+    /// not add the safe area on top — so the safe area is folded in here.
+    /// Without this, Readium's default table (`max(safeArea, 62)`) swallows
+    /// the Dynamic Island and starts the text 3 pt under it.
+    func navigatorContentInset(_ navigator: VisualNavigator) -> UIEdgeInsets? {
+        ReaderMetrics.contentInsets(
+            safeArea: view.safeAreaInsets,
+            isPad: traitCollection.userInterfaceIdiom == .pad
         )
     }
 

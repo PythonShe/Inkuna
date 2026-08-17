@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Zeroes Readium's built-in 40dp paginated page padding (resource
+         merging overrides the library value). The reading band is owned
+         entirely by Compose — ReaderMetrics via ReaderScreen — so Readium
+         must not add a second, hidden layer of padding under it. -->
+    <dimen name="readium_navigator_epub_vertical_padding">0dp</dimen>
+</resources>

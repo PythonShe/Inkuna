@@ -57,6 +57,14 @@ fun ReaderNavigatorHost(
             initialLocator = initialLocator,
             initialPreferences = initialPreferences,
             listener = listener,
+            // The reading band is owned entirely by Compose (ReaderMetrics
+            // via ReaderScreen): Readium's own cutout padding would stack
+            // on top of it and double-count notched devices. Its hidden
+            // 40dp paginated padding is zeroed in res/values/dimens.xml
+            // for the same reason.
+            configuration = EpubNavigatorFragment.Configuration(
+                shouldApplyInsetsPadding = false,
+            ),
         ).instantiate(
             activity.classLoader,
             EpubNavigatorFragment::class.java.name,

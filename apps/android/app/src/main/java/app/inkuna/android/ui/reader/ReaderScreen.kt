@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -51,12 +52,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -267,13 +270,22 @@ private fun ReaderContent(
     // The preferences the fragment is built with. Remembered so the effect
     // below can tell a real change from its own first run.
     val initialPreferences = remember(book) { readingPreferences(snapshot) }
+    // The shared reading band (ReaderMetrics, mirrored by the iOS shell):
+    // phones pad off the larger of the status-bar and cutout insets so a
+    // notch never crowds the text; tablets get the fixed generous band.
+    // Readium's own insets padding is disabled in ReaderNavigatorHost, so
+    // this is the one and only vertical padding the page gets.
+    val cutoutTop = WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
+    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
+    val contentTop = ReaderMetrics.contentTop(max(statusPad, cutoutTop), isTablet)
+    val contentBottom = ReaderMetrics.contentBottom(navPad, isTablet)
     // Hoisted so the fragment host's modifier is one stable value: rebuilt
     // per recomposition, the fresh semantics lambda would re-update the
     // AndroidView's modifier node on every page turn.
-    val hostModifier = remember(statusPad, navPad, toggleLabel, toggleChrome) {
+    val hostModifier = remember(contentTop, contentBottom, toggleLabel, toggleChrome) {
         Modifier
             .fillMaxSize()
-            .padding(top = statusPad, bottom = navPad + 26.dp)
+            .padding(top = contentTop, bottom = contentBottom)
             // The WebView owns raw touch; TalkBack still needs a named way
             // to reach the chrome.
             .semantics {
@@ -400,7 +412,7 @@ private fun ReaderContent(
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = navPad + 4.dp),
+                .padding(bottom = navPad + ReaderMetrics.footerLift),
         ) {
             // locatorState is read here, inside this content lambda, so a
             // page turn recomposes the footer text alone.
@@ -436,7 +448,7 @@ private fun ReaderContent(
                 slideOutVertically(tween(240, easing = InkMotion.easeQuiet)) { it / 10 },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = navPad + 26.dp + 46.dp + 12.dp),
+                .padding(end = 16.dp, bottom = contentBottom + 46.dp + 12.dp),
         ) {
             Column(
                 horizontalAlignment = Alignment.End,
@@ -496,7 +508,7 @@ private fun ReaderContent(
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = navPad + 26.dp),
+                .padding(end = 16.dp, bottom = contentBottom),
         ) {
             ReaderGlassButton(
                 icon = if (menuOpen) Icons.Outlined.Close else Icons.Outlined.MoreHoriz,
