@@ -1,17 +1,18 @@
 import UIKit
 
-/// The header's account affordance: a 40pt avatar disc — surface-colored
-/// circle, soft shadow, person glyph — top-aligned with the eyebrow/title
-/// block, per the design. Sized identically on Android.
+/// The header's account affordance: a 40pt avatar disc top-aligned with
+/// the eyebrow/title block, sized identically on Android. Recessed rather
+/// than the design's surface+shadow: that treatment suited a photo
+/// avatar, while a glyph on bright surface read as a white coin — this
+/// matches the Account sheet's own avatar idiom.
 final class AccountAvatarButton: UIControl {
     private var pressAnimator: UIViewPropertyAnimator?
 
     init(handler: @escaping @MainActor () -> Void) {
         super.init(frame: .zero)
 
-        backgroundColor = InkColor.bgSurface
+        backgroundColor = InkColor.bgRecessed
         layer.cornerRadius = 20
-        installInkShadow(.sm)
 
         let glyph = UIImageView(
             image: UIImage(
