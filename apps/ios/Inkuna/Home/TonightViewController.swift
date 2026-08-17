@@ -142,9 +142,10 @@ final class TonightViewController: ScrollScreenViewController {
         guard
             let locatorJSON = publication.locator,
             let locator = try? Locator(jsonString: locatorJSON),
-            let position = locator.locations.position, position > 0
+            let position = locator.locations.position, position > 0,
+            let position = UInt32(exactly: position)
         else { return nil }
-        return UInt32(position)
+        return position
     }
 
     /// Pages left in the chapter holding `position`. Chapter ranges are
