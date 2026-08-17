@@ -41,6 +41,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private var navigator: EPUBNavigatorViewController?
     private var readiumPublication: ReadiumShared.Publication?
     private var navigationAdapter: DirectionalNavigationAdapter?
+    private var swipeAssist: ReaderSwipeAssist?
 
     /// Reading-order resource lookup: normalized href → reading-order index.
     private var resourceIndexByHref: [String: Int] = [:]
@@ -403,6 +404,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         }
         adapter.bind(to: navigator)
         navigationAdapter = adapter
+        // Fast swipes at chapter boundaries die in the navigator's nested
+        // scroll views; the assist re-drives them. See ReaderSwipeAssist.
+        swipeAssist = ReaderSwipeAssist(navigator: navigator)
 
         loadingIndicator.stopAnimating()
         updatePageInfo()

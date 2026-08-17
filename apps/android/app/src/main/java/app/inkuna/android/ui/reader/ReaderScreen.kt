@@ -332,11 +332,16 @@ private fun ReaderContent(
                 return true
             }
         }
+        // Fast swipes at chapter boundaries die in the toolkit's fling
+        // gate; the rescue re-drives them. See BoundaryFlingRescue.
+        val flingRescue = BoundaryFlingRescue(nav, context.resources.displayMetrics.density)
         nav.addInputListener(pageTurns)
         nav.addInputListener(chromeTaps)
+        nav.addInputListener(flingRescue)
         onDispose {
             nav.removeInputListener(pageTurns)
             nav.removeInputListener(chromeTaps)
+            nav.removeInputListener(flingRescue)
         }
     }
 
