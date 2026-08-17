@@ -69,6 +69,8 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private var coreWriteChain: Task<Void, Never>?
     /// The open in flight. Owned so popping the reader can cancel it.
     private var openTask: Task<Void, Never>?
+    /// The in-flight navigator jump; cancelled when a new jump or teardown wins.
+    private var jumpTask: Task<Void, Never>?
 
     private let logger = Logger(subsystem: "app.inkuna.ios", category: "reader")
 
@@ -122,6 +124,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     deinit {
+        jumpTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -230,6 +233,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         // ever closes the publication.
         if isMovingFromParent || isBeingDismissed {
             openTask?.cancel()
+            jumpTask?.cancel()
             readiumPublication?.close()
             readiumPublication = nil
         }
@@ -460,10 +464,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         positionCount = count > 0 ? count : nil
     }
 
-    /// Reports the per-resource position ranges to the core — once per book
-    /// is the contract, so only when the total is new or changed. The ranges
-    /// carry the position count with them and are what the core turns into
-    /// per-chapter spans ("pages left in this chapter").
+    /// Reports the per-resource position ranges to the core on every open.
+    /// The ranges carry the position count with them and are what the core
+    /// turns into per-chapter spans ("pages left in this chapter").
     private func reportPositionCountIfNeeded() {
         guard let positionCount, positionCount > 0 else { return }
         // Always re-report: a matching total can still mean missing
@@ -903,7 +906,8 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             locations: Locator.Locations(progression: min(max(hit.progression, 0), 1))
         )
         expectProgrammaticMove = true
-        Task {
+        jumpTask?.cancel()
+        jumpTask = Task {
             _ = await navigator.go(to: target, options: NavigatorGoOptions(animated: false))
         }
     }

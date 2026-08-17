@@ -11,6 +11,8 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
     /// How many hits the core is asked for; the panel scrolls them and
     /// announces the true `total` when it is larger.
     static let hitLimit: UInt32 = 200
+    /// Rows built per query; `total` still reports the book's true count.
+    private static let renderLimit = 50
     /// Keystrokes ride out the burst before a search is spent on them.
     private static let debounce = Duration.milliseconds(250)
 
@@ -227,7 +229,8 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
     private func render(_ maybeResults: BookSearchResults?) {
         let results = maybeResults ?? BookSearchResults(hits: [], total: 0)
         clearResults()
-        for hit in results.hits {
+        let visibleHits = results.hits.prefix(Self.renderLimit)
+        for hit in visibleHits {
             resultsStack.addArrangedSubview(makeResultRow(hit: hit))
         }
 
@@ -244,17 +247,17 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
             announcement = emptyLabel.text ?? ""
         } else if results.hits.isEmpty {
             announcement = String(localized: "a11y_no_results", defaultValue: "No results")
-        } else if results.total > UInt32(results.hits.count) {
+        } else if results.total > UInt32(visibleHits.count) {
             // Capped: say how many of the book's matches are on screen.
             let format = NSLocalizedString("a11y_result_count_capped", comment: "")
             announcement = String.localizedStringWithFormat(
                 format,
-                Int64(results.hits.count),
+                Int64(visibleHits.count),
                 Int64(results.total)
             )
         } else {
             let format = NSLocalizedString("a11y_result_count", comment: "")
-            announcement = String.localizedStringWithFormat(format, Int64(results.hits.count))
+            announcement = String.localizedStringWithFormat(format, Int64(visibleHits.count))
         }
         UIAccessibility.post(notification: .announcement, argument: announcement)
     }
