@@ -11,10 +11,10 @@ use super::model::{BookSearchHit, BookSearchResults, LibrarySearchHit};
 use super::tokenize::analyze_query;
 use crate::{CoreError, Library};
 
-/// Ranked resource docs fetched per library-wide query, before grouping
-/// into publications; generous so a book with many matching resources
-/// cannot crowd every other book out of the ranking.
-const LIBRARY_DOC_LIMIT: usize = 256;
+/// Ranked resource docs fetched per page; pagination continues until the
+/// requested number of distinct publications is collected or all matches are
+/// exhausted, so one book's many matching resources cannot crowd out others.
+const LIBRARY_DOC_PAGE_SIZE: usize = 256;
 
 impl Library {
     /// Every occurrence of `query` in one book, in reading order —
@@ -92,6 +92,9 @@ impl Library {
         if terms.word_musts.is_empty() && terms.cjk_runs.is_empty() {
             return Ok(Vec::new());
         }
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
         let fields = self.search.fields();
 
         let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
@@ -120,23 +123,41 @@ impl Library {
             clauses.push((Occur::Must, query));
         }
 
+        // Page through the complete ranking until enough distinct books are
+        // found. A fixed top-docs cap can otherwise be exhausted by one book
+        // with hundreds of matching resources.
         let searcher = self.search.searcher()?;
-        let ranked = searcher
-            .search(
-                &BooleanQuery::new(clauses),
-                &TopDocs::with_limit(LIBRARY_DOC_LIMIT).order_by_score(),
-            )
-            .map_err(|e| CoreError::Search(e.to_string()))?;
-
-        // Best-ranked resource per publication, in ranking order.
+        let query = BooleanQuery::new(clauses);
         let mut picked: Vec<(String, u32)> = Vec::new();
-        for (_score, address) in ranked {
-            let (publication_id, spine_idx) = doc_fields(&searcher, fields, address)?;
-            if picked.iter().any(|(id, _)| *id == publication_id) {
-                continue;
+        let mut offset = 0;
+        loop {
+            let ranked = searcher
+                .search(
+                    &query,
+                    &TopDocs::with_limit(LIBRARY_DOC_PAGE_SIZE)
+                        .and_offset(offset)
+                        .order_by_score(),
+                )
+                .map_err(|e| CoreError::Search(e.to_string()))?;
+            if ranked.is_empty() {
+                break;
             }
-            picked.push((publication_id, spine_idx));
-            if picked.len() >= limit as usize {
+            offset += ranked.len();
+            for (_score, address) in ranked {
+                let (publication_id, spine_idx) = doc_fields(&searcher, fields, address)?;
+                if picked.iter().any(|(id, _)| *id == publication_id) {
+                    continue;
+                }
+                picked.push((publication_id, spine_idx));
+                if picked.len() >= limit as usize {
+                    break;
+                }
+            }
+            if picked.len() >= limit as usize || offset == 0 {
+                break;
+            }
+            // A short page means the ranking is exhausted.
+            if offset % LIBRARY_DOC_PAGE_SIZE != 0 {
                 break;
             }
         }
