@@ -214,14 +214,17 @@ class ReaderViewModel(
         // Reported once so the core can answer "p. N of M" everywhere.
         val positionsByResource = publication.positionsByReadingOrder()
         val positionCount = positionsByResource.sumOf { it.size }
-        if (positionCount > 0) {
-            // Per-resource counts, not just the total: the core derives each
-            // chapter's position range from them, which is what "pages left
-            // in this chapter" and a search hit's "p. N" are built on.
-            runCatching {
-                shelf.reportPositionRanges(core.id, positionsByResource.map { it.size.toUInt() })
-            }.onFailure { Log.w(TAG, "reportPositionRanges failed", it) }
+        // Per-resource counts, not just the total: the core derives each
+        // chapter's position range from them, which is what "pages left
+        // in this chapter" and a search hit's "p. N" are built on.
+        val positionRanges = if (positionCount > 0) {
+            positionsByResource.map { it.size.toUInt() }
+        } else {
+            emptyList()
         }
+        runCatching {
+            shelf.reportPositionRanges(core.id, positionRanges)
+        }.onFailure { Log.w(TAG, "reportPositionRanges failed", it) }
 
         val chapters = shelf.chapters(core.id).map { chapter ->
             // The chapter-to-resource mapping is href-minus-fragment, per

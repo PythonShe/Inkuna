@@ -95,6 +95,7 @@ data class ImportFailure(
             is InkunaException.Database,
             is InkunaException.NotFound,
             is InkunaException.Search,
+            is InkunaException.InvalidPositionRanges,
             ->
                 failure(name, ImportFailureKind.LibraryError, describe(error))
         }
