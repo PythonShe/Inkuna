@@ -94,9 +94,9 @@ class ReaderViewModel(
     private val stateFlow = MutableStateFlow<UiState>(UiState.Opening)
     val state: StateFlow<UiState> = stateFlow.asStateFlow()
 
-    // @Volatile: assigned on the main thread when the book opens, read from
-    // the application write scope's worker threads by the progress and
-    // session writes below.
+    // @Volatile: assigned on the open dispatcher (Default) when the book
+    // opens, read from the application write scope's worker threads by the
+    // progress and session writes below.
     @Volatile
     private var bookshelf: Bookshelf? = null
     private var openJob: Job? = null

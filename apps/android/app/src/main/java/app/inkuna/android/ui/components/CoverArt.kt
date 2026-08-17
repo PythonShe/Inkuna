@@ -3,6 +3,7 @@ package app.inkuna.android.ui.components
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.State
 import androidx.compose.ui.graphics.ImageBitmap
@@ -36,14 +37,18 @@ private val coverCache = object : LruCache<String, ImageBitmap>(
 @Composable
 fun rememberCoverArt(path: String?, width: Dp): State<ImageBitmap?> {
     val targetWidthPx = with(LocalDensity.current) { width.roundToPx() }
-    val key = if (path == null) null else "$path#$targetWidthPx"
-    val cached = key?.let(coverCache::get)
-    return produceState(initialValue = cached, path, targetWidthPx) {
-        if (path == null) {
-            value = null
-        } else if (value == null) {
+    val cacheKey = if (path == null) null else "$path#$targetWidthPx"
+    // key() gives the produced state the same identity as its inputs. The
+    // lists here reuse slots positionally, so a slot handed a different
+    // book must start from that book's cached art (or null) — without the
+    // key, the state keeps the previous book's bitmap and the guard below
+    // would then pin the wrong cover forever.
+    return key(cacheKey) {
+        val cached = cacheKey?.let(coverCache::get)
+        produceState(initialValue = cached, cacheKey) {
+            if (cacheKey == null || path == null || value != null) return@produceState
             val decoded = withContext(Dispatchers.IO) { decodeSampled(path, targetWidthPx) }
-            if (decoded != null) coverCache.put("$path#$targetWidthPx", decoded)
+            if (decoded != null) coverCache.put(cacheKey, decoded)
             value = decoded
         }
     }

@@ -55,9 +55,12 @@ class MainActivity : FragmentActivity() {
             // the reader's push animation instead of here, where nothing
             // is moving. The instance itself is discarded; only the
             // process-wide initialization is the point.
+            // runCatching: a disabled, missing, or mid-update WebView
+            // provider throws from the constructor, and a warm-up must
+            // never be the reason the whole app fails to launch.
             window.decorView.post {
                 if (!isDestroyed) {
-                    WebView(this@MainActivity).destroy()
+                    runCatching { WebView(this@MainActivity).destroy() }
                 }
             }
         }
