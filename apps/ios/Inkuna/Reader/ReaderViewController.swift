@@ -468,13 +468,26 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     /// The ranges carry the position count with them and are what the core
     /// turns into per-chapter spans ("pages left in this chapter").
     private func reportPositionCountIfNeeded() {
-        guard let positionCount, positionCount > 0 else { return }
         // Always re-report: a matching total can still mean missing
         // per-resource ranges (a library whose books were opened before
-        // ranges existed), and the write is one small transaction.
-        let counts = positionCountByResource.map(UInt32.init)
-        enqueueCoreWrite("report position ranges") { [id = publication.id] bookshelf in
-            try await bookshelf.reportPositionRanges(id: id, counts: counts)
+        // ranges existed), and the write is one small transaction. An
+        // empty report is deliberate — it clears ranges a previous layout
+        // left behind so the shells fall back to the percentage caption
+        // instead of showing a stale chapter page count.
+        let total = positionCount ?? 0
+        let counts = total > 0 ? positionCountByResource.map { UInt32(clamping: $0) } : []
+        enqueueCoreWrite("report position ranges") { [id = publication.id, logger] bookshelf in
+            do {
+                try await bookshelf.reportPositionRanges(id: id, counts: counts)
+            } catch {
+                // The core rejects a breakdown that does not line up with
+                // its own spine — it drops duplicate and over-long spine
+                // hrefs that Readium's reading order keeps. The per-chapter
+                // spans are lost, but "page N of M" need not be.
+                logger.warning("Position ranges rejected for \(id, privacy: .public): \(error)")
+                guard total > 0 else { return }
+                try await bookshelf.reportPositionCount(id: id, count: UInt32(clamping: total))
+            }
         }
     }
 

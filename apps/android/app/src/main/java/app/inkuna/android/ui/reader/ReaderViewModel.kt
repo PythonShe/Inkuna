@@ -224,7 +224,18 @@ class ReaderViewModel(
         }
         runCatching {
             shelf.reportPositionRanges(core.id, positionRanges)
-        }.onFailure { Log.w(TAG, "reportPositionRanges failed", it) }
+        }.onFailure { error ->
+            // The core rejects a breakdown that does not line up with its
+            // own spine — it drops duplicate and over-long spine hrefs that
+            // Readium's reading order keeps. The per-chapter spans are
+            // lost, but "p. N of M" need not be.
+            Log.w(TAG, "reportPositionRanges failed", error)
+            if (positionCount > 0) {
+                runCatching {
+                    shelf.reportPositionCount(core.id, positionCount.toUInt())
+                }.onFailure { Log.w(TAG, "reportPositionCount failed", it) }
+            }
+        }
 
         val chapters = shelf.chapters(core.id).map { chapter ->
             // The chapter-to-resource mapping is href-minus-fragment, per
