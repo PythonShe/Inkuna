@@ -62,7 +62,10 @@ final class SettingsViewController: UIViewController {
         buildHeader()
         buildProfileCard()
         buildPreferences()
-        buildAccountGroup()
+        // TODO(accounts): buildAccountGroup() is hidden until accounts
+        // are real — the local name/email editing it offered isn't worth
+        // a settings entry on its own. Restore the call when they land;
+        // the group and its editor stay wired below.
         buildAboutGroup()
         buildFooter()
         refreshProfile()

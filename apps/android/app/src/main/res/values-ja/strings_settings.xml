@@ -29,4 +29,8 @@
     <string name="settings_update_available">バージョン %1$s が利用可能です</string>
     <string name="settings_update_get">アップデートを入手</string>
     <string name="settings_update_failed">更新を確認できませんでした</string>
+    <string name="settings_update_downloading">ダウンロード中… %1$d%%</string>
+    <string name="settings_update_installing">インストール中…</string>
+    <string name="settings_update_download_failed">更新をダウンロードできませんでした</string>
+    <string name="settings_update_install_failed">更新をインストールできませんでした</string>
 </resources>

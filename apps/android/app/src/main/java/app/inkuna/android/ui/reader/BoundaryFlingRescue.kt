@@ -1,0 +1,159 @@
+package app.inkuna.android.ui.reader
+
+import android.graphics.Rect
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebView
+import java.lang.ref.WeakReference
+import kotlin.math.abs
+import kotlin.math.sign
+import org.readium.r2.navigator.epub.EpubNavigatorFragment
+import org.readium.r2.navigator.input.DragEvent
+import org.readium.r2.navigator.input.InputListener
+import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.navigator.preferences.ReadingProgression
+
+/**
+ * Rescues page swipes that die at a resource (chapter) boundary.
+ *
+ * Within a resource, Readium's paginated EPUB pages with the WebView's own
+ * native column fling, which is why intra-chapter swiping feels light. But
+ * the toolkit disables its ViewPager's gesture handling for EPUB entirely;
+ * crossing a resource hangs on a hand-rolled fling gate in `R2WebView`
+ * that dropped ViewPager's "dragged far enough commits anyway" fallback
+ * and samples its initial velocity before touch slop — so a normal flick
+ * at a chapter's edge frequently snaps back, and only a forceful long drag
+ * released at speed gets through.
+ *
+ * This listener re-runs fling detection over the same drag stream (the
+ * events carry no velocity, so it timestamps them itself) and, when a
+ * legitimate fling pointed at an edge went nowhere, drives the turn
+ * through the navigator's own [EpubNavigatorFragment.goForward]/
+ * [EpubNavigatorFragment.goBackward] — which are edge-aware and handle
+ * RTL internally.
+ */
+@OptIn(ExperimentalReadiumApi::class)
+class BoundaryFlingRescue(
+    private val navigator: EpubNavigatorFragment,
+    density: Float,
+) : InputListener {
+
+    private data class Sample(val time: Long, val x: Float)
+
+    /** Recent drag samples, pruned to the last [VELOCITY_WINDOW_MS]. */
+    private val samples = ArrayDeque<Sample>()
+    private val minDistancePx = MIN_DISTANCE_DP * density
+    private val minVelocityPx = MIN_VELOCITY_DP_S * density
+    private val handler = Handler(Looper.getMainLooper())
+
+    // The resource WebView as the drag began: whether each direction was
+    // already clamped (a true edge), and where the view sat on screen so
+    // a turn Readium *did* perform can be told apart from a dead swipe.
+    private var startWebView: WeakReference<WebView>? = null
+    private var startScreenX = 0
+    private var edgeForward = false
+    private var edgeBackward = false
+
+    override fun onDrag(event: DragEvent): Boolean {
+        // Scroll mode turns pages by overscroll, not by fling; vertical
+        // scrolled text drags vertically. Neither needs rescuing.
+        if (navigator.overflow.value.scroll) return false
+        val now = SystemClock.uptimeMillis()
+        when (event.type) {
+            DragEvent.Type.Start -> {
+                samples.clear()
+                samples += Sample(now, event.offset.x)
+                val webView = visibleWebView()
+                startWebView = webView?.let(::WeakReference)
+                startScreenX = webView?.screenX() ?: 0
+                // Column offsets grow left-to-right regardless of the
+                // reading progression, so the clamp test is geometric.
+                edgeForward = webView != null && !webView.canScrollHorizontally(1)
+                edgeBackward = webView != null && !webView.canScrollHorizontally(-1)
+            }
+            DragEvent.Type.Move -> {
+                samples += Sample(now, event.offset.x)
+                while (samples.isNotEmpty() && now - samples.first().time > VELOCITY_WINDOW_MS) {
+                    samples.removeFirst()
+                }
+            }
+            DragEvent.Type.End -> maybeRescue(now, event)
+        }
+        // True would propagate to preventDefault in the toolkit's gesture
+        // script and kill native column paging; this listener only watches.
+        return false
+    }
+
+    private fun maybeRescue(now: Long, event: DragEvent) {
+        val dx = event.offset.x
+        val dy = event.offset.y
+        if (abs(dx) < minDistancePx || abs(dx) < 2 * abs(dy)) return
+        // Anywhere but a clamped edge the native fling already turned the
+        // page; acting there would double the turn.
+        val blocked = if (dx < 0) edgeForward else edgeBackward
+        if (!blocked) return
+
+        val first = samples.firstOrNull() ?: return
+        val elapsed = (now - first.time).coerceAtLeast(1L)
+        val velocityX = (dx - first.x) / elapsed * 1000f
+        if (abs(velocityX) < minVelocityPx || sign(velocityX) != sign(dx)) return
+
+        val rtl = navigator.overflow.value.readingProgression == ReadingProgression.RTL
+        val forward = (dx < 0) != rtl
+
+        // Readium's own gate occasionally passes (the force-drag case) and
+        // moves its pager within a frame. Give it a beat: if the dragged
+        // WebView is still attached at the same screen position, nothing
+        // happened — perform the turn ourselves. (The current locator is
+        // debounced and lags animations; the view check is race-free.)
+        val webViewRef = startWebView
+        val screenX = startScreenX
+        handler.postDelayed({
+            val webView = webViewRef?.get()
+            val untouched = webView != null &&
+                webView.isAttachedToWindow &&
+                webView.screenX() == screenX
+            if (untouched) {
+                if (forward) {
+                    navigator.goForward(animated = true)
+                } else {
+                    navigator.goBackward(animated = true)
+                }
+            }
+        }, RESCUE_DELAY_MS)
+    }
+
+    /**
+     * The resource WebView currently on screen. The pager keeps neighbours
+     * instantiated, so pick the one covering the most of the screen.
+     */
+    private fun visibleWebView(): WebView? {
+        val root = navigator.view ?: return null
+        val found = mutableListOf<WebView>()
+        fun walk(view: View) {
+            if (view is WebView) found += view
+            if (view is ViewGroup) {
+                for (i in 0 until view.childCount) walk(view.getChildAt(i))
+            }
+        }
+        walk(root)
+        return found.maxByOrNull { webView ->
+            Rect().let { rect ->
+                if (webView.getGlobalVisibleRect(rect)) rect.width() else 0
+            }
+        }
+    }
+
+    private fun View.screenX(): Int = IntArray(2).also(::getLocationOnScreen)[0]
+
+    private companion object {
+        const val VELOCITY_WINDOW_MS = 120L
+        const val RESCUE_DELAY_MS = 250L
+        const val MIN_DISTANCE_DP = 24f
+        /** Deliberately below Readium's 400 dp/s gate — a light flick. */
+        const val MIN_VELOCITY_DP_S = 300f
+    }
+}

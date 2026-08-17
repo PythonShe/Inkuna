@@ -41,6 +41,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private var navigator: EPUBNavigatorViewController?
     private var readiumPublication: ReadiumShared.Publication?
     private var navigationAdapter: DirectionalNavigationAdapter?
+    private var swipeAssist: ReaderSwipeAssist?
 
     /// Reading-order resource lookup: normalized href → reading-order index.
     private var resourceIndexByHref: [String: Int] = [:]
@@ -403,6 +404,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         }
         adapter.bind(to: navigator)
         navigationAdapter = adapter
+        // Fast swipes at chapter boundaries die in the navigator's nested
+        // scroll views; the assist re-drives them. See ReaderSwipeAssist.
+        swipeAssist = ReaderSwipeAssist(navigator: navigator)
 
         loadingIndicator.stopAnimating()
         updatePageInfo()
@@ -425,8 +429,12 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             throw ReaderOpenError.assetUnreadable
         }
         // EPUB only, DRM-free: the core rejects other formats at import and
-        // DRM circumvention is out of scope by policy.
-        let opener = PublicationOpener(parser: EPUBParser())
+        // DRM circumvention is out of scope by policy. Every XHTML resource
+        // gets the fragmentation fix injected before WebKit ever paginates
+        // it; see fixingFragmentation.
+        let opener = PublicationOpener(parser: EPUBParser()) { _, container, _ in
+            container = fixingFragmentation(container)
+        }
         guard let readiumPublication = await opener.open(
             asset: asset,
             allowUserInteraction: false
@@ -449,6 +457,51 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             initialLocation: initialLocation,
             positionsByReadingOrder: positions
         )
+    }
+
+    /// Books frequently ship `page-break-inside: avoid` on whole paragraphs
+    /// or wrapper divs; the column fragmenter then carries the entire block
+    /// to the next page, leaving the bottom of the previous one blank.
+    /// Appended after the author's styles, this lets running text fragment
+    /// normally again. Headings, figures, images and tables keep Readium
+    /// CSS's own keep-together rules — small and typographically right.
+    private nonisolated static let fragmentationFixStyle =
+        "<style>" +
+        "p, blockquote, li, dd, div, section, aside {" +
+        "break-inside: auto !important;" +
+        "page-break-inside: auto !important;" +
+        "-webkit-column-break-inside: auto !important;" +
+        "}" +
+        "</style>"
+
+    /// Injects `fragmentationFixStyle` at the end of each XHTML resource's
+    /// `<head>`. The splice is done on raw bytes, never through a decoded
+    /// string: the ASCII marker survives any ASCII-compatible encoding
+    /// (including legacy CJK ones) unchanged, and in UTF-16 its interleaved
+    /// NULs mean the marker simply isn't found — the resource passes
+    /// through untouched instead of being blanked by a failed decode.
+    /// NCX and non-XHTML resources are never touched.
+    private nonisolated static func fixingFragmentation(_ container: Container) -> Container {
+        let style = Data(fragmentationFixStyle.utf8)
+        // XHTML mandates lowercase; the uppercase form covers stray HTML.
+        let markers = [Data("</head>".utf8), Data("</HEAD>".utf8)]
+        return container.map { href, resource in
+            guard
+                let ext = href.pathExtension?.rawValue,
+                ["xhtml", "html", "htm"].contains(ext)
+            else { return resource }
+            return TransformingResource(resource) { result in
+                result.map { data in
+                    guard let head = markers.lazy
+                        .compactMap({ data.range(of: $0, options: .backwards) })
+                        .first
+                    else { return data }
+                    var fixed = data
+                    fixed.insert(contentsOf: style, at: head.lowerBound)
+                    return fixed
+                }
+            }
+        }
     }
 
     /// Builds the resource lookups the contents sheet and jump targets use.

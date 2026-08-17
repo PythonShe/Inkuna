@@ -29,4 +29,8 @@
     <string name="settings_update_available">Доступна версия %1$s</string>
     <string name="settings_update_get">Обновить</string>
     <string name="settings_update_failed">Не удалось проверить обновления</string>
+    <string name="settings_update_downloading">Загрузка… %1$d %%</string>
+    <string name="settings_update_installing">Установка…</string>
+    <string name="settings_update_download_failed">Не удалось загрузить обновление</string>
+    <string name="settings_update_install_failed">Не удалось установить обновление</string>
 </resources>

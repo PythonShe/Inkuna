@@ -29,4 +29,8 @@
     <string name="settings_update_available">เวอร์ชัน %1$s พร้อมแล้ว</string>
     <string name="settings_update_get">อัปเดต</string>
     <string name="settings_update_failed">ตรวจสอบการอัปเดตไม่ได้</string>
+    <string name="settings_update_downloading">กำลังดาวน์โหลด… %1$d%%</string>
+    <string name="settings_update_installing">กำลังติดตั้ง…</string>
+    <string name="settings_update_download_failed">ดาวน์โหลดการอัปเดตไม่ได้</string>
+    <string name="settings_update_install_failed">ติดตั้งการอัปเดตไม่ได้</string>
 </resources>

@@ -30,10 +30,14 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.positionsByReadingOrder
+import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.getOrElse
 import org.readium.r2.shared.util.http.DefaultHttpClient
+import org.readium.r2.shared.util.resource.Resource
+import org.readium.r2.shared.util.resource.TransformingContainer
+import org.readium.r2.shared.util.resource.TransformingResource
 import org.readium.r2.shared.util.toUrl
 import org.readium.r2.streamer.PublicationOpener
 import org.readium.r2.streamer.parser.DefaultPublicationParser
@@ -209,6 +213,11 @@ class ReaderViewModel(
                 assetRetriever = assetRetriever,
                 pdfFactory = null,
             ),
+            // Every XHTML resource gets the fragmentation fix injected
+            // before the WebView ever paginates it; see fixFragmentation.
+            onCreatePublication = {
+                container = TransformingContainer(container, ::fixFragmentation)
+            },
         )
         val publication = opener
             .open(asset, allowUserInteraction = false)
@@ -576,4 +585,70 @@ class ReaderViewModel(
             }
         }
     }
+}
+
+/**
+ * Books frequently ship `page-break-inside: avoid` on whole paragraphs or
+ * wrapper divs; the column fragmenter then carries the entire block to the
+ * next page, leaving the bottom of the previous one blank. Appended after
+ * the author's styles, this lets running text fragment normally again.
+ * Headings, figures, images and tables keep Readium CSS's own
+ * keep-together rules — those are small and typographically right.
+ */
+private const val FRAGMENTATION_FIX_STYLE =
+    "<style>" +
+        "p, blockquote, li, dd, div, section, aside {" +
+        "break-inside: auto !important;" +
+        "page-break-inside: auto !important;" +
+        "-webkit-column-break-inside: auto !important;" +
+        "}" +
+        "</style>"
+
+private val FRAGMENTATION_FIX_EXTENSIONS = setOf("xhtml", "html", "htm")
+
+private val FRAGMENTATION_FIX_STYLE_BYTES = FRAGMENTATION_FIX_STYLE.toByteArray(Charsets.US_ASCII)
+
+/** XHTML mandates lowercase; the uppercase form covers stray HTML. */
+private val HEAD_CLOSE_MARKERS = listOf(
+    "</head>".toByteArray(Charsets.US_ASCII),
+    "</HEAD>".toByteArray(Charsets.US_ASCII),
+)
+
+/**
+ * Injects [FRAGMENTATION_FIX_STYLE] at the end of an XHTML resource's
+ * `<head>`. The splice is done on raw bytes, never through a decoded
+ * string: the ASCII marker survives any ASCII-compatible encoding
+ * (including legacy CJK ones) unchanged, and in UTF-16 its interleaved
+ * NULs mean the marker simply isn't found — the resource passes through
+ * untouched instead of being corrupted by a lossy decode round-trip.
+ * NCX and non-XHTML resources are never touched.
+ */
+private fun fixFragmentation(url: Url, resource: Resource): Resource {
+    if (url.extension?.value?.lowercase() !in FRAGMENTATION_FIX_EXTENSIONS) return resource
+    return TransformingResource(resource) { bytes ->
+        val head = HEAD_CLOSE_MARKERS.firstNotNullOfOrNull { marker ->
+            bytes.lastIndexOf(marker).takeIf { it >= 0 }
+        }
+        Try.success(
+            if (head == null) {
+                bytes
+            } else {
+                ByteArray(bytes.size + FRAGMENTATION_FIX_STYLE_BYTES.size).also { out ->
+                    bytes.copyInto(out, 0, 0, head)
+                    FRAGMENTATION_FIX_STYLE_BYTES.copyInto(out, head)
+                    bytes.copyInto(out, head + FRAGMENTATION_FIX_STYLE_BYTES.size, head, bytes.size)
+                }
+            },
+        )
+    }
+}
+
+private fun ByteArray.lastIndexOf(needle: ByteArray): Int {
+    outer@ for (start in size - needle.size downTo 0) {
+        for (i in needle.indices) {
+            if (this[start + i] != needle[i]) continue@outer
+        }
+        return start
+    }
+    return -1
 }
