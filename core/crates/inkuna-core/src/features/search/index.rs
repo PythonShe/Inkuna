@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+use tantivy::collector::Count;
+use tantivy::query::TermQuery;
 use tantivy::schema::{
     Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, STORED, STRING,
 };
@@ -243,7 +245,16 @@ fn reconcile(
             .stream()
             .map_err(|e| CoreError::Search(e.into()))?;
         while terms.advance() {
-            indexed.insert(String::from_utf8_lossy(terms.key()).into_owned());
+            let term = tantivy::Term::from_field_bytes(fields.publication_id, terms.key());
+            let live_docs = searcher
+                .search(
+                    &TermQuery::new(term, IndexRecordOption::Basic),
+                    &Count,
+                )
+                .map_err(CoreError::Search)?;
+            if live_docs > 0 {
+                indexed.insert(String::from_utf8_lossy(terms.key()).into_owned());
+            }
         }
     }
 
@@ -253,19 +264,30 @@ fn reconcile(
         return Ok(());
     }
 
+    // Read all missing resources before taking the writer lock. Reconcile
+    // must not block an import while SQLite is being read.
+    let missing_resources: Vec<(&String, Vec<(u32, String)>)> = {
+        let mut stmt = conn.prepare(
+            "SELECT r.spine_idx, t.body FROM resources r
+             JOIN resource_text t ON t.resource_id = r.id
+             WHERE r.publication_id = ?1 ORDER BY r.spine_idx",
+        )?;
+        missing
+            .into_iter()
+            .map(|id| {
+                let resources = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))?
+                    .collect::<Result<_, rusqlite::Error>>()?;
+                Ok((id, resources))
+            })
+            .collect::<Result<_, rusqlite::Error>>()?
+    };
+
     let writer = writer.lock().unwrap();
     for id in stale {
         writer.delete_term(tantivy::Term::from_field_text(fields.publication_id, id));
     }
-    let mut stmt = conn.prepare(
-        "SELECT r.spine_idx, t.body FROM resources r
-         JOIN resource_text t ON t.resource_id = r.id
-         WHERE r.publication_id = ?1 ORDER BY r.spine_idx",
-    )?;
-    for id in missing {
-        let resources: Vec<(u32, String)> = stmt
-            .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))?
-            .collect::<Result<_, _>>()?;
+    for (id, resources) in missing_resources {
         add_publication(
             &writer,
             fields,
