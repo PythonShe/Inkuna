@@ -5,9 +5,12 @@
 # Inkuna
 
 <!-- Dynamic badges: versions are read from the files on main, so they update
-     with every scripts/bump-version.sh commit — no README edit needed. -->
+     with every scripts/bump-version.sh commit — no README edit needed. The
+     three components version independently; iOS and Android each get their
+     own badge because their release trains do not move in lockstep. -->
 [![core](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FPythonShe%2FInkuna%2Fmain%2Fcore%2FCargo.toml&query=%24.workspace.package.version&prefix=v&label=core&logo=rust&color=b45309)](core/)
-[![apps](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FPythonShe%2FInkuna%2Fmain%2Fapps%2Fios%2Fproject.yml&query=%24.settings.base.MARKETING_VERSION&prefix=v&label=ios%20%C2%B7%20android&color=b45309)](apps/)
+[![ios](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FPythonShe%2FInkuna%2Fmain%2Fapps%2Fios%2Fproject.yml&query=%24.settings.base.MARKETING_VERSION&prefix=v&label=ios&logo=apple&color=475569)](apps/ios/)
+[![android](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FPythonShe%2FInkuna%2Fmain%2Fapps%2Fandroid%2Fapp%2Fbuild.gradle.kts&search=versionName%20%3D%20%22%28.*%29%22&replace=v%241&label=android&logo=android&color=2f7d5a)](apps/android/)
 [![license](https://img.shields.io/badge/license-AGPL--3.0-333333)](LICENSE)
 
 A minimalist book reader where ink meets moonlight. Crafted, quiet, literary.
