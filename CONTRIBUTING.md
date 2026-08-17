@@ -74,6 +74,56 @@ One hard rule, and one strong preference:
   latest stable normally loses. Raise it in the issue rather than the pull
   request — there are exceptions, but they're decided deliberately.
 
+## Branching
+
+**Do not branch from or target `main`.** `main` is release-only — tags are cut
+from it and the release workflows build from it. Pull requests opened against
+it will be asked to retarget.
+
+Work goes to one of two integration branches, chosen by what the change
+touches:
+
+| your change touches | base branch |
+|---------------------|-------------|
+| anything under `core/` | `dev/core` |
+| everything else — `apps/ios/`, `apps/android/`, `website/`, `docs/`, `scripts/`, repo root | `dev/shells` |
+
+A change that spans both — an FFI signature plus the shell code that calls it —
+counts as touching `core/`, so it goes to `dev/core` as a single pull request.
+
+The flow:
+
+```sh
+# 1. Fork on GitHub, then clone your fork
+git clone https://github.com/<you>/Inkuna.git
+cd Inkuna
+
+# 2. Track the upstream repository
+git remote add upstream https://github.com/PythonShe/Inkuna.git
+git fetch upstream
+
+# 3. Branch from the integration branch you are targeting, not from main
+git switch -c fix/epub-spine-order upstream/dev/core
+
+# 4. Work, commit, push to your fork
+git push -u origin fix/epub-spine-order
+```
+
+Then open the pull request **against `dev/core`** (GitHub defaults the base to
+`main`, so change it in the dropdown). Name your branch for the work —
+`fix/…`, `feat/…`, `docs/…` — and keep one branch per pull request.
+
+If the base branch moves while you work, rebase rather than merge, so the
+history stays linear:
+
+```sh
+git fetch upstream
+git rebase upstream/dev/core
+```
+
+The maintainer merges the integration branches into `main` at release time; you
+never need to touch `main` yourself.
+
 ## Building
 
 See [Building](README.md#building) in the README for toolchain requirements and
@@ -140,6 +190,9 @@ large drop.
 
 Small and single-purpose gets reviewed faster than large and mixed. This is a
 one-maintainer project, so expect review to take a few days rather than hours.
+
+Check the base branch before you submit — see [Branching](#branching). It is
+`dev/core` or `dev/shells`, never `main`.
 
 ## Reporting a security issue
 
