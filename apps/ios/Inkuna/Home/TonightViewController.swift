@@ -47,12 +47,25 @@ final class TonightViewController: ScrollScreenViewController {
         super.viewDidLoad()
 
         let eyebrow = eyebrowLabel(String(localized: "tonight_eyebrow", defaultValue: "Tonight"))
-        contentStack.addArrangedSubview(eyebrow)
-        contentStack.setCustomSpacing(6, after: eyebrow)
-
         let title = displayTitle(String(localized: "tonight_title", defaultValue: "Pick up where you left off"))
-        contentStack.addArrangedSubview(title)
-        contentStack.setCustomSpacing(28, after: title)
+        let headerText = UIStackView(arrangedSubviews: [eyebrow, title])
+        headerText.axis = .vertical
+        headerText.spacing = 6
+
+        // The account affordance rides beside the header: this screen hides
+        // the navigation bar, so there is no bar button item to put it in.
+        let accountButton = InkIconButton(
+            symbol: "person.crop.circle",
+            accessibilityLabel: String(localized: "settings_title", defaultValue: "Account")
+        ) { [weak self] in
+            self?.present(SettingsViewController(), animated: true)
+        }
+        let headerRow = UIStackView(arrangedSubviews: [headerText, UIView(), accountButton])
+        headerRow.axis = .horizontal
+        headerRow.alignment = .top
+        headerRow.spacing = InkSpacing.space3
+        contentStack.addArrangedSubview(headerRow)
+        contentStack.setCustomSpacing(28, after: headerRow)
 
         contentStack.addArrangedSubview(heroContainer)
         contentStack.setCustomSpacing(InkSpacing.space8, after: heroContainer)
