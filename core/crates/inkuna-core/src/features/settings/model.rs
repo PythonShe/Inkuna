@@ -26,6 +26,14 @@ pub struct Settings {
     pub text_size_step: u8,
     /// In-app reading brightness in 0.0..=1.0.
     pub brightness: f64,
+    /// Whether the daily evening reading reminder is enabled. Scheduling
+    /// is shell work; the core only remembers the choice.
+    pub evening_reminder: bool,
+    /// Display name of the purely local account; empty means "not set".
+    pub account_name: String,
+    /// Contact email of the purely local account; empty means "not set".
+    /// Stored as-is — there is no server to validate against.
+    pub account_email: String,
 }
 
 impl Default for Settings {
@@ -35,6 +43,9 @@ impl Default for Settings {
             reading_theme: DEFAULT_READING_THEME.to_string(),
             text_size_step: DEFAULT_TEXT_SIZE_STEP,
             brightness: DEFAULT_BRIGHTNESS,
+            evening_reminder: false,
+            account_name: String::new(),
+            account_email: String::new(),
         }
     }
 }

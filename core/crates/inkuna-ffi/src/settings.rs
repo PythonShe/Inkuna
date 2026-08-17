@@ -10,6 +10,11 @@ pub struct Settings {
     pub reading_theme: String,
     pub text_size_step: u8,
     pub brightness: f64,
+    /// Daily evening reading reminder; scheduling is shell work.
+    pub evening_reminder: bool,
+    /// Purely local account profile; empty strings mean "not set".
+    pub account_name: String,
+    pub account_email: String,
 }
 
 impl From<inkuna_core::Settings> for Settings {
@@ -19,6 +24,9 @@ impl From<inkuna_core::Settings> for Settings {
             reading_theme: s.reading_theme,
             text_size_step: s.text_size_step,
             brightness: s.brightness,
+            evening_reminder: s.evening_reminder,
+            account_name: s.account_name,
+            account_email: s.account_email,
         }
     }
 }
@@ -30,6 +38,9 @@ impl From<Settings> for inkuna_core::Settings {
             reading_theme: s.reading_theme,
             text_size_step: s.text_size_step,
             brightness: s.brightness,
+            evening_reminder: s.evening_reminder,
+            account_name: s.account_name,
+            account_email: s.account_email,
         }
     }
 }
