@@ -27,7 +27,7 @@ name: Release iOS
 #       (matched in ExportOptions.plist and the archive step).
 #       base64 -i Inkuna_App_Store.mobileprovision | pbcopy
 #   APPLE_TEAM_ID                       Apple Developer team id.
-#   OPENAI_API_KEY                         for release-notes.yml.
+#   GEMINI_API_KEY                         for release-notes.yml.
 
 on:
   push:
@@ -355,7 +355,7 @@ jobs:
       paths: core apps/ios
       platform: iOS
     secrets:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
   # Push the same notes into TestFlight as the build's "What to Test".
   # Nothing depends on this job, so a failure here never blocks the release —

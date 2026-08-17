@@ -13,7 +13,7 @@ name: Release Android
 #   ANDROID_KEYSTORE_PASSWORD  keystore password
 #   ANDROID_KEY_ALIAS          key alias
 #   ANDROID_KEY_PASSWORD       key password
-#   OPENAI_API_KEY                for release-notes.yml (see that file's header)
+#   GEMINI_API_KEY                for release-notes.yml (see that file's header)
 
 on:
   push:
@@ -219,7 +219,7 @@ jobs:
       paths: core apps/android
       platform: Android
     secrets:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
   publish:
     needs: [prepare, build_android, notes]

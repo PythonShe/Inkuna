@@ -6,11 +6,13 @@ name: Release Notes
 # asks an LLM to distill user-facing notes, and uploads them as the
 # "release-notes" artifact for the caller's publish job to consume.
 #
-# The call goes to OpenAI's chat-completions API with gpt-5.6-luna at high
-# reasoning effort. The repository variables LLM_BASE_URL / LLM_MODEL can
-# override the endpoint and model without a workflow edit.
+# The call goes to the Gemini API's OpenAI-compatible chat-completions
+# endpoint with gemini-3.7-flash at high reasoning effort (the compatibility
+# layer maps reasoning_effort "high" to Gemini's thinking_level "high"). The
+# repository variables LLM_BASE_URL / LLM_MODEL can override the endpoint and
+# model without a workflow edit.
 #
-# Required repository secret: OPENAI_API_KEY (OpenAI API key).
+# Required repository secret: GEMINI_API_KEY (Google AI Studio API key).
 
 on:
   workflow_call:
@@ -32,7 +34,7 @@ on:
         required: true
         type: string
     secrets:
-      OPENAI_API_KEY:
+      GEMINI_API_KEY:
         required: true
   workflow_dispatch:
     inputs:
@@ -70,17 +72,17 @@ jobs:
       - name: Generate release notes
         shell: bash
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
-          LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-5.6-luna' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-3.7-flash' }}
           TAG: ${{ inputs.tag }}
           TAG_PATTERN: ${{ inputs.tag_pattern }}
           PATHS: ${{ inputs.paths }}
           PLATFORM: ${{ inputs.platform }}
         run: |
           set -euo pipefail
-          if [ -z "${OPENAI_API_KEY:-}" ]; then
-            echo "::error::secrets.OPENAI_API_KEY is unset. Set it in Settings → Secrets and variables → Actions." >&2
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            echo "::error::secrets.GEMINI_API_KEY is unset. Set it in Settings → Secrets and variables → Actions." >&2
             exit 1
           fi
 
@@ -134,7 +136,7 @@ jobs:
           Output rules:
           1. Output ONLY the sections and bullets above. No preamble, no closing text, no release title, no version number, no emojis.
           2. English. Sentence case. No trailing period. Under 15 words per bullet.
-          3. Write from the user's perspective — what they gain or experience — not what a developer did. Be concrete: name the actual feature or area plus the user-facing outcome — never bare abstractions ("Faster library import for large EPUB collections", not "Improved performance"; never "Various fixes"). Use ONE consistent voice across all bullets; do not mix "You can now…", "Added…", and noun phrases in the same notes.
+          3. Write from the user's perspective — what they gain or experience — not what a developer did. Be concrete: name the actual feature or area plus the user-facing outcome — never bare abstractions ("Faster library import for large EPUB collections", not "Improved performance"; never "Various fixes"). Use ONE consistent voice across all bullets: terse verb-led or noun-phrase bullets ("Faster library import for large EPUB collections", "Fixed cover art flickering while scrolling"). NEVER open a bullet with "You can", "You can now", "Users can", or any second-person phrasing — describe the change itself, not permission to use it.
           4. Consolidate aggressively. Merge commits describing the same change OR refining the same feature/area into ONE bullet stating the net outcome. At most ~6 bullets per section; if more qualify, keep the highest-impact ones and fold the rest into one themed bullet. The notes must never read as a raw commit log. Within each section, order bullets by user impact.
           5. Never include: file paths, function/class/crate names, module names, PR numbers, issue IDs, commit hashes, scope prefixes, hedging phrases ("might", "should").
           6. Visibility test: would a reader notice this change without inspecting logs, source code, or developer tools? If not, treat it as INTERNAL regardless of commit type. Common false positives: database schema/migration changes, FFI/bindings changes, dependency bumps, build/toolchain changes, internal format-normalization details.
@@ -171,13 +173,15 @@ jobs:
           )
 
           # High reasoning effort: the notes are the release's public face and
-          # the rule set above rewards deliberation. The 128k completion cap is
-          # shared between reasoning and the answer; the notes themselves are
-          # well under 1k tokens, so it is pure reasoning headroom.
+          # the rule set above rewards deliberation. Gemini's OpenAI-compat
+          # layer maps reasoning_effort "high" to thinking_level "high". The
+          # completion cap is shared between thinking and the answer; Gemini
+          # 3.7 Flash tops out at 64k output tokens and the notes themselves
+          # are well under 1k, so it is pure thinking headroom.
           request_notes() {
             curl -s --max-time 600 "${LLM_BASE_URL%/}/chat/completions" \
               -H "Content-Type: application/json" \
-              -H "Authorization: Bearer $OPENAI_API_KEY" \
+              -H "Authorization: Bearer $GEMINI_API_KEY" \
               -d "$(jq -n \
                 --arg model "$LLM_MODEL" \
                 --arg system "$SYSTEM_PROMPT" \
@@ -185,7 +189,7 @@ jobs:
                 '{
                   model: $model,
                   reasoning_effort: "high",
-                  max_completion_tokens: 128000,
+                  max_completion_tokens: 65536,
                   messages: [
                     {role: "system", content: $system},
                     {role: "user", content: $commits}
