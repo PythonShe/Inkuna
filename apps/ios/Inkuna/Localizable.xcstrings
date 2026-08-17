@@ -14589,13 +14589,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "名字"
+            "value": "姓名"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "名字"
+            "value": "姓名"
           }
         },
         "ja": {
@@ -14690,7 +14690,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "メール"
+            "value": "メールアドレス"
           }
         },
         "ko": {
@@ -14702,7 +14702,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correo"
+            "value": "Correo electrónico"
           }
         },
         "fr": {
@@ -14999,7 +14999,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Về Inkuna"
+            "value": "Giới thiệu về Inkuna"
           }
         },
         "de": {
@@ -15017,7 +15017,7 @@
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sobre o Inkuna"
+            "value": "Sobre a Inkuna"
           }
         }
       }
@@ -15278,7 +15278,7 @@
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buku Anda menunggu. Membaca satu dua halaman?"
+            "value": "Buku Anda menanti. Baca satu atau dua halaman?"
           }
         },
         "pt": {

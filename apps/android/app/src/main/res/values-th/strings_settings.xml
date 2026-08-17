@@ -5,7 +5,7 @@
 -->
 <resources>
     <string name="settings_title">บัญชี</string>
-    <string name="settings_local_account">ในอุปกรณ์นี้</string>
+    <string name="settings_local_account">บนอุปกรณ์นี้</string>
     <string name="settings_default_name">นักอ่าน</string>
     <string name="settings_preferences">การตั้งค่า</string>
     <string name="settings_reminder">การแจ้งเตือนยามค่ำ</string>
@@ -27,6 +27,6 @@
     <string name="settings_update_checking">กำลังตรวจสอบ…</string>
     <string name="settings_update_uptodate">คุณใช้เวอร์ชันล่าสุดแล้ว</string>
     <string name="settings_update_available">เวอร์ชัน %1$s พร้อมแล้ว</string>
-    <string name="settings_update_get">รับการอัปเดต</string>
+    <string name="settings_update_get">อัปเดต</string>
     <string name="settings_update_failed">ตรวจสอบการอัปเดตไม่ได้</string>
 </resources>

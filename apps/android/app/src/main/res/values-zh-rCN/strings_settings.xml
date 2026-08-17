@@ -12,7 +12,7 @@
     <string name="settings_reminder_sub">在你的阅读时刻轻声提醒</string>
     <string name="settings_night">夜间模式</string>
     <string name="settings_account_settings">账户设置</string>
-    <string name="settings_edit_name">名字</string>
+    <string name="settings_edit_name">姓名</string>
     <string name="settings_edit_email">电子邮件</string>
     <string name="settings_save">保存</string>
     <string name="settings_cancel">取消</string>

@@ -19,14 +19,14 @@
     <string name="settings_about">Tentang Inkuna</string>
     <string name="settings_footer">Inkuna %1$s · tinta, cahaya bulan, dan halaman yang tenang</string>
     <string name="settings_reminder_notif_title">Membaca malam</string>
-    <string name="settings_reminder_notif_body">Buku Anda menunggu. Membaca satu dua halaman?</string>
+    <string name="settings_reminder_notif_body">Buku Anda menanti. Baca satu atau dua halaman?</string>
     <string name="settings_notif_channel">Pengingat membaca</string>
     <string name="settings_updates">Pembaruan aplikasi</string>
     <string name="settings_update_current">Versi %1$s</string>
     <string name="settings_update_check">Periksa</string>
     <string name="settings_update_checking">Memeriksa…</string>
     <string name="settings_update_uptodate">Anda sudah menggunakan versi terbaru</string>
-    <string name="settings_update_available">Versi %1$s sudah siap</string>
-    <string name="settings_update_get">Unduh</string>
+    <string name="settings_update_available">Versi %1$s telah tersedia</string>
+    <string name="settings_update_get">Perbarui</string>
     <string name="settings_update_failed">Tidak dapat memeriksa pembaruan</string>
 </resources>

@@ -13,7 +13,7 @@
     <string name="settings_night">ナイトモード</string>
     <string name="settings_account_settings">アカウント設定</string>
     <string name="settings_edit_name">名前</string>
-    <string name="settings_edit_email">メール</string>
+    <string name="settings_edit_email">メールアドレス</string>
     <string name="settings_save">保存</string>
     <string name="settings_cancel">キャンセル</string>
     <string name="settings_about">Inkuna について</string>
@@ -26,7 +26,7 @@
     <string name="settings_update_check">確認</string>
     <string name="settings_update_checking">確認中…</string>
     <string name="settings_update_uptodate">最新の状態です</string>
-    <string name="settings_update_available">バージョン %1$s が利用可能</string>
+    <string name="settings_update_available">バージョン %1$s が利用可能です</string>
     <string name="settings_update_get">アップデートを入手</string>
     <string name="settings_update_failed">更新を確認できませんでした</string>
 </resources>

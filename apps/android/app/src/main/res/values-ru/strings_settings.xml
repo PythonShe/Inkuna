@@ -27,6 +27,6 @@
     <string name="settings_update_checking">Проверка…</string>
     <string name="settings_update_uptodate">У вас последняя версия</string>
     <string name="settings_update_available">Доступна версия %1$s</string>
-    <string name="settings_update_get">Скачать</string>
+    <string name="settings_update_get">Обновить</string>
     <string name="settings_update_failed">Не удалось проверить обновления</string>
 </resources>

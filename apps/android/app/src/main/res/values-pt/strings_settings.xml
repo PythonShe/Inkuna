@@ -16,7 +16,7 @@
     <string name="settings_edit_email">E-mail</string>
     <string name="settings_save">Salvar</string>
     <string name="settings_cancel">Cancelar</string>
-    <string name="settings_about">Sobre o Inkuna</string>
+    <string name="settings_about">Sobre a Inkuna</string>
     <string name="settings_footer">Inkuna %1$s · tinta, luar e páginas tranquilas</string>
     <string name="settings_reminder_notif_title">Leitura noturna</string>
     <string name="settings_reminder_notif_body">Seu livro está esperando. Uma página ou duas?</string>
@@ -25,8 +25,8 @@
     <string name="settings_update_current">Versão %1$s</string>
     <string name="settings_update_check">Verificar</string>
     <string name="settings_update_checking">Verificando…</string>
-    <string name="settings_update_uptodate">Você está atualizado</string>
-    <string name="settings_update_available">A versão %1$s está pronta</string>
-    <string name="settings_update_get">Baixar</string>
+    <string name="settings_update_uptodate">O app está atualizado</string>
+    <string name="settings_update_available">A versão %1$s está disponível</string>
+    <string name="settings_update_get">Atualizar</string>
     <string name="settings_update_failed">Não foi possível verificar atualizações</string>
 </resources>

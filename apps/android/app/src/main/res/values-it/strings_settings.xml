@@ -25,8 +25,8 @@
     <string name="settings_update_current">Versione %1$s</string>
     <string name="settings_update_check">Verifica</string>
     <string name="settings_update_checking">Verifica in corso…</string>
-    <string name="settings_update_uptodate">Sei aggiornato</string>
-    <string name="settings_update_available">La versione %1$s è pronta</string>
-    <string name="settings_update_get">Scarica</string>
+    <string name="settings_update_uptodate">L’app è aggiornata</string>
+    <string name="settings_update_available">La versione %1$s è disponibile</string>
+    <string name="settings_update_get">Aggiorna</string>
     <string name="settings_update_failed">Impossibile verificare gli aggiornamenti</string>
 </resources>

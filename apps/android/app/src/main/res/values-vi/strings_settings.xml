@@ -16,7 +16,7 @@
     <string name="settings_edit_email">Email</string>
     <string name="settings_save">Lưu</string>
     <string name="settings_cancel">Hủy</string>
-    <string name="settings_about">Về Inkuna</string>
+    <string name="settings_about">Giới thiệu về Inkuna</string>
     <string name="settings_footer">Inkuna %1$s · mực, ánh trăng và những trang sách yên tĩnh</string>
     <string name="settings_reminder_notif_title">Đọc sách buổi tối</string>
     <string name="settings_reminder_notif_body">Cuốn sách của bạn đang chờ. Đọc một hai trang nhé?</string>
@@ -27,6 +27,6 @@
     <string name="settings_update_checking">Đang kiểm tra…</string>
     <string name="settings_update_uptodate">Bạn đang dùng bản mới nhất</string>
     <string name="settings_update_available">Phiên bản %1$s đã sẵn sàng</string>
-    <string name="settings_update_get">Tải bản cập nhật</string>
+    <string name="settings_update_get">Cập nhật</string>
     <string name="settings_update_failed">Không thể kiểm tra cập nhật</string>
 </resources>

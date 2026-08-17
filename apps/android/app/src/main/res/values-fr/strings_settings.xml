@@ -26,7 +26,7 @@
     <string name="settings_update_check">Vérifier</string>
     <string name="settings_update_checking">Vérification…</string>
     <string name="settings_update_uptodate">Vous êtes à jour</string>
-    <string name="settings_update_available">La version %1$s est prête</string>
-    <string name="settings_update_get">Télécharger</string>
+    <string name="settings_update_available">La version %1$s est disponible</string>
+    <string name="settings_update_get">Mettre à jour</string>
     <string name="settings_update_failed">Impossible de vérifier les mises à jour</string>
 </resources>

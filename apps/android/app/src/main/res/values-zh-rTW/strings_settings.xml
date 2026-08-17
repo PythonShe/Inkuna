@@ -12,7 +12,7 @@
     <string name="settings_reminder_sub">在你的閱讀時刻輕聲提醒</string>
     <string name="settings_night">夜間模式</string>
     <string name="settings_account_settings">帳戶設定</string>
-    <string name="settings_edit_name">名字</string>
+    <string name="settings_edit_name">姓名</string>
     <string name="settings_edit_email">電子郵件</string>
     <string name="settings_save">儲存</string>
     <string name="settings_cancel">取消</string>
@@ -27,6 +27,6 @@
     <string name="settings_update_checking">檢查中…</string>
     <string name="settings_update_uptodate">已是最新版本</string>
     <string name="settings_update_available">新版本 %1$s 已就緒</string>
-    <string name="settings_update_get">獲取更新</string>
+    <string name="settings_update_get">取得更新</string>
     <string name="settings_update_failed">無法檢查更新</string>
 </resources>

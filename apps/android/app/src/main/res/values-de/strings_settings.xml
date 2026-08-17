@@ -26,7 +26,7 @@
     <string name="settings_update_check">Prüfen</string>
     <string name="settings_update_checking">Wird geprüft…</string>
     <string name="settings_update_uptodate">Sie sind auf dem neuesten Stand</string>
-    <string name="settings_update_available">Version %1$s ist bereit</string>
-    <string name="settings_update_get">Laden</string>
+    <string name="settings_update_available">Version %1$s ist verfügbar</string>
+    <string name="settings_update_get">Aktualisieren</string>
     <string name="settings_update_failed">Updates konnten nicht geprüft werden</string>
 </resources>
