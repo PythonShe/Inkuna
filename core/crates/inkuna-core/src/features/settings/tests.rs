@@ -61,9 +61,11 @@ fn a_missing_settings_row_reads_as_defaults_and_is_restored_on_write() {
             reading_theme: "sepia".to_string(),
             text_size_step: 3,
             brightness: 0.5,
-            evening_reminder: false,
-            account_name: String::new(),
-            account_email: String::new(),
+            // Non-default values on every field, so a restore path that
+            // silently dropped one could not still pass this test.
+            evening_reminder: true,
+            account_name: "林深".to_string(),
+            account_email: "shen@example.com".to_string(),
         })
         .unwrap();
 
@@ -72,4 +74,7 @@ fn a_missing_settings_row_reads_as_defaults_and_is_restored_on_write() {
     assert_eq!(stored.reading_theme, "sepia");
     assert_eq!(stored.text_size_step, 3);
     assert_eq!(stored.brightness, 0.5);
+    assert!(stored.evening_reminder);
+    assert_eq!(stored.account_name, "林深");
+    assert_eq!(stored.account_email, "shen@example.com");
 }
