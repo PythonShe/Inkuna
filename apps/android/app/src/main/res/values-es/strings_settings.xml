@@ -29,4 +29,8 @@
     <string name="settings_update_available">La versión %1$s está disponible</string>
     <string name="settings_update_get">Actualizar</string>
     <string name="settings_update_failed">No se pudieron buscar actualizaciones</string>
+    <string name="settings_update_downloading">Descargando… %1$d %%</string>
+    <string name="settings_update_installing">Instalando…</string>
+    <string name="settings_update_download_failed">No se pudo descargar la actualización</string>
+    <string name="settings_update_install_failed">No se pudo instalar la actualización</string>
 </resources>

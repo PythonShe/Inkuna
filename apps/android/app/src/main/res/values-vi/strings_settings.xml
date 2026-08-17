@@ -29,4 +29,8 @@
     <string name="settings_update_available">Phiên bản %1$s đã sẵn sàng</string>
     <string name="settings_update_get">Cập nhật</string>
     <string name="settings_update_failed">Không thể kiểm tra cập nhật</string>
+    <string name="settings_update_downloading">Đang tải xuống… %1$d%%</string>
+    <string name="settings_update_installing">Đang cài đặt…</string>
+    <string name="settings_update_download_failed">Không thể tải xuống bản cập nhật</string>
+    <string name="settings_update_install_failed">Không thể cài đặt bản cập nhật</string>
 </resources>

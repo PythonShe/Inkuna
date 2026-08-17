@@ -9,6 +9,7 @@ import app.inkuna.android.reminder.EveningReminder
 import app.inkuna.android.ui.theme.ReadingTheme
 import app.inkuna.android.update.UpdateCheck
 import app.inkuna.android.update.UpdateChecker
+import app.inkuna.android.update.UpdateInstaller
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -29,12 +30,43 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         data object Idle : UpdateState
         data object Checking : UpdateState
         data object UpToDate : UpdateState
-        data class Available(val versionName: String, val url: String) : UpdateState
+
+        /** [apkUrl] enables the in-app install; null falls back to [url]. */
+        data class Available(
+            val versionName: String,
+            val url: String,
+            val apkUrl: String?,
+        ) : UpdateState
+
+        data class Downloading(val percent: Int) : UpdateState
+        data object Installing : UpdateState
         data object Failed : UpdateState
+        data object DownloadFailed : UpdateState
+        data object InstallFailed : UpdateState
     }
 
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
+
+    init {
+        // Install-session outcomes arrive through the manifest receiver.
+        // Success never lands here — the update replaces the process.
+        viewModelScope.launch {
+            UpdateInstaller.events.collect { event ->
+                when (event) {
+                    // Backing out of the confirmation isn't a failure:
+                    // re-offer the update instead of showing an error.
+                    UpdateInstaller.Event.Aborted ->
+                        _updateState.value = lastAvailable ?: UpdateState.Idle
+                    UpdateInstaller.Event.Failed ->
+                        _updateState.value = UpdateState.InstallFailed
+                }
+            }
+        }
+    }
+
+    /** The verdict to fall back to when an install attempt is aborted. */
+    private var lastAvailable: UpdateState.Available? = null
 
     private var nightFlip: Job? = null
 
@@ -68,8 +100,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      *  reopened sheet would still show last week's check verdict. A check
      *  still in flight is left alone — it writes its own outcome. */
     fun resetUpdateState() {
-        if (_updateState.value != UpdateState.Checking) {
-            _updateState.value = UpdateState.Idle
+        when (_updateState.value) {
+            // In-flight work writes its own outcome; leave it visible.
+            UpdateState.Checking,
+            is UpdateState.Downloading,
+            UpdateState.Installing,
+            -> Unit
+            else -> _updateState.value = UpdateState.Idle
         }
     }
 
@@ -85,12 +122,46 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 onSuccess = { result ->
                     when (result) {
                         is UpdateCheck.Available ->
-                            UpdateState.Available(result.versionName, result.url)
+                            UpdateState.Available(
+                                result.versionName,
+                                result.url,
+                                result.apkUrl,
+                            ).also { lastAvailable = it }
                         UpdateCheck.UpToDate -> UpdateState.UpToDate
                     }
                 },
                 onFailure = { UpdateState.Failed },
             )
+        }
+    }
+
+    /**
+     * Downloads the offered APK and commits it to a PackageInstaller
+     * session; the system takes over from there (confirmation dialog,
+     * then the swap). Runs in the activity-scoped viewModelScope, so
+     * closing the sheet doesn't cancel it — only leaving the app does.
+     */
+    fun downloadAndInstall() {
+        val offer = _updateState.value as? UpdateState.Available ?: return
+        val apkUrl = offer.apkUrl ?: return
+        _updateState.value = UpdateState.Downloading(0)
+        viewModelScope.launch {
+            val apk = runCatching {
+                withContext(Dispatchers.IO) {
+                    UpdateInstaller.download(getApplication(), apkUrl) { percent ->
+                        _updateState.value = UpdateState.Downloading(percent)
+                    }
+                }
+            }.getOrElse {
+                _updateState.value = UpdateState.DownloadFailed
+                return@launch
+            }
+            _updateState.value = UpdateState.Installing
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    UpdateInstaller.install(getApplication(), apk)
+                }
+            }.onFailure { _updateState.value = UpdateState.InstallFailed }
         }
     }
 }

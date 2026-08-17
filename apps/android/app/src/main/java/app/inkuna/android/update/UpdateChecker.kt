@@ -8,8 +8,16 @@ import java.net.URL
 sealed interface UpdateCheck {
     data object UpToDate : UpdateCheck
 
-    /** A newer APK exists; [url] is its GitHub release page. */
-    data class Available(val versionName: String, val url: String) : UpdateCheck
+    /**
+     * A newer APK exists; [url] is its GitHub release page and [apkUrl]
+     * the release's APK asset for the in-app install — null when the
+     * release carries no APK, leaving the browser page as the fallback.
+     */
+    data class Available(
+        val versionName: String,
+        val url: String,
+        val apkUrl: String?,
+    ) : UpdateCheck
 }
 
 /**
@@ -48,6 +56,7 @@ object UpdateChecker {
         var bestBuild = Long.MIN_VALUE
         var bestVersionName = ""
         var bestUrl = ""
+        var bestApkUrl: String? = null
         for (i in 0 until releases.length()) {
             val release = releases.getJSONObject(i)
             // Prereleases are the test channel (see the class comment);
@@ -63,12 +72,29 @@ object UpdateChecker {
                 bestBuild = build
                 bestVersionName = tag.removePrefix("android-v").substringBefore('+')
                 bestUrl = url
+                bestApkUrl = apkAssetUrl(release.optJSONArray("assets"))
             }
         }
         return if (bestBuild > currentVersionCode) {
-            UpdateCheck.Available(versionName = bestVersionName, url = bestUrl)
+            UpdateCheck.Available(
+                versionName = bestVersionName,
+                url = bestUrl,
+                apkUrl = bestApkUrl,
+            )
         } else {
             UpdateCheck.UpToDate
         }
+    }
+
+    /** The release's APK download URL, or null when no asset is one. */
+    private fun apkAssetUrl(assets: JSONArray?): String? {
+        if (assets == null) return null
+        for (i in 0 until assets.length()) {
+            val asset = assets.getJSONObject(i)
+            if (!asset.optString("name").endsWith(".apk")) continue
+            val url = asset.optString("browser_download_url")
+            if (url.isNotEmpty()) return url
+        }
+        return null
     }
 }

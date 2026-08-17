@@ -29,4 +29,8 @@
     <string name="settings_update_available">Versi %1$s telah tersedia</string>
     <string name="settings_update_get">Perbarui</string>
     <string name="settings_update_failed">Tidak dapat memeriksa pembaruan</string>
+    <string name="settings_update_downloading">Mengunduh… %1$d%%</string>
+    <string name="settings_update_installing">Memasang…</string>
+    <string name="settings_update_download_failed">Tidak dapat mengunduh pembaruan</string>
+    <string name="settings_update_install_failed">Tidak dapat memasang pembaruan</string>
 </resources>

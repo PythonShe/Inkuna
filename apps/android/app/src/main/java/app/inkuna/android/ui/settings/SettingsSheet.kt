@@ -76,7 +76,7 @@ import app.inkuna.android.ui.theme.ReadingTheme
 /**
  * The Account sheet — the design's newest settings page: the purely local
  * profile, preferences (evening reminder, night mode), account editing,
- * the Android-only update check, and About.
+ * the Android-only in-app updater, and About.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -206,7 +206,15 @@ fun SettingsSheet(
                 UpdateRow(
                     state = updateState,
                     onCheck = model::checkForUpdate,
-                    onGet = { url -> openWebPage(context, url) },
+                    onGet = { offer ->
+                        // Releases always ship an APK asset; the browser
+                        // page is the fallback should one ever lack it.
+                        if (offer.apkUrl != null) {
+                            model.downloadAndInstall()
+                        } else {
+                            openWebPage(context, offer.url)
+                        }
+                    },
                 )
                 Hairline()
                 DisclosureRow(
@@ -293,7 +301,7 @@ private fun ProfileCard(name: String, email: String) {
 private fun UpdateRow(
     state: SettingsViewModel.UpdateState,
     onCheck: () -> Unit,
-    onGet: (String) -> Unit,
+    onGet: (SettingsViewModel.UpdateState.Available) -> Unit,
 ) {
     val ink = InkTheme.colors
     val subtitle = when (state) {
@@ -305,8 +313,16 @@ private fun UpdateRow(
             stringResource(R.string.settings_update_uptodate)
         is SettingsViewModel.UpdateState.Available ->
             stringResource(R.string.settings_update_available, state.versionName)
+        is SettingsViewModel.UpdateState.Downloading ->
+            stringResource(R.string.settings_update_downloading, state.percent)
+        SettingsViewModel.UpdateState.Installing ->
+            stringResource(R.string.settings_update_installing)
         SettingsViewModel.UpdateState.Failed ->
             stringResource(R.string.settings_update_failed)
+        SettingsViewModel.UpdateState.DownloadFailed ->
+            stringResource(R.string.settings_update_download_failed)
+        SettingsViewModel.UpdateState.InstallFailed ->
+            stringResource(R.string.settings_update_install_failed)
     }
     Row(
         Modifier
@@ -329,16 +345,22 @@ private fun UpdateRow(
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
-        // TODO(updates): download and install the APK in-app; for now the
-        // action opens the GitHub release page in the browser.
         when (state) {
             is SettingsViewModel.UpdateState.Available -> PillAction(
                 text = stringResource(R.string.settings_update_get),
-                onClick = { onGet(state.url) },
+                onClick = { onGet(state) },
             )
             // The spinner holds the pill's slot so the row doesn't reflow
             // while the check (up to the 10s+10s timeouts) is in flight.
-            SettingsViewModel.UpdateState.Checking -> CircularProgressIndicator(
+            SettingsViewModel.UpdateState.Checking,
+            SettingsViewModel.UpdateState.Installing,
+            -> CircularProgressIndicator(
+                color = ink.accentText,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(18.dp),
+            )
+            is SettingsViewModel.UpdateState.Downloading -> CircularProgressIndicator(
+                progress = { state.percent / 100f },
                 color = ink.accentText,
                 strokeWidth = 2.dp,
                 modifier = Modifier.size(18.dp),

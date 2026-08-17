@@ -29,4 +29,8 @@
     <string name="settings_update_available">新版本 %1$s 已就绪</string>
     <string name="settings_update_get">获取更新</string>
     <string name="settings_update_failed">无法检查更新</string>
+    <string name="settings_update_downloading">正在下载… %1$d%%</string>
+    <string name="settings_update_installing">正在安装…</string>
+    <string name="settings_update_download_failed">无法下载更新</string>
+    <string name="settings_update_install_failed">无法安装更新</string>
 </resources>
