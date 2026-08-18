@@ -49,6 +49,7 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     private var touchDownOuterPage: CGFloat = 0
     private var touchDownInnerOffset: CGFloat = 0
     private var settleWatch: Task<Void, Never>?
+    private var directTurnTask: Task<Void, Never>?
 
     init(navigator: EPUBNavigatorViewController) {
         self.navigator = navigator
@@ -71,6 +72,11 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    deinit {
+        settleWatch?.cancel()
+        directTurnTask?.cancel()
+    }
+
     func gestureRecognizer(
         _ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
@@ -80,9 +86,11 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
 
     @objc private func touchedDown(_ recognizer: UILongPressGestureRecognizer) {
         guard recognizer.state == .began else { return }
-        // A fresh interaction supersedes any pending settle rescue.
+        // A fresh interaction supersedes any pending settle rescue or in-flight turn.
         settleWatch?.cancel()
         settleWatch = nil
+        directTurnTask?.cancel()
+        directTurnTask = nil
         eligibleLeft = false
         eligibleRight = false
         outerWasMidSettle = false
@@ -135,7 +143,12 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         } ?? false
 
         if eligible, !outerEngaged {
-            turn(direction)
+            settleWatch?.cancel()
+            settleWatch = nil
+            directTurnTask?.cancel()
+            directTurnTask = Task { [weak self] in
+                await self?.turn(direction)
+            }
             return
         }
         // The outer scroll view owns the pan — either a native resource
@@ -151,15 +164,13 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     /// Drives one page turn through the navigator. Its state machine
     /// coalesces re-entrant turns, so a second assist landing mid-slide is
     /// dropped, not stacked.
-    private func turn(_ direction: UISwipeGestureRecognizer.Direction) {
-        guard let navigator else { return }
-        Task {
-            let options = NavigatorGoOptions(animated: true)
-            if direction == .left {
-                _ = await navigator.goRight(options: options)
-            } else {
-                _ = await navigator.goLeft(options: options)
-            }
+    private func turn(_ direction: UISwipeGestureRecognizer.Direction) async {
+        guard !Task.isCancelled, let navigator else { return }
+        let options = NavigatorGoOptions(animated: true)
+        if direction == .left {
+            _ = await navigator.goRight(options: options)
+        } else {
+            _ = await navigator.goLeft(options: options)
         }
     }
 
@@ -171,6 +182,8 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     /// worked natively, and the watch ends without acting.
     private func armSettleWatch(_ direction: UISwipeGestureRecognizer.Direction) {
         settleWatch?.cancel()
+        directTurnTask?.cancel()
+        directTurnTask = nil
         let innerStart = touchDownInnerOffset
         let outerPage = touchDownOuterPage
         settleWatch = Task { [weak self] in
@@ -197,7 +210,7 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
                 let outerUnmoved = abs(page.rounded() - outerPage) < 0.5
                 let innerUnmoved = abs(inner.contentOffset.x - innerStart) < 1
                 if outerUnmoved, innerUnmoved {
-                    self.turn(direction)
+                    await self.turn(direction)
                 }
                 return
             }
