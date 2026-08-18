@@ -6,6 +6,11 @@ use std::path::Path;
 
 use crate::{ImportOutcome, Publication};
 
+#[path = "mobi_test_support.rs"]
+mod mobi;
+
+pub(crate) use mobi::{MobiTestBuilder, palmdoc_compress};
+
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum TocKind {
     Nav,
@@ -209,17 +214,7 @@ pub(crate) fn write_cbz(path: &Path) {
 /// Builds a minimal PalmDB "BOOKMOBI" file whose MOBI header carries the
 /// given file version (6 = classic MOBI, 8 = KF8/AZW3).
 pub(crate) fn write_mobi(path: &Path, version: u32) {
-    let mut bytes = vec![0u8; 78];
-    bytes[60..68].copy_from_slice(b"BOOKMOBI");
-    bytes[76..78].copy_from_slice(&1u16.to_be_bytes());
-    let record0_offset = 78 + 8;
-    bytes.extend_from_slice(&(record0_offset as u32).to_be_bytes());
-    bytes.extend_from_slice(&[0u8; 4]);
-    let mut record0 = [0u8; 40];
-    record0[16..20].copy_from_slice(b"MOBI");
-    record0[36..40].copy_from_slice(&version.to_be_bytes());
-    bytes.extend_from_slice(&record0);
-    std::fs::write(path, bytes).unwrap();
+    MobiTestBuilder::new(version).write(path);
 }
 
 pub(crate) fn imported(outcome: ImportOutcome) -> Publication {
