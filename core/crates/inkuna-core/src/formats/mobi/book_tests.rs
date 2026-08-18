@@ -129,6 +129,25 @@ fn falls_back_to_fullname_then_pdb_name_and_decodes_cp1252() {
 }
 
 #[test]
+fn bounds_titles_and_authors_to_the_epub_metadata_limits() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("bounded-metadata.mobi");
+    let title = "月".repeat(1_000);
+    let mut builder = MobiTestBuilder::new(6);
+    builder.exth(503, title.as_bytes());
+    for index in 0..1_100 {
+        builder.exth(100, format!("Author {index} {}", "x".repeat(3_000)).as_bytes());
+    }
+    builder.write(&path);
+
+    let book = MobiBook::open(&path).unwrap();
+    assert!(book.title().len() <= 2_048);
+    assert!(book.title().is_char_boundary(book.title().len()));
+    assert_eq!(book.authors().len(), 1_000);
+    assert!(book.authors().iter().all(|author| author.len() <= 2_048));
+}
+
+#[test]
 fn refuses_drm_with_an_explicit_error() {
     let dir = tempfile::tempdir().unwrap();
     for encryption in [1, 2, 7] {

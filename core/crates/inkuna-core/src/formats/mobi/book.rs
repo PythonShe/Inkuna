@@ -15,6 +15,8 @@ const MAX_TOTAL_TEXT_BYTES: usize = 96 * 1024 * 1024;
 const MAX_HEADER_RECORD_BYTES: usize = 64 * 1024 * 1024;
 const MAX_HUFF_TABLE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_IMAGE_BYTES: usize = 64 * 1024 * 1024;
+const MAX_AUTHORS: usize = 1_000;
+const MAX_METADATA_VALUE_BYTES: usize = 2_048;
 
 struct View {
     header_index: usize,
@@ -26,6 +28,7 @@ struct View {
 pub(crate) struct MobiBook {
     database: PalmDatabase,
     view: View,
+    mobi6_view: Option<View>,
     kf8_boundary: Option<u32>,
 }
 
@@ -40,7 +43,7 @@ impl MobiBook {
         refuse_drm(&primary.headers)?;
         let kf8_boundary = boundary(&primary.headers.exth)?;
 
-        let view = if let Some(boundary) = kf8_boundary {
+        let (view, mobi6_view) = if let Some(boundary) = kf8_boundary {
             let boundary_index = boundary as usize;
             let boundary_prefix = database.record_prefix(boundary_index, 8)?;
             let header_index = if boundary_prefix == b"BOUNDARY" {
@@ -52,14 +55,15 @@ impl MobiBook {
             };
             let candidate = parse_view(&database, header_index)?;
             refuse_drm(&candidate.headers)?;
-            candidate
+            (candidate, Some(primary))
         } else {
-            primary
+            (primary, None)
         };
 
         Ok(Self {
             database,
             view,
+            mobi6_view,
             kf8_boundary,
         })
     }
@@ -70,6 +74,12 @@ impl MobiBook {
 
     pub(crate) fn kf8_boundary(&self) -> Option<u32> {
         self.kf8_boundary
+    }
+
+    pub(crate) fn select_mobi6(&mut self) {
+        if let Some(view) = self.mobi6_view.take() {
+            self.view = view;
+        }
     }
 
     pub(crate) fn text(&self) -> Result<Vec<u8>, CoreError> {
@@ -138,14 +148,14 @@ impl MobiBook {
 
     pub(crate) fn title(&self) -> String {
         if let Some(title) = self.exth_values(503).next() {
-            return self.decode(title);
+            return self.decode_metadata(title);
         }
         if let Some((offset, length)) = self.view.headers.mobi.fullname {
             if let Ok(record0) = self.database.record(self.view.header_index) {
                 let start = offset as usize;
                 if let Some(end) = start.checked_add(length as usize) {
                     if let Some(name) = record0.get(start..end) {
-                        return self.decode(name);
+                        return self.decode_metadata(name);
                     }
                 }
             }
@@ -155,7 +165,8 @@ impl MobiBook {
 
     pub(crate) fn authors(&self) -> Vec<String> {
         self.exth_values(100)
-            .map(|author| self.decode(author))
+            .take(MAX_AUTHORS)
+            .map(|author| self.decode_metadata(author))
             .collect()
     }
 
@@ -178,20 +189,24 @@ impl MobiBook {
     }
 
     pub(crate) fn image(&self, recindex_1_based: u32) -> Option<&[u8]> {
-        if recindex_1_based == 0 {
-            return None;
-        }
-        let first = self.view.headers.mobi.first_image_index?;
-        let raw_index = first.checked_add(recindex_1_based - 1)? as usize;
-        self.view
-            .header_index
-            .checked_add(raw_index)
+        self.image_record_index(recindex_1_based)
             .and_then(|index| self.image_at(index))
     }
 
+    pub(crate) fn image_len(&self, recindex_1_based: u32) -> Option<usize> {
+        let index = self.image_record_index(recindex_1_based)?;
+        self.database
+            .record_len(index)
+            .ok()
+            .filter(|length| *length <= MAX_IMAGE_BYTES)
+    }
+
     pub(crate) fn cover(&self) -> Option<&[u8]> {
-        let offset = self.exth_u32(201).or_else(|| self.exth_u32(202))?;
-        self.image(offset.checked_add(1)?)
+        self.image(self.cover_recindex()?)
+    }
+
+    pub(crate) fn cover_len(&self) -> Option<usize> {
+        self.image_len(self.cover_recindex()?)
     }
 
     fn huff_decoder(&self) -> Result<HuffCdic, CoreError> {
@@ -257,12 +272,42 @@ impl MobiBook {
         decoded.trim_end_matches('\0').to_string()
     }
 
+    fn decode_metadata(&self, bytes: &[u8]) -> String {
+        let mut source_end = bytes.len().min(MAX_METADATA_VALUE_BYTES);
+        if self.encoding() != 1252 && source_end < bytes.len() {
+            while source_end > 0 && bytes[source_end] & 0xc0 == 0x80 {
+                source_end -= 1;
+            }
+        }
+        let mut decoded = self.decode(&bytes[..source_end]);
+        if decoded.len() > MAX_METADATA_VALUE_BYTES {
+            let mut end = MAX_METADATA_VALUE_BYTES;
+            while !decoded.is_char_boundary(end) {
+                end -= 1;
+            }
+            decoded.truncate(end);
+        }
+        decoded
+    }
+
     fn image_at(&self, index: usize) -> Option<&[u8]> {
         if self.database.record_len(index).ok()? > MAX_IMAGE_BYTES {
             return None;
         }
         let bytes = self.database.record(index).ok()?;
         is_image(bytes).then_some(bytes)
+    }
+
+    fn image_record_index(&self, recindex_1_based: u32) -> Option<usize> {
+        let first = self.view.headers.mobi.first_image_index?;
+        let relative = first.checked_add(recindex_1_based.checked_sub(1)?)? as usize;
+        self.view.header_index.checked_add(relative)
+    }
+
+    fn cover_recindex(&self) -> Option<u32> {
+        self.exth_u32(201)
+            .or_else(|| self.exth_u32(202))?
+            .checked_add(1)
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::test_support::{
-    imported, write_cbz, write_epub, write_epub_parts, write_epub_with, CoverKind, TocKind,
+    imported, write_cbz, write_epub, write_epub_parts, write_epub_with, CoverKind,
+    MobiTestBuilder, TocKind,
 };
 use crate::{CoreError, ImportOutcome, Library, Shelf, Sort};
 
@@ -705,6 +706,120 @@ fn failed_txt_conversion_removes_all_staging_files() {
         .unwrap()
         .collect::<Vec<_>>();
     assert!(leftovers.is_empty(), "staging files leaked: {leftovers:?}");
+}
+
+#[test]
+fn imports_mobi6_end_to_end_and_dedupes_source_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let mobi = dir.path().join("旧书.mobi");
+    let cover = b"\x89PNG\r\n\x1a\ncover";
+    MobiTestBuilder::new(6)
+        .fullname("月光書房".as_bytes())
+        .locale(0x0804)
+        .exth(100, "鲁迅".as_bytes())
+        .exth(201, &0u32.to_be_bytes())
+        .html(
+            "<h1>第一章</h1><p>松风入夜。</p><mbp:pagebreak/><h1>第二章</h1><p>月照长街。</p>"
+                .as_bytes(),
+        )
+        .image(cover)
+        .write(&mobi);
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let publication = imported(library.import(mobi.to_str().unwrap()).unwrap());
+    assert_eq!(publication.title, "月光書房");
+    assert_eq!(publication.authors, ["鲁迅"]);
+    assert_eq!(publication.language.as_deref(), Some("zh"));
+    assert_eq!(publication.text_encoding, None);
+    assert_eq!(publication.format, crate::Format::Epub);
+    assert!(publication.cover_path.is_some());
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 2);
+    assert_eq!(
+        library
+            .search_in_book(&publication.id, "松风入夜", 10)
+            .unwrap()
+            .total,
+        1
+    );
+    let stored = data_dir.join(&publication.file_path);
+    assert_eq!(
+        crate::formats::epub::read_package(&stored)
+            .unwrap()
+            .spine
+            .len(),
+        2
+    );
+
+    match library.import(mobi.to_str().unwrap()).unwrap() {
+        ImportOutcome::Duplicate(existing) => assert_eq!(existing.id, publication.id),
+        other => panic!("expected duplicate MOBI import, got {other:?}"),
+    }
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        1
+    );
+}
+
+#[test]
+fn imports_mobi6_reader_using_its_display_name_fallback() {
+    let dir = tempfile::tempdir().unwrap();
+    let mobi = dir.path().join("reader.mobi");
+    MobiTestBuilder::new(6)
+        .name(b"")
+        .html(b"<p>streamed body</p>")
+        .write(&mobi);
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let mut reader = std::fs::File::open(&mobi).unwrap();
+
+    let publication = imported(
+        library
+            .import_reader(&mut reader, "Reader Tale.mobi")
+            .unwrap(),
+    );
+
+    assert_eq!(publication.title, "Reader Tale");
+    assert_eq!(publication.text_encoding, None);
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 1);
+}
+
+#[test]
+fn imports_titled_mobi_reader_without_a_display_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let mobi = dir.path().join("reader.mobi");
+    MobiTestBuilder::new(6)
+        .fullname("Embedded Title".as_bytes())
+        .html(b"<p>streamed body</p>")
+        .write(&mobi);
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let mut reader = std::fs::File::open(&mobi).unwrap();
+
+    let publication = imported(library.import_reader(&mut reader, "").unwrap());
+
+    assert_eq!(publication.title, "Embedded Title");
+}
+
+#[test]
+fn rejects_drm_mobi_and_pure_kf8_without_leaking_staging_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let drm = dir.path().join("locked.mobi");
+    MobiTestBuilder::new(6).encryption(2).write(&drm);
+    let pure = dir.path().join("pure.azw3");
+    MobiTestBuilder::new(8).write(&pure);
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+
+    let error = library.import(drm.to_str().unwrap()).unwrap_err();
+    assert!(matches!(error, CoreError::InvalidPublication(_)));
+    assert!(error.to_string().contains("DRM"));
+    assert!(matches!(
+        library.import(pure.to_str().unwrap()),
+        Err(CoreError::UnsupportedFormat(Some(format))) if format == "azw3"
+    ));
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        0
+    );
 }
 
 #[test]

@@ -10,7 +10,7 @@ use super::model::{BatchImportOutcome, ImportOutcome};
 use crate::core::files::{copy_and_hash, stream_and_hash, sync_dir};
 use crate::core::time::unix_now;
 use crate::features::library::{join_authors, map_publication, Library, PUB_COLUMNS};
-use crate::formats::{epub, txt};
+use crate::formats::{epub, mobi, txt};
 use crate::{CoreError, Format, Publication};
 
 /// A fully parsed import, ready to commit: the file already sits at
@@ -47,9 +47,9 @@ impl Library {
     /// A crafted or damaged book degrades rather than failing wherever the
     /// missing part is optional — an oversized TOC is truncated, an
     /// unreadable chapter loses only its text row, an unusable cover is
-    /// dropped. It accepts native EPUB and TXT normalized to EPUB, fails
-    /// with `UnsupportedFormat` for the remaining formats today, and with
-    /// `InvalidPublication` when a mandatory part is
+    /// dropped. It accepts native EPUB plus MOBI6 and TXT normalized to
+    /// EPUB, fails with `UnsupportedFormat` for the remaining formats
+    /// today, and with `InvalidPublication` when a mandatory part is
     /// missing, no title can be derived, or the per-publication
     /// persistence budget trips (in which case the transaction rolls back
     /// and the staged file is swept). A source past the import ceiling
@@ -164,7 +164,7 @@ impl Library {
         // Detect before copying, so a wrong-format file is rejected
         // without paying for a copy of it.
         let format = Format::detect(src)?;
-        if !matches!(format, Format::Epub | Format::Txt) {
+        if !matches!(format, Format::Epub | Format::Mobi | Format::Txt) {
             return Err(CoreError::UnsupportedFormat(Some(format.as_str().to_string())));
         }
 
@@ -172,10 +172,10 @@ impl Library {
         let content_hash = copy_and_hash(src, &tmp_path).inspect_err(|_| {
             let _ = std::fs::remove_file(&tmp_path);
         })?;
-        let text_encoding = match format {
-            Format::Txt => Some(self.convert_staged_txt(&id, &tmp_path, src.file_stem())?),
-            Format::Epub => None,
-            _ => unreachable!(),
+        let text_encoding = if format == Format::Epub {
+            None
+        } else {
+            self.convert_staged(format, &id, &tmp_path, src.file_stem())?
         };
         self.prepare_staged(
             id,
@@ -205,14 +205,14 @@ impl Library {
         let format = Format::detect_as(&tmp_path, named).inspect_err(|_| {
             let _ = std::fs::remove_file(&tmp_path);
         })?;
-        if !matches!(format, Format::Epub | Format::Txt) {
+        if !matches!(format, Format::Epub | Format::Mobi | Format::Txt) {
             let _ = std::fs::remove_file(&tmp_path);
             return Err(CoreError::UnsupportedFormat(Some(format.as_str().to_string())));
         }
-        let text_encoding = match format {
-            Format::Txt => Some(self.convert_staged_txt(&id, &tmp_path, named.file_stem())?),
-            Format::Epub => None,
-            _ => unreachable!(),
+        let text_encoding = if format == Format::Epub {
+            None
+        } else {
+            self.convert_staged(format, &id, &tmp_path, named.file_stem())?
         };
         self.prepare_staged(
             id,
@@ -234,21 +234,32 @@ impl Library {
 
     /// Replaces staged source bytes with their normalized EPUB while the
     /// content hash continues to identify the original bytes.
-    fn convert_staged_txt(
+    fn convert_staged(
         &self,
+        format: Format,
         id: &str,
         tmp_path: &Path,
         fallback_stem: Option<&OsStr>,
-    ) -> Result<String, CoreError> {
+    ) -> Result<Option<String>, CoreError> {
         let conv_path = self
             .data_dir
             .join(format!("books/{id}.epub.conv.tmp"));
         let title = fallback_stem
             .map(|stem| nfc(&stem.to_string_lossy()))
-            .filter(|title| !title.is_empty())
-            .ok_or_else(|| CoreError::InvalidPublication("untitled".into()));
-        let conversion: Result<txt::TxtConversion, CoreError> =
-            title.and_then(|title| txt::convert_to_epub(tmp_path, &conv_path, &title));
+            .filter(|title| !title.is_empty());
+        let conversion: Result<Option<String>, CoreError> = match format {
+            Format::Txt => title
+                .ok_or_else(|| CoreError::InvalidPublication("untitled".into()))
+                .and_then(|title| txt::convert_to_epub(tmp_path, &conv_path, &title))
+                .map(|conversion| Some(conversion.encoding)),
+            Format::Mobi => mobi::convert_to_epub(
+                tmp_path,
+                &conv_path,
+                title.as_deref().unwrap_or(""),
+            )
+            .map(|()| None),
+            _ => unreachable!(),
+        };
         let conversion = match conversion {
             Ok(conversion) => conversion,
             Err(error) => {
@@ -267,7 +278,7 @@ impl Library {
             let _ = std::fs::remove_file(&conv_path);
             return Err(error.into());
         }
-        Ok(conversion.encoding)
+        Ok(conversion)
     }
 
     /// The back half both sources share once the bytes sit staged: dedupe

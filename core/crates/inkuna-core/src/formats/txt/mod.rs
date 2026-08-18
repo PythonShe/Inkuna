@@ -5,4 +5,4 @@ mod charset;
 mod convert;
 mod paragraphs;
 
-pub(crate) use convert::{convert_to_epub, TxtConversion};
+pub(crate) use convert::convert_to_epub;

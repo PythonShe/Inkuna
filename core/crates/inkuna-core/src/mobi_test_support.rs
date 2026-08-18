@@ -74,6 +74,11 @@ impl MobiTestBuilder {
         self
     }
 
+    pub(crate) fn html(&mut self, html: &[u8]) -> &mut Self {
+        self.text_records = vec![html.to_vec()];
+        self
+    }
+
     pub(crate) fn text_length(&mut self, length: u32) -> &mut Self {
         self.text_length = Some(length);
         self
