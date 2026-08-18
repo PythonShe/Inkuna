@@ -75,8 +75,14 @@ fun ReaderNavigatorHost(
             setReorderingAllowed(true)
             replace(R.id.reader_navigator_host, fragment, READER_NAVIGATOR_FRAGMENT_TAG)
         }
+        // Readium leaves the resource WebViews on Android's default
+        // overscroll mode, which paints a stretch edge effect on boundary
+        // drags; see WebViewStretchSuppressor.
+        val stretchSuppressor = fragment.view?.let(::WebViewStretchSuppressor)
+        stretchSuppressor?.attach()
         onNavigator(fragment)
         onDispose {
+            stretchSuppressor?.detach()
             onNavigator(null)
             // After onSaveInstanceState the FragmentManager refuses
             // transactions; the activity is going down with its fragments
