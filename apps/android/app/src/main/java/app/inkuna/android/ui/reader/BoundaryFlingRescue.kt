@@ -34,6 +34,12 @@ import org.readium.r2.navigator.preferences.ReadingProgression
  * through the navigator's own [EpubNavigatorFragment.goForward]/
  * [EpubNavigatorFragment.goBackward] — which are edge-aware and handle
  * RTL internally.
+ *
+ * It also commits slow-but-deliberate drags: Readium's gate is
+ * velocity-only, so a drag released without speed snaps back no matter
+ * how far the finger travelled. Past [DRAG_COMMIT_FRACTION] of the page
+ * width the turn commits on release, matching ViewPager's
+ * "dragged far enough commits anyway" rule that the toolkit dropped.
  */
 @OptIn(ExperimentalReadiumApi::class)
 class BoundaryFlingRescue(
@@ -54,6 +60,7 @@ class BoundaryFlingRescue(
     // a turn Readium *did* perform can be told apart from a dead swipe.
     private var startWebView: WeakReference<WebView>? = null
     private var startScreenX = 0
+    private var startPageWidth = 0
     private var edgeForward = false
     private var edgeBackward = false
 
@@ -69,6 +76,7 @@ class BoundaryFlingRescue(
                 val webView = visibleWebView()
                 startWebView = webView?.let(::WeakReference)
                 startScreenX = webView?.screenX() ?: 0
+                startPageWidth = webView?.width ?: 0
                 // Column offsets grow left-to-right regardless of the
                 // reading progression, so the clamp test is geometric.
                 edgeForward = webView != null && !webView.canScrollHorizontally(1)
@@ -99,7 +107,15 @@ class BoundaryFlingRescue(
         val first = samples.firstOrNull() ?: return
         val elapsed = (now - first.time).coerceAtLeast(1L)
         val velocityX = (dx - first.x) / elapsed * 1000f
-        if (abs(velocityX) < minVelocityPx || sign(velocityX) != sign(dx)) return
+        // Two ways to commit: a live fling in the drag's direction, or a
+        // drag carried far enough that speed no longer matters. A live
+        // fling *against* the drag is the reader changing their mind.
+        val flung = abs(velocityX) >= minVelocityPx
+        val committed = when {
+            flung -> sign(velocityX) == sign(dx)
+            else -> startPageWidth > 0 && abs(dx) >= startPageWidth * DRAG_COMMIT_FRACTION
+        }
+        if (!committed) return
 
         val rtl = navigator.overflow.value.readingProgression == ReadingProgression.RTL
         val forward = (dx < 0) != rtl
@@ -155,5 +171,13 @@ class BoundaryFlingRescue(
         const val MIN_DISTANCE_DP = 24f
         /** Deliberately below Readium's 400 dp/s gate — a light flick. */
         const val MIN_VELOCITY_DP_S = 300f
+
+        /**
+         * A slow drag commits past this fraction of the page width. The
+         * boundary gives no visual feedback while dragging (the next
+         * resource lives in another WebView), so this is deliberately
+         * shy of ViewPager's half-page rule.
+         */
+        const val DRAG_COMMIT_FRACTION = 1f / 3f
     }
 }
