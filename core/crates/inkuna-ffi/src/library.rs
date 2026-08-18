@@ -51,6 +51,8 @@ pub struct Publication {
     pub title: String,
     pub authors: Vec<String>,
     pub language: Option<String>,
+    /// Source charset for normalized plain-text imports; native EPUBs use `None`.
+    pub text_encoding: Option<String>,
     pub format: Format,
     pub file_path: String,
     pub cover_path: Option<String>,
@@ -125,6 +127,7 @@ pub(crate) fn publication_record(
         title: p.title,
         authors: p.authors,
         language: p.language,
+        text_encoding: p.text_encoding,
         format: p.format.into(),
         added_at: p.added_at,
         progression: p.progression,

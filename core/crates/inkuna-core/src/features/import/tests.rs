@@ -638,6 +638,76 @@ fn rejects_non_epub_naming_the_format() {
 }
 
 #[test]
+fn imports_gbk_txt_end_to_end_and_dedupes_source_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let txt = dir.path().join("月光書房.txt");
+    let source = "第一章 山中\n松风入夜。\n第二章 城外\n月照长街。\n第三章 归途\n故人归来。";
+    let (bytes, _, had_errors) = encoding_rs::GBK.encode(source);
+    assert!(!had_errors);
+    std::fs::write(&txt, &bytes).unwrap();
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let publication = imported(library.import(txt.to_str().unwrap()).unwrap());
+    assert_eq!(publication.title, "月光書房");
+    assert_eq!(publication.language.as_deref(), Some("zh"));
+    assert_eq!(publication.text_encoding.as_deref(), Some("GBK"));
+    assert_eq!(publication.format, crate::Format::Epub);
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 3);
+
+    let results = library
+        .search_in_book(&publication.id, "松风入夜", 10)
+        .unwrap();
+    assert_eq!(results.total, 1);
+    let stored = data_dir.join(&publication.file_path);
+    let package = crate::formats::epub::read_package(&stored).unwrap();
+    assert_eq!(package.metadata.title.as_deref(), Some("月光書房"));
+    assert_eq!(package.spine.len(), 3);
+
+    match library.import(txt.to_str().unwrap()).unwrap() {
+        ImportOutcome::Duplicate(existing) => assert_eq!(existing.id, publication.id),
+        other => panic!("expected duplicate TXT import, got {other:?}"),
+    }
+    assert_eq!(std::fs::read_dir(data_dir.join("books")).unwrap().count(), 1);
+}
+
+#[test]
+fn imports_txt_reader_using_its_display_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let source = "Chapter 1 Dawn\nThe road opened.\nChapter 2 Noon\nThe sun rose.\nChapter 3 Night\nThe stars appeared.";
+    let mut reader = std::io::Cursor::new(source.as_bytes());
+
+    let publication = imported(
+        library
+            .import_reader(&mut reader, "Field Notes.txt")
+            .unwrap(),
+    );
+    assert_eq!(publication.title, "Field Notes");
+    assert_eq!(publication.language.as_deref(), Some("und"));
+    assert_eq!(publication.text_encoding.as_deref(), Some("UTF-8"));
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 3);
+}
+
+#[test]
+fn failed_txt_conversion_removes_all_staging_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let txt = dir.path().join("empty.txt");
+    std::fs::write(&txt, " \r\n　").unwrap();
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+
+    assert!(matches!(
+        library.import(txt.to_str().unwrap()),
+        Err(CoreError::InvalidPublication(_))
+    ));
+    let leftovers = std::fs::read_dir(data_dir.join("books"))
+        .unwrap()
+        .collect::<Vec<_>>();
+    assert!(leftovers.is_empty(), "staging files leaked: {leftovers:?}");
+}
+
+#[test]
 fn reader_import_matches_path_import_byte_for_byte() {
     let dir = tempfile::tempdir().unwrap();
     let epub = dir.path().join("本の虫.epub");
@@ -855,4 +925,3 @@ fn batch_import_reports_per_item_outcomes_in_order() {
     }
     assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 1);
 }
-

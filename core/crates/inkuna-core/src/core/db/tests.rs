@@ -10,6 +10,52 @@ use crate::test_support::write_epub;
 use crate::{CoreError, ImportOutcome, Library, Shelf, Sort};
 
 #[test]
+fn migration_adds_nullable_text_encoding_to_an_existing_database() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    {
+        let conn = Connection::open(data_dir.join("inkuna.db")).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE publications (
+                id          TEXT PRIMARY KEY,
+                title       TEXT NOT NULL,
+                authors     TEXT NOT NULL DEFAULT '',
+                language    TEXT,
+                format      TEXT NOT NULL,
+                file_path   TEXT NOT NULL,
+                added_at    INTEGER NOT NULL,
+                progression REAL NOT NULL DEFAULT 0
+            );",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 1).unwrap();
+    }
+
+    let library = Library::open(&data_dir).unwrap();
+    let text_encoding_column: Option<(i64, Option<String>)> = library
+        .readers
+        .with(|conn| {
+            let mut statement = conn.prepare("PRAGMA table_info(publications)")?;
+            let columns = statement.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })?;
+            Ok(columns
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .find_map(|(name, not_null, default)| {
+                    (name == "text_encoding").then_some((not_null, default))
+                }))
+        })
+        .unwrap();
+    assert_eq!(text_encoding_column, Some((0, None)));
+}
+
+#[test]
 fn migration_adopts_live_rows_and_drops_dead_ones() {
     let dir = tempfile::tempdir().unwrap();
     let data_dir = dir.path().join("library");
@@ -108,4 +154,3 @@ fn reader_pool_outlives_panicking_work() {
         Err(_) => panic!("reader pool starved: pooled reads blocked forever after panics in `work`"),
     }
 }
-

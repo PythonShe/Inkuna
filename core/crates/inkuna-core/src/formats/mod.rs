@@ -5,5 +5,6 @@
 
 pub(crate) mod epub;
 pub(crate) mod format;
+pub(crate) mod txt;
 
 pub use format::Format;

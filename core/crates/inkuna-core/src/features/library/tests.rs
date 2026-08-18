@@ -14,6 +14,7 @@ fn imports_cjk_epub_and_roundtrips() {
     assert_eq!(publication.title, "月光書房");
     assert_eq!(publication.authors, vec!["紫式部"]);
     assert_eq!(publication.language.as_deref(), Some("ja"));
+    assert_eq!(publication.text_encoding, None);
     assert_eq!(publication.format, Format::Epub);
 
     // The file was copied into core-owned storage under a relative path.

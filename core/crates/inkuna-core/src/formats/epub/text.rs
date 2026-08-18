@@ -25,7 +25,7 @@ use crate::CoreError;
 /// was ~25x a huge novel, and measured, it let an 18 KB crafted archive
 /// import into a 364 MB data directory; a crafted spine now stops at a
 /// quarter of that.
-const MAX_TOTAL_TEXT_BYTES: usize = 32 * 1024 * 1024;
+pub(crate) const MAX_TOTAL_TEXT_BYTES: usize = 32 * 1024 * 1024;
 
 /// Elements whose entire content is invisible to a reader.
 const SKIPPED: &[&[u8]] = &[b"head", b"script", b"style", b"template"];

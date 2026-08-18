@@ -55,7 +55,7 @@ impl Format {
     pub fn detect_as(content: &Path, named: &Path) -> Result<Format, CoreError> {
         let path = content;
         let mut file = File::open(path)?;
-        let mut head = [0u8; 68];
+        let mut head = [0u8; 4 * 1024];
         let n = file.read(&mut head)?;
 
         if n >= RAR_MAGIC.len() && head.starts_with(RAR_MAGIC) {
@@ -169,14 +169,38 @@ fn detect_mobi_generation(file: &mut File) -> Format {
     }
 }
 
-/// TXT has no magic bytes: require the `.txt` extension AND a sample free
-/// of NUL bytes, so binaries renamed to .txt are rejected while non-UTF-8
-/// CJK encodings (GB18030, Big5, Shift-JIS) still pass.
+/// TXT has no magic bytes: require the `.txt` extension and reject NUL-heavy
+/// binary data, while admitting UTF-16 BOMs and the same NUL-density
+/// BOM-less UTF-16 sample recognized by the converter.
 fn is_plain_text(path: &Path, sample: &[u8]) -> bool {
     let is_txt_ext = path
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("txt"));
-    is_txt_ext && !sample.contains(&0)
+    if !is_txt_ext {
+        return false;
+    }
+    if sample.starts_with(&[0xff, 0xfe]) || sample.starts_with(&[0xfe, 0xff]) {
+        return true;
+    }
+    let nulls = sample.iter().filter(|byte| **byte == 0).count();
+    if nulls == 0 {
+        return true;
+    }
+    if nulls * 10 <= sample.len() * 3 {
+        return false;
+    }
+    let (even, odd) = sample
+        .iter()
+        .enumerate()
+        .filter(|(_, byte)| **byte == 0)
+        .fold((0usize, 0usize), |(even, odd), (index, _)| {
+            if index % 2 == 0 {
+                (even + 1, odd)
+            } else {
+                (even, odd + 1)
+            }
+        });
+    even != odd
 }
 
 #[cfg(test)]

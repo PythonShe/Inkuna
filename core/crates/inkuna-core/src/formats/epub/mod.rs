@@ -26,6 +26,7 @@ mod xml;
 pub use model::{Cover, TocEntry};
 pub use package::read_package;
 pub use text::extract_spine_text;
+pub(crate) use text::MAX_TOTAL_TEXT_BYTES;
 #[allow(unused_imports)] // Consumed by the TXT converter in Step 2.
 pub(crate) use write::EpubWriter;
 

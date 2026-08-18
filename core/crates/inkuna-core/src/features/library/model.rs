@@ -15,6 +15,8 @@ pub struct Publication {
     pub title: String,
     pub authors: Vec<String>,
     pub language: Option<String>,
+    /// Source charset for normalized plain-text imports; native EPUBs use `None`.
+    pub text_encoding: Option<String>,
     pub format: Format,
     pub file_path: String,
     pub cover_path: Option<String>,
@@ -81,13 +83,13 @@ pub struct Bookmark {
     pub created_at: i64,
 }
 
-pub(crate) const PUB_COLUMNS: &str = "id, title, authors, language, format, file_path, \
+pub(crate) const PUB_COLUMNS: &str = "id, title, authors, language, text_encoding, format, file_path, \
      cover_path, added_at, progression, locator, position_count, finished_at, last_opened_at";
 
 pub(crate) fn map_publication(row: &rusqlite::Row) -> rusqlite::Result<Publication> {
-    let format_str: String = row.get(4)?;
+    let format_str: String = row.get(5)?;
     let format = Format::from_str(&format_str).map_err(|e| {
-        rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
+        rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e))
     })?;
     let authors: String = row.get(2)?;
     Ok(Publication {
@@ -95,15 +97,16 @@ pub(crate) fn map_publication(row: &rusqlite::Row) -> rusqlite::Result<Publicati
         title: row.get(1)?,
         authors: split_authors(&authors),
         language: row.get(3)?,
+        text_encoding: row.get(4)?,
         format,
-        file_path: row.get(5)?,
-        cover_path: row.get(6)?,
-        added_at: row.get(7)?,
-        progression: row.get(8)?,
-        locator: row.get(9)?,
-        position_count: row.get(10)?,
-        finished_at: row.get(11)?,
-        last_opened_at: row.get(12)?,
+        file_path: row.get(6)?,
+        cover_path: row.get(7)?,
+        added_at: row.get(8)?,
+        progression: row.get(9)?,
+        locator: row.get(10)?,
+        position_count: row.get(11)?,
+        finished_at: row.get(12)?,
+        last_opened_at: row.get(13)?,
     })
 }
 
