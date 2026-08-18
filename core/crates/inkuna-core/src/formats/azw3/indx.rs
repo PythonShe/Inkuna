@@ -38,6 +38,7 @@ struct Tagx {
     definitions: Vec<TagDefinition>,
 }
 
+#[cfg(test)]
 pub(super) fn parse_records(records: &[Vec<u8>]) -> Result<Index, CoreError> {
     let borrowed = records.iter().map(Vec::as_slice).collect::<Vec<_>>();
     parse(&borrowed)

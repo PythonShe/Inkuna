@@ -2,15 +2,15 @@
 
 use super::entities::decode_entities;
 
-pub(super) fn decoded_xml_text(input: &str) -> String {
+pub(crate) fn decoded_xml_text(input: &str) -> String {
     filter_xml_chars(&decode_entities(input))
 }
 
-pub(super) fn filter_xml_chars(input: &str) -> String {
+pub(crate) fn filter_xml_chars(input: &str) -> String {
     input.chars().filter(|ch| is_xml_char(*ch)).collect()
 }
 
-pub(super) fn safe_href(value: &str) -> bool {
+pub(crate) fn safe_href(value: &str) -> bool {
     let value = value.trim();
     if value.is_empty() || value.starts_with("//") {
         return false;
@@ -24,7 +24,7 @@ pub(super) fn safe_href(value: &str) -> bool {
         || scheme.eq_ignore_ascii_case("mailto")
 }
 
-pub(super) fn safe_image_src(value: &str) -> bool {
+pub(crate) fn safe_image_src(value: &str) -> bool {
     let value = value.trim();
     !value.is_empty() && !value.starts_with('/') && !value.contains(':')
 }

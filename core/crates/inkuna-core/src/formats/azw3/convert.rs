@@ -3,11 +3,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::book::MobiBook;
-use super::convert::image_type;
 use super::kf8::{self, FragmentAnchor, Kf8Content};
-use super::markup;
 use crate::formats::epub::EpubWriter;
+use crate::formats::mobi::{image_type, markup, sanitize, MobiBook};
 use crate::CoreError;
 
 const BASE32: &[u8; 32] = b"0123456789ABCDEFGHIJKLMNOPQRSTUV";
@@ -40,7 +38,7 @@ impl ImageBudget {
     }
 }
 
-pub(super) fn convert_to_epub(
+pub(crate) fn convert_to_epub(
     book: &MobiBook,
     dst: &Path,
     fallback_title: &str,
@@ -49,7 +47,7 @@ pub(super) fn convert_to_epub(
     if content.files.is_empty() {
         return Err(invalid("KF8 publication has no skeleton files"));
     }
-    let title = super::sanitize::filter_xml_chars(&match book.title() {
+    let title = sanitize::filter_xml_chars(&match book.title() {
         title if !title.trim().is_empty() => title,
         _ => fallback_title.to_string(),
     });
@@ -59,7 +57,7 @@ pub(super) fn convert_to_epub(
     let language = book.language().unwrap_or_else(|| "und".into());
     let mut writer = EpubWriter::new(&title);
     for author in book.authors() {
-        writer.author(&super::sanitize::filter_xml_chars(&author));
+        writer.author(&sanitize::filter_xml_chars(&author));
     }
     writer.language(&language);
     writer.stylesheet(".mobi-center { text-align: center; }");
@@ -429,5 +427,5 @@ fn invalid(message: &str) -> CoreError {
 }
 
 #[cfg(test)]
-#[path = "convert8_tests.rs"]
+#[path = "convert_tests.rs"]
 mod tests;

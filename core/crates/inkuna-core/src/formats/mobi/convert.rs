@@ -62,7 +62,7 @@ pub(crate) fn convert_to_epub(
 ) -> Result<(), CoreError> {
     let book = MobiBook::open(src)?;
     if book.is_kf8() {
-        return super::convert8::convert_to_epub(&book, dst, fallback_title);
+        return crate::formats::azw3::convert_to_epub(&book, dst, fallback_title);
     }
     let text = book.text()?;
     if text.is_empty() {
@@ -156,7 +156,7 @@ fn is_utf8(encoding: u32) -> bool {
     encoding != 1252
 }
 
-pub(super) fn image_type(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
+pub(crate) fn image_type(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
     if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
         Some(("image/jpeg", "jpg"))
     } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {

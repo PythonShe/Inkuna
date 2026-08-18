@@ -3,7 +3,7 @@ use std::path::Path;
 
 use super::{parse_position, sanitize_css};
 use crate::formats::epub;
-use crate::formats::mobi::convert::convert_to_epub;
+use crate::formats::mobi::convert_to_epub;
 use crate::test_support::{Kf8FileFixture, Kf8NcxFixture, MobiTestBuilder};
 
 fn chapter(path: &Path, index: usize) -> String {

@@ -4,16 +4,16 @@ use quick_xml::escape::escape;
 
 use super::sanitize::{decoded_xml_text, safe_href, safe_image_src};
 
-pub(super) struct NormalizedMarkup {
-    pub(super) xhtml: String,
-    pub(super) heading: Option<String>,
+pub(crate) struct NormalizedMarkup {
+    pub(crate) xhtml: String,
+    pub(crate) heading: Option<String>,
 }
 
 struct OpenElement {
     name: &'static str,
 }
 
-pub(super) fn normalize(
+pub(crate) fn normalize(
     input: &str,
     mut image_href: impl FnMut(u32) -> Option<String>,
 ) -> NormalizedMarkup {

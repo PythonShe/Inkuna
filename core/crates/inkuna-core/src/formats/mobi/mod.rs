@@ -3,17 +3,15 @@
 
 mod book;
 mod convert;
-mod convert8;
 mod entities;
 mod header;
 mod huffcdic;
-mod indx;
-mod kf8;
-mod markup;
+pub(super) mod markup;
 mod palmdoc;
 mod pdb;
-mod sanitize;
+pub(super) mod sanitize;
 mod scan;
 
 pub(crate) use book::MobiBook;
 pub(crate) use convert::convert_to_epub;
+pub(super) use convert::image_type;

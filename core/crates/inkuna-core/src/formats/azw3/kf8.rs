@@ -1,7 +1,7 @@
 //! KF8 FDST flow splitting and SKEL/FRAG reassembly.
 
-use super::book::MobiBook;
 use super::indx::{self, Index, IndexEntry};
+use crate::formats::mobi::MobiBook;
 use crate::CoreError;
 
 const MAX_FLOWS: usize = 65_536;
@@ -11,10 +11,12 @@ pub(super) struct Kf8Content {
     pub(super) files: Vec<AssembledFile>,
     pub(super) flows: Vec<Vec<u8>>,
     pub(super) toc: Option<Vec<Kf8TocEntry>>,
+    #[cfg_attr(not(test), allow(dead_code))] // asserted by kf8_tests
     fragment_files: Vec<Option<usize>>,
 }
 
 impl Kf8Content {
+    #[cfg(test)]
     pub(super) fn fragment_file(&self, fid: u32) -> Option<usize> {
         self.fragment_files.get(fid as usize).copied().flatten()
     }

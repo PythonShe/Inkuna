@@ -23,13 +23,13 @@ struct View {
     headers: Headers,
 }
 
-pub(super) struct Kf8Pointers {
-    pub(super) fdst: u32,
-    pub(super) flow_count: u32,
-    pub(super) fragment_index: u32,
-    pub(super) skeleton_index: u32,
-    pub(super) ncx_index: Option<u32>,
-    pub(super) guide_index: Option<u32>,
+pub(crate) struct Kf8Pointers {
+    pub(crate) fdst: u32,
+    pub(crate) flow_count: u32,
+    pub(crate) fragment_index: u32,
+    pub(crate) skeleton_index: u32,
+    pub(crate) ncx_index: Option<u32>,
+    pub(crate) guide_index: Option<u32>,
 }
 
 /// Parsed MOBI container. Combo files transparently select their KF8 view.
@@ -91,7 +91,7 @@ impl MobiBook {
         }
     }
 
-    pub(super) fn kf8_pointers(&self) -> Result<Kf8Pointers, CoreError> {
+    pub(crate) fn kf8_pointers(&self) -> Result<Kf8Pointers, CoreError> {
         if !self.is_kf8() {
             return Err(invalid("selected MOBI view is not KF8"));
         }
@@ -113,7 +113,7 @@ impl MobiBook {
         })
     }
 
-    pub(super) fn relative_record(&self, relative: u32) -> Result<&[u8], CoreError> {
+    pub(crate) fn relative_record(&self, relative: u32) -> Result<&[u8], CoreError> {
         let index = self
             .view
             .header_index
