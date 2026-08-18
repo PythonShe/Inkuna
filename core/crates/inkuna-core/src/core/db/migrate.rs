@@ -136,8 +136,7 @@ ALTER TABLE publications ADD COLUMN text_encoding TEXT;
 
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
     loop {
-        let version: i64 =
-            conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
         if version >= SCHEMA_VERSION {
             return Ok(());
         }
@@ -169,9 +168,7 @@ pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), Core
 fn adopt_legacy_rows(tx: &Transaction, data_dir: &Path) -> Result<(), CoreError> {
     let rows: Vec<(String, String, String)> = {
         let mut stmt = tx.prepare("SELECT id, file_path, format FROM publications")?;
-        let mapped = stmt.query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-        })?;
+        let mapped = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
         mapped.collect::<Result<_, _>>()?
     };
 

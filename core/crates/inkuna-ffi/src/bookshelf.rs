@@ -25,7 +25,9 @@ impl Bookshelf {
     /// import.
     #[uniffi::constructor]
     pub fn open(data_dir: String) -> Result<Arc<Self>, InkunaError> {
-        Ok(Arc::new(Bookshelf(Arc::new(inkuna_core::Library::open(&data_dir)?))))
+        Ok(Arc::new(Bookshelf(Arc::new(inkuna_core::Library::open(
+            &data_dir,
+        )?))))
     }
 }
 
@@ -36,7 +38,9 @@ pub(crate) async fn blocking<T: Send + 'static>(
 ) -> Result<T, InkunaError> {
     tokio::task::spawn_blocking(work)
         .await
-        .map_err(|e| InkunaError::Io { detail: format!("task join error: {e}") })?
+        .map_err(|e| InkunaError::Io {
+            detail: format!("task join error: {e}"),
+        })?
 }
 
 #[uniffi::export]

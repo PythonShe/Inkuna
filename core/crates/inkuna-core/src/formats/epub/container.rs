@@ -26,5 +26,7 @@ pub(super) fn rootfile_path(container_xml: &str) -> Result<String, CoreError> {
         }
         buf.clear();
     }
-    Err(CoreError::InvalidPublication("no rootfile in container.xml".into()))
+    Err(CoreError::InvalidPublication(
+        "no rootfile in container.xml".into(),
+    ))
 }

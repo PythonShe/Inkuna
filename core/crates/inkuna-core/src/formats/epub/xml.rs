@@ -57,7 +57,9 @@ pub(super) fn clean_text(text: Option<&str>) -> Option<String> {
 pub(super) fn attr_value(e: &BytesStart, name: &[u8]) -> Option<String> {
     e.attributes().flatten().find_map(|attr| {
         if attr.key.local_name().as_ref() == name {
-            attr.normalized_value(quick_xml::XmlVersion::default()).ok().map(|v| v.into_owned())
+            attr.normalized_value(quick_xml::XmlVersion::default())
+                .ok()
+                .map(|v| v.into_owned())
         } else {
             None
         }
@@ -69,7 +71,9 @@ pub(super) fn attr_value(e: &BytesStart, name: &[u8]) -> Option<String> {
 pub(super) fn raw_attr(e: &BytesStart, name: &[u8]) -> Option<String> {
     e.attributes().flatten().find_map(|attr| {
         if attr.key.as_ref() == name {
-            attr.normalized_value(quick_xml::XmlVersion::default()).ok().map(|v| v.into_owned())
+            attr.normalized_value(quick_xml::XmlVersion::default())
+                .ok()
+                .map(|v| v.into_owned())
         } else {
             None
         }

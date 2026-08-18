@@ -75,11 +75,8 @@ impl Format {
                 let mut mime = String::new();
                 // One byte past the budget, so an entry that fills the cap
                 // exactly is distinguishable from one that overflows it.
-                let _ = entry
-                    .take(MAX_MIMETYPE_BYTES + 1)
-                    .read_to_string(&mut mime);
-                if mime.len() as u64 <= MAX_MIMETYPE_BYTES
-                    && mime.trim() == "application/epub+zip"
+                let _ = entry.take(MAX_MIMETYPE_BYTES + 1).read_to_string(&mut mime);
+                if mime.len() as u64 <= MAX_MIMETYPE_BYTES && mime.trim() == "application/epub+zip"
                 {
                     return Ok(Format::Epub);
                 }

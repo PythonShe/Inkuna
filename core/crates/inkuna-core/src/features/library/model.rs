@@ -83,7 +83,8 @@ pub struct Bookmark {
     pub created_at: i64,
 }
 
-pub(crate) const PUB_COLUMNS: &str = "id, title, authors, language, text_encoding, format, file_path, \
+pub(crate) const PUB_COLUMNS: &str =
+    "id, title, authors, language, text_encoding, format, file_path, \
      cover_path, added_at, progression, locator, position_count, finished_at, last_opened_at";
 
 pub(crate) fn map_publication(row: &rusqlite::Row) -> rusqlite::Result<Publication> {

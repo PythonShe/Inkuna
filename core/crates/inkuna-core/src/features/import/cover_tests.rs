@@ -98,9 +98,9 @@ fn dimension_bomb_passes_through_undecoded() {
     bytes.extend_from_slice(&1u16.to_le_bytes()); // planes
     bytes.extend_from_slice(&24u16.to_le_bytes()); // bits per pixel
     bytes.extend_from_slice(&[0u8; 24]); // compression through palette
-    // The header must parse and must declare more pixels than the cap
-    // admits — otherwise the pass-through below could come from a mere
-    // decode failure and the test would pass with the cap deleted.
+                                         // The header must parse and must declare more pixels than the cap
+                                         // admits — otherwise the pass-through below could come from a mere
+                                         // decode failure and the test would pass with the cap deleted.
     assert_eq!(dimensions(&bytes), (30_000, 30_000));
     let cover = normalize_cover(Cover {
         bytes: bytes.clone(),

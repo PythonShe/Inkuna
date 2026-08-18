@@ -47,7 +47,10 @@ impl Library {
             });
         }
 
-        tx.execute("DELETE FROM resource_positions WHERE publication_id = ?1", [id])?;
+        tx.execute(
+            "DELETE FROM resource_positions WHERE publication_id = ?1",
+            [id],
+        )?;
         let mut start: i64 = 1;
         {
             let mut insert = tx.prepare_cached(

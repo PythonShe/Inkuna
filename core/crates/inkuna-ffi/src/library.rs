@@ -200,7 +200,14 @@ impl Bookshelf {
     /// Bookmarks sorted by progression through the book.
     pub async fn bookmarks(&self, id: String) -> Result<Vec<Bookmark>, InkunaError> {
         let library = self.0.clone();
-        blocking(move || Ok(library.bookmarks(&id)?.into_iter().map(Into::into).collect())).await
+        blocking(move || {
+            Ok(library
+                .bookmarks(&id)?
+                .into_iter()
+                .map(Into::into)
+                .collect())
+        })
+        .await
     }
 
     pub async fn remove_bookmark(&self, bookmark_id: String) -> Result<(), InkunaError> {

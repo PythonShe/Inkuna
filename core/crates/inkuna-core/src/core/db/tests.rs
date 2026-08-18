@@ -151,6 +151,8 @@ fn reader_pool_outlives_panicking_work() {
     match rx.recv_timeout(Duration::from_secs(10)) {
         Ok(Ok(1)) => {}
         Ok(other) => panic!("unexpected read result: {other:?}"),
-        Err(_) => panic!("reader pool starved: pooled reads blocked forever after panics in `work`"),
+        Err(_) => {
+            panic!("reader pool starved: pooled reads blocked forever after panics in `work`")
+        }
     }
 }

@@ -92,8 +92,7 @@ impl Library {
     /// rename and the DB commit — plus stray `.tmp` staging files.
     fn sweep(&self) -> Result<(), CoreError> {
         let referenced: HashSet<String> = self.readers.with(|conn| {
-            let mut stmt =
-                conn.prepare("SELECT file_path, cover_path FROM publications")?;
+            let mut stmt = conn.prepare("SELECT file_path, cover_path FROM publications")?;
             let rows = stmt.query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
             })?;

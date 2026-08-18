@@ -40,11 +40,23 @@ fn report_derives_cumulative_starts_and_chapter_spans() {
         library.chapter_position_ranges(&id).unwrap(),
         vec![
             // 第一章 spans its resource up to the next chapter's resource.
-            ChapterPositionRange { chapter_idx: 0, start_position: 1, end_position: 10 },
+            ChapterPositionRange {
+                chapter_idx: 0,
+                start_position: 1,
+                end_position: 10
+            },
             // Fragment-anchored sibling shares the whole resource span.
-            ChapterPositionRange { chapter_idx: 1, start_position: 1, end_position: 10 },
+            ChapterPositionRange {
+                chapter_idx: 1,
+                start_position: 1,
+                end_position: 10
+            },
             // Last chapter runs to the last known position.
-            ChapterPositionRange { chapter_idx: 2, start_position: 11, end_position: 15 },
+            ChapterPositionRange {
+                chapter_idx: 2,
+                start_position: 11,
+                end_position: 15
+            },
         ]
     );
     // The total keeps "page N of M" in agreement with the breakdown.
@@ -96,9 +108,21 @@ fn chapter_ranges_follow_spine_order_when_toc_is_shuffled() {
     assert_eq!(
         library.chapter_position_ranges(&id).unwrap(),
         vec![
-            ChapterPositionRange { chapter_idx: 0, start_position: 11, end_position: 15 },
-            ChapterPositionRange { chapter_idx: 1, start_position: 1, end_position: 10 },
-            ChapterPositionRange { chapter_idx: 2, start_position: 1, end_position: 10 },
+            ChapterPositionRange {
+                chapter_idx: 0,
+                start_position: 11,
+                end_position: 15
+            },
+            ChapterPositionRange {
+                chapter_idx: 1,
+                start_position: 1,
+                end_position: 10
+            },
+            ChapterPositionRange {
+                chapter_idx: 2,
+                start_position: 1,
+                end_position: 10
+            },
         ]
     );
 }

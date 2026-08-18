@@ -73,7 +73,12 @@ impl PersistBudget {
     /// A meter with explicit ceilings; tests use tiny ones to reach the
     /// trip path without building a multi-hundred-MB fixture.
     pub(super) fn with_limits(max_rows: u64, max_bytes: u64) -> Self {
-        Self { rows: 0, bytes: 0, max_rows, max_bytes }
+        Self {
+            rows: 0,
+            bytes: 0,
+            max_rows,
+            max_bytes,
+        }
     }
 
     /// Charges one row carrying `bytes` of variable-length values.
