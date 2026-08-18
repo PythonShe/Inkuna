@@ -1,6 +1,6 @@
 use super::MobiBook;
-use crate::CoreError;
 use crate::test_support::MobiTestBuilder;
+use crate::CoreError;
 
 fn tiny_huff_records() -> Vec<Vec<u8>> {
     tiny_huff_records_with(b"HELLO", b'Y')
@@ -136,7 +136,10 @@ fn bounds_titles_and_authors_to_the_epub_metadata_limits() {
     let mut builder = MobiTestBuilder::new(6);
     builder.exth(503, title.as_bytes());
     for index in 0..1_100 {
-        builder.exth(100, format!("Author {index} {}", "x".repeat(3_000)).as_bytes());
+        builder.exth(
+            100,
+            format!("Author {index} {}", "x".repeat(3_000)).as_bytes(),
+        );
     }
     builder.write(&path);
 

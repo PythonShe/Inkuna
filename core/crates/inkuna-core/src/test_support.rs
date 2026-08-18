@@ -9,7 +9,10 @@ use crate::{ImportOutcome, Publication};
 #[path = "mobi_test_support.rs"]
 mod mobi;
 
-pub(crate) use mobi::{MobiTestBuilder, palmdoc_compress};
+pub(crate) use mobi::{
+    build_indx_records, palmdoc_compress, IndxEntryFixture, Kf8FileFixture, Kf8NcxFixture,
+    MobiTestBuilder,
+};
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum TocKind {
@@ -43,8 +46,8 @@ pub(crate) fn write_epub_with(
 ) {
     let file = std::fs::File::create(path).unwrap();
     let mut zip = zip::ZipWriter::new(file);
-    let stored = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
     zip.start_file("mimetype", stored).unwrap();
     zip.write_all(b"application/epub+zip").unwrap();
@@ -107,7 +110,8 @@ pub(crate) fn write_epub_with(
     zip.start_file("OEBPS/text/ch01.xhtml", stored).unwrap();
     zip.write_all(
         r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>ch01</title></head>
-<body><h1 id="s1">第一章</h1><p>月の光が窓辺に落ちていた。</p></body></html>"#.as_bytes(),
+<body><h1 id="s1">第一章</h1><p>月の光が窓辺に落ちていた。</p></body></html>"#
+            .as_bytes(),
     )
     .unwrap();
     zip.start_file("OEBPS/text/ch02.xhtml", stored).unwrap();
@@ -169,8 +173,8 @@ pub(crate) fn write_epub_with(
 pub(crate) fn write_epub_parts(path: &Path, opf: &str, entries: &[(&str, &str)]) {
     let file = std::fs::File::create(path).unwrap();
     let mut zip = zip::ZipWriter::new(file);
-    let stored = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     let deflated = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
@@ -204,8 +208,8 @@ pub(crate) fn write_epub(path: &Path, title: &str, author: &str, language: &str)
 pub(crate) fn write_cbz(path: &Path) {
     let file = std::fs::File::create(path).unwrap();
     let mut zip = zip::ZipWriter::new(file);
-    let stored = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     zip.start_file("001.jpg", stored).unwrap();
     zip.write_all(&[0xFF, 0xD8, 0xFF]).unwrap();
     zip.finish().unwrap();

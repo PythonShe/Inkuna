@@ -47,8 +47,8 @@ impl Library {
     /// A crafted or damaged book degrades rather than failing wherever the
     /// missing part is optional — an oversized TOC is truncated, an
     /// unreadable chapter loses only its text row, an unusable cover is
-    /// dropped. It accepts native EPUB plus MOBI6 and TXT normalized to
-    /// EPUB, fails with `UnsupportedFormat` for the remaining formats
+    /// dropped. It accepts native EPUB plus MOBI/AZW3 and TXT normalized to
+    /// EPUB, fails with `UnsupportedFormat` for fixed-layout formats
     /// today, and with `InvalidPublication` when a mandatory part is
     /// missing, no title can be derived, or the per-publication
     /// persistence budget trips (in which case the transaction rolls back
@@ -164,8 +164,13 @@ impl Library {
         // Detect before copying, so a wrong-format file is rejected
         // without paying for a copy of it.
         let format = Format::detect(src)?;
-        if !matches!(format, Format::Epub | Format::Mobi | Format::Txt) {
-            return Err(CoreError::UnsupportedFormat(Some(format.as_str().to_string())));
+        if !matches!(
+            format,
+            Format::Epub | Format::Mobi | Format::Azw3 | Format::Txt
+        ) {
+            return Err(CoreError::UnsupportedFormat(Some(
+                format.as_str().to_string(),
+            )));
         }
 
         let (id, rel_path, tmp_path) = self.stage_slot();
@@ -205,9 +210,14 @@ impl Library {
         let format = Format::detect_as(&tmp_path, named).inspect_err(|_| {
             let _ = std::fs::remove_file(&tmp_path);
         })?;
-        if !matches!(format, Format::Epub | Format::Mobi | Format::Txt) {
+        if !matches!(
+            format,
+            Format::Epub | Format::Mobi | Format::Azw3 | Format::Txt
+        ) {
             let _ = std::fs::remove_file(&tmp_path);
-            return Err(CoreError::UnsupportedFormat(Some(format.as_str().to_string())));
+            return Err(CoreError::UnsupportedFormat(Some(
+                format.as_str().to_string(),
+            )));
         }
         let text_encoding = if format == Format::Epub {
             None
@@ -241,9 +251,7 @@ impl Library {
         tmp_path: &Path,
         fallback_stem: Option<&OsStr>,
     ) -> Result<Option<String>, CoreError> {
-        let conv_path = self
-            .data_dir
-            .join(format!("books/{id}.epub.conv.tmp"));
+        let conv_path = self.data_dir.join(format!("books/{id}.epub.conv.tmp"));
         let title = fallback_stem
             .map(|stem| nfc(&stem.to_string_lossy()))
             .filter(|title| !title.is_empty());
@@ -252,12 +260,10 @@ impl Library {
                 .ok_or_else(|| CoreError::InvalidPublication("untitled".into()))
                 .and_then(|title| txt::convert_to_epub(tmp_path, &conv_path, &title))
                 .map(|conversion| Some(conversion.encoding)),
-            Format::Mobi => mobi::convert_to_epub(
-                tmp_path,
-                &conv_path,
-                title.as_deref().unwrap_or(""),
-            )
-            .map(|()| None),
+            Format::Mobi | Format::Azw3 => {
+                mobi::convert_to_epub(tmp_path, &conv_path, title.as_deref().unwrap_or(""))
+                    .map(|()| None)
+            }
             _ => unreachable!(),
         };
         let conversion = match conversion {
@@ -342,7 +348,10 @@ impl Library {
     /// ordering hold across a power loss and not just a process crash. A
     /// concurrent import of the same content loses the unique-index race
     /// and resolves to `Duplicate`.
-    pub(crate) fn commit_import(&self, prepared: PreparedImport) -> Result<ImportOutcome, CoreError> {
+    pub(crate) fn commit_import(
+        &self,
+        prepared: PreparedImport,
+    ) -> Result<ImportOutcome, CoreError> {
         // One meter per publication: a batch never shares it.
         self.commit_import_budgeted(prepared, PersistBudget::for_import())
     }
@@ -425,68 +434,67 @@ impl Library {
         // the transaction makes rollback free, but the WAL still grows on
         // disk while it runs, so the meter must abort within one row of
         // the ceiling rather than bound only the committed state.
-        let insert = |tx: &rusqlite::Transaction,
-                      budget: &mut PersistBudget|
-         -> Result<(), CoreError> {
-            let authors = join_authors(&publication.authors);
-            budget.charge(
-                publication.title.len()
-                    + authors.len()
-                    + publication.language.as_deref().map_or(0, str::len)
-                    + publication.text_encoding.as_deref().map_or(0, str::len),
-            )?;
-            tx.execute(
-                "INSERT INTO publications
+        let insert =
+            |tx: &rusqlite::Transaction, budget: &mut PersistBudget| -> Result<(), CoreError> {
+                let authors = join_authors(&publication.authors);
+                budget.charge(
+                    publication.title.len()
+                        + authors.len()
+                        + publication.language.as_deref().map_or(0, str::len)
+                        + publication.text_encoding.as_deref().map_or(0, str::len),
+                )?;
+                tx.execute(
+                    "INSERT INTO publications
                     (id, title, authors, language, text_encoding, format, file_path,
                      cover_path, content_hash, added_at, progression)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                rusqlite::params![
-                    publication.id,
-                    publication.title,
-                    authors,
-                    publication.language,
-                    publication.text_encoding,
-                    publication.format.as_str(),
-                    publication.file_path,
-                    publication.cover_path,
-                    prepared.content_hash,
-                    publication.added_at,
-                    publication.progression,
-                ],
-            )?;
-            for (spine_idx, (href, text)) in prepared.spine.iter().enumerate() {
-                let resource_id = uuid::Uuid::new_v4().to_string();
-                budget.charge(href.len())?;
-                tx.execute(
-                    "INSERT INTO resources (id, publication_id, spine_idx, href)
-                     VALUES (?1, ?2, ?3, ?4)",
-                    rusqlite::params![resource_id, publication.id, spine_idx as i64, href],
-                )?;
-                if let Some(body) = text {
-                    budget.charge(body.len())?;
-                    tx.execute(
-                        "INSERT INTO resource_text (resource_id, body) VALUES (?1, ?2)",
-                        rusqlite::params![resource_id, body.as_ref()],
-                    )?;
-                }
-            }
-            for (idx, entry) in prepared.toc.iter().enumerate() {
-                budget.charge(entry.title.len() + entry.href.len())?;
-                tx.execute(
-                    "INSERT INTO chapters (id, publication_id, idx, title, href, depth)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     rusqlite::params![
-                        uuid::Uuid::new_v4().to_string(),
                         publication.id,
-                        idx as i64,
-                        entry.title,
-                        entry.href,
-                        entry.depth,
+                        publication.title,
+                        authors,
+                        publication.language,
+                        publication.text_encoding,
+                        publication.format.as_str(),
+                        publication.file_path,
+                        publication.cover_path,
+                        prepared.content_hash,
+                        publication.added_at,
+                        publication.progression,
                     ],
                 )?;
-            }
-            Ok(())
-        };
+                for (spine_idx, (href, text)) in prepared.spine.iter().enumerate() {
+                    let resource_id = uuid::Uuid::new_v4().to_string();
+                    budget.charge(href.len())?;
+                    tx.execute(
+                        "INSERT INTO resources (id, publication_id, spine_idx, href)
+                     VALUES (?1, ?2, ?3, ?4)",
+                        rusqlite::params![resource_id, publication.id, spine_idx as i64, href],
+                    )?;
+                    if let Some(body) = text {
+                        budget.charge(body.len())?;
+                        tx.execute(
+                            "INSERT INTO resource_text (resource_id, body) VALUES (?1, ?2)",
+                            rusqlite::params![resource_id, body.as_ref()],
+                        )?;
+                    }
+                }
+                for (idx, entry) in prepared.toc.iter().enumerate() {
+                    budget.charge(entry.title.len() + entry.href.len())?;
+                    tx.execute(
+                        "INSERT INTO chapters (id, publication_id, idx, title, href, depth)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        rusqlite::params![
+                            uuid::Uuid::new_v4().to_string(),
+                            publication.id,
+                            idx as i64,
+                            entry.title,
+                            entry.href,
+                            entry.depth,
+                        ],
+                    )?;
+                }
+                Ok(())
+            };
 
         let inserted = {
             let mut conn = self.writer.lock().unwrap();
@@ -532,9 +540,7 @@ impl Library {
                     .spine
                     .iter()
                     .enumerate()
-                    .filter_map(|(idx, (_, text))| {
-                        text.as_ref().map(|t| (idx as u32, t.as_ref()))
-                    }),
+                    .filter_map(|(idx, (_, text))| text.as_ref().map(|t| (idx as u32, t.as_ref()))),
             ) {
                 log::warn!("search indexing failed for {}: {e}", publication.id);
             }

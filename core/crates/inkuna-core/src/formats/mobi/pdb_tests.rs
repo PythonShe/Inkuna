@@ -1,4 +1,4 @@
-use super::{PalmDatabase, check_container_size};
+use super::{check_container_size, PalmDatabase};
 
 fn pdb_bytes(offsets: &[u32], records: &[&[u8]]) -> Vec<u8> {
     let mut bytes = vec![0; 78];

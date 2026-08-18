@@ -60,12 +60,9 @@ pub(crate) fn convert_to_epub(
     dst: &Path,
     fallback_title: &str,
 ) -> Result<(), CoreError> {
-    let mut book = MobiBook::open(src)?;
-    if book.kf8_boundary().is_some() {
-        // Step 5 will prefer the KF8 view once its reassembler exists.
-        book.select_mobi6();
-    } else if book.is_kf8() {
-        return Err(CoreError::UnsupportedFormat(Some("azw3".into())));
+    let book = MobiBook::open(src)?;
+    if book.is_kf8() {
+        return super::convert8::convert_to_epub(&book, dst, fallback_title);
     }
     let text = book.text()?;
     if text.is_empty() {
@@ -159,7 +156,7 @@ fn is_utf8(encoding: u32) -> bool {
     encoding != 1252
 }
 
-fn image_type(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
+pub(super) fn image_type(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
     if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
         Some(("image/jpeg", "jpg"))
     } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {

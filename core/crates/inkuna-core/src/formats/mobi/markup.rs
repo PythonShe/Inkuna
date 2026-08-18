@@ -122,6 +122,7 @@ fn mapped_name(name: &str) -> Option<&'static str> {
     Some(match name {
         "center" => "div",
         "font" => "span",
+        "section" | "article" | "aside" | "figure" | "figcaption" => "div",
         "p" => "p",
         "br" => "br",
         "div" => "div",

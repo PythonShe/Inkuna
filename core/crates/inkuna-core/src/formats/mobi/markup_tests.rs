@@ -103,3 +103,24 @@ fn drops_active_urls_and_remote_images() {
         )
     );
 }
+
+#[test]
+fn maps_kf8_semantic_blocks_and_drops_svg_markup_but_keeps_text() {
+    let normalized = normalize(
+        concat!(
+            "<section><article><aside>side</aside></article></section>",
+            "<figure><figcaption>caption</figcaption></figure>",
+            "<svg><text>vector label</text></svg>",
+        ),
+        |_| None,
+    );
+
+    assert_eq!(
+        normalized.xhtml,
+        concat!(
+            "<div><div><div>side</div></div></div>",
+            "<div><div>caption</div></div>",
+            "vector label",
+        )
+    );
+}

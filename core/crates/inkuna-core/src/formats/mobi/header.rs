@@ -24,6 +24,11 @@ pub(super) struct MobiHeader {
     pub(super) first_image_index: Option<u32>,
     pub(super) huff_records: Option<(u32, u32)>,
     pub(super) extra_data_flags: u32,
+    pub(super) fdst: Option<(u32, u32)>,
+    pub(super) ncx_index: Option<u32>,
+    pub(super) fragment_index: Option<u32>,
+    pub(super) skeleton_index: Option<u32>,
+    pub(super) guide_index: Option<u32>,
 }
 
 pub(super) struct ExthRecord {
@@ -82,6 +87,13 @@ pub(super) fn parse_headers(record: &[u8]) -> Result<Headers, CoreError> {
     } else {
         Vec::new()
     };
+    let fdst = if file_version >= 8 && mobi_length >= 184 {
+        let index = read_u32(record, 192)?;
+        let count = read_u32(record, 196)?;
+        (index != u32::MAX && count != 0 && count != u32::MAX).then_some((index, count))
+    } else {
+        None
+    };
 
     Ok(Headers {
         palmdoc,
@@ -93,9 +105,27 @@ pub(super) fn parse_headers(record: &[u8]) -> Result<Headers, CoreError> {
             first_image_index,
             huff_records,
             extra_data_flags,
+            fdst,
+            ncx_index: optional_index(record, mobi_length, 232, 244)?,
+            fragment_index: optional_index(record, mobi_length, 236, 248)?,
+            skeleton_index: optional_index(record, mobi_length, 240, 252)?,
+            guide_index: optional_index(record, mobi_length, 248, 260)?,
         },
         exth,
     })
+}
+
+fn optional_index(
+    record: &[u8],
+    mobi_length: usize,
+    minimum_length: usize,
+    offset: usize,
+) -> Result<Option<u32>, CoreError> {
+    if mobi_length < minimum_length {
+        return Ok(None);
+    }
+    let value = read_u32(record, offset)?;
+    Ok((value != u32::MAX).then_some(value))
 }
 
 fn parse_palmdoc(record: &[u8]) -> Result<PalmDocHeader, CoreError> {

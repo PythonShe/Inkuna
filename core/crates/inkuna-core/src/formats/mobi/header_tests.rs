@@ -1,4 +1,4 @@
-use super::{Headers, parse_headers};
+use super::{parse_headers, Headers};
 
 fn record0_with_exth(records: &[(u32, &[u8])]) -> Vec<u8> {
     let mobi_len = 228usize;
@@ -100,4 +100,27 @@ fn refuses_unknown_compression_and_preserves_encryption_values() {
     bytes[0..2].copy_from_slice(&1u16.to_be_bytes());
     bytes[12..14].copy_from_slice(&7u16.to_be_bytes());
     assert_eq!(parse_headers(&bytes).unwrap().palmdoc.encryption_type, 7);
+}
+
+#[test]
+fn parses_kf8_fdst_and_index_record_pointers() {
+    let mut bytes = record0_with_exth(&[]);
+    bytes.resize(280, 0xff);
+    bytes[20..24].copy_from_slice(&264u32.to_be_bytes());
+    bytes[36..40].copy_from_slice(&8u32.to_be_bytes());
+    bytes[128..132].copy_from_slice(&0u32.to_be_bytes());
+    bytes[192..196].copy_from_slice(&7u32.to_be_bytes());
+    bytes[196..200].copy_from_slice(&3u32.to_be_bytes());
+    bytes[244..248].copy_from_slice(&19u32.to_be_bytes());
+    bytes[248..252].copy_from_slice(&11u32.to_be_bytes());
+    bytes[252..256].copy_from_slice(&14u32.to_be_bytes());
+    bytes[260..264].copy_from_slice(&22u32.to_be_bytes());
+
+    let headers = parse_headers(&bytes).unwrap();
+
+    assert_eq!(headers.mobi.fdst, Some((7, 3)));
+    assert_eq!(headers.mobi.ncx_index, Some(19));
+    assert_eq!(headers.mobi.fragment_index, Some(11));
+    assert_eq!(headers.mobi.skeleton_index, Some(14));
+    assert_eq!(headers.mobi.guide_index, Some(22));
 }

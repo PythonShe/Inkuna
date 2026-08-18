@@ -4,7 +4,7 @@ use std::path::Path;
 
 use encoding_rs::WINDOWS_1252;
 
-use super::header::{ExthRecord, Headers, parse_headers};
+use super::header::{parse_headers, ExthRecord, Headers};
 use super::huffcdic::HuffCdic;
 use super::palmdoc;
 use super::pdb::PalmDatabase;
@@ -21,6 +21,15 @@ const MAX_METADATA_VALUE_BYTES: usize = 2_048;
 struct View {
     header_index: usize,
     headers: Headers,
+}
+
+pub(super) struct Kf8Pointers {
+    pub(super) fdst: u32,
+    pub(super) flow_count: u32,
+    pub(super) fragment_index: u32,
+    pub(super) skeleton_index: u32,
+    pub(super) ncx_index: Option<u32>,
+    pub(super) guide_index: Option<u32>,
 }
 
 /// Parsed MOBI container. Combo files transparently select their KF8 view.
@@ -80,6 +89,37 @@ impl MobiBook {
         if let Some(view) = self.mobi6_view.take() {
             self.view = view;
         }
+    }
+
+    pub(super) fn kf8_pointers(&self) -> Result<Kf8Pointers, CoreError> {
+        if !self.is_kf8() {
+            return Err(invalid("selected MOBI view is not KF8"));
+        }
+        let mobi = &self.view.headers.mobi;
+        let (fdst, flow_count) = mobi
+            .fdst
+            .ok_or_else(|| invalid("KF8 MOBI header has no FDST pointer"))?;
+        Ok(Kf8Pointers {
+            fdst,
+            flow_count,
+            fragment_index: mobi
+                .fragment_index
+                .ok_or_else(|| invalid("KF8 MOBI header has no FRAG index pointer"))?,
+            skeleton_index: mobi
+                .skeleton_index
+                .ok_or_else(|| invalid("KF8 MOBI header has no SKEL index pointer"))?,
+            ncx_index: mobi.ncx_index,
+            guide_index: mobi.guide_index,
+        })
+    }
+
+    pub(super) fn relative_record(&self, relative: u32) -> Result<&[u8], CoreError> {
+        let index = self
+            .view
+            .header_index
+            .checked_add(relative as usize)
+            .ok_or_else(|| invalid("KF8 record index overflow"))?;
+        self.database.record(index)
     }
 
     pub(crate) fn text(&self) -> Result<Vec<u8>, CoreError> {

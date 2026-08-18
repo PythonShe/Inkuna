@@ -276,20 +276,27 @@ fn image_budget_rejects_an_asset_that_would_exceed_the_aggregate_cap() {
 }
 
 #[test]
-fn rejects_pure_kf8_but_uses_the_mobi6_half_of_a_combo() {
+fn converts_pure_kf8_and_prefers_the_kf8_half_of_a_combo() {
     let dir = tempfile::tempdir().unwrap();
     let pure = dir.path().join("pure.azw3");
     MobiTestBuilder::new(8)
-        .html(b"<p>new only</p>")
+        .kf8_files(vec![crate::test_support::Kf8FileFixture::new(
+            b"<body><p>new only</p></body>",
+        )])
         .write(&pure);
-    assert!(matches!(
-        convert_to_epub(&pure, &dir.path().join("pure.epub"), "Pure"),
-        Err(CoreError::UnsupportedFormat(Some(format))) if format == "azw3"
-    ));
+    let pure_epub = dir.path().join("pure.epub");
+    convert_to_epub(&pure, &pure_epub, "Pure").unwrap();
+    let pure_package = epub::read_package(&pure_epub).unwrap();
+    assert!(epub::extract_spine_text(&pure_epub, &pure_package.spine)[0]
+        .as_deref()
+        .unwrap()
+        .contains("new only"));
 
     let combo = dir.path().join("combo.mobi");
     let mut kf8 = MobiTestBuilder::new(8);
-    kf8.html(b"<p>new markup</p>");
+    kf8.kf8_files(vec![crate::test_support::Kf8FileFixture::new(
+        b"<body><p>new markup</p></body>",
+    )]);
     MobiTestBuilder::new(6)
         .html(b"<p>old markup</p>")
         .kf8(kf8)
@@ -298,6 +305,6 @@ fn rejects_pure_kf8_but_uses_the_mobi6_half_of_a_combo() {
     convert_to_epub(&combo, &converted, "Combo").unwrap();
     let package = epub::read_package(&converted).unwrap();
     let text = epub::extract_spine_text(&converted, &package.spine);
-    assert!(text[0].as_deref().unwrap().contains("old markup"));
-    assert!(!text[0].as_deref().unwrap().contains("new markup"));
+    assert!(text[0].as_deref().unwrap().contains("new markup"));
+    assert!(!text[0].as_deref().unwrap().contains("old markup"));
 }
