@@ -177,6 +177,11 @@ impl Library {
         let content_hash = copy_and_hash(src, &tmp_path).inspect_err(|_| {
             let _ = std::fs::remove_file(&tmp_path);
         })?;
+        // Dedupe on the original bytes before conversion: the hash never
+        // changes, so a duplicate must not pay for a MOBI/AZW3/TXT convert.
+        if let Some(existing) = self.duplicate_by_hash(&content_hash, &tmp_path)? {
+            return Ok(Prepared::Duplicate(Box::new(existing)));
+        }
         let text_encoding = if format == Format::Epub {
             None
         } else {
@@ -218,6 +223,10 @@ impl Library {
             return Err(CoreError::UnsupportedFormat(Some(
                 format.as_str().to_string(),
             )));
+        }
+        // Same pre-conversion dedupe as `prepare_import`.
+        if let Some(existing) = self.duplicate_by_hash(&content_hash, &tmp_path)? {
+            return Ok(Prepared::Duplicate(Box::new(existing)));
         }
         let text_encoding = if format == Format::Epub {
             None
@@ -287,6 +296,23 @@ impl Library {
         Ok(conversion)
     }
 
+    /// Looks the content hash up in the library and, on a hit, sweeps the
+    /// staged `.tmp` and returns the existing publication. Also sweeps on a
+    /// lookup error.
+    fn duplicate_by_hash(
+        &self,
+        content_hash: &str,
+        tmp_path: &Path,
+    ) -> Result<Option<Publication>, CoreError> {
+        let existing = self.publication_by_hash(content_hash).inspect_err(|_| {
+            let _ = std::fs::remove_file(tmp_path);
+        })?;
+        if existing.is_some() {
+            let _ = std::fs::remove_file(tmp_path);
+        }
+        Ok(existing)
+    }
+
     /// The back half both sources share once the bytes sit staged: dedupe
     /// on the hash, parse the copy, and assemble the `PreparedImport`.
     /// `fallback_stem` names the book when its metadata cannot.
@@ -299,11 +325,10 @@ impl Library {
         fallback_stem: Option<&OsStr>,
         text_encoding: Option<String>,
     ) -> Result<Prepared, CoreError> {
-        let existing = self.publication_by_hash(&content_hash).inspect_err(|_| {
-            let _ = std::fs::remove_file(&tmp_path);
-        })?;
-        if let Some(existing) = existing {
-            let _ = std::fs::remove_file(&tmp_path);
+        // Re-checked here even though both callers dedupe before conversion:
+        // this closes the window for the reader path, where another import of
+        // the same content may have committed since the pre-conversion check.
+        if let Some(existing) = self.duplicate_by_hash(&content_hash, &tmp_path)? {
             return Ok(Prepared::Duplicate(Box::new(existing)));
         }
 

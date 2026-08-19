@@ -836,6 +836,50 @@ fn imports_mobi6_end_to_end_and_dedupes_source_bytes() {
 }
 
 #[test]
+fn duplicate_mobi_dedupes_before_conversion() {
+    let dir = tempfile::tempdir().unwrap();
+    let mobi = dir.path().join("tale.mobi");
+    MobiTestBuilder::new(6)
+        .fullname(b"Tale")
+        .html(b"<h1>One</h1><p>Hi.</p>")
+        .write(&mobi);
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let publication = imported(library.import(mobi.to_str().unwrap()).unwrap());
+
+    // A DRM-locked MOBI converts to an error, always. Repoint the stored
+    // hash at its bytes: the re-import below can only return `Duplicate` if
+    // the dedupe runs before conversion — a post-conversion check would
+    // never be reached, and no `*.conv.tmp` is ever created.
+    let locked = dir.path().join("locked.mobi");
+    MobiTestBuilder::new(6).encryption(2).write(&locked);
+    let staged = dir.path().join("locked.hash.tmp");
+    let locked_hash = crate::core::files::copy_and_hash(&locked, &staged).unwrap();
+    std::fs::remove_file(&staged).unwrap();
+    library
+        .writer
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE publications SET content_hash = ?1 WHERE id = ?2",
+            [&locked_hash, &publication.id],
+        )
+        .unwrap();
+
+    match library.import(locked.to_str().unwrap()).unwrap() {
+        ImportOutcome::Duplicate(existing) => assert_eq!(existing.id, publication.id),
+        other => panic!("expected pre-conversion duplicate, got {other:?}"),
+    }
+    // Only the first import's stored EPUB remains — the duplicate pass left
+    // no staging or conversion files behind.
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        1
+    );
+}
+
+#[test]
 fn imports_cjk_azw3_end_to_end_and_dedupes_source_bytes() {
     let dir = tempfile::tempdir().unwrap();
     let azw3 = dir.path().join("新书.azw3");
