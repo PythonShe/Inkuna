@@ -31,6 +31,9 @@ pub(crate) struct Kf8NcxFixture {
 }
 
 impl Kf8NcxFixture {
+    /// `file` must be a valid index into the `kf8_files` list passed to the
+    /// builder: `build_kf8_bundle` resolves it via `skeleton_starts[entry.file]`
+    /// and panics on an out-of-range value.
     pub(crate) fn new(label: &str, file: usize, depth: u32) -> Self {
         Self {
             label: label.into(),
@@ -112,18 +115,38 @@ pub(crate) fn build_indx_records(
                 continue;
             };
             let count = values.len() / usize::from(values_per_entry);
-            let shift = mask.trailing_zeros();
-            let inline_max = usize::from(mask >> shift);
-            if count < inline_max {
-                data[controls_start + control_index] |= (count as u8) << shift;
-            } else {
+            // Control-byte rule, the exact mirror of `parse_entry` in
+            // formats/azw3/indx.rs: a single-bit mask can only encode
+            // "present once" (the mask value itself); a multi-bit mask stores
+            // the occurrence count shifted into the mask, with the
+            // all-bits-set value announcing a varint byte-length budget
+            // followed by that many bytes of varint values.
+            if mask.count_ones() == 1 {
+                assert_eq!(
+                    count, 1,
+                    "single-bit TAGX masks encode exactly one occurrence"
+                );
                 data[controls_start + control_index] |= mask;
-                if mask & 1 == 0 || mask.count_ones() > 1 {
-                    push_varuint(&mut data, count as u32);
+                for value in values {
+                    push_varuint(&mut data, *value);
                 }
-            }
-            for value in values {
-                push_varuint(&mut data, *value);
+            } else {
+                let shift = mask.trailing_zeros();
+                let inline_max = usize::from(mask >> shift);
+                if count < inline_max {
+                    data[controls_start + control_index] |= (count as u8) << shift;
+                    for value in values {
+                        push_varuint(&mut data, *value);
+                    }
+                } else {
+                    data[controls_start + control_index] |= mask;
+                    let mut encoded = Vec::new();
+                    for value in values {
+                        push_varuint(&mut encoded, *value);
+                    }
+                    push_varuint(&mut data, encoded.len() as u32);
+                    data.extend_from_slice(&encoded);
+                }
             }
         }
     }

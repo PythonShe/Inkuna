@@ -55,6 +55,45 @@ fn parses_tagx_entries_across_multiple_control_bytes() {
 }
 
 #[test]
+fn decodes_the_real_frag_tag_table_with_single_bit_masks() {
+    let records = build_indx_records(
+        &[
+            (2, 1, 0x01, 0),
+            (3, 1, 0x02, 0),
+            (4, 1, 0x04, 0),
+            (6, 2, 0x08, 0),
+        ],
+        &[IndxEntryFixture::new(b"0000")
+            .tag(2, &[5])
+            .tag(3, &[1])
+            .tag(4, &[0])
+            .tag(6, &[1_024, 96])],
+    );
+
+    let index = parse_records(&records).unwrap();
+
+    assert_eq!(index.entries[0].label, b"0000");
+    assert_eq!(index.entries[0].values(2), Some(&[5][..]));
+    assert_eq!(index.entries[0].values(3), Some(&[1][..]));
+    assert_eq!(index.entries[0].values(4), Some(&[0][..]));
+    assert_eq!(index.entries[0].values(6), Some(&[1_024, 96][..]));
+}
+
+#[test]
+fn round_trips_a_multi_bit_all_mask_byte_length_budget() {
+    let mut values = (0..15).collect::<Vec<u32>>();
+    values.push(300);
+    let records = build_indx_records(
+        &[(1, 1, 0x0f, 0)],
+        &[IndxEntryFixture::new(b"budget").tag(1, &values)],
+    );
+
+    let index = parse_records(&records).unwrap();
+
+    assert_eq!(index.entries[0].values(1), Some(values.as_slice()));
+}
+
+#[test]
 fn rejects_truncated_indx_records_without_panicking() {
     let records = fixture();
     for record_index in 0..records.len() {
@@ -91,7 +130,8 @@ fn rejects_hostile_counts_offsets_and_tag_expansion() {
         &[(1, 1, 0x7e, 0)],
         &[IndxEntryFixture::new(b"bomb").tag(1, &vec![1; 65])],
     );
-    // The all-mask value announces an extended count; the builder encoded 65.
+    // The all-mask value announces a byte-length budget; the builder encoded
+    // 65 single-byte varint values, which overruns the 64-tag ceiling.
     assert!(parse_records(&too_many_tags).is_err());
 
     let idxt = u32::from_be_bytes(too_many_tags[1][20..24].try_into().unwrap()) as usize;

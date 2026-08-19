@@ -203,28 +203,50 @@ fn parse_entry(bytes: &[u8], tagx: &Tagx) -> Result<IndexEntry, CoreError> {
         if encoded_count == 0 {
             continue;
         }
-        let count = if encoded_count == definition.mask {
-            if definition.mask & 1 != 0 {
+        // A single-bit mask can only encode "present once"; a multi-bit mask
+        // stores the occurrence count shifted into the mask, with the
+        // all-bits-set value announcing a varint byte-length budget followed
+        // by that many bytes of varint values.
+        let values = if encoded_count == definition.mask && definition.mask.count_ones() > 1 {
+            let budget = read_varuint(bytes, &mut cursor)? as usize;
+            let end = cursor
+                .checked_add(budget)
+                .ok_or_else(|| invalid("INDX tag byte-length budget overflow"))?;
+            let mut values = Vec::new();
+            while cursor < end {
+                tag_count = tag_count
+                    .checked_add(1)
+                    .ok_or_else(|| invalid("INDX entry tag count overflow"))?;
+                if tag_count > MAX_TAGS_PER_ENTRY {
+                    return Err(invalid("INDX entry exceeds 64 tags"));
+                }
+                values.push(read_varuint(bytes, &mut cursor)?);
+            }
+            if cursor != end {
+                return Err(invalid("INDX tag values overrun their byte-length budget"));
+            }
+            values
+        } else {
+            let count = if encoded_count == definition.mask {
                 1usize
             } else {
-                read_varuint(bytes, &mut cursor)? as usize
+                usize::from(encoded_count >> definition.mask.trailing_zeros())
+            };
+            tag_count = tag_count
+                .checked_add(count)
+                .ok_or_else(|| invalid("INDX entry tag count overflow"))?;
+            if tag_count > MAX_TAGS_PER_ENTRY {
+                return Err(invalid("INDX entry exceeds 64 tags"));
             }
-        } else {
-            usize::from(encoded_count >> definition.mask.trailing_zeros())
+            let value_count = count
+                .checked_mul(usize::from(definition.values_per_entry))
+                .ok_or_else(|| invalid("INDX tag value count overflow"))?;
+            let mut values = Vec::with_capacity(value_count);
+            for _ in 0..value_count {
+                values.push(read_varuint(bytes, &mut cursor)?);
+            }
+            values
         };
-        tag_count = tag_count
-            .checked_add(count)
-            .ok_or_else(|| invalid("INDX entry tag count overflow"))?;
-        if tag_count > MAX_TAGS_PER_ENTRY {
-            return Err(invalid("INDX entry exceeds 64 tags"));
-        }
-        let value_count = count
-            .checked_mul(usize::from(definition.values_per_entry))
-            .ok_or_else(|| invalid("INDX tag value count overflow"))?;
-        let mut values = Vec::with_capacity(value_count);
-        for _ in 0..value_count {
-            values.push(read_varuint(bytes, &mut cursor)?);
-        }
         tags.push((definition.tag, values));
     }
     if cursor != bytes.len() {
@@ -233,7 +255,7 @@ fn parse_entry(bytes: &[u8], tagx: &Tagx) -> Result<IndexEntry, CoreError> {
     Ok(IndexEntry { label, tags })
 }
 
-fn read_varuint(bytes: &[u8], cursor: &mut usize) -> Result<u32, CoreError> {
+pub(super) fn read_varuint(bytes: &[u8], cursor: &mut usize) -> Result<u32, CoreError> {
     let mut value = 0u32;
     for _ in 0..5 {
         let byte = *bytes
