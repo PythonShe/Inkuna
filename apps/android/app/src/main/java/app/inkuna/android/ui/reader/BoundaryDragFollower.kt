@@ -125,23 +125,27 @@ class BoundaryDragFollower(
             MotionEvent.ACTION_MOVE -> {
                 val index = ev.findPointerIndex(activePointerId)
                 if (index < 0) return true
+                val x = ev.getX(index)
                 if (beginPending) {
-                    beginPending = false
-                    // Mid-settle the pager refuses fake drags; give the
-                    // gesture back (BoundaryFlingRescue still covers it).
-                    if (pager?.beginFakeDrag() != true) {
-                        endDrag()
+                    // Mid-settle the pager refuses fake drags; keep asking —
+                    // the settle usually finishes under the same finger.
+                    if (pager?.beginFakeDrag() == true) {
+                        beginPending = false
+                    } else {
+                        lastX = x
                         return true
                     }
                 }
-                val x = ev.getX(index)
                 dragBy(x - lastX)
                 lastX = x
             }
             MotionEvent.ACTION_POINTER_UP -> {
-                if (ev.getPointerId(ev.actionIndex) == activePointerId) endDrag()
+                if (ev.getPointerId(ev.actionIndex) == activePointerId) {
+                    finishGesture(cancelled = false)
+                }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> endDrag()
+            MotionEvent.ACTION_UP -> finishGesture(cancelled = false)
+            MotionEvent.ACTION_CANCEL -> finishGesture(cancelled = true)
         }
         return true
     }
@@ -197,7 +201,6 @@ class BoundaryDragFollower(
         revealSign = if (dx < 0) -1 else 1
         dragTotal = 0f
         lastX = ev.getX(index)
-        signal.lastHandledUptime = SystemClock.uptimeMillis()
         prePositionNeighbour(nav, root, webView)
     }
 
@@ -219,11 +222,40 @@ class BoundaryDragFollower(
         if (applied != 0f) pager.fakeDragBy(applied)
     }
 
-    private fun endDrag() {
-        if (dragging) {
+    /**
+     * Releases the gesture. The suppression signal is stamped only when
+     * this view actually drove a turn (fake drag or direct) — stamping the
+     * declined paths would silently swallow the gesture instead of leaving
+     * it to BoundaryFlingRescue.
+     */
+    private fun finishGesture(cancelled: Boolean) {
+        val pager = pager
+        if (pager != null && pager.isFakeDragging) {
+            // A cancel is not a release: unwind first so it cannot commit
+            // a turn the reader never let go into (ViewPager's own touch
+            // path snaps back on cancel the same way).
+            if (cancelled) dragBy(-dragTotal)
+            pager.endFakeDrag()
             signal.lastHandledUptime = SystemClock.uptimeMillis()
-            pager?.takeIf { it.isFakeDragging }?.endFakeDrag()
+        } else if (!cancelled && beginPending) {
+            // The pager refused the fake drag for the whole gesture (still
+            // settling the previous turn) but the touch stream was already
+            // stolen, so nothing else saw it: commit deliberate drags
+            // through the navigator, mirroring the rescue's ⅓-page rule.
+            val nav = navigator
+            if (nav != null && width > 0 && abs(lastX - downX) >= width / 3f) {
+                val rtl = nav.overflow.value.readingProgression == ReadingProgression.RTL
+                val forward = (revealSign < 0) != rtl
+                if (forward) nav.goForward(animated = true) else nav.goBackward(animated = true)
+                signal.lastHandledUptime = SystemClock.uptimeMillis()
+            }
         }
+        endDrag()
+    }
+
+    /** Bare state reset; any stranded fake drag is closed without acting. */
+    private fun endDrag() {
+        pager?.takeIf { it.isFakeDragging }?.endFakeDrag()
         dragging = false
         beginPending = false
         pager = null

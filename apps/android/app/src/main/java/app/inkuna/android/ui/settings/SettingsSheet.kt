@@ -489,8 +489,10 @@ private fun ReminderTimeDialog(
         is24Hour = android.text.format.DateFormat.is24HourFormat(context),
     )
     // derivedStateOf: recompose only when the period flips, not on every
-    // hour change while the hand is being dragged.
-    val isPm by remember(state) { derivedStateOf { state.hour >= 12 } }
+    // hour change while the hand is being dragged. Constant true in
+    // 24-hour mode: there is no AM/PM toggle to work around there, and a
+    // drag across noon must not re-key the dial mid-gesture.
+    val isPm by remember(state) { derivedStateOf { state.is24hour || state.hour >= 12 } }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = ink.bgSurface,
