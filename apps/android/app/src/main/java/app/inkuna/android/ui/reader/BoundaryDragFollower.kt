@@ -213,6 +213,7 @@ class BoundaryDragFollower(
      * view exists for — so it is deliberately not propagated. Nothing above
      * this view competes for horizontal drags.
      */
+    @Suppress("EmptyFunctionBlock")
     override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
 
     private fun considerIntercept(ev: MotionEvent) {
@@ -393,14 +394,19 @@ class BoundaryDragFollower(
             var lastScrollX = pager.scrollX
             var lastTime = SystemClock.uptimeMillis()
             var stillFrames = 0
+            var moved = false
 
             override fun run() {
                 val now = SystemClock.uptimeMillis()
                 val dx = pager.scrollX - lastScrollX
                 val dt = now - lastTime
                 if (dx == 0) {
-                    stillFrames += 1
+                    // Stillness only counts once the settle has started:
+                    // a Scroller that begins a frame or two late would
+                    // otherwise end the pump before the slide even moves.
+                    if (moved) stillFrames += 1
                 } else {
+                    moved = true
                     stillFrames = 0
                     if (dt > 0) pager.frameContentVelocity = abs(dx).toFloat() / dt * 1000f
                 }

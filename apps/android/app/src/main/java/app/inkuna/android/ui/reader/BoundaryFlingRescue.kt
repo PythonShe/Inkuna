@@ -171,9 +171,19 @@ class BoundaryFlingRescue(
         choreographer.postFrameCallback(callback)
     }
 
-    private fun cancelVerify() {
+    /**
+     * Drops any armed verification. The reader calls this when it removes
+     * the listener: the `pendingVerify !== this` self-guard already makes
+     * a superseded callback inert, but an armed one would otherwise
+     * outlive the listener's removal and could still drive a turn during
+     * teardown — and removing the callback also saves the frame dispatch.
+     */
+    fun cancel() {
+        pendingVerify?.let(Choreographer.getInstance()::removeFrameCallback)
         pendingVerify = null
     }
+
+    private fun cancelVerify() = cancel()
 
     /**
      * The resource WebView currently on screen. The pager keeps neighbours

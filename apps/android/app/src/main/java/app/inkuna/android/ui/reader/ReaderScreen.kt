@@ -363,6 +363,9 @@ private fun ReaderContent(
             nav.removeInputListener(pageTurns)
             nav.removeInputListener(chromeTaps)
             nav.removeInputListener(flingRescue)
+            // An armed frame-callback verification would survive the
+            // listener's removal and could still turn a page mid-teardown.
+            flingRescue.cancel()
         }
     }
 
@@ -419,9 +422,11 @@ private fun ReaderContent(
 
     // Ink veil standing in for brightness — never the system backlight.
     // The preview keeps it tracking the slider while the drag is in
-    // flight; the persisted value takes over once it lands. Both are read
-    // in the draw phase, so a slider drag invalidates drawing alone —
-    // never composition — and an idle veil draws nothing at all.
+    // flight; the persisted value takes over once it lands. The preview —
+    // the hot path — is read in the draw phase, so a slider drag
+    // invalidates drawing alone, never composition (the persisted value
+    // is a body read; a committed change recomposes once, on release).
+    // An idle veil draws nothing at all.
     val snapshotBrightness = snapshot.brightness
     Box(
         Modifier
