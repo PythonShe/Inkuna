@@ -357,7 +357,9 @@ jobs:
     secrets:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-  # Push the same notes into TestFlight as the build's "What to Test".
+  # Push the same notes into TestFlight as the build's "What to Test" —
+  # English on en-US (the app's primary locale, so it is also what testers
+  # in any other language fall back to), plus zh-Hans and ja.
   # Nothing depends on this job, so a failure here never blocks the release —
   # the build is already in TestFlight.
   testflight_notes:
@@ -386,7 +388,7 @@ jobs:
           BUNDLE_ID: app.inkuna.ios
           APP_VERSION: ${{ needs.prepare.outputs.version }}
           BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
-          NOTES_PATH: /tmp/release_notes.md
+          NOTES_DIR: /tmp
         run: |
           set -euo pipefail
           cat > "$RUNNER_TEMP/testflight-notes.cjs" <<'NODE_EOF'
@@ -395,9 +397,16 @@ jobs:
 
           const {
             APPSTORE_KEY_ID, APPSTORE_ISSUER_ID, APPSTORE_PRIVATE_KEY,
-            BUNDLE_ID, APP_VERSION, BUILD_NUMBER, NOTES_PATH,
+            BUNDLE_ID, APP_VERSION, BUILD_NUMBER, NOTES_DIR,
           } = process.env;
-          const LOCALE = 'en-US';
+          // en-US is the app's primary locale — the fallback TestFlight
+          // shows testers in every other language — so it must succeed;
+          // the zh/ja localizations are best-effort extras.
+          const LOCALES = [
+            { locale: 'en-US', file: 'release_notes.md', required: true },
+            { locale: 'zh-Hans', file: 'release_notes.zh.md', required: false },
+            { locale: 'ja', file: 'release_notes.ja.md', required: false },
+          ];
           const API = 'https://api.appstoreconnect.apple.com';
 
           // "What to Test" is plain text with a 4000-character ceiling, so strip
@@ -444,8 +453,6 @@ jobs:
           }
 
           (async () => {
-            const notes = toPlainText(fs.readFileSync(NOTES_PATH, 'utf8'));
-
             const apps = await api('GET', `/v1/apps?filter[bundleId]=${encodeURIComponent(BUNDLE_ID)}&limit=1`);
             const app = apps.data?.[0];
             if (!app) throw new Error(`No App Store Connect app matches bundle id ${BUNDLE_ID}`);
@@ -473,25 +480,36 @@ jobs:
               return;
             }
 
-            const existing = (
-              await api('GET', `/v1/builds/${build.id}/betaBuildLocalizations?limit=50`)
-            ).data?.find((l) => l.attributes?.locale === LOCALE);
+            const localizations =
+              (await api('GET', `/v1/builds/${build.id}/betaBuildLocalizations?limit=50`)).data ?? [];
 
-            if (existing) {
-              await api('PATCH', `/v1/betaBuildLocalizations/${existing.id}`, {
-                data: { type: 'betaBuildLocalizations', id: existing.id, attributes: { whatsNew: notes } },
-              });
-            } else {
-              await api('POST', '/v1/betaBuildLocalizations', {
-                data: {
-                  type: 'betaBuildLocalizations',
-                  attributes: { locale: LOCALE, whatsNew: notes },
-                  relationships: { build: { data: { type: 'builds', id: build.id } } },
-                },
-              });
+            for (const { locale, file, required } of LOCALES) {
+              try {
+                const notes = toPlainText(fs.readFileSync(`${NOTES_DIR}/${file}`, 'utf8'));
+                if (!notes) throw new Error(`${file} is empty`);
+                const existing = localizations.find((l) => l.attributes?.locale === locale);
+                if (existing) {
+                  await api('PATCH', `/v1/betaBuildLocalizations/${existing.id}`, {
+                    data: { type: 'betaBuildLocalizations', id: existing.id, attributes: { whatsNew: notes } },
+                  });
+                } else {
+                  await api('POST', '/v1/betaBuildLocalizations', {
+                    data: {
+                      type: 'betaBuildLocalizations',
+                      attributes: { locale, whatsNew: notes },
+                      relationships: { build: { data: { type: 'builds', id: build.id } } },
+                    },
+                  });
+                }
+                console.log(`Set "What to Test" (${locale}) on build ${APP_VERSION} (${BUILD_NUMBER}):`);
+                console.log(notes);
+              } catch (err) {
+                // The primary locale must land; a missing extra localization
+                // only costs those testers the translation, never the notes.
+                if (required) throw err;
+                console.log(`::warning::Skipped "What to Test" ${locale}: ${err.message}`);
+              }
             }
-            console.log(`Set "What to Test" (${LOCALE}) on build ${APP_VERSION} (${BUILD_NUMBER}):`);
-            console.log(notes);
           })().catch((err) => {
             if (String(err.message).includes('HTTP 403')) {
               console.error(
