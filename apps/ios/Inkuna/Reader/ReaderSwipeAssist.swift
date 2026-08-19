@@ -160,11 +160,12 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
 
     /// Waits for the reader to come fully to rest, then turns the page if
     /// the recognized swipe demonstrably moved nothing: the same web view
-    /// is still on screen, and both the inner offset and the outer page
-    /// sit exactly where they were at touch-down. Any net movement — an
+    /// is still on screen, the outer page sits where it was at touch-down,
+    /// and the inner offset shows no movement beyond the settle the touch
+    /// itself interrupted (see the drift rule inside). Anything more — an
     /// inner column turn, the outer sliding to another resource — means
-    /// the gesture (or the turn it interrupted) worked natively, and the
-    /// verification ends without acting.
+    /// the gesture worked natively, and the verification ends without
+    /// acting.
     private func armVerify(_ direction: UISwipeGestureRecognizer.Direction) {
         verifyTask?.cancel()
         let startWebView = touchDownWebView
@@ -200,9 +201,30 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
                 let inner = webView.scrollView
                 if inner.isTracking || inner.isDragging || inner.isDecelerating { continue }
 
-                let outerUnmoved = abs(page.rounded() - outerPage) < 0.5
-                let innerUnmoved = abs(inner.contentOffset.x - innerStart) < 1
-                if outerUnmoved, innerUnmoved {
+                // The outer moving to another page means the resource
+                // turned natively — the gesture worked.
+                guard abs(page.rounded() - outerPage) < 0.5 else { return }
+                let pageWidth = inner.bounds.width
+                guard pageWidth > 0 else { return }
+                let drift = abs(inner.contentOffset.x - innerStart)
+                let remaining = direction == .left
+                    ? inner.contentSize.width - pageWidth - inner.contentOffset.x
+                    : inner.contentOffset.x
+                // How much inner drift still reads as a dead swipe depends
+                // on where the resource rests now. Clamped in the swipe's
+                // direction, the defining dead shape is a touch landing
+                // while the previous turn was still settling *into* this
+                // outermost page — that settle finishes under the finger,
+                // so up to a page of drift is the prior turn's, not this
+                // swipe's. A full page or more can only mean the swipe
+                // itself turned natively (a mid-snap touch on a page that
+                // was not really outermost); acting would double it.
+                // Anywhere else the inner had room to move, so any drift
+                // at all means the turn happened natively.
+                let deadSwipe = remaining < 2
+                    ? drift < pageWidth - 2
+                    : drift < 1
+                if deadSwipe {
                     self.turn(direction, webView: webView)
                 }
                 return
