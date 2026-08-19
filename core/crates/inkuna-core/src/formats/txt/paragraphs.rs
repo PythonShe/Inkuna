@@ -13,27 +13,32 @@ pub(super) enum Block {
 }
 
 pub(super) fn paragraph_blocks(text: &str) -> Vec<Block> {
+    // Hard-wrapped continuation lines join with a space in space-delimited
+    // scripts and with nothing in CJK, where a space would land inside a
+    // sentence. The choice is made once per chapter body: a minority-script
+    // paragraph inherits the dominant script's joiner.
+    let joiner = if is_cjk_dominant(text) { "" } else { " " };
     let lines: Vec<&str> = text.lines().collect();
     if lines.iter().any(|line| line.trim().is_empty()) {
-        return blank_separated_blocks(&lines);
+        return blank_separated_blocks(&lines, joiner);
     }
     if lines.iter().any(|line| starts_indented(line)) {
-        return indented_blocks(&lines);
+        return indented_blocks(&lines, joiner);
     }
     if is_cjk_dominant(text) && lines.len() > 1 {
         return lines.iter().filter_map(|line| line_block(line)).collect();
     }
-    unindented_blocks(&lines)
+    unindented_blocks(&lines, joiner)
 }
 
-fn blank_separated_blocks(lines: &[&str]) -> Vec<Block> {
+fn blank_separated_blocks(lines: &[&str], joiner: &str) -> Vec<Block> {
     let mut blocks = Vec::new();
     let mut paragraph = Vec::new();
     let mut index = 0;
     while index < lines.len() {
         let line = lines[index];
         if line.trim().is_empty() {
-            push_paragraph(&mut blocks, &paragraph);
+            push_paragraph(&mut blocks, &paragraph, joiner);
             paragraph.clear();
             let mut blanks = 0;
             while index < lines.len() && lines[index].trim().is_empty() {
@@ -46,7 +51,7 @@ fn blank_separated_blocks(lines: &[&str]) -> Vec<Block> {
             continue;
         }
         if is_scene_line(line) {
-            push_paragraph(&mut blocks, &paragraph);
+            push_paragraph(&mut blocks, &paragraph, joiner);
             paragraph.clear();
             if !matches!(blocks.last(), Some(Block::Scene)) {
                 blocks.push(Block::Scene);
@@ -56,38 +61,38 @@ fn blank_separated_blocks(lines: &[&str]) -> Vec<Block> {
         }
         index += 1;
     }
-    push_paragraph(&mut blocks, &paragraph);
+    push_paragraph(&mut blocks, &paragraph, joiner);
     blocks
 }
 
-fn indented_blocks(lines: &[&str]) -> Vec<Block> {
+fn indented_blocks(lines: &[&str], joiner: &str) -> Vec<Block> {
     let mut blocks = Vec::new();
     let mut paragraph = Vec::new();
     for line in lines {
         if is_scene_line(line) {
-            push_paragraph(&mut blocks, &paragraph);
+            push_paragraph(&mut blocks, &paragraph, joiner);
             paragraph.clear();
             if !matches!(blocks.last(), Some(Block::Scene)) {
                 blocks.push(Block::Scene);
             }
         } else {
             if starts_indented(line) && !paragraph.is_empty() {
-                push_paragraph(&mut blocks, &paragraph);
+                push_paragraph(&mut blocks, &paragraph, joiner);
                 paragraph.clear();
             }
             paragraph.push(*line);
         }
     }
-    push_paragraph(&mut blocks, &paragraph);
+    push_paragraph(&mut blocks, &paragraph, joiner);
     blocks
 }
 
-fn unindented_blocks(lines: &[&str]) -> Vec<Block> {
+fn unindented_blocks(lines: &[&str], joiner: &str) -> Vec<Block> {
     let mut blocks = Vec::new();
     let mut paragraph = Vec::new();
     for line in lines {
         if is_scene_line(line) {
-            push_paragraph(&mut blocks, &paragraph);
+            push_paragraph(&mut blocks, &paragraph, joiner);
             paragraph.clear();
             if !matches!(blocks.last(), Some(Block::Scene)) {
                 blocks.push(Block::Scene);
@@ -96,7 +101,7 @@ fn unindented_blocks(lines: &[&str]) -> Vec<Block> {
             paragraph.push(*line);
         }
     }
-    push_paragraph(&mut blocks, &paragraph);
+    push_paragraph(&mut blocks, &paragraph, joiner);
     blocks
 }
 
@@ -109,13 +114,13 @@ fn line_block(line: &str) -> Option<Block> {
     }
 }
 
-fn push_paragraph(blocks: &mut Vec<Block>, lines: &[&str]) {
+fn push_paragraph(blocks: &mut Vec<Block>, lines: &[&str], joiner: &str) {
     let paragraph = lines
         .iter()
         .map(|line| strip_indent(line).trim_end())
         .filter(|line| !line.is_empty())
         .collect::<Vec<_>>()
-        .join(" ");
+        .join(joiner);
     if !paragraph.is_empty() {
         blocks.push(Block::Paragraph(paragraph));
     }
