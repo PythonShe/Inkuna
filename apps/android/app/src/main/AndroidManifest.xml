@@ -43,8 +43,9 @@
             android:exported="true">
 
             <!--
-              EPUB by its own MIME type. Providers that label an EPUB
-              correctly (Files, Drive, most mail clients) match here.
+              Books by their own MIME type. Providers that label an EPUB,
+              MOBI/AZW3, or text file correctly (Files, Drive, most mail
+              clients) match here.
             -->
             <intent-filter android:label="@string/import_intent_label">
                 <action android:name="android.intent.action.VIEW" />
@@ -54,6 +55,10 @@
                 <data android:scheme="file" />
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="application/x-epub+zip" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
+                <data android:mimeType="application/vnd.amazon.mobi8-ebook" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
 
             <!--
@@ -82,6 +87,26 @@
                 <data android:pathPattern=".*\\.EPUB" />
                 <data android:pathPattern=".*\\..*\\.epub" />
                 <data android:pathPattern=".*\\..*\\..*\\.epub" />
+                <data android:pathPattern=".*\\.mobi" />
+                <data android:pathPattern=".*\\.MOBI" />
+                <data android:pathPattern=".*\\..*\\.mobi" />
+                <data android:pathPattern=".*\\..*\\..*\\.mobi" />
+                <data android:pathPattern=".*\\.azw3" />
+                <data android:pathPattern=".*\\.AZW3" />
+                <data android:pathPattern=".*\\..*\\.azw3" />
+                <data android:pathPattern=".*\\..*\\..*\\.azw3" />
+                <data android:pathPattern=".*\\.azw" />
+                <data android:pathPattern=".*\\.AZW" />
+                <data android:pathPattern=".*\\..*\\.azw" />
+                <data android:pathPattern=".*\\..*\\..*\\.azw" />
+                <data android:pathPattern=".*\\.prc" />
+                <data android:pathPattern=".*\\.PRC" />
+                <data android:pathPattern=".*\\..*\\.prc" />
+                <data android:pathPattern=".*\\..*\\..*\\.prc" />
+                <data android:pathPattern=".*\\.txt" />
+                <data android:pathPattern=".*\\.TXT" />
+                <data android:pathPattern=".*\\..*\\.txt" />
+                <data android:pathPattern=".*\\..*\\..*\\.txt" />
             </intent-filter>
 
             <!-- Shared from a mail client or another app. -->
@@ -90,12 +115,20 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="application/x-epub+zip" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
+                <data android:mimeType="application/vnd.amazon.mobi8-ebook" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
             <intent-filter android:label="@string/import_intent_label">
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="application/x-epub+zip" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
+                <data android:mimeType="application/vnd.amazon.mobi8-ebook" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 

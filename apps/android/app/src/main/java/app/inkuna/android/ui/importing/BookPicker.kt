@@ -13,16 +13,21 @@ import androidx.compose.runtime.rememberUpdatedState
  *
  * `application/epub+zip` alone would grey out most real libraries: Downloads
  * and many cloud providers label an EPUB `application/octet-stream`, and
- * some label it `application/zip`. Offering the wider set keeps books
- * selectable; anything that is not actually an EPUB is rejected by the core
- * with its format named, which is a far better outcome than a file the
- * reader can see but not tap.
+ * some label it `application/zip`. MOBI/AZW3 carry three MIME spellings in
+ * the wild, and TXT is plain `text/plain`. Offering the wider set keeps
+ * books selectable; anything the core cannot read is rejected with its
+ * format named, which is a far better outcome than a file the reader can
+ * see but not tap.
  */
-val EpubMimeTypes = arrayOf(
+val BookMimeTypes = arrayOf(
     "application/epub+zip",
     "application/x-epub+zip",
     "application/zip",
     "application/octet-stream",
+    "application/x-mobipocket-ebook",
+    "application/vnd.amazon.ebook",
+    "application/vnd.amazon.mobi8-ebook",
+    "text/plain",
 )
 
 /**
@@ -33,12 +38,12 @@ val EpubMimeTypes = arrayOf(
  * cannot leak.
  */
 @Composable
-fun rememberEpubPicker(onPicked: (List<Uri>) -> Unit): () -> Unit {
+fun rememberBookPicker(onPicked: (List<Uri>) -> Unit): () -> Unit {
     val current by rememberUpdatedState(onPicked)
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         if (uris.isNotEmpty()) current(uris)
     }
-    return remember(launcher) { { launcher.launch(EpubMimeTypes) } }
+    return remember(launcher) { { launcher.launch(BookMimeTypes) } }
 }
