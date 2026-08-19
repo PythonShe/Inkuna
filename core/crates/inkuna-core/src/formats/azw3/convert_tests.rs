@@ -130,6 +130,14 @@ fn css_sanitizer_removes_imports_and_remote_urls_but_keeps_local_rules() {
 }
 
 #[test]
+fn css_sanitizer_catches_identifier_escaped_imports_and_urls() {
+    let escaped_import = sanitize_css("@\\69 mport url(\"https://x\")");
+    assert!(!escaped_import.contains("https://"));
+    let escaped_url = sanitize_css(".a{background:\\75 rl(https://x)}");
+    assert!(!escaped_url.contains("https://"));
+}
+
+#[test]
 fn image_budget_charges_the_cover_against_the_shared_total() {
     // Mirrors the cover block in convert_to_epub: the cover reserves from
     // the same budget the chapter images draw on, so a cover-sized reserve

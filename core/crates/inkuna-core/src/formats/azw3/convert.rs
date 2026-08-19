@@ -154,6 +154,64 @@ fn append_css(content: &Kf8Content, writer: &mut EpubWriter) {
 }
 
 pub(super) fn sanitize_css(input: &str) -> String {
+    let sanitized = strip_css_threats(input);
+    // CSS identifier escapes (`@\69 mport`, `\75 rl(...)`) can hide the
+    // literal substrings the scan looks for. Resolve escapes and re-scan;
+    // when the resolved form still carries threats, emit its stripped copy
+    // instead so escaped constructs cannot survive. Benign CSS (escaped or
+    // not) passes through the first scan untouched.
+    let normalized = unescape_css(&sanitized);
+    let restripped = strip_css_threats(&normalized);
+    if restripped == normalized {
+        sanitized
+    } else {
+        restripped
+    }
+}
+
+fn unescape_css(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            output.push(ch);
+            continue;
+        }
+        let mut hex = String::new();
+        while hex.len() < 6 {
+            match chars.peek() {
+                Some(digit) if digit.is_ascii_hexdigit() => {
+                    hex.push(*digit);
+                    chars.next();
+                }
+                _ => break,
+            }
+        }
+        if hex.is_empty() {
+            match chars.next() {
+                Some(escaped) => output.push(escaped),
+                None => output.push('\\'),
+            }
+        } else {
+            let value = u32::from_str_radix(&hex, 16).unwrap_or(0xfffd);
+            output.push(
+                char::from_u32(value)
+                    .filter(|c| *c != '\0')
+                    .unwrap_or('\u{fffd}'),
+            );
+            // A single whitespace character terminates a hex escape (CRLF
+            // counts as one).
+            if chars.peek().is_some_and(|c| c.is_whitespace()) {
+                if chars.next() == Some('\r') && chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+            }
+        }
+    }
+    output
+}
+
+fn strip_css_threats(input: &str) -> String {
     let mut css = input.to_string();
     while let Some(start) = find_ascii_case_insensitive(&css, "@import") {
         let end = css[start..]
