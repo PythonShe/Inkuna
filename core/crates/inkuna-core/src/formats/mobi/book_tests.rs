@@ -85,7 +85,10 @@ fn reads_huff_cdic_compressed_text_records() {
 }
 
 #[test]
-fn hostile_text_length_fails_without_reserving_the_declared_bytes() {
+fn hostile_text_length_is_rejected_by_the_length_mismatch_check() {
+    // The capacity bound itself (reserving from validated record sums, not
+    // the declared length) is not observable from outside `text()`; this
+    // pins the rejection that runs regardless.
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("hostile-length.mobi");
     MobiTestBuilder::new(6)

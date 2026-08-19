@@ -138,10 +138,11 @@ fn css_sanitizer_catches_identifier_escaped_imports_and_urls() {
 }
 
 #[test]
-fn image_budget_charges_the_cover_against_the_shared_total() {
-    // Mirrors the cover block in convert_to_epub: the cover reserves from
-    // the same budget the chapter images draw on, so a cover-sized reserve
-    // shrinks what images may use, and the cap can never be exceeded.
+fn image_budget_reserve_is_saturating_and_caps_the_total() {
+    // Unit test of ImageBudget semantics only: reserve accumulates toward
+    // MAX_TOTAL_IMAGE_BYTES and rejects what would exceed it. Whether the
+    // cover block actually routes through this budget is not exercised
+    // here — a fixture straddling the 128 MiB cap is impractical.
     let mut budget = ImageBudget { used: 0 };
     assert!(budget.reserve(MAX_TOTAL_IMAGE_BYTES - 1));
     assert!(!budget.reserve(2));

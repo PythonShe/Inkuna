@@ -39,7 +39,9 @@ const MAX_MIMETYPE_BYTES: u64 = 256;
 impl Format {
     /// Detects the format of the file at `path` from its content, never
     /// its extension — the one exception being TXT, which has no magic
-    /// bytes and needs `.txt` plus a NUL-free sample. A ZIP is an EPUB only
+    /// bytes and needs `.txt` plus a sample that is either NUL-free or
+    /// recognized as BOM-carrying / BOM-less UTF-16 (the same heuristic the
+    /// TXT converter decodes with). A ZIP is an EPUB only
     /// if its `mimetype` entry says so (read under a 256-byte cap, so a
     /// crafted entry cannot inflate here) and any other ZIP is taken for a
     /// CBZ. Returns `UnsupportedFormat(None)` when nothing matches, and
