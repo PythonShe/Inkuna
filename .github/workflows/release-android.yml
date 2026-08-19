@@ -246,7 +246,7 @@ jobs:
           name: Inkuna Android v${{ needs.prepare.outputs.version }}
           draft: false
           generate_release_notes: false
-          body_path: /tmp/release_notes.md
+          body_path: /tmp/release_notes.all.md
           fail_on_unmatched_files: true
           files: dist/*.apk
           # Android owns the repo-wide "Latest" badge — it is the only track

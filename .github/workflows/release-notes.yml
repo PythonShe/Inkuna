@@ -6,6 +6,14 @@ name: Release Notes
 # asks an LLM to distill user-facing notes, and uploads them as the
 # "release-notes" artifact for the caller's publish job to consume.
 #
+# The notes ship in the website's three languages (en, zh, ja): the English
+# notes are generated first under the full deliberation prompt — the single
+# source of truth for what gets said — then translated. The artifact carries
+# release_notes.md (en, TestFlight's "What to Test"), release_notes.zh.md,
+# release_notes.ja.md, and release_notes.all.md — all three concatenated
+# under `<!-- inkuna:lang:xx -->` markers — which becomes the GitHub release
+# body that the website's changelog page fetches and splits per language.
+#
 # The call goes to the Gemini API's OpenAI-compatible chat-completions
 # endpoint with gemini-3.7-flash at high reasoning effort (the compatibility
 # layer maps reasoning_effort "high" to Gemini's thinking_level "high"). The
@@ -219,17 +227,97 @@ jobs:
           fi
 
           echo "$CHANGELOG" > /tmp/release_notes.md
+
+          # ---- Translations (zh, ja), matching the website's languages ----
+          # Translating the vetted English notes keeps the deliberation
+          # prompt above the single source of truth for what gets said; this
+          # pass only changes the language. Low reasoning effort: translation
+          # of short factual bullets needs no deliberation budget.
+          TRANSLATION_RULES=$(cat <<'RULES_EOF'
+          You translate release notes for Inkuna, a minimalist book reader, from English into the target language named below.
+          Output ONLY the translated markdown — no preamble, no closing text, no code fences.
+          Preserve the markdown structure exactly: the same `###` headings in the same order, the same number of bullets, nothing added or removed.
+          Translate the `###` section headings using exactly the given mapping.
+          Neutral, factual tone; native phrasing over literal word order. Do not translate the product name (Inkuna) or format names (EPUB, MOBI, AZW3, TXT, PDF, CBZ, CBR).
+          Determinism: for identical input, produce identical output.
+          RULES_EOF
+          )
+
+          request_translation() {  # $1 = system prompt
+            curl -s --max-time 300 "${LLM_BASE_URL%/}/chat/completions" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $GEMINI_API_KEY" \
+              -d "$(jq -n \
+                --arg model "$LLM_MODEL" \
+                --arg system "$1" \
+                --arg notes "$CHANGELOG" \
+                '{
+                  model: $model,
+                  reasoning_effort: "low",
+                  max_completion_tokens: 65536,
+                  messages: [
+                    {role: "system", content: $system},
+                    {role: "user", content: $notes}
+                  ]
+                }')" || true
+          }
+
+          translate_notes() {  # $1 = language, $2 = heading mapping, $3 = Overview heading, $4 = output file
+            local system="$TRANSLATION_RULES
+
+          Target language: $1
+          Heading mapping: $2"
+            local response candidate finish attempt
+            for attempt in 1 2; do
+              response=$(request_translation "$system")
+              candidate=$(echo "$response" | jq -r '.choices[0].message.content // empty' 2>/dev/null || true)
+              finish=$(echo "$response" | jq -r '.choices[0].finish_reason // empty' 2>/dev/null || true)
+              if [ -n "$candidate" ] && [ "$finish" != "length" ] && grep -q "^### $3" <<<"$candidate"; then
+                printf '%s\n' "$candidate" > "$4"
+                return 0
+              fi
+              echo "::warning::$1 translation attempt $attempt failed (finish_reason='${finish:-none}')"
+            done
+            # English beats a hole: a release must never ship without notes.
+            cp /tmp/release_notes.md "$4"
+            echo "::warning::Falling back to English notes for $1"
+          }
+
+          translate_notes "Simplified Chinese" \
+            '"Overview" -> "概览"; "New Features" -> "新功能"; "Improvements" -> "改进"; "Bug Fixes" -> "问题修复"' \
+            "概览" /tmp/release_notes.zh.md
+          translate_notes "Japanese" \
+            '"Overview" -> "概要"; "New Features" -> "新機能"; "Improvements" -> "改善"; "Bug Fixes" -> "不具合修正"' \
+            "概要" /tmp/release_notes.ja.md
+
+          # The GitHub release body: all three languages under invisible
+          # markers the website's changelog page splits on.
+          {
+            echo "<!-- inkuna:lang:en -->"
+            cat /tmp/release_notes.md
+            echo
+            echo "<!-- inkuna:lang:zh -->"
+            cat /tmp/release_notes.zh.md
+            echo
+            echo "<!-- inkuna:lang:ja -->"
+            cat /tmp/release_notes.ja.md
+          } > /tmp/release_notes.all.md
+
           {
             echo "## Release notes for $TAG"
             echo
-            cat /tmp/release_notes.md
+            cat /tmp/release_notes.all.md
           } >> "$GITHUB_STEP_SUMMARY"
           echo "--- Release notes ---"
-          cat /tmp/release_notes.md
+          cat /tmp/release_notes.all.md
 
       - name: Upload release notes artifact
         uses: actions/upload-artifact@v7
         with:
           name: release-notes
-          path: /tmp/release_notes.md
+          path: |
+            /tmp/release_notes.md
+            /tmp/release_notes.zh.md
+            /tmp/release_notes.ja.md
+            /tmp/release_notes.all.md
           if-no-files-found: error
