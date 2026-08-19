@@ -45,6 +45,8 @@ import org.readium.r2.navigator.preferences.ReadingProgression
 class BoundaryFlingRescue(
     private val navigator: EpubNavigatorFragment,
     density: Float,
+    /** True while [BoundaryDragFollower] drove this same gesture itself. */
+    private val isSuppressed: () -> Boolean = { false },
 ) : InputListener {
 
     private data class Sample(val time: Long, val x: Float)
@@ -96,6 +98,10 @@ class BoundaryFlingRescue(
     }
 
     private fun maybeRescue(now: Long, event: DragEvent) {
+        // The follower already replayed this gesture into the pager with
+        // full visual feedback; re-driving it would turn twice (on commit)
+        // or override the reader's cancel (on snap-back).
+        if (isSuppressed()) return
         val dx = event.offset.x
         val dy = event.offset.y
         if (abs(dx) < minDistancePx || abs(dx) < 2 * abs(dy)) return

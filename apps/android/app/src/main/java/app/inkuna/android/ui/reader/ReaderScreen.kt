@@ -295,11 +295,15 @@ private fun ReaderContent(
                 }
             }
     }
+    // Lets BoundaryFlingRescue stand down for gestures BoundaryDragFollower
+    // already drove into the pager itself.
+    val boundarySignal = remember(book) { BoundaryGestureSignal() }
     ReaderNavigatorHost(
         navigatorFactory = book.navigatorFactory,
         initialLocator = book.initialLocator,
         initialPreferences = initialPreferences,
         listener = navigatorListener,
+        boundarySignal = boundarySignal,
         onNavigator = { navigator = it },
         modifier = hostModifier,
     )
@@ -333,8 +337,14 @@ private fun ReaderContent(
             }
         }
         // Fast swipes at chapter boundaries die in the toolkit's fling
-        // gate; the rescue re-drives them. See BoundaryFlingRescue.
-        val flingRescue = BoundaryFlingRescue(nav, context.resources.displayMetrics.density)
+        // gate; the rescue re-drives them. It stands down for gestures the
+        // follower already replayed into the pager. See BoundaryFlingRescue
+        // and BoundaryDragFollower.
+        val flingRescue = BoundaryFlingRescue(
+            nav,
+            context.resources.displayMetrics.density,
+            isSuppressed = boundarySignal::handledRecently,
+        )
         nav.addInputListener(pageTurns)
         nav.addInputListener(chromeTaps)
         nav.addInputListener(flingRescue)
