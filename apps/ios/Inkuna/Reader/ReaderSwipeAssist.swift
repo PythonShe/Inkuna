@@ -15,21 +15,25 @@ import WebKit
 ///    view (or the navigator's own slide) is still settling — the touch is
 ///    consumed by the settle and moves nothing.
 ///
-/// Both are rescued the same way: a recognized horizontal swipe arms a
-/// display-link verify that waits for every scroll view to rest and then checks,
+/// Both are rescued the same way: a recognized horizontal swipe — or a
+/// deliberate slow drag past a third of the page, which no swipe
+/// recognizer ever sees — arms a display-link verify that waits for
+/// every scroll view to rest and then checks,
 /// against *live, re-resolved* views, that the gesture demonstrably moved
 /// nothing. Only then is the missed turn driven — and never through state
 /// that can lag reality:
 ///
-/// - Within the resource, the turn is a DOM-relative instant
-///   `window.scrollBy` evaluated on the verified web view itself. Readium
-///   uses the same primitive for its own turns, but going straight to the
-///   web view bypasses the navigator's state machine and its
-///   `currentSpreadIndex` fallback, whose bookkeeping commits only when
-///   the outer deceleration ends — the lag that used to turn a rescue into
-///   a backward jump (`goRight` from a stale index re-entered the visible
-///   chapter at `.start`). A relative scroll of an at-rest, page-aligned
-///   offset structurally cannot land backward or double.
+/// - Within the resource, the turn animates the verified web view's own
+///   scroll view with a velocity-matched UIKit spring: WebKit pins JS
+///   smooth scrolls near 60 Hz with a browser-chosen curve, while a UIKit
+///   animation rides ProMotion and starts at the finger's measured
+///   release speed. Driving the web view directly bypasses the
+///   navigator's state machine and its `currentSpreadIndex` fallback,
+///   whose bookkeeping commits only when the outer deceleration ends —
+///   the lag that used to turn a rescue into a backward jump (`goRight`
+///   from a stale index re-entered the visible chapter at `.start`). A
+///   page-width move of an at-rest, page-aligned offset structurally
+///   cannot land backward or double.
 /// - At a true resource boundary the turn goes through the navigator's
 ///   `goRight`/`goLeft` (edge-aware, RTL-safe), guarded by the same
 ///   at-rest checks so the spread index it consults is committed.
@@ -92,6 +96,29 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     /// own state machine coalesces whatever the next gesture asks for.
     private var turnTask: Task<Void, Never>?
 
+    /// The in-flight within-resource rescue animation. A fresh touch
+    /// freezes it in place: a finger that then drags hands the offset to
+    /// the pager's own release snap, and a bare tap is realigned on
+    /// touch-up (`interruptedTurn` remembers which case applies).
+    private var turnAnimator: UIViewPropertyAnimator?
+    private var interruptedTurn = false
+
+    /// Release kinematics from the shadow pan — the swipe recognizers
+    /// report no velocity, so a plain pan rides along purely to measure
+    /// the finger. Consulted only moments after release; a settle-bound
+    /// rescue firing later starts its spring from rest instead.
+    private var lastReleaseVelocityX: CGFloat = 0
+    private var lastReleaseInstant = ContinuousClock.now
+
+    /// Rescue-claim bookkeeping for one touch: the swipe recognizer and
+    /// the pan's slow-drag fallback both see a fast drag, and exactly one
+    /// of them may drive it. The sequence number guards the fallback's
+    /// deferred hop against a new touch arriving in between.
+    private var swipeHandledTouch = false
+    private var touchSequence = 0
+
+    private let rescueHaptic = UIImpactFeedbackGenerator(style: .soft)
+
     /// Fired on any recognized horizontal swipe — native or about to be
     /// rescued — so the reader can clear its chrome the moment turn intent
     /// shows instead of when the turn lands.
@@ -116,6 +143,14 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
             recognizer.delegate = self
             navigator.view.addGestureRecognizer(recognizer)
         }
+
+        // The shadow pan: never claims the gesture, only measures it —
+        // for the release velocity the swipe recognizers cannot report,
+        // and for the deliberate slow drag that never becomes a swipe.
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(panned))
+        pan.cancelsTouchesInView = false
+        pan.delegate = self
+        navigator.view.addGestureRecognizer(pan)
     }
 
     deinit {
@@ -132,9 +167,27 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     }
 
     @objc private func touchedDown(_ recognizer: UILongPressGestureRecognizer) {
-        guard recognizer.state == .began else { return }
+        switch recognizer.state {
+        case .began:
+            break
+        case .ended, .cancelled, .failed:
+            realignAfterInterruptedTurn()
+            return
+        default:
+            return
+        }
         // A fresh interaction supersedes any pending rescue.
         stopVerify()
+        touchSequence += 1
+        swipeHandledTouch = false
+        // Catching a rescue mid-flight freezes it where it is: a drag from
+        // here is a native pager gesture whose release snaps to a page; a
+        // bare tap is realigned when this touch ends.
+        if let animator = turnAnimator, animator.isRunning {
+            animator.stopAnimation(false)
+            animator.finishAnimation(at: .current)
+            interruptedTurn = true
+        }
         eligibleLeft = false
         eligibleRight = false
         outerWasBusy = false
@@ -188,6 +241,28 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         let threshold = pageWidth - 4
         eligibleLeft = remainingLeft < threshold
         eligibleRight = remainingRight < threshold
+        if eligibleLeft || eligibleRight { rescueHaptic.prepare() }
+    }
+
+    /// A rescue stopped mid-flight by a bare tap leaves the column parked
+    /// between pages with nothing to snap it — the pager's own snap only
+    /// follows a real drag. At touch-up, if the interrupted offset still
+    /// sits misaligned and untouched, glide it to the nearest page.
+    private func realignAfterInterruptedTurn() {
+        guard interruptedTurn else { return }
+        interruptedTurn = false
+        guard let navigator, let webView = visibleWebView(in: navigator.view) else { return }
+        let inner = webView.scrollView
+        guard !inner.isTracking, !inner.isDragging, !inner.isDecelerating else { return }
+        let pageWidth = inner.bounds.width
+        guard pageWidth > 0 else { return }
+        let aligned = (inner.contentOffset.x / pageWidth).rounded() * pageWidth
+        guard abs(aligned - inner.contentOffset.x) >= 1 else { return }
+        let maxX = max(0, inner.contentSize.width - pageWidth)
+        inner.setContentOffset(
+            CGPoint(x: min(max(aligned, 0), maxX), y: inner.contentOffset.y),
+            animated: true
+        )
     }
 
     @objc private func swiped(_ recognizer: UISwipeGestureRecognizer) {
@@ -201,8 +276,42 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         // native paging owns it, and second-guessing a working turn is how
         // pages double. Everything else gets verified.
         guard eligible || outerEngaged || outerWasBusy else { return }
+        swipeHandledTouch = true
         if fireNowIfProvablyDead(direction) { return }
         armVerify(direction)
+    }
+
+    /// The shadow pan's release handler: records the finger's velocity
+    /// for the turn spring, then rescues the deliberate slow drag — a
+    /// gesture that turns the page anywhere else in the book but dies at
+    /// a clamped boundary without ever becoming a swipe. The commit rule
+    /// is a third of the page, matching the Android shell.
+    @objc private func panned(_ recognizer: UIPanGestureRecognizer) {
+        guard recognizer.state == .ended, let view = recognizer.view else { return }
+        let velocity = recognizer.velocity(in: view)
+        let translation = recognizer.translation(in: view)
+        lastReleaseVelocityX = velocity.x
+        lastReleaseInstant = ContinuousClock.now
+        guard abs(translation.x) > abs(translation.y) else { return }
+        let pageWidth = touchDownWebView?.scrollView.bounds.width ?? view.bounds.width
+        guard pageWidth > 0, abs(translation.x) >= pageWidth / 3 else { return }
+        let direction: UISwipeGestureRecognizer.Direction = translation.x < 0 ? .left : .right
+        let eligible = direction == .left ? eligibleLeft : eligibleRight
+        let outerEngaged = outerScrollView.map {
+            $0.isTracking || $0.isDragging || $0.isDecelerating
+        } ?? false
+        guard eligible || outerEngaged || outerWasBusy else { return }
+        // A fast drag reaches the swipe recognizer in this same run-loop
+        // turn; give it right of way and only claim the drags it never
+        // saw. The sequence guard drops the hop if a new touch lands
+        // first.
+        let sequence = touchSequence
+        Task { @MainActor [weak self] in
+            guard let self, sequence == self.touchSequence, !self.swipeHandledTouch else { return }
+            self.swipeHandledTouch = true
+            if self.fireNowIfProvablyDead(direction) { return }
+            self.armVerify(direction)
+        }
     }
 
     /// The clean dead fling, resolved with zero latency: when nothing
@@ -372,11 +481,10 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     /// Drives the verified missed turn, animated like a native one —
     /// firing only ever happens from a verified idle, at-rest, page-aligned
     /// reader, which is what made animation dangerous before. Within the
-    /// resource this is a DOM-relative scroll on the verified web view
-    /// (Readium's own turn primitive) — immune to the navigator's lagging
-    /// spread bookkeeping, so it cannot land backward or double. Only a
-    /// true boundary goes through the navigator, whose index is committed
-    /// now that everything rests.
+    /// resource the verified web view's scroll view is animated directly
+    /// — immune to the navigator's lagging spread bookkeeping, so it
+    /// cannot land backward or double. Only a true boundary goes through
+    /// the navigator, whose index is committed now that everything rests.
     private func turn(_ direction: UISwipeGestureRecognizer.Direction, webView: WKWebView) {
         let inner = webView.scrollView
         let pageWidth = inner.bounds.width
@@ -384,13 +492,12 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         let delta = direction == .left ? pageWidth : -pageWidth
         let target = inner.contentOffset.x + delta
         if target >= -2, target <= inner.contentSize.width - pageWidth + 2 {
-            webView.evaluateJavaScript(
-                "window.scrollBy({ left: \(delta), behavior: 'smooth' });",
-                completionHandler: nil
-            )
+            rescueHaptic.impactOccurred(intensity: 0.7)
+            animateInnerTurn(inner, by: delta)
             return
         }
         guard let navigator else { return }
+        rescueHaptic.impactOccurred(intensity: 0.7)
         turnTask = Task { [weak navigator] in
             guard let navigator else { return }
             if direction == .left {
@@ -399,6 +506,40 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
                 _ = await navigator.goLeft(options: NavigatorGoOptions(animated: true))
             }
         }
+    }
+
+    /// The within-resource turn as a UIKit spring on the web view's own
+    /// scroll view. WebKit pins JS smooth scrolls near 60 Hz behind a
+    /// browser-chosen curve; a UIKit animation rides ProMotion and starts
+    /// at the finger's measured release speed, so a hard fling lands
+    /// sharp and a lazy drag settles gently — like the pager's own
+    /// deceleration.
+    private func animateInnerTurn(_ inner: UIScrollView, by delta: CGFloat) {
+        let maxX = max(0, inner.contentSize.width - inner.bounds.width)
+        let target = CGPoint(
+            x: min(max(inner.contentOffset.x + delta, 0), maxX),
+            y: inner.contentOffset.y
+        )
+        let distance = abs(target.x - inner.contentOffset.x)
+        guard distance > 0 else { return }
+        // Spring initial velocity is normalized to distances-per-second.
+        // Only fresh kinematics count: a settle-bound rescue firing long
+        // after the finger left starts from rest, and a fling away from
+        // the turn contributes nothing rather than a backward kick.
+        var initialVelocity: CGFloat = 0
+        if ContinuousClock.now - lastReleaseInstant < .milliseconds(400) {
+            let toward = delta > 0 ? -lastReleaseVelocityX : lastReleaseVelocityX
+            initialVelocity = min(max(toward / distance, 0), 8)
+        }
+        let spring = UISpringTimingParameters(
+            dampingRatio: 1,
+            initialVelocity: CGVector(dx: initialVelocity, dy: 0)
+        )
+        let animator = UIViewPropertyAnimator(duration: 0.3, timingParameters: spring)
+        animator.addAnimations { inner.contentOffset = target }
+        turnAnimator?.stopAnimation(true)
+        turnAnimator = animator
+        animator.startAnimation()
     }
 
     /// The last answer `visibleWebView` walked the tree for. The verify
