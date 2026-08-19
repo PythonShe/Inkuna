@@ -99,16 +99,33 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     /// The in-flight within-resource rescue animation. A fresh touch
     /// freezes it in place: a finger that then drags hands the offset to
     /// the pager's own release snap, and a bare tap is realigned on
-    /// touch-up (`interruptedTurn` remembers which case applies).
+    /// touch-up (`interruptedTurn` remembers which case applies). The
+    /// target offset is kept so the realign finishes the interrupted turn
+    /// instead of re-deciding it — frozen before halfway, "nearest page"
+    /// would silently revert a turn the reader already saw commit.
     private var turnAnimator: UIViewPropertyAnimator?
     private var interruptedTurn = false
+    private var turnTargetX: CGFloat = 0
 
     /// Release kinematics from the shadow pan — the swipe recognizers
     /// report no velocity, so a plain pan rides along purely to measure
-    /// the finger. Consulted only moments after release; a settle-bound
-    /// rescue firing later starts its spring from rest instead.
+    /// the finger. The recognizer itself is kept around so a turn fired
+    /// *during* the gesture (a swipe recognizes with the finger still
+    /// down, before the pan's `.ended` ever runs) can sample the live
+    /// velocity instead of a stale previous-gesture snapshot. A
+    /// settle-bound rescue firing long after release starts from rest.
+    private weak var shadowPan: UIPanGestureRecognizer?
     private var lastReleaseVelocityX: CGFloat = 0
     private var lastReleaseInstant = ContinuousClock.now
+
+    /// Selection guard, mirroring the Android follower: a drag that first
+    /// crosses horizontal slop only after the long-press timeout is a
+    /// text-selection handle under the finger, and rescuing it would flip
+    /// the chapter out from under the selection. The swipe recognizers
+    /// never see these (selection drags are slow by nature); only the
+    /// pan's slow-drag fallback needs the guard.
+    private var touchDownInstant = ContinuousClock.now
+    private var horizontalSlopInstant: ContinuousClock.Instant?
 
     /// Rescue-claim bookkeeping for one touch: the swipe recognizer and
     /// the pan's slow-drag fallback both see a fast drag, and exactly one
@@ -151,6 +168,7 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         pan.cancelsTouchesInView = false
         pan.delegate = self
         navigator.view.addGestureRecognizer(pan)
+        shadowPan = pan
     }
 
     deinit {
@@ -180,6 +198,8 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         stopVerify()
         touchSequence += 1
         swipeHandledTouch = false
+        touchDownInstant = ContinuousClock.now
+        horizontalSlopInstant = nil
         // Catching a rescue mid-flight freezes it where it is: a drag from
         // here is a native pager gesture whose release snaps to a page; a
         // bare tap is realigned when this touch ends.
@@ -247,7 +267,9 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     /// A rescue stopped mid-flight by a bare tap leaves the column parked
     /// between pages with nothing to snap it — the pager's own snap only
     /// follows a real drag. At touch-up, if the interrupted offset still
-    /// sits misaligned and untouched, glide it to the nearest page.
+    /// sits misaligned and untouched, glide it to the frozen spring's own
+    /// target: the turn finishes rather than being re-decided — "nearest
+    /// page" would revert a turn caught before its halfway point.
     private func realignAfterInterruptedTurn() {
         guard interruptedTurn else { return }
         interruptedTurn = false
@@ -256,11 +278,10 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         guard !inner.isTracking, !inner.isDragging, !inner.isDecelerating else { return }
         let pageWidth = inner.bounds.width
         guard pageWidth > 0 else { return }
-        let aligned = (inner.contentOffset.x / pageWidth).rounded() * pageWidth
-        guard abs(aligned - inner.contentOffset.x) >= 1 else { return }
+        guard abs(turnTargetX - inner.contentOffset.x) >= 1 else { return }
         let maxX = max(0, inner.contentSize.width - pageWidth)
         inner.setContentOffset(
-            CGPoint(x: min(max(aligned, 0), maxX), y: inner.contentOffset.y),
+            CGPoint(x: min(max(turnTargetX, 0), maxX), y: inner.contentOffset.y),
             animated: true
         )
     }
@@ -287,12 +308,26 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     /// a clamped boundary without ever becoming a swipe. The commit rule
     /// is a third of the page, matching the Android shell.
     @objc private func panned(_ recognizer: UIPanGestureRecognizer) {
-        guard recognizer.state == .ended, let view = recognizer.view else { return }
-        let velocity = recognizer.velocity(in: view)
+        guard let view = recognizer.view else { return }
         let translation = recognizer.translation(in: view)
+        if recognizer.state == .changed {
+            // The moment the drag first commits to horizontal, for the
+            // selection guard below.
+            if horizontalSlopInstant == nil,
+               abs(translation.x) > 10, abs(translation.x) > abs(translation.y) {
+                horizontalSlopInstant = ContinuousClock.now
+            }
+            return
+        }
+        guard recognizer.state == .ended else { return }
+        let velocity = recognizer.velocity(in: view)
         lastReleaseVelocityX = velocity.x
         lastReleaseInstant = ContinuousClock.now
         guard abs(translation.x) > abs(translation.y) else { return }
+        // Horizontal intent that took longer than a long-press to show is
+        // a selection-handle drag, not a page turn (see the guard's doc).
+        let slopInstant = horizontalSlopInstant ?? ContinuousClock.now
+        guard slopInstant - touchDownInstant < .milliseconds(500) else { return }
         let pageWidth = touchDownWebView?.scrollView.bounds.width ?? view.bounds.width
         guard pageWidth > 0, abs(translation.x) >= pageWidth / 3 else { return }
         let direction: UISwipeGestureRecognizer.Direction = translation.x < 0 ? .left : .right
@@ -523,12 +558,23 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         let distance = abs(target.x - inner.contentOffset.x)
         guard distance > 0 else { return }
         // Spring initial velocity is normalized to distances-per-second.
+        // The instant-fire path runs while the finger is still down (a
+        // swipe recognizes before the pan's `.ended` ever fires), so the
+        // recorded release snapshot would be the *previous* gesture's —
+        // sample the pan live whenever it is still tracking this touch.
         // Only fresh kinematics count: a settle-bound rescue firing long
         // after the finger left starts from rest, and a fling away from
         // the turn contributes nothing rather than a backward kick.
+        var velocityX = lastReleaseVelocityX
+        var fresh = ContinuousClock.now - lastReleaseInstant < .milliseconds(400)
+        if let pan = shadowPan, let view = pan.view,
+           pan.state == .began || pan.state == .changed || pan.state == .ended {
+            velocityX = pan.velocity(in: view).x
+            fresh = true
+        }
         var initialVelocity: CGFloat = 0
-        if ContinuousClock.now - lastReleaseInstant < .milliseconds(400) {
-            let toward = delta > 0 ? -lastReleaseVelocityX : lastReleaseVelocityX
+        if fresh {
+            let toward = delta > 0 ? -velocityX : velocityX
             initialVelocity = min(max(toward / distance, 0), 8)
         }
         let spring = UISpringTimingParameters(
@@ -539,6 +585,7 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         animator.addAnimations { inner.contentOffset = target }
         turnAnimator?.stopAnimation(true)
         turnAnimator = animator
+        turnTargetX = target.x
         animator.startAnimation()
     }
 
