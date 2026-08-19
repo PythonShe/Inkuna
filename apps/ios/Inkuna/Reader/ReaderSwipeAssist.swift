@@ -16,7 +16,7 @@ import WebKit
 ///    consumed by the settle and moves nothing.
 ///
 /// Both are rescued the same way: a recognized horizontal swipe arms a
-/// verify task that waits for every scroll view to rest and then checks,
+/// display-link verify that waits for every scroll view to rest and then checks,
 /// against *live, re-resolved* views, that the gesture demonstrably moved
 /// nothing. Only then is the missed turn driven — and never through state
 /// that can lag reality:
@@ -65,7 +65,25 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     private var eligibleRight = false
     private var outerWasBusy = false
 
-    private var verifyTask: Task<Void, Never>?
+    /// The verify runs on a display link, not a timer: the gates it polls
+    /// (deceleration flags, page alignment, the navigator's interaction
+    /// tell) all flip inside UIKit's per-frame scroll servicing, so a
+    /// frame callback lands immediately after they change, while a sleep
+    /// loop lands at an arbitrary phase up to a full frame late — and
+    /// follows the panel to 120 Hz instead of assuming 60. The link
+    /// retains its target while running; every exit path goes through
+    /// `stopVerify()`, which breaks that cycle no later than the deadline.
+    private var verifyLink: CADisplayLink?
+    private var verifyDeadline = ContinuousClock.now
+    private var verifyDirection: UISwipeGestureRecognizer.Direction = .left
+
+    /// Baselines the armed verify compares against. The start web view is
+    /// held strongly so a deallocation can never masquerade as the
+    /// "no baseline" case (nil means the touch landed on a loading
+    /// reader).
+    private var verifyStartWebView: WKWebView?
+    private var verifyInnerStart: CGFloat = 0
+    private var verifyOuterPage: CGFloat = 0
 
     /// The boundary turn lives in its own slot: a fresh touch cancels the
     /// verify, but must not cancel a turn already handed to the navigator —
@@ -96,7 +114,8 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     }
 
     deinit {
-        verifyTask?.cancel()
+        // No verifyLink handling: a running link retains self, so deinit
+        // can only run once the verify has already stopped.
         turnTask?.cancel()
     }
 
@@ -110,8 +129,7 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     @objc private func touchedDown(_ recognizer: UILongPressGestureRecognizer) {
         guard recognizer.state == .began else { return }
         // A fresh interaction supersedes any pending rescue.
-        verifyTask?.cancel()
-        verifyTask = nil
+        stopVerify()
         eligibleLeft = false
         eligibleRight = false
         outerWasBusy = false
@@ -226,86 +244,123 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     /// the gesture worked natively, and the verification ends without
     /// acting.
     private func armVerify(_ direction: UISwipeGestureRecognizer.Direction) {
-        verifyTask?.cancel()
-        let startWebView = touchDownWebView
-        let innerStart = touchDownInnerOffset
-        let outerPage = touchDownOuterPage
-        verifyTask = Task { [weak self] in
-            let deadline = ContinuousClock.now.advanced(by: .seconds(1.5))
-            while ContinuousClock.now < deadline {
-                // One display frame: the rescue lands on the first frame
-                // after the settle it is waiting out ends.
-                try? await Task.sleep(for: .milliseconds(16))
-                guard !Task.isCancelled, let self, let navigator = self.navigator else { return }
-                guard let outer = self.outerScrollView else { return }
-                // The navigator drops the pagination view's interaction
-                // while any programmatic move or load is in flight; resting
-                // scroll views mean nothing until it is idle again.
-                guard outer.superview?.isUserInteractionEnabled != false else { continue }
-                // The recognizing touch may still be down, and a *new*
-                // touch cancels this task from touchedDown — so any
-                // activity here is this gesture's own; wait it out.
-                if outer.isTracking || outer.isDragging || outer.isDecelerating { continue }
-                let width = outer.bounds.width
-                guard width > 0 else { return }
-                let page = outer.contentOffset.x / width
-                // Off page alignment means a slide is still running.
-                guard abs(page - page.rounded()) * width < 1 else { continue }
+        stopVerify()
+        verifyDirection = direction
+        verifyStartWebView = touchDownWebView
+        verifyInnerStart = touchDownInnerOffset
+        verifyOuterPage = touchDownOuterPage
+        verifyDeadline = ContinuousClock.now.advanced(by: .seconds(1.5))
+        let link = CADisplayLink(target: self, selector: #selector(verifyTick))
+        // Ride the panel's full rate (needs CADisableMinimumFrameDuration-
+        // OnPhone, set in project.yml): the rescue lands on the very frame
+        // the settle it is waiting out ends. The low minimum lets the
+        // system relax the panel while nothing is changing; on 60 Hz
+        // hardware the range simply clamps.
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 120)
+        // .common, not .default: the link must keep firing while the
+        // recognizing touch is still tracking a scroll view.
+        link.add(to: .main, forMode: .common)
+        verifyLink = link
+    }
 
-                // Live view, not the capture: the navigator keeps several
-                // preloaded spreads around, and their model geometry can
-                // advance ahead of the screen.
-                guard let webView = self.visibleWebView(in: navigator.view) else { return }
-                // A different spread on screen means the resource turned
-                // — the gesture worked natively. No baseline at all means
-                // the touch landed on a loading reader whose input was
-                // disabled: nothing could have moved natively, so the
-                // swipe is dead by construction and the comparisons below
-                // have nothing to compare against.
-                if let startWebView, webView !== startWebView { return }
-                let inner = webView.scrollView
-                if inner.isTracking || inner.isDragging || inner.isDecelerating { continue }
+    private func stopVerify() {
+        verifyLink?.invalidate()
+        verifyLink = nil
+        verifyStartWebView = nil
+    }
 
-                // The outer moving to another page means the resource
-                // turned natively — the gesture worked.
-                if startWebView != nil {
-                    guard abs(page.rounded() - outerPage) < 0.5 else { return }
-                }
-                let pageWidth = inner.bounds.width
-                guard pageWidth > 0 else { return }
-                // A smooth JS scroll (a previous rescue's, or Readium's
-                // own animated turn) moves the offset without any of the
-                // UIScrollView flags above; off page alignment is its only
-                // tell. Firing into one would compose the two scrolls and
-                // hand the landing to the pager's snap.
-                let innerPage = inner.contentOffset.x / pageWidth
-                guard abs(innerPage - innerPage.rounded()) * pageWidth < 1 else { continue }
-                let drift = startWebView == nil
-                    ? 0
-                    : abs(inner.contentOffset.x - innerStart)
-                let remaining = direction == .left
-                    ? inner.contentSize.width - pageWidth - inner.contentOffset.x
-                    : inner.contentOffset.x
-                // How much inner drift still reads as a dead swipe depends
-                // on where the resource rests now. Clamped in the swipe's
-                // direction, the defining dead shape is a touch landing
-                // while the previous turn was still settling *into* this
-                // outermost page — that settle finishes under the finger,
-                // so up to a page of drift is the prior turn's, not this
-                // swipe's. A full page or more can only mean the swipe
-                // itself turned natively (a mid-snap touch on a page that
-                // was not really outermost); acting would double it.
-                // Anywhere else the inner had room to move, so any drift
-                // at all means the turn happened natively.
-                let deadSwipe = remaining < 2
-                    ? drift < pageWidth - 2
-                    : drift < 1
-                if deadSwipe {
-                    self.turn(direction, webView: webView)
-                }
-                return
-            }
+    /// One frame of the verify: the old poll-loop body. A plain `return`
+    /// is "still settling, look again next frame"; `stopVerify()` before
+    /// a return is a verdict — the gesture either worked natively or has
+    /// just been rescued.
+    @objc private func verifyTick(_ link: CADisplayLink) {
+        guard link === verifyLink else {
+            // A superseded link that somehow ticks once more must not
+            // outlive its replacement.
+            link.invalidate()
+            return
         }
+        guard ContinuousClock.now < verifyDeadline, let navigator, let outer = outerScrollView else {
+            stopVerify()
+            return
+        }
+        // The navigator drops the pagination view's interaction while any
+        // programmatic move or load is in flight; resting scroll views
+        // mean nothing until it is idle again.
+        guard outer.superview?.isUserInteractionEnabled != false else { return }
+        // The recognizing touch may still be down, and a *new* touch stops
+        // this verify from touchedDown — so any activity here is this
+        // gesture's own; wait it out.
+        if outer.isTracking || outer.isDragging || outer.isDecelerating { return }
+        let width = outer.bounds.width
+        guard width > 0 else {
+            stopVerify()
+            return
+        }
+        let page = outer.contentOffset.x / width
+        // Off page alignment means a slide is still running.
+        guard abs(page - page.rounded()) * width < 1 else { return }
+
+        // Live view, not the capture: the navigator keeps several
+        // preloaded spreads around, and their model geometry can advance
+        // ahead of the screen.
+        guard let webView = visibleWebView(in: navigator.view) else {
+            stopVerify()
+            return
+        }
+        // A different spread on screen means the resource turned — the
+        // gesture worked natively. No baseline at all means the touch
+        // landed on a loading reader whose input was disabled: nothing
+        // could have moved natively, so the swipe is dead by construction
+        // and the comparisons below have nothing to compare against.
+        if let startWebView = verifyStartWebView, webView !== startWebView {
+            stopVerify()
+            return
+        }
+        let inner = webView.scrollView
+        if inner.isTracking || inner.isDragging || inner.isDecelerating { return }
+
+        // The outer moving to another page means the resource turned
+        // natively — the gesture worked.
+        if verifyStartWebView != nil, abs(page.rounded() - verifyOuterPage) >= 0.5 {
+            stopVerify()
+            return
+        }
+        let pageWidth = inner.bounds.width
+        guard pageWidth > 0 else {
+            stopVerify()
+            return
+        }
+        // A smooth JS scroll (a previous rescue's, or Readium's own
+        // animated turn) moves the offset without any of the UIScrollView
+        // flags above; off page alignment is its only tell. Firing into
+        // one would compose the two scrolls and hand the landing to the
+        // pager's snap.
+        let innerPage = inner.contentOffset.x / pageWidth
+        guard abs(innerPage - innerPage.rounded()) * pageWidth < 1 else { return }
+        let drift = verifyStartWebView == nil
+            ? 0
+            : abs(inner.contentOffset.x - verifyInnerStart)
+        let remaining = verifyDirection == .left
+            ? inner.contentSize.width - pageWidth - inner.contentOffset.x
+            : inner.contentOffset.x
+        // How much inner drift still reads as a dead swipe depends on
+        // where the resource rests now. Clamped in the swipe's direction,
+        // the defining dead shape is a touch landing while the previous
+        // turn was still settling *into* this outermost page — that
+        // settle finishes under the finger, so up to a page of drift is
+        // the prior turn's, not this swipe's. A full page or more can
+        // only mean the swipe itself turned natively (a mid-snap touch on
+        // a page that was not really outermost); acting would double it.
+        // Anywhere else the inner had room to move, so any drift at all
+        // means the turn happened natively.
+        let deadSwipe = remaining < 2
+            ? drift < pageWidth - 2
+            : drift < 1
+        if deadSwipe {
+            turn(verifyDirection, webView: webView)
+        }
+        stopVerify()
     }
 
     /// Drives the verified missed turn, animated like a native one —
@@ -340,22 +395,37 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    /// The last answer `visibleWebView` walked the tree for. The verify
+    /// asks every frame and the walk crosses WKWebView's internal
+    /// hierarchy, so a still-visible previous answer short-circuits it;
+    /// visibility is re-proved live on each use, so a spread change is
+    /// caught on the frame it happens.
+    private weak var cachedVisibleWebView: WKWebView?
+
     /// The spread web view currently on screen: the one covering the
     /// navigator's center and actually visible — the navigator keeps
     /// preloaded spreads at alpha 0 until they are revealed.
     private func visibleWebView(in root: UIView) -> WKWebView? {
-        let center = CGPoint(x: root.bounds.midX, y: root.bounds.midY)
+        if let cached = cachedVisibleWebView, isVisibleSpread(cached, in: root) {
+            return cached
+        }
         var queue: [UIView] = [root]
         while let view = queue.popLast() {
-            if let webView = view as? WKWebView,
-               !webView.isHidden,
-               webView.scrollView.alpha > 0,
-               webView.convert(webView.bounds, to: root).contains(center) {
+            if let webView = view as? WKWebView, isVisibleSpread(webView, in: root) {
+                cachedVisibleWebView = webView
                 return webView
             }
             queue.append(contentsOf: view.subviews)
         }
         return nil
+    }
+
+    private func isVisibleSpread(_ webView: WKWebView, in root: UIView) -> Bool {
+        webView.isDescendant(of: root) &&
+            !webView.isHidden &&
+            webView.scrollView.alpha > 0 &&
+            webView.convert(webView.bounds, to: root)
+                .contains(CGPoint(x: root.bounds.midX, y: root.bounds.midY))
     }
 
     /// Any spread web view at all, revealed or not — only good for walking
