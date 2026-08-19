@@ -88,20 +88,24 @@ pub(crate) fn convert_to_epub(
     }
     writer.language(&language);
     writer.stylesheet(".mobi-center { text-align: center; }");
+    let mut image_budget = ImageBudget::new(MAX_TOTAL_IMAGE_BYTES);
+    // The cover charges the shared image budget, but only once its bytes
+    // are read and typed — a declared-but-unreadable cover reserves nothing.
     if book
         .cover_len()
         .is_some_and(|length| length <= MAX_IMAGE_BYTES)
     {
         if let Some(cover) = book.cover() {
             if let Some((mime, _)) = image_type(&cover) {
-                writer.set_cover(cover, mime);
+                if image_budget.reserve(cover.len()) {
+                    writer.set_cover(cover, mime);
+                }
             }
         }
     }
 
     let target_chapters = target_chapters(&scan.targets, &chunks);
     let mut images = HashMap::<u32, Option<String>>::new();
-    let mut image_budget = ImageBudget::new(MAX_TOTAL_IMAGE_BYTES);
     let mut meaningful = 0usize;
     for (chunk_index, chunk) in chunks.iter().enumerate() {
         let bytes = edited_chunk(&text, *chunk, chunk_index, &scan, &target_chapters);

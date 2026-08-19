@@ -63,13 +63,17 @@ pub(crate) fn convert_to_epub(
     writer.stylesheet(".mobi-center { text-align: center; }");
     append_css(&content, &mut writer);
     let mut image_budget = ImageBudget { used: 0 };
+    // The cover charges the shared image budget, but only once its bytes
+    // are read and typed — a declared-but-unreadable cover reserves nothing.
     if book
         .cover_len()
-        .is_some_and(|length| length <= MAX_IMAGE_BYTES && image_budget.reserve(length))
+        .is_some_and(|length| length <= MAX_IMAGE_BYTES)
     {
         if let Some(cover) = book.cover() {
             if let Some((mime, _)) = image_type(&cover) {
-                writer.set_cover(cover, mime);
+                if image_budget.reserve(cover.len()) {
+                    writer.set_cover(cover, mime);
+                }
             }
         }
     }
