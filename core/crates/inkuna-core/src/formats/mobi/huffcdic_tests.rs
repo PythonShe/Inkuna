@@ -96,9 +96,15 @@ fn rejects_truncated_or_inconsistent_tables() {
     bad[12..16].copy_from_slice(&31u32.to_be_bytes());
     assert!(HuffCdic::parse(&huff_record(), &[bad.as_slice()]).is_err());
 
-    let mut impossible_terminal = huff_record();
-    impossible_terminal[24..28].copy_from_slice(&0x0000_ff89u32.to_be_bytes());
-    assert!(HuffCdic::parse(&impossible_terminal, &[cdic_record(false).as_slice()]).is_err());
+    // A terminal flag on a long (>8-bit) code is legal and must parse.
+    let mut long_terminal = huff_record();
+    long_terminal[24..28].copy_from_slice(&0x0000_ff89u32.to_be_bytes());
+    assert!(HuffCdic::parse(&long_terminal, &[cdic_record(false).as_slice()]).is_ok());
+
+    // A short (<=8-bit) code without the terminal flag is invalid.
+    let mut short_non_terminal = huff_record();
+    short_non_terminal[24..28].copy_from_slice(&0x0000_ff05u32.to_be_bytes());
+    assert!(HuffCdic::parse(&short_non_terminal, &[cdic_record(false).as_slice()]).is_err());
 
     let mut unused_large_minimum = huff_record();
     unused_large_minimum[1048..1052].copy_from_slice(&u32::MAX.to_be_bytes());

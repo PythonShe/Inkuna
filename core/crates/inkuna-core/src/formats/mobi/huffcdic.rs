@@ -46,9 +46,12 @@ impl HuffCdic {
                 return Err(invalid("HUFF cache table has an invalid code length"));
             }
             let terminal = raw & 0x80 != 0;
-            if terminal != (code_length <= 8) {
+            // Codes of 8 bits or fewer resolve entirely inside the cache and
+            // must be terminal; longer codes may still carry the terminal
+            // flag (MOBI writers emit both), so only its absence is invalid.
+            if code_length <= 8 && !terminal {
                 return Err(invalid(
-                    "HUFF cache terminal flag contradicts its code length",
+                    "HUFF cache entry for a short code is missing its terminal flag",
                 ));
             }
             let mut max_code = u64::from(raw >> 8);
