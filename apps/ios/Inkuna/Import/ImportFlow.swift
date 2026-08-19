@@ -128,14 +128,22 @@ final class ImportFlow: NSObject {
 
     /// Content types the picker offers.
     ///
-    /// Deliberately wider than what Inkuna imports today: a reader with a
-    /// MOBI in Files is better served by picking it and being told "MOBI
-    /// isn't supported yet" than by watching it sit greyed out with no
-    /// explanation. The core detects the real format from the file's magic
-    /// bytes and names it, which is what makes that promise possible.
+    /// EPUB, MOBI, AZW3, and plain text all import today (the core
+    /// normalizes the non-EPUB ones to EPUB). The rest are deliberately
+    /// wider than what Inkuna imports yet: a reader with a CBZ in Files is
+    /// better served by picking it and being told "CBZ isn't supported yet"
+    /// than by watching it sit greyed out with no explanation. The core
+    /// detects the real format from the file's magic bytes and names it,
+    /// which is what makes that promise possible.
+    ///
+    /// MOBI/AZW3 use the app's imported type declarations (project.yml), so
+    /// their UTIs are stable identifiers rather than ad-hoc `dyn.*` ones —
+    /// and .prc rides along via the mobi declaration's extension list.
     private static var pickableTypes: [UTType] {
         var types: [UTType] = [.epub, .pdf, .plainText, .zip]
-        for tag in ["mobi", "azw3", "azw", "cbz", "cbr"] {
+        types.append(UTType(importedAs: "com.amazon.mobi-pocket-ebook"))
+        types.append(UTType(importedAs: "com.amazon.azw3-ebook"))
+        for tag in ["cbz", "cbr"] {
             if let type = UTType(filenameExtension: tag) {
                 types.append(type)
             }
