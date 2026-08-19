@@ -177,7 +177,44 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         // native paging owns it, and second-guessing a working turn is how
         // pages double. Everything else gets verified.
         guard eligible || outerEngaged || outerWasBusy else { return }
+        if fireNowIfProvablyDead(direction) { return }
         armVerify(direction)
+    }
+
+    /// The clean dead fling, resolved with zero latency: when nothing
+    /// anywhere is in flight and the resource rests clamped in the swipe's
+    /// direction, nothing native can honor the gesture — the checks that
+    /// the verify loop would wait to confirm all pass right now, so the
+    /// turn fires immediately and the boundary feels like any other page.
+    /// Any condition unmet falls through to the verify loop instead.
+    private func fireNowIfProvablyDead(_ direction: UISwipeGestureRecognizer.Direction) -> Bool {
+        guard
+            let navigator,
+            let outer = outerScrollView,
+            // Idle navigator; an outer neither owned by this touch nor
+            // settling, resting on a page.
+            outer.superview?.isUserInteractionEnabled != false,
+            !outer.isTracking, !outer.isDragging, !outer.isDecelerating,
+            outer.bounds.width > 0
+        else { return false }
+        let outerPage = outer.contentOffset.x / outer.bounds.width
+        guard abs(outerPage - outerPage.rounded()) * outer.bounds.width < 1 else { return false }
+        guard let webView = visibleWebView(in: navigator.view) else { return false }
+        // The finger may still be down (tracking) — that is fine on a
+        // clamped edge; a deceleration or an off-page offset is not: a
+        // turn is in flight and could be about to honor this swipe.
+        let inner = webView.scrollView
+        guard !inner.isDecelerating else { return false }
+        let pageWidth = inner.bounds.width
+        guard pageWidth > 0 else { return false }
+        let innerPage = inner.contentOffset.x / pageWidth
+        guard abs(innerPage - innerPage.rounded()) * pageWidth < 1 else { return false }
+        let remaining = direction == .left
+            ? inner.contentSize.width - pageWidth - inner.contentOffset.x
+            : inner.contentOffset.x
+        guard remaining < 2 else { return false }
+        turn(direction, webView: webView)
+        return true
     }
 
     /// Waits for the reader to come fully to rest, then turns the page if
@@ -196,7 +233,9 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         verifyTask = Task { [weak self] in
             let deadline = ContinuousClock.now.advanced(by: .seconds(1.5))
             while ContinuousClock.now < deadline {
-                try? await Task.sleep(for: .milliseconds(50))
+                // One display frame: the rescue lands on the first frame
+                // after the settle it is waiting out ends.
+                try? await Task.sleep(for: .milliseconds(16))
                 guard !Task.isCancelled, let self, let navigator = self.navigator else { return }
                 guard let outer = self.outerScrollView else { return }
                 // The navigator drops the pagination view's interaction
