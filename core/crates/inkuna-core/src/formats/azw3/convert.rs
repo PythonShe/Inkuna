@@ -68,8 +68,8 @@ pub(crate) fn convert_to_epub(
         .is_some_and(|length| length <= MAX_IMAGE_BYTES && image_budget.reserve(length))
     {
         if let Some(cover) = book.cover() {
-            if let Some((mime, _)) = image_type(cover) {
-                writer.set_cover(cover.to_vec(), mime);
+            if let Some((mime, _)) = image_type(&cover) {
+                writer.set_cover(cover, mime);
             }
         }
     }
@@ -429,12 +429,8 @@ fn image_href(
             return None;
         }
         let bytes = book.image(index)?;
-        let (mime, extension) = image_type(bytes)?;
-        Some(writer.add_image(
-            &format!("kf8img{index:05}.{extension}"),
-            bytes.to_vec(),
-            mime,
-        ))
+        let (mime, extension) = image_type(&bytes)?;
+        Some(writer.add_image(&format!("kf8img{index:05}.{extension}"), bytes, mime))
     })();
     cache.insert(index, href.clone());
     href

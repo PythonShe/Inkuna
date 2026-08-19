@@ -165,8 +165,10 @@ impl MobiBook {
                     "MOBI compressed text exceeds the 96 MiB input limit",
                 ));
             }
-            let raw = self.database.record(index)?;
-            let compressed = strip_trailing(raw, self.view.headers.mobi.extra_data_flags)?;
+            // One-shot read: text records are consumed here and must not
+            // stay resident in the record cache.
+            let raw = self.database.take_record(index)?;
+            let compressed = strip_trailing(&raw, self.view.headers.mobi.extra_data_flags)?;
             let record = match palmdoc_header.compression {
                 1 => {
                     if compressed.len() > MAX_RECORD_TEXT_BYTES {
@@ -244,7 +246,7 @@ impl MobiBook {
         Some(language.to_string())
     }
 
-    pub(crate) fn image(&self, recindex_1_based: u32) -> Option<&[u8]> {
+    pub(crate) fn image(&self, recindex_1_based: u32) -> Option<Vec<u8>> {
         self.image_record_index(recindex_1_based)
             .and_then(|index| self.image_at(index))
     }
@@ -257,7 +259,7 @@ impl MobiBook {
             .filter(|length| *length <= MAX_IMAGE_BYTES)
     }
 
-    pub(crate) fn cover(&self) -> Option<&[u8]> {
+    pub(crate) fn cover(&self) -> Option<Vec<u8>> {
         self.image(self.cover_recindex()?)
     }
 
@@ -346,12 +348,14 @@ impl MobiBook {
         decoded
     }
 
-    fn image_at(&self, index: usize) -> Option<&[u8]> {
+    fn image_at(&self, index: usize) -> Option<Vec<u8>> {
         if self.database.record_len(index).ok()? > MAX_IMAGE_BYTES {
             return None;
         }
-        let bytes = self.database.record(index).ok()?;
-        is_image(bytes).then_some(bytes)
+        // One-shot read: image bytes are handed to the caller as owned
+        // data and must not stay resident in the record cache.
+        let bytes = self.database.take_record(index).ok()?;
+        is_image(&bytes).then(|| bytes.into_vec())
     }
 
     fn image_record_index(&self, recindex_1_based: u32) -> Option<usize> {

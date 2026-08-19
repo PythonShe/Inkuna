@@ -118,10 +118,10 @@ fn extracts_exth_metadata_cover_images_and_language() {
     assert_eq!(book.title(), "新标题");
     assert_eq!(book.authors(), vec!["Ada", "鲁迅"]);
     assert_eq!(book.language().as_deref(), Some("zh"));
-    assert_eq!(book.image(1), Some(png.as_slice()));
+    assert_eq!(book.image(1).as_deref(), Some(png.as_slice()));
     assert_eq!(book.image(2), None);
     assert_eq!(book.image(0), None);
-    assert_eq!(book.cover(), Some(png.as_slice()));
+    assert_eq!(book.cover().as_deref(), Some(png.as_slice()));
     assert_eq!(book.encoding(), 65001);
 }
 
@@ -199,8 +199,8 @@ fn selects_the_kf8_view_after_a_combo_boundary() {
     assert!(book.kf8_boundary().is_some());
     assert_eq!(book.title(), "KF8 title");
     assert_eq!(book.text().unwrap(), b"new markup");
-    assert_eq!(book.image(1), Some(new_cover.as_slice()));
-    assert_eq!(book.cover(), Some(new_cover.as_slice()));
+    assert_eq!(book.image(1).as_deref(), Some(new_cover.as_slice()));
+    assert_eq!(book.cover().as_deref(), Some(new_cover.as_slice()));
 }
 
 #[test]

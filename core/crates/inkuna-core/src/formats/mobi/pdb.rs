@@ -17,6 +17,13 @@ enum Storage {
     Memory(Vec<u8>),
     File {
         file: Mutex<File>,
+        /// Lazily cached reads, retained for the life of the database.
+        /// Only headers and record 0 are meant to land here — one-shot
+        /// payloads (text records, image bytes) go through
+        /// [`PalmDatabase::take_record`] and are never cached. The
+        /// effective memory ceiling is the callers' byte caps: 96 MiB
+        /// total text and 16 MiB per image (128 MiB total) enforced in
+        /// `book.rs` and the `mobi`/`azw3` converters.
         records: Vec<OnceLock<Result<Box<[u8]>, StoredIoError>>>,
     },
 }
@@ -134,6 +141,29 @@ impl PalmDatabase {
                         error.message.clone(),
                     ))),
                 }
+            }
+        }
+    }
+
+    /// Reads a record into an owned buffer without populating the cache.
+    /// For one-shot payloads the caller consumes immediately (text
+    /// records, image bytes); headers and record 0 stay on [`record`]
+    /// (Self::record) so repeated lookups hit the cache. An already
+    /// cached record is cloned rather than reread from disk.
+    pub(super) fn take_record(&self, index: usize) -> Result<Box<[u8]>, CoreError> {
+        let (start, end) = self.record_range(index)?;
+        match &self.storage {
+            #[cfg(test)]
+            Storage::Memory(bytes) => Ok(Box::from(&bytes[start..end])),
+            Storage::File { file, records } => {
+                if let Some(Ok(cached)) = records.get(index).and_then(|cell| cell.get()) {
+                    return Ok(cached.clone());
+                }
+                let mut bytes = vec![0; end - start];
+                let mut file = file.lock().unwrap();
+                file.seek(SeekFrom::Start(start as u64))?;
+                file.read_exact(&mut bytes)?;
+                Ok(bytes.into_boxed_slice())
             }
         }
     }
