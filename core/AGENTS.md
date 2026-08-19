@@ -51,6 +51,7 @@ cargo test                      # full workspace tests — must pass before comm
 | `src/formats/` | detection (`format.rs`) and one module per format (`epub/`, `mobi/`, `azw3/`, `txt/`; CBZ/CBR land beside them) |
 | `src/features/` | vertical slices — `library/`, `import/`, `progress/`, `stats/`, `settings/` — each owning its types, reads, and writes |
 | `src/test_support.rs` | shared `#[cfg(test)]` fixtures (the `write_epub` / `write_cbz` / `write_mobi` builders) |
+| `src/mobi_test_support.rs` | shared `#[cfg(test)]` MOBI/KF8 fixtures (`MobiTestBuilder`, INDX/KF8 fixture builders, `palmdoc_compress`) |
 
 - **`mod.rs` is declarations only**: module doc comments, `mod`/`pub mod`,
   `use`/`pub use`, and module-level constants. Never a `fn`, `struct`, `enum`,
@@ -112,5 +113,6 @@ cargo test                      # full workspace tests — must pass before comm
   `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`; a folder module gets
   `tests.rs` inside it, declared from `mod.rs` as `#[cfg(test)] mod tests;`.
 - Tests build their own fixtures in `tempfile` dirs; shared builders live in
-  `src/test_support.rs` (the `write_epub` helper) — no binary fixtures in git.
+  `src/test_support.rs` (the `write_epub` helper) and
+  `src/mobi_test_support.rs` (MOBI/KF8) — no binary fixtures in git.
 - Format detection, metadata parsing, and DB roundtrips must stay covered.
