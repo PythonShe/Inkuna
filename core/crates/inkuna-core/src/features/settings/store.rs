@@ -2,7 +2,7 @@
 
 use rusqlite::OptionalExtension;
 
-use super::model::{Settings, DEFAULT_BRIGHTNESS, MAX_TEXT_SIZE_STEP};
+use super::model::{Settings, DEFAULT_BRIGHTNESS, MAX_REMINDER_MINUTES, MAX_TEXT_SIZE_STEP};
 use crate::{CoreError, Library};
 
 impl Library {
@@ -16,7 +16,7 @@ impl Library {
             let stored = conn
                 .query_row(
                     "SELECT onboarded, reading_theme, text_size_step, brightness,
-                            evening_reminder, account_name, account_email
+                            evening_reminder, reminder_minutes, account_name, account_email
                      FROM settings WHERE id = 1",
                     [],
                     |row| {
@@ -26,8 +26,9 @@ impl Library {
                             text_size_step: row.get(2)?,
                             brightness: row.get(3)?,
                             evening_reminder: row.get(4)?,
-                            account_name: row.get(5)?,
-                            account_email: row.get(6)?,
+                            reminder_minutes: row.get(5)?,
+                            account_name: row.get(6)?,
+                            account_email: row.get(7)?,
                         })
                     },
                 )
@@ -38,7 +39,8 @@ impl Library {
 
     /// Whole-record write. The core clamps out-of-range values instead of
     /// erroring: `text_size_step` to 0..=4, `brightness` to 0.0..=1.0
-    /// (non-finite falls back to the default).
+    /// (non-finite falls back to the default), `reminder_minutes` to
+    /// 0..=1439.
     ///
     /// Written as an upsert so the write cannot silently do nothing: a
     /// plain `UPDATE ... WHERE id = 1` against a missing row returns
@@ -52,17 +54,19 @@ impl Library {
         } else {
             DEFAULT_BRIGHTNESS
         };
+        let reminder_minutes = settings.reminder_minutes.min(MAX_REMINDER_MINUTES);
         let conn = self.writer.lock().unwrap();
         conn.execute(
             "INSERT INTO settings (id, onboarded, reading_theme, text_size_step, brightness,
-                                   evening_reminder, account_name, account_email)
-             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                                   evening_reminder, reminder_minutes, account_name, account_email)
+             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(id) DO UPDATE SET
                  onboarded        = excluded.onboarded,
                  reading_theme    = excluded.reading_theme,
                  text_size_step   = excluded.text_size_step,
                  brightness       = excluded.brightness,
                  evening_reminder = excluded.evening_reminder,
+                 reminder_minutes = excluded.reminder_minutes,
                  account_name     = excluded.account_name,
                  account_email    = excluded.account_email",
             rusqlite::params![
@@ -71,6 +75,7 @@ impl Library {
                 text_size_step,
                 brightness,
                 settings.evening_reminder,
+                reminder_minutes,
                 settings.account_name,
                 settings.account_email,
             ],

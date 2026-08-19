@@ -15,7 +15,7 @@ use rusqlite::{Connection, Transaction};
 use crate::core::files::copy_and_hash_unbounded;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 5;
+pub(crate) const SCHEMA_VERSION: i64 = 6;
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -134,6 +134,13 @@ const V5_SQL: &str = "
 ALTER TABLE publications ADD COLUMN text_encoding TEXT;
 ";
 
+// 0006: configurable evening-reminder time, in minutes after local
+// midnight. 1260 (21:00) is the fixed hour the shells shipped with, so
+// existing installs keep firing when they always did.
+const V6_SQL: &str = "
+ALTER TABLE settings ADD COLUMN reminder_minutes INTEGER NOT NULL DEFAULT 1260;
+";
+
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
     loop {
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
@@ -151,6 +158,7 @@ pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), Core
             2 => tx.execute_batch(V3_SQL)?,
             3 => tx.execute_batch(V4_SQL)?,
             4 => tx.execute_batch(V5_SQL)?,
+            5 => tx.execute_batch(V6_SQL)?,
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }

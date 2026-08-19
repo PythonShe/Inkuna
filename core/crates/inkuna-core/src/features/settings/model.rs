@@ -12,6 +12,12 @@ pub const DEFAULT_BRIGHTNESS: f64 = 0.78;
 /// than rejecting, so a shell that grows its scale first cannot fail a
 /// write against an older core.
 pub const MAX_TEXT_SIZE_STEP: u8 = 4;
+/// Default reminder time, in minutes after midnight: 21:00, the fixed
+/// "evening" the shells shipped with before the hour became configurable.
+pub const DEFAULT_REMINDER_MINUTES: u16 = 21 * 60;
+/// Largest accepted `reminder_minutes` (23:59); `set_settings` clamps to
+/// it rather than rejecting.
+pub const MAX_REMINDER_MINUTES: u16 = 23 * 60 + 59;
 
 /// The whole app-settings record: one core-owned row, read and written
 /// whole. Values are clamped on write, never rejected, and unknown
@@ -29,6 +35,11 @@ pub struct Settings {
     /// Whether the daily evening reading reminder is enabled. Scheduling
     /// is shell work; the core only remembers the choice.
     pub evening_reminder: bool,
+    /// When the reminder fires, in minutes after local midnight
+    /// (0..=[`MAX_REMINDER_MINUTES`]). Stored regardless of
+    /// `evening_reminder`, so toggling the reminder off and on keeps the
+    /// chosen hour.
+    pub reminder_minutes: u16,
     /// Display name of the purely local account; empty means "not set".
     pub account_name: String,
     /// Contact email of the purely local account; empty means "not set".
@@ -44,6 +55,7 @@ impl Default for Settings {
             text_size_step: DEFAULT_TEXT_SIZE_STEP,
             brightness: DEFAULT_BRIGHTNESS,
             evening_reminder: false,
+            reminder_minutes: DEFAULT_REMINDER_MINUTES,
             account_name: String::new(),
             account_email: String::new(),
         }

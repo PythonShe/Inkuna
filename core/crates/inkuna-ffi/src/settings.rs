@@ -12,6 +12,8 @@ pub struct Settings {
     pub brightness: f64,
     /// Daily evening reading reminder; scheduling is shell work.
     pub evening_reminder: bool,
+    /// When the reminder fires, in minutes after local midnight (0..=1439).
+    pub reminder_minutes: u16,
     /// Purely local account profile; empty strings mean "not set".
     pub account_name: String,
     pub account_email: String,
@@ -25,6 +27,7 @@ impl From<inkuna_core::Settings> for Settings {
             text_size_step: s.text_size_step,
             brightness: s.brightness,
             evening_reminder: s.evening_reminder,
+            reminder_minutes: s.reminder_minutes,
             account_name: s.account_name,
             account_email: s.account_email,
         }
@@ -39,6 +42,7 @@ impl From<Settings> for inkuna_core::Settings {
             text_size_step: s.text_size_step,
             brightness: s.brightness,
             evening_reminder: s.evening_reminder,
+            reminder_minutes: s.reminder_minutes,
             account_name: s.account_name,
             account_email: s.account_email,
         }
