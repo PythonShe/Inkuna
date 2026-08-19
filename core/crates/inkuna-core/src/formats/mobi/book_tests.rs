@@ -85,6 +85,20 @@ fn reads_huff_cdic_compressed_text_records() {
 }
 
 #[test]
+fn hostile_text_length_fails_without_reserving_the_declared_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("hostile-length.mobi");
+    MobiTestBuilder::new(6)
+        .text_records(vec![b"tiny".to_vec(), b"records".to_vec()])
+        .text_length(96 * 1024 * 1024)
+        .write(&path);
+
+    let book = MobiBook::open(&path).unwrap();
+    let error = book.text().unwrap_err();
+    assert!(error.to_string().contains("does not match"));
+}
+
+#[test]
 fn extracts_exth_metadata_cover_images_and_language() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("metadata.mobi");

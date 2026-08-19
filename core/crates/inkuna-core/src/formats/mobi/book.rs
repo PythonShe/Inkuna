@@ -125,8 +125,24 @@ impl MobiBook {
     pub(crate) fn text(&self) -> Result<Vec<u8>, CoreError> {
         let palmdoc_header = &self.view.headers.palmdoc;
         let text_count = usize::from(palmdoc_header.record_count);
-        let mut output =
-            Vec::with_capacity((palmdoc_header.text_length as usize).min(MAX_TOTAL_TEXT_BYTES));
+        // `text_length` is an untrusted header field: reserve only what the
+        // validated record table can plausibly decompress to (PalmDoc and
+        // HUFF/CDIC rarely beat 4:1 on real books), so a tiny hostile file
+        // declaring 96 MiB never forces that allocation up front.
+        let mut stored_bytes = 0usize;
+        for relative in 1..=text_count {
+            let index = self
+                .view
+                .header_index
+                .checked_add(relative)
+                .ok_or_else(|| invalid("MOBI text record index overflow"))?;
+            stored_bytes = stored_bytes.saturating_add(self.database.record_len(index)?);
+        }
+        let mut output = Vec::with_capacity(
+            (palmdoc_header.text_length as usize)
+                .min(stored_bytes.saturating_mul(4))
+                .min(MAX_TOTAL_TEXT_BYTES),
+        );
         let huff = if palmdoc_header.compression == 17_480 {
             Some(self.huff_decoder()?)
         } else {
