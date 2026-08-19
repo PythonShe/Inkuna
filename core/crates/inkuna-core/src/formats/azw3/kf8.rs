@@ -1,7 +1,7 @@
 //! KF8 FDST flow splitting and SKEL/FRAG reassembly.
 
 use super::indx::{self, Index, IndexEntry};
-use crate::formats::mobi::MobiBook;
+use crate::formats::mobi::{MobiBook, MAX_TOTAL_TEXT_BYTES};
 use crate::CoreError;
 
 const MAX_FLOWS: usize = 65_536;
@@ -199,6 +199,7 @@ pub(super) fn assemble_files(
         return Err(invalid("SKEL fragment counts do not match FRAG entries"));
     }
     let mut files = Vec::with_capacity(skeletons.len());
+    let mut total_bytes = 0usize;
     for (file_number, skeleton) in skeletons.iter().enumerate() {
         let skeleton_bytes = slice(flow0, skeleton.start, skeleton.length, "SKEL")?;
         let mut owned = fragments
@@ -216,7 +217,19 @@ pub(super) fn assemble_files(
         {
             return Err(invalid("FRAG sequence numbers are not contiguous"));
         }
-        let mut bytes = Vec::new();
+        let file_budget = owned
+            .iter()
+            .try_fold(skeleton.length, |budget, fragment| {
+                budget.checked_add(fragment.length)
+            })
+            .ok_or_else(|| invalid("KF8 assembled file size overflow"))?;
+        total_bytes = total_bytes
+            .checked_add(file_budget)
+            .ok_or_else(|| invalid("KF8 assembled file size overflow"))?;
+        if total_bytes > MAX_TOTAL_TEXT_BYTES {
+            return Err(invalid("KF8 assembled files exceed the text size limit"));
+        }
+        let mut bytes = Vec::with_capacity(file_budget);
         let mut anchors = Vec::with_capacity(owned.len());
         let mut cursor = 0usize;
         for fragment in owned {

@@ -78,6 +78,34 @@ fn fdst_pairs_are_bounded_and_fully_checked() {
 }
 
 #[test]
+fn reassembly_meters_total_assembled_bytes_against_the_text_limit() {
+    // One skeleton whose fragments all repeat the same large flow-0 range:
+    // 4 x 24 MiB + the skeleton crosses the 96 MiB assembled-text ceiling.
+    let fragment_length = 24 * 1024 * 1024;
+    let flow0 = vec![b'x'; 2 + fragment_length];
+    let skeletons = vec![Skeleton {
+        fragment_count: 4,
+        start: 0,
+        length: 2,
+    }];
+    let fragments = (0..4u32)
+        .map(|fid| Fragment {
+            fid,
+            insert: 1,
+            file: 0,
+            sequence: fid as usize,
+            start: 2,
+            length: fragment_length,
+        })
+        .collect::<Vec<_>>();
+
+    assert!(matches!(
+        assemble_files(&flow0, &skeletons, &fragments),
+        Err(CoreError::InvalidPublication(_))
+    ));
+}
+
+#[test]
 fn reassembly_rejects_fragment_count_and_offset_mismatches() {
     let skeletons = vec![Skeleton {
         fragment_count: 2,

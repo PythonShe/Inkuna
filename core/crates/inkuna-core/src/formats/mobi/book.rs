@@ -11,7 +11,7 @@ use super::pdb::PalmDatabase;
 use crate::CoreError;
 
 const MAX_RECORD_TEXT_BYTES: usize = 64 * 1024 * 8;
-const MAX_TOTAL_TEXT_BYTES: usize = 96 * 1024 * 1024;
+pub(in crate::formats) const MAX_TOTAL_TEXT_BYTES: usize = 96 * 1024 * 1024;
 const MAX_HEADER_RECORD_BYTES: usize = 64 * 1024 * 1024;
 const MAX_HUFF_TABLE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_IMAGE_BYTES: usize = 64 * 1024 * 1024;

@@ -13,5 +13,6 @@ pub(super) mod sanitize;
 mod scan;
 
 pub(crate) use book::MobiBook;
+pub(super) use book::MAX_TOTAL_TEXT_BYTES;
 pub(crate) use convert::convert_to_epub;
 pub(super) use convert::image_type;
