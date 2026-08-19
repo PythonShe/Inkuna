@@ -56,7 +56,17 @@ impl Format {
         let path = content;
         let mut file = File::open(path)?;
         let mut head = [0u8; 4 * 1024];
-        let n = file.read(&mut head)?;
+        // `read` may return short: fill the sample until EOF or the buffer
+        // is full, so the magic checks below never see a truncated head.
+        let mut n = 0;
+        while n < head.len() {
+            match file.read(&mut head[n..]) {
+                Ok(0) => break,
+                Ok(read) => n += read,
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(error) => return Err(error.into()),
+            }
+        }
 
         if n >= RAR_MAGIC.len() && head.starts_with(RAR_MAGIC) {
             return Ok(Format::Cbr);
