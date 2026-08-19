@@ -230,7 +230,7 @@ fn compile_regex(pattern: &str) -> Result<Regex, CoreError> {
     })
 }
 
-fn is_cjk(ch: char) -> bool {
+pub(super) fn is_cjk(ch: char) -> bool {
     matches!(ch as u32,
         0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xF900..=0xFAFF |
         0x3040..=0x30FF | 0xAC00..=0xD7AF | 0x20000..=0x2FA1F)

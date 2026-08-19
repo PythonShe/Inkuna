@@ -2,7 +2,7 @@
 
 use quick_xml::escape::escape;
 
-use super::chapters::is_cjk_dominant;
+use super::chapters::{is_cjk, is_cjk_dominant};
 
 /// Byte ceiling for one output chapter's text. [`split_blocks`] packs
 /// paragraph blocks up to this size and starts a new chapter past it; a
@@ -21,32 +21,27 @@ pub(super) enum Block {
 }
 
 pub(super) fn paragraph_blocks(text: &str) -> Vec<Block> {
-    // Hard-wrapped continuation lines join with a space in space-delimited
-    // scripts and with nothing in CJK, where a space would land inside a
-    // sentence. The choice is made once per chapter body: a minority-script
-    // paragraph inherits the dominant script's joiner.
-    let joiner = if is_cjk_dominant(text) { "" } else { " " };
     let lines: Vec<&str> = text.lines().collect();
     if lines.iter().any(|line| line.trim().is_empty()) {
-        return blank_separated_blocks(&lines, joiner);
+        return blank_separated_blocks(&lines);
     }
     if lines.iter().any(|line| starts_indented(line)) {
-        return indented_blocks(&lines, joiner);
+        return indented_blocks(&lines);
     }
     if is_cjk_dominant(text) && lines.len() > 1 {
         return lines.iter().filter_map(|line| line_block(line)).collect();
     }
-    unindented_blocks(&lines, joiner)
+    unindented_blocks(&lines)
 }
 
-fn blank_separated_blocks(lines: &[&str], joiner: &str) -> Vec<Block> {
+fn blank_separated_blocks(lines: &[&str]) -> Vec<Block> {
     let mut blocks = Vec::new();
     let mut paragraph = Vec::new();
     let mut index = 0;
     while index < lines.len() {
         let line = lines[index];
         if line.trim().is_empty() {
-            push_paragraph(&mut blocks, &paragraph, joiner);
+            push_paragraph(&mut blocks, &paragraph);
             paragraph.clear();
             let mut blanks = 0;
             while index < lines.len() && lines[index].trim().is_empty() {
@@ -59,7 +54,7 @@ fn blank_separated_blocks(lines: &[&str], joiner: &str) -> Vec<Block> {
             continue;
         }
         if is_scene_line(line) {
-            push_paragraph(&mut blocks, &paragraph, joiner);
+            push_paragraph(&mut blocks, &paragraph);
             paragraph.clear();
             if !matches!(blocks.last(), Some(Block::Scene)) {
                 blocks.push(Block::Scene);
@@ -69,38 +64,38 @@ fn blank_separated_blocks(lines: &[&str], joiner: &str) -> Vec<Block> {
         }
         index += 1;
     }
-    push_paragraph(&mut blocks, &paragraph, joiner);
+    push_paragraph(&mut blocks, &paragraph);
     blocks
 }
 
-fn indented_blocks(lines: &[&str], joiner: &str) -> Vec<Block> {
+fn indented_blocks(lines: &[&str]) -> Vec<Block> {
     let mut blocks = Vec::new();
     let mut paragraph = Vec::new();
     for line in lines {
         if is_scene_line(line) {
-            push_paragraph(&mut blocks, &paragraph, joiner);
+            push_paragraph(&mut blocks, &paragraph);
             paragraph.clear();
             if !matches!(blocks.last(), Some(Block::Scene)) {
                 blocks.push(Block::Scene);
             }
         } else {
             if starts_indented(line) && !paragraph.is_empty() {
-                push_paragraph(&mut blocks, &paragraph, joiner);
+                push_paragraph(&mut blocks, &paragraph);
                 paragraph.clear();
             }
             paragraph.push(*line);
         }
     }
-    push_paragraph(&mut blocks, &paragraph, joiner);
+    push_paragraph(&mut blocks, &paragraph);
     blocks
 }
 
-fn unindented_blocks(lines: &[&str], joiner: &str) -> Vec<Block> {
+fn unindented_blocks(lines: &[&str]) -> Vec<Block> {
     let mut blocks = Vec::new();
     let mut paragraph = Vec::new();
     for line in lines {
         if is_scene_line(line) {
-            push_paragraph(&mut blocks, &paragraph, joiner);
+            push_paragraph(&mut blocks, &paragraph);
             paragraph.clear();
             if !matches!(blocks.last(), Some(Block::Scene)) {
                 blocks.push(Block::Scene);
@@ -109,7 +104,7 @@ fn unindented_blocks(lines: &[&str], joiner: &str) -> Vec<Block> {
             paragraph.push(*line);
         }
     }
-    push_paragraph(&mut blocks, &paragraph, joiner);
+    push_paragraph(&mut blocks, &paragraph);
     blocks
 }
 
@@ -122,16 +117,38 @@ fn line_block(line: &str) -> Option<Block> {
     }
 }
 
-fn push_paragraph(blocks: &mut Vec<Block>, lines: &[&str], joiner: &str) {
-    let paragraph = lines
-        .iter()
-        .map(|line| strip_indent(line).trim_end())
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>()
-        .join(joiner);
+fn push_paragraph(blocks: &mut Vec<Block>, lines: &[&str]) {
+    let mut paragraph = String::new();
+    for line in lines {
+        let line = strip_indent(line).trim_end();
+        if line.is_empty() {
+            continue;
+        }
+        if !paragraph.is_empty() && !joins_without_space(&paragraph, line) {
+            paragraph.push(' ');
+        }
+        paragraph.push_str(line);
+    }
     if !paragraph.is_empty() {
         blocks.push(Block::Paragraph(paragraph));
     }
+}
+
+/// Hard-wrapped continuation lines join with a space in space-delimited
+/// scripts and with nothing in CJK, where a space would land inside a
+/// sentence. The choice is made per join point, so a minority-script run
+/// keeps its own word boundaries: only when the character on either side
+/// of the join is CJK does the space disappear.
+fn joins_without_space(before: &str, after: &str) -> bool {
+    let last = before.chars().next_back();
+    let first = after.chars().next();
+    last.is_some_and(is_cjk_joining) || first.is_some_and(is_cjk_joining)
+}
+
+/// [`is_cjk`] plus CJK punctuation and fullwidth forms, which also never
+/// take a following space when a wrapped line breaks after them.
+fn is_cjk_joining(ch: char) -> bool {
+    is_cjk(ch) || matches!(ch as u32, 0x3000..=0x303f | 0xff00..=0xffef)
 }
 
 pub(super) fn split_blocks(blocks: Vec<Block>) -> Vec<Vec<Block>> {
@@ -185,11 +202,12 @@ fn split_long_paragraph(mut text: &str) -> Vec<&str> {
 
 /// Picks the split index for one part of an oversized paragraph: the byte
 /// after the last ASCII space or sentence terminator within
-/// [`SPLIT_BACKOFF_BYTES`] of the size cap, so a part never ends
-/// mid-sentence — or mid-grapheme, since combining marks and joiners always
-/// follow the character they attach to. Falls back to the cap itself (at a
-/// char boundary) when the window holds no such cut, so the caller's loop
-/// always advances.
+/// [`SPLIT_BACKOFF_BYTES`] of the size cap. When such a cut point exists,
+/// the part ends neither mid-sentence nor mid-grapheme, since combining
+/// marks and joiners always follow the character they attach to. Without
+/// one, the fallback is the cap itself lowered to a `char` boundary — the
+/// loop always advances, but a fallback cut may split a multi-`char`
+/// grapheme cluster.
 fn long_paragraph_split(text: &str) -> usize {
     let limit = floor_char_boundary(text, MAX_CHAPTER_TEXT_BYTES);
     let window_start = floor_char_boundary(text, limit.saturating_sub(SPLIT_BACKOFF_BYTES));

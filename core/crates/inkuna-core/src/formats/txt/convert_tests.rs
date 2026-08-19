@@ -62,14 +62,16 @@ fn handles_cr_only_and_fullwidth_indented_paragraphs() {
 }
 
 #[test]
-fn continuation_joiner_is_chosen_per_file_by_dominant_script() {
-    // The joiner is decided once per file: this CJK-dominant source joins
-    // its hard-wrapped lines with no space, even inside a Latin paragraph.
+fn continuation_joiner_is_chosen_per_join_point_by_adjacent_script() {
+    // The joiner is decided at each join point: CJK joins stay space-free
+    // while a wrapped Latin paragraph in the same CJK-dominant file keeps
+    // its word boundary.
     let text = "第一章 起\n　汉字正文第一行，此处汉字明显多于拉丁字母，足以决定分隔符。\n汉字续行。\n　A wrapped\nLatin paragraph.\n第二章 承\n　短文。\n第三章 转\n　终。";
     let (_dir, dst, _) = convert(text.as_bytes(), "混排");
     let body = all_text(&dst);
     assert!(body.contains("足以决定分隔符。汉字续行。"), "{body}");
-    assert!(body.contains("A wrappedLatin paragraph."), "{body}");
+    assert!(body.contains("A wrapped Latin paragraph."), "{body}");
+    assert!(!body.contains("wrappedLatin"), "{body}");
 }
 
 #[test]
