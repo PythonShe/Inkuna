@@ -318,7 +318,7 @@ impl MobiBook {
         Some(u32::from_be_bytes(bytes))
     }
 
-    fn decode(&self, bytes: &[u8]) -> String {
+    pub(crate) fn decode(&self, bytes: &[u8]) -> String {
         let decoded = if self.encoding() == 1252 {
             WINDOWS_1252
                 .decode_without_bom_handling(bytes)
