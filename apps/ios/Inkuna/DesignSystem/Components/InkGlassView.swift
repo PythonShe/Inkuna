@@ -67,5 +67,13 @@ final class InkGlassView: UIView {
         if #unavailable(iOS 26.0) {
             effectView.layer.cornerRadius = fixedCornerRadius ?? bounds.height / 2
         }
+        // An explicit path keeps the shadow off the offscreen-render path:
+        // without one, Core Animation re-derives it from the alpha channel
+        // of a blurred backdrop — per frame, per surface, exactly while a
+        // page is moving underneath the chrome.
+        layer.shadowPath = bounds.isEmpty ? nil : UIBezierPath(
+            roundedRect: bounds,
+            cornerRadius: fixedCornerRadius ?? bounds.height / 2
+        ).cgPath
     }
 }

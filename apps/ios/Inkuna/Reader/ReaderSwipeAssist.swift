@@ -92,6 +92,11 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     /// own state machine coalesces whatever the next gesture asks for.
     private var turnTask: Task<Void, Never>?
 
+    /// Fired on any recognized horizontal swipe — native or about to be
+    /// rescued — so the reader can clear its chrome the moment turn intent
+    /// shows instead of when the turn lands.
+    var onPageTurnGesture: (() -> Void)?
+
     init(navigator: EPUBNavigatorViewController) {
         self.navigator = navigator
         super.init()
@@ -186,6 +191,7 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     }
 
     @objc private func swiped(_ recognizer: UISwipeGestureRecognizer) {
+        onPageTurnGesture?()
         let direction = recognizer.direction
         let eligible = direction == .left ? eligibleLeft : eligibleRight
         let outerEngaged = outerScrollView.map {
