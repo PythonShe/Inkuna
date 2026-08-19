@@ -79,6 +79,28 @@ fn resolves_ncx_titles_through_the_cncx_string_pool() {
 }
 
 #[test]
+fn oversized_cncx_pools_fall_back_to_raw_ncx_labels() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cncx-flood.azw3");
+    // A title larger than MAX_CNCX_BYTES makes the CNCX record blow the
+    // pool budget; the pool must be dropped without being read, degrading
+    // the TOC to the raw ordinal labels instead of failing the import.
+    let flood = "a".repeat((1 << 20) + 1);
+    MobiTestBuilder::new(8)
+        .kf8_files(vec![Kf8FileFixture::new(
+            b"<html><body><p>A</p></body></html>",
+        )])
+        .ncx(vec![Kf8NcxFixture::new(&flood, 0, 1)])
+        .write(&path);
+
+    let book = MobiBook::open(&path).unwrap();
+    let content = read(&book).unwrap();
+
+    let toc = content.toc.as_ref().unwrap();
+    assert_eq!(toc[0].label, "0000");
+}
+
+#[test]
 fn fdst_pairs_are_bounded_and_fully_checked() {
     let mut valid = Vec::from(b"FDST".as_slice());
     valid.extend_from_slice(&28u32.to_be_bytes());

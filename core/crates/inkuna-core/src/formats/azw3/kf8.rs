@@ -7,6 +7,10 @@ use crate::CoreError;
 const MAX_FLOWS: usize = 65_536;
 const MAX_INDEX_RECORDS: usize = 65_536;
 const MAX_CNCX_RECORDS: usize = 16;
+/// Total byte cap across a CNCX string pool — TOC titles, so even sprawling
+/// books stay far below this; a pool past it is dropped in favor of raw
+/// NCX labels.
+const MAX_CNCX_BYTES: usize = 1 << 20;
 
 pub(super) struct Kf8Content {
     pub(super) files: Vec<AssembledFile>,
@@ -150,7 +154,10 @@ fn load_index(book: &MobiBook, first: u32) -> Result<Index, CoreError> {
 /// their count sits at offset 52 of the meta INDX header. Only the NCX TOC
 /// path reads CNCX strings, and a missing title there degrades to a
 /// fallback label — so a malformed pool yields whatever prefix loaded
-/// cleanly (possibly nothing) instead of an error.
+/// cleanly (possibly nothing) instead of an error, and a pool whose bytes
+/// exceed [`MAX_CNCX_BYTES`] is treated as unavailable outright: the
+/// records are length-checked before they are read, so a crafted pool
+/// costs nothing.
 fn load_cncx(book: &MobiBook, first: u32) -> Vec<Vec<u8>> {
     let Ok(meta) = book.relative_record(first) else {
         return Vec::new();
@@ -159,6 +166,7 @@ fn load_cncx(book: &MobiBook, first: u32) -> Vec<Vec<u8>> {
         return Vec::new();
     };
     let cncx_count = (cncx_count as usize).min(MAX_CNCX_RECORDS);
+    let mut budget = MAX_CNCX_BYTES;
     let mut cncx = Vec::with_capacity(cncx_count);
     for relative in 0..cncx_count {
         let Some(record) = (record_count as usize)
@@ -169,10 +177,17 @@ fn load_cncx(book: &MobiBook, first: u32) -> Vec<Vec<u8>> {
         else {
             break;
         };
-        let Ok(bytes) = book.relative_record(record) else {
+        let Ok(length) = book.relative_record_len(record) else {
             break;
         };
-        cncx.push(bytes.to_vec());
+        let Some(remaining) = budget.checked_sub(length) else {
+            return Vec::new();
+        };
+        budget = remaining;
+        let Ok(bytes) = book.take_relative_record(record) else {
+            break;
+        };
+        cncx.push(bytes.into_vec());
     }
     cncx
 }

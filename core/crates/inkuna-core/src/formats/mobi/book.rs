@@ -114,12 +114,26 @@ impl MobiBook {
     }
 
     pub(crate) fn relative_record(&self, relative: u32) -> Result<&[u8], CoreError> {
-        let index = self
-            .view
+        self.database.record(self.relative_index(relative)?)
+    }
+
+    /// Stored length of a KF8-relative record, so callers can budget a read
+    /// before paying for it.
+    pub(crate) fn relative_record_len(&self, relative: u32) -> Result<usize, CoreError> {
+        self.database.record_len(self.relative_index(relative)?)
+    }
+
+    /// Reads a KF8-relative record without retaining it in the record cache;
+    /// for one-shot reads whose bytes are consumed immediately.
+    pub(crate) fn take_relative_record(&self, relative: u32) -> Result<Box<[u8]>, CoreError> {
+        self.database.take_record(self.relative_index(relative)?)
+    }
+
+    fn relative_index(&self, relative: u32) -> Result<usize, CoreError> {
+        self.view
             .header_index
             .checked_add(relative as usize)
-            .ok_or_else(|| invalid("KF8 record index overflow"))?;
-        self.database.record(index)
+            .ok_or_else(|| invalid("KF8 record index overflow"))
     }
 
     pub(crate) fn text(&self) -> Result<Vec<u8>, CoreError> {
