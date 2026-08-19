@@ -4,6 +4,11 @@ use quick_xml::escape::escape;
 
 use super::chapters::is_cjk_dominant;
 
+/// Byte ceiling for one output chapter's text. [`split_blocks`] packs
+/// paragraph blocks up to this size and starts a new chapter past it; a
+/// single paragraph exceeding it alone is cut into parts at most this
+/// large (see [`split_long_paragraph`]). Sized so no rendered spine item
+/// overwhelms the shells' Readium navigators.
 const MAX_CHAPTER_TEXT_BYTES: usize = 100 * 1024;
 // How far below the chapter cap an oversized-paragraph split may back off
 // in search of a space or sentence terminator.

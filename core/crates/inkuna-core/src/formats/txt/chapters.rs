@@ -59,6 +59,13 @@ impl ChapterRules {
     }
 }
 
+/// Splits `text` into volume/chapter sections by rule competition: the
+/// four heading rules (Chinese, Western, numeric, bracketed) are scored
+/// over the first 1 MiB and the highest-scoring rule wins — but only if
+/// it matched at least 3 headings there; otherwise the result is empty
+/// and the caller falls back to size-based parts. Text before the first
+/// heading becomes a "前言"/"Preface" chapter; volume headings and
+/// body-less headings become volume entries.
 pub(super) fn detect_sections(text: &str) -> Result<Vec<DetectedSection>, CoreError> {
     let rules = ChapterRules::compile()?;
     let sample = prefix_at_char_boundary(text, SAMPLE_BYTES);

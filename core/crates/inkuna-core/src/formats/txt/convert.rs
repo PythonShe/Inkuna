@@ -16,8 +16,13 @@ const MAX_TXT_CHAPTERS: usize = 9_990;
 // UTF-16 ASCII can occupy twice as many source bytes as decoded UTF-8.
 const MAX_TXT_SOURCE_BYTES: usize = MAX_TOTAL_TEXT_BYTES * 2 + 3;
 
+/// What [`convert_to_epub`] reports back about a finished conversion.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct TxtConversion {
+    /// The `encoding_rs` canonical name of the detected source charset
+    /// (e.g. `UTF-8`, `GBK`, `UTF-16LE`). Persisted verbatim in the
+    /// `publications.text_encoding` column, so it is a stored schema
+    /// value — never rename or re-case these strings.
     pub(crate) encoding: String,
 }
 
@@ -33,6 +38,10 @@ struct PendingChapter {
     count: usize,
 }
 
+/// Converts the plain-text file at `src` into an EPUB at `dst`, detecting
+/// charset, chapters, and paragraph shape. The returned
+/// [`TxtConversion::encoding`] is the `encoding_rs` canonical name the
+/// importer persists in `publications.text_encoding`.
 pub(crate) fn convert_to_epub(
     src: &Path,
     dst: &Path,

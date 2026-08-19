@@ -11,6 +11,12 @@ pub(super) struct DecodedText {
     pub(super) encoding: String,
 }
 
+/// Decodes raw bytes to text with normalized `\n` line endings. Charset
+/// resolution order: UTF-8/UTF-16 BOM (stripped from the output), the
+/// BOM-less UTF-16 NUL-density heuristic ([`bomless_utf16`]), then a
+/// chardetng guess over the first 1 MiB. Decoding is lossy — malformed
+/// sequences become U+FFFD, never an error — and the reported encoding
+/// is the `encoding_rs` canonical name.
 pub(super) fn decode_text(bytes: &[u8]) -> DecodedText {
     let (encoding, content) = if let Some(content) = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]) {
         (UTF_8, content)
