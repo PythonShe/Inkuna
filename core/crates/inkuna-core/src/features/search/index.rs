@@ -176,6 +176,18 @@ impl SearchIndex {
     }
 }
 
+/// A live reconcile thread holds an `Arc` clone of the writer, which in
+/// turn holds tantivy's on-disk lockfile — so dropping the index without
+/// joining the thread leaves the lock held and a subsequent open on the
+/// same directory fails with `LockBusy`.
+impl Drop for SearchIndex {
+    fn drop(&mut self) {
+        if let Some(handle) = self.reconcile.lock().unwrap().take() {
+            let _ = handle.join();
+        }
+    }
+}
+
 fn add_publication<'a>(
     writer: &IndexWriter,
     fields: Fields,
