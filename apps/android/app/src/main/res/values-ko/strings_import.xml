@@ -3,8 +3,8 @@
     <!-- 진입점 -->
     <string name="import_add_books">도서 추가</string>
     <string name="import_empty_title">책장에 아직 책이 없습니다</string>
-    <string name="import_empty_body">파일에서 EPUB 도서를 추가하면 이곳에 보관됩니다. Inkuna는 자체 복사본을 유지하므로 원본 파일은 그대로 유지됩니다.</string>
-    <string name="import_empty_footnote">현재는 EPUB을 지원합니다. 만화 및 기타 포맷도 곧 지원될 예정입니다.</string>
+    <string name="import_empty_body">파일에서 도서를 추가하면 이곳에 보관됩니다. Inkuna는 자체 복사본을 유지하므로 원본 파일은 그대로 유지됩니다.</string>
+    <string name="import_empty_footnote">현재는 EPUB, MOBI, AZW3, TXT를 지원합니다. 만화 및 기타 포맷도 곧 지원될 예정입니다.</string>
     <string name="import_empty_action">첫 번째 책 추가하기</string>
     <string name="a11y_import_add_books">서재에 도서 추가</string>
 
@@ -32,9 +32,9 @@
     <string name="import_unnamed_file">해당 파일</string>
 
     <!-- 실패 사유 -->
-    <string name="import_fail_unsupported">%1$s 파일은 아직 지원되지 않습니다</string>
+    <string name="import_fail_unsupported">%1$s 파일은 아직 지원되지 않습니다 — Inkuna는 현재 EPUB, MOBI, AZW3, TXT를 지원합니다.</string>
     <string name="import_fail_unknown_format">Inkuna가 지원하는 파일 형식이 아닙니다</string>
-    <string name="import_fail_broken">이 EPUB은 읽기에 필요한 정보가 누락되어 있습니다</string>
+    <string name="import_fail_broken">이 도서를 열 수 없습니다. 파일이 불완전하거나 Inkuna에서 지원하지 않는 DRM으로 보호되어 있을 수 있습니다.</string>
     <string name="import_fail_archive">파일이 손상되어 열 수 없습니다</string>
     <string name="import_fail_too_large">파일이 너무 커서 추가할 수 없습니다</string>
     <string name="import_fail_unreadable">파일을 읽을 수 없습니다</string>

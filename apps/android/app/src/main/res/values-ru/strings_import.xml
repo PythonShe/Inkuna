@@ -3,8 +3,8 @@
     <!-- Точки входа -->
     <string name="import_add_books">Добавить книги</string>
     <string name="import_empty_title">На полке пока пусто</string>
-    <string name="import_empty_body">Добавьте EPUB-файл из «Файлов», и он появится здесь.</string>
-    <string name="import_empty_footnote">Сейчас поддерживается EPUB. Комиксы и другие форматы появятся позже.</string>
+    <string name="import_empty_body">Добавьте книгу из «Файлов», и она появится здесь.</string>
+    <string name="import_empty_footnote">Сейчас поддерживаются EPUB, MOBI, AZW3 и TXT. Комиксы и другие форматы появятся позже.</string>
     <string name="import_empty_action">Добавить первую книгу</string>
     <string name="a11y_import_add_books">Добавить книги в библиотеку</string>
 
@@ -35,9 +35,9 @@
     <string name="import_unnamed_file">Этот файл</string>
 
     <!-- Причины ошибок -->
-    <string name="import_fail_unsupported">Файлы %1$s пока не поддерживаются</string>
+    <string name="import_fail_unsupported">Файлы формата %1$s пока не поддерживаются — Inkuna читает EPUB, MOBI, AZW3 и TXT.</string>
     <string name="import_fail_unknown_format">Inkuna не удалось распознать формат файла</string>
-    <string name="import_fail_broken">В этом EPUB-файле отсутствуют необходимые данные</string>
+    <string name="import_fail_broken">Не удалось открыть эту книгу. Возможно, файл повреждён или защищён DRM, которую Inkuna не поддерживает.</string>
     <string name="import_fail_archive">Файл поврежден</string>
     <string name="import_fail_too_large">Файл слишком велик для добавления</string>
     <string name="import_fail_unreadable">Не удалось прочитать файл</string>

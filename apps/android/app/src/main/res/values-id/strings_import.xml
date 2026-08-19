@@ -3,8 +3,8 @@
     <!-- Titik masuk -->
     <string name="import_add_books">Tambahkan buku</string>
     <string name="import_empty_title">Belum ada apa pun di rak</string>
-    <string name="import_empty_body">Tambahkan EPUB dari berkas Anda dan buku akan menunggu di sini.</string>
-    <string name="import_empty_footnote">EPUB hari ini. Komik dan lainnya menyusul.</string>
+    <string name="import_empty_body">Tambahkan buku dari berkas Anda dan buku akan menunggu di sini.</string>
+    <string name="import_empty_footnote">EPUB, MOBI, AZW3, dan TXT hari ini. Komik dan lainnya menyusul.</string>
     <string name="import_empty_action">Tambahkan buku pertama Anda</string>
     <string name="a11y_import_add_books">Tambahkan buku ke perpustakaan Anda</string>
     <!-- Kemajuan -->
@@ -29,9 +29,9 @@
     <string name="import_unknown_author">Penulis tidak dikenal</string>
     <string name="import_unnamed_file">Berkas ini</string>
     <!-- Penyebab kegagalan -->
-    <string name="import_fail_unsupported">Berkas %1$s belum didukung</string>
+    <string name="import_fail_unsupported">Berkas %1$s belum didukung — Inkuna membaca EPUB, MOBI, AZW3, dan TXT saat ini.</string>
     <string name="import_fail_unknown_format">Inkuna tidak dapat mengenali jenis berkas ini</string>
-    <string name="import_fail_broken">EPUB ini kekurangan sesuatu yang dibutuhkannya</string>
+    <string name="import_fail_broken">Buku ini tidak dapat dibuka. Mungkin tidak lengkap atau dilindungi DRM yang tidak didukung Inkuna.</string>
     <string name="import_fail_archive">Berkas ini rusak</string>
     <string name="import_fail_too_large">Berkas ini terlalu besar untuk ditambahkan</string>
     <string name="import_fail_unreadable">Berkas ini tidak dapat dibaca.</string>

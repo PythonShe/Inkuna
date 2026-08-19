@@ -3,8 +3,8 @@
     <!-- エントリーポイント -->
     <string name="import_add_books">本を追加</string>
     <string name="import_empty_title">本棚にはまだ本がありません</string>
-    <string name="import_empty_body">「ファイル」からEPUB書籍を追加すると、ここに並びます。Inkuna内に複製されるため、元のファイルはそのまま残ります。</string>
-    <string name="import_empty_footnote">現在はEPUBに対応しています。コミック等は今後対応予定です。</string>
+    <string name="import_empty_body">「ファイル」から書籍を追加すると、ここに並びます。Inkuna内に複製されるため、元のファイルはそのまま残ります。</string>
+    <string name="import_empty_footnote">現在はEPUB、MOBI、AZW3、TXTに対応しています。コミック等は今後対応予定です。</string>
     <string name="import_empty_action">最初の1冊を追加</string>
     <string name="a11y_import_add_books">本棚に本を追加</string>
 
@@ -32,9 +32,9 @@
     <string name="import_unnamed_file">このファイル</string>
 
     <!-- 失敗理由 -->
-    <string name="import_fail_unsupported">%1$s 形式はまだサポートされていません</string>
+    <string name="import_fail_unsupported">%1$s 形式はまだサポートされていません — 現在はEPUB、MOBI、AZW3、TXTに対応しています。</string>
     <string name="import_fail_unknown_format">Inkunaが対応している形式ではありません</string>
-    <string name="import_fail_broken">このEPUBは読み込みに必要な情報が不足しています</string>
+    <string name="import_fail_broken">この書籍を開けません。ファイルが不完全であるか、Inkunaが対応していないDRMで保護されている可能性があります。</string>
     <string name="import_fail_archive">ファイルが破損しているため開けません</string>
     <string name="import_fail_too_large">ファイルサイズが大きすぎるため追加できません</string>
     <string name="import_fail_unreadable">ファイルを読み込めませんでした</string>

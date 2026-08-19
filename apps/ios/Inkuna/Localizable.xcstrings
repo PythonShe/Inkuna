@@ -8339,79 +8339,79 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "从“文件”、iCloud 云盘或存放书籍的位置添加 EPUB 电子书。Inkuna 会保留独立副本，不影响原文件。"
+            "value": "从“文件”、iCloud 云盘或存放书籍的位置添加书籍。Inkuna 会保留独立副本，不影响原文件。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "從「檔案」、iCloud 雲碟或存放書籍的位置加入 EPUB 電子書。Inkuna 會保留獨立複本，不影響原始檔案。"
+            "value": "從「檔案」、iCloud 雲碟或存放書籍的位置加入書籍。Inkuna 會保留獨立複本，不影響原始檔案。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "「ファイル」やiCloud DriveなどからEPUB書籍を追加すると、ここに並びます。Inkuna内に複製されるため、元のファイルはそのまま残ります。"
+            "value": "「ファイル」やiCloud Driveなどから書籍を追加すると、ここに並びます。Inkuna内に複製されるため、元のファイルはそのまま残ります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "'파일', iCloud Drive 등에서 EPUB 도서를 추가하면 이곳에 보관됩니다. Inkuna는 자체 복사본을 유지하므로 원본 파일은 그대로 유지됩니다."
+            "value": "'파일', iCloud Drive 등에서 도서를 추가하면 이곳에 보관됩니다. Inkuna는 자체 복사본을 유지하므로 원본 파일은 그대로 유지됩니다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añade un EPUB desde Archivos, iCloud Drive o donde guardes tus libros. Inkuna guarda su propia copia, por lo que el original permanece donde está."
+            "value": "Añade un libro desde Archivos, iCloud Drive o donde guardes tus libros. Inkuna guarda su propia copia, por lo que el original permanece donde está."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajoutez un fichier EPUB depuis Fichiers, iCloud Drive ou tout autre emplacement. Inkuna conserve sa propre copie, laissant l'original intact."
+            "value": "Ajoutez un livre depuis Fichiers, iCloud Drive ou tout autre emplacement. Inkuna conserve sa propre copie, laissant l'original intact."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aggiungi un file EPUB da File, iCloud Drive o ovunque siano i tuoi libri. Inkuna ne conserva una copia separata, lasciando intatto l'originale."
+            "value": "Aggiungi un libro da File, iCloud Drive o ovunque siano i tuoi libri. Inkuna ne conserva una copia separata, lasciando intatto l'originale."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добавьте EPUB-файл из «Файлов», iCloud Drive или другого хранилища. Inkuna сохраняет отдельную копию, не меняя оригинал."
+            "value": "Добавьте книгу из «Файлов», iCloud Drive или другого хранилища. Inkuna сохраняет отдельную копию, не меняя оригинал."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เพิ่มไฟล์ EPUB จากแอปไฟล์, iCloud Drive หรือแหล่งเก็บหนังสือของคุณ แล้วหนังสือจะมารออยู่ที่นี่ Inkuna จะเก็บสำเนาแยกต่างหาก ไฟล์ต้นฉบับจึงยังคงอยู่ที่เดิม"
+            "value": "เพิ่มหนังสือจากแอปไฟล์, iCloud Drive หรือแหล่งเก็บหนังสือของคุณ แล้วหนังสือจะมารออยู่ที่นี่ Inkuna จะเก็บสำเนาแยกต่างหาก ไฟล์ต้นฉบับจึงยังคงอยู่ที่เดิม"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thêm tệp EPUB từ Tệp, iCloud Drive hoặc bất kỳ nơi lưu trữ nào. Inkuna giữ một bản sao riêng, nên tệp gốc vẫn được giữ nguyên vẹn."
+            "value": "Thêm sách từ Tệp, iCloud Drive hoặc bất kỳ nơi lưu trữ nào. Inkuna giữ một bản sao riêng, nên tệp gốc vẫn được giữ nguyên vẹn."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fügen Sie ein EPUB aus „Dateien“, iCloud Drive oder von einem anderen Ort hinzu. Inkuna legt eine eigene Kopie an; das Original bleibt, wo es ist."
+            "value": "Fügen Sie ein Buch aus „Dateien“, iCloud Drive oder von einem anderen Ort hinzu. Inkuna legt eine eigene Kopie an; das Original bleibt, wo es ist."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tambahkan EPUB dari File, iCloud Drive, atau tempat buku Anda berada. Inkuna menyimpan salinannya sendiri, jadi file asli tetap di tempatnya."
+            "value": "Tambahkan buku dari File, iCloud Drive, atau tempat buku Anda berada. Inkuna menyimpan salinannya sendiri, jadi file asli tetap di tempatnya."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adicione um EPUB de Arquivos, iCloud Drive ou de onde seus livros estiverem. A Inkuna guarda uma cópia própria, então o original fica onde está."
+            "value": "Adicione um livro de Arquivos, iCloud Drive ou de onde seus livros estiverem. A Inkuna guarda uma cópia própria, então o original fica onde está."
           }
         }
       }
@@ -8428,79 +8428,79 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当前支持 EPUB。漫画及更多格式即将推出。"
+            "value": "当前支持 EPUB、MOBI、AZW3 与 TXT。漫画即将推出。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "目前支援 EPUB。漫畫及更多格式即將推出。"
+            "value": "目前支援 EPUB、MOBI、AZW3 與 TXT。漫畫即將推出。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "現在はEPUBに対応しています。コミック等は今後対応予定です。"
+            "value": "現在はEPUB、MOBI、AZW3、TXTに対応しています。コミック等は今後対応予定です。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "현재는 EPUB을 지원합니다. 만화 및 기타 포맷도 곧 지원될 예정입니다."
+            "value": "현재는 EPUB, MOBI, AZW3, TXT를 지원합니다. 만화 및 기타 포맷도 곧 지원될 예정입니다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "EPUB disponible hoy. Cómics y más formatos próximamente."
+            "value": "EPUB, MOBI, AZW3 y TXT hoy. Cómics y más formatos próximamente."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Format EPUB aujourd'hui. Bandes dessinées et plus à venir."
+            "value": "Format EPUB, MOBI, AZW3 et TXT aujourd'hui. Bandes dessinées et plus à venir."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Supporto EPUB disponibile ora. Fumetti e altri formati in arrivo."
+            "value": "Supporto EPUB, MOBI, AZW3 e TXT disponibile ora. Fumetti e altri formati in arrivo."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сейчас поддерживается EPUB. Комиксы и другие форматы появятся позже."
+            "value": "Сейчас поддерживаются EPUB, MOBI, AZW3 и TXT. Комиксы и другие форматы появятся позже."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ปัจจุบันรองรับไฟล์ EPUB ส่วนการ์ตูนและรูปแบบอื่นจะตามมาเร็วๆ นี้"
+            "value": "ปัจจุบันรองรับไฟล์ EPUB, MOBI, AZW3 และ TXT ส่วนการ์ตูนและรูปแบบอื่นจะตามมาเร็วๆ นี้"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hiện hỗ trợ định dạng EPUB. Truyện tranh và các định dạng khác sẽ sớm ra mắt."
+            "value": "Hiện hỗ trợ định dạng EPUB, MOBI, AZW3 và TXT. Truyện tranh và các định dạng khác sẽ sớm ra mắt."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Heute EPUB. Comics und mehr folgen."
+            "value": "Heute EPUB, MOBI, AZW3 und TXT. Comics und mehr folgen."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "EPUB hari ini. Komik dan lainnya menyusul."
+            "value": "EPUB, MOBI, AZW3, dan TXT hari ini. Komik dan lainnya menyusul."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "EPUB hoje. Quadrinhos e mais por vir."
+            "value": "EPUB, MOBI, AZW3 e TXT hoje. Quadrinhos e mais por vir."
           }
         }
       }
@@ -11092,85 +11092,85 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ files aren't supported yet — Inkuna reads EPUB today."
+            "value": "%@ files aren't supported yet — Inkuna reads EPUB, MOBI, AZW3, and TXT today."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "暂不支持 %@ 格式 — Inkuna 当前支持 EPUB。"
+            "value": "暂不支持 %@ 格式 — Inkuna 当前支持 EPUB、MOBI、AZW3 与 TXT。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "尚不支援 %@ 格式 — Inkuna 目前支援 EPUB。"
+            "value": "尚不支援 %@ 格式 — Inkuna 目前支援 EPUB、MOBI、AZW3 與 TXT。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 形式はまだサポートされていません — 現在はEPUBに対応しています。"
+            "value": "%@ 形式はまだサポートされていません — 現在はEPUB、MOBI、AZW3、TXTに対応しています。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 파일은 아직 지원되지 않습니다 — Inkuna는 현재 EPUB을 지원합니다."
+            "value": "%@ 파일은 아직 지원되지 않습니다 — Inkuna는 현재 EPUB, MOBI, AZW3, TXT를 지원합니다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Los archivos %@ aún no son compatibles — Inkuna lee EPUB actualmente."
+            "value": "Los archivos %@ aún no son compatibles — Inkuna lee EPUB, MOBI, AZW3 y TXT actualmente."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les fichiers %@ ne sont pas encore pris en charge — Inkuna lit les fichiers EPUB."
+            "value": "Les fichiers %@ ne sont pas encore pris en charge — Inkuna lit les fichiers EPUB, MOBI, AZW3 et TXT."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "I file %@ non sono ancora supportati — Inkuna attualmente supporta i file EPUB."
+            "value": "I file %@ non sono ancora supportati — Inkuna attualmente supporta i file EPUB, MOBI, AZW3 e TXT."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Файлы формата %@ пока не поддерживаются — Inkuna читает EPUB."
+            "value": "Файлы формата %@ пока не поддерживаются — Inkuna читает EPUB, MOBI, AZW3 и TXT."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ยังไม่รองรับไฟล์รูปแบบ %@ — ปัจจุบัน Inkuna รองรับเฉพาะ EPUB"
+            "value": "ยังไม่รองรับไฟล์รูปแบบ %@ — ปัจจุบัน Inkuna รองรับเฉพาะ EPUB, MOBI, AZW3 และ TXT"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tệp định dạng %@ chưa được hỗ trợ — Inkuna hiện hỗ trợ định dạng EPUB."
+            "value": "Tệp định dạng %@ chưa được hỗ trợ — Inkuna hiện hỗ trợ định dạng EPUB, MOBI, AZW3 và TXT."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@-Dateien werden noch nicht unterstützt – Inkuna liest derzeit EPUB."
+            "value": "%@-Dateien werden noch nicht unterstützt – Inkuna liest derzeit EPUB, MOBI, AZW3 und TXT."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Berkas %@ belum didukung — Inkuna membaca EPUB saat ini."
+            "value": "Berkas %@ belum didukung — Inkuna membaca EPUB, MOBI, AZW3, dan TXT saat ini."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arquivos %@ ainda não são suportados — a Inkuna lê EPUB atualmente."
+            "value": "Arquivos %@ ainda não são suportados — a Inkuna lê EPUB, MOBI, AZW3 e TXT atualmente."
           }
         }
       }
@@ -11365,79 +11365,79 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此 EPUB 文件缺少必要内容，无法阅读。"
+            "value": "无法打开此书籍。文件可能不完整，或受 Inkuna 不支持的 DRM 保护。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此 EPUB 檔案缺少必要內容，無法閱讀。"
+            "value": "無法開啟此書籍。檔案可能不完整，或受 Inkuna 不支援的 DRM 保護。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "このEPUBは読み込みに必要な情報が不足しています。"
+            "value": "この書籍を開けません。ファイルが不完全であるか、Inkunaが対応していないDRMで保護されている可能性があります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 EPUB은 읽기에 필요한 정보가 누락되어 있습니다."
+            "value": "이 도서를 열 수 없습니다. 파일이 불완전하거나 Inkuna에서 지원하지 않는 DRM으로 보호되어 있을 수 있습니다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "A este EPUB le falta algo que Inkuna necesita para leerlo."
+            "value": "No se puede abrir este libro. Puede que esté incompleto o protegido por DRM, que Inkuna no admite."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce fichier EPUB ne contient pas tous les éléments requis par Inkuna."
+            "value": "Impossible d'ouvrir ce livre. Il est peut-être incomplet ou protégé par des DRM non pris en charge par Inkuna."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Questo file EPUB non contiene tutti gli elementi necessari per la lettura."
+            "value": "Impossibile aprire questo libro. Potrebbe essere incompleto o protetto da DRM, che Inkuna non supporta."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "В этом EPUB-файле отсутствуют необходимые для чтения данные."
+            "value": "Не удалось открыть эту книгу. Возможно, файл повреждён или защищён DRM, которую Inkuna не поддерживает."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ไฟล์ EPUB นี้ขาดข้อมูลที่จำเป็นสำหรับการอ่าน"
+            "value": "ไม่สามารถเปิดหนังสือเล่มนี้ได้ ไฟล์อาจไม่สมบูรณ์ หรือได้รับการป้องกันด้วย DRM ซึ่ง Inkuna ไม่รองรับ"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tệp EPUB này thiếu dữ liệu cần thiết để đọc."
+            "value": "Không thể mở sách này. Tệp có thể không đầy đủ hoặc được bảo vệ bằng DRM mà Inkuna không hỗ trợ."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diesem EPUB fehlt etwas, das Inkuna zum Lesen benötigt."
+            "value": "Dieses Buch kann nicht geöffnet werden. Es ist möglicherweise unvollständig oder durch DRM geschützt, was Inkuna nicht unterstützt."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "EPUB ini kekurangan sesuatu yang dibutuhkan Inkuna untuk membacanya."
+            "value": "Buku ini tidak dapat dibuka. Mungkin tidak lengkap atau dilindungi DRM yang tidak didukung Inkuna."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este EPUB está faltando algo que a Inkuna precisa para lê-lo."
+            "value": "Não é possível abrir este livro. Ele pode estar incompleto ou protegido por DRM, que a Inkuna não suporta."
           }
         }
       }

@@ -3,8 +3,8 @@
     
     <string name="import_add_books">加入書籍</string>
     <string name="import_empty_title">書架上暫無書籍</string>
-    <string name="import_empty_body">從檔案中加入 EPUB 電子書，書籍將在此等候。Inkuna 會保留獨立複本，不影響原始檔案。</string>
-    <string name="import_empty_footnote">目前支援 EPUB。漫畫及更多格式即將推出。</string>
+    <string name="import_empty_body">從檔案中加入書籍，書籍將在此等候。Inkuna 會保留獨立複本，不影響原始檔案。</string>
+    <string name="import_empty_footnote">目前支援 EPUB、MOBI、AZW3 與 TXT。漫畫即將推出。</string>
     <string name="import_empty_action">加入您的第一本書</string>
     <string name="a11y_import_add_books">向書架加入書籍</string>
 
@@ -32,9 +32,9 @@
     <string name="import_unnamed_file">該檔案</string>
 
     
-    <string name="import_fail_unsupported">尚不支援 %1$s 格式 — Inkuna 目前支援 EPUB。</string>
+    <string name="import_fail_unsupported">尚不支援 %1$s 格式 — Inkuna 目前支援 EPUB、MOBI、AZW3 與 TXT。</string>
     <string name="import_fail_unknown_format">Inkuna 無法識別此檔案格式</string>
-    <string name="import_fail_broken">此 EPUB 檔案缺少必要內容，無法閱讀。</string>
+    <string name="import_fail_broken">無法開啟此書籍。檔案可能不完整，或受 Inkuna 不支援的 DRM 保護。</string>
     <string name="import_fail_archive">檔案已損毀，無法開啟</string>
     <string name="import_fail_too_large">檔案過大，Inkuna 無法加入</string>
     <string name="import_fail_unreadable">無法讀取此檔案</string>

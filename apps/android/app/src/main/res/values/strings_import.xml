@@ -8,7 +8,6 @@
     <!-- Entry points -->
     <string name="import_add_books">Add books</string>
     <string name="import_empty_title">Nothing on the shelf yet</string>
-    <!-- TODO(l10n): re-translate import_empty_body, import_empty_footnote, import_fail_unsupported, import_fail_broken in all values-* locales — English updated for MOBI/AZW3/TXT support -->
     <string name="import_empty_body">Add a book from your files and it will be waiting here.</string>
     <string name="import_empty_footnote">EPUB, MOBI, AZW3, and TXT today. Comics to come.</string>
     <string name="import_empty_action">Add your first book</string>

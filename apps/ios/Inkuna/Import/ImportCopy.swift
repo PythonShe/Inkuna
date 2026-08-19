@@ -12,7 +12,6 @@ enum ImportCopy {
         String(localized: "import_empty_title", defaultValue: "Nothing on the shelf yet")
     }
 
-    // TODO(l10n): re-translate import_empty_body/import_empty_footnote/import_fail_broken — English updated for MOBI/AZW3/TXT support
     static var emptyBody: String {
         String(
             localized: "import_empty_body",
@@ -144,7 +143,6 @@ enum ImportCopy {
         case .damagedArchive:
             return String(localized: "import_fail_archive", defaultValue: "The file is damaged and couldn't be opened.")
         case .invalidPublication:
-            // TODO(l10n): re-translate import_fail_broken — English updated for MOBI/AZW3/TXT support
             return String(localized: "import_fail_broken", defaultValue: "This book can't be opened. It may be incomplete — or protected by DRM, which Inkuna doesn't support.")
         case .tooLarge:
             return String(localized: "import_fail_too_large", defaultValue: "This file is too large for Inkuna to add.")
