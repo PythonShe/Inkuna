@@ -20,6 +20,7 @@ final class AppSettings {
         textSizeStep: 2,
         brightness: 0.78,
         eveningReminder: false,
+        reminderMinutes: 21 * 60,
         accountName: "",
         accountEmail: ""
     )
@@ -220,6 +221,14 @@ final class AppSettings {
     var eveningReminder: Bool {
         get { record.eveningReminder }
         set { mutate { $0.eveningReminder = newValue } }
+    }
+
+    /// When the reminder fires, in minutes after local midnight. Clamped
+    /// here as well as by the core so the in-memory record never diverges
+    /// from what gets stored.
+    var reminderMinutes: Int {
+        get { Int(record.reminderMinutes) }
+        set { mutate { $0.reminderMinutes = UInt16(min(max(newValue, 0), 23 * 60 + 59)) } }
     }
 
     /// Display name of the purely local account; empty means "not set".

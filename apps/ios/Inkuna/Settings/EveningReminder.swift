@@ -6,14 +6,13 @@ import UserNotifications
 enum EveningReminder {
     private static let requestIdentifier = "app.inkuna.ios.evening-reminder"
 
-    // TODO(settings): make the reading hour configurable; 21:00 is the
-    // fixed "evening" for now.
-    private static let hour = 21
-
     /// Asks for notification permission if needed and schedules the
-    /// repeating reminder. Returns false when permission is declined or
-    /// scheduling fails — the caller should snap its switch back off.
-    static func enable() async -> Bool {
+    /// repeating reminder at `minutes` after local midnight. Re-adding
+    /// under the same identifier replaces the pending request, so this is
+    /// also the reschedule path when the reading hour changes. Returns
+    /// false when permission is declined or scheduling fails — the caller
+    /// should snap its switch back off.
+    static func enable(minutes: Int) async -> Bool {
         let center = UNUserNotificationCenter.current()
         let granted = (try? await center.requestAuthorization(options: [.alert])) ?? false
         guard granted else { return false }
@@ -24,7 +23,8 @@ enum EveningReminder {
         // No sound: a quiet nudge, per the design's promise.
 
         var at = DateComponents()
-        at.hour = hour
+        at.hour = minutes / 60
+        at.minute = minutes % 60
         let trigger = UNCalendarNotificationTrigger(dateMatching: at, repeats: true)
         let request = UNNotificationRequest(identifier: requestIdentifier, content: content, trigger: trigger)
         do {

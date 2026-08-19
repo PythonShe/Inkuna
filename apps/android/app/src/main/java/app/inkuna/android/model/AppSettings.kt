@@ -56,6 +56,8 @@ class AppSettings private constructor(private val context: Context) {
         val brightness: Float = DEFAULT_BRIGHTNESS,
         /** Daily evening reading reminder; scheduling is the shell's job. */
         val eveningReminder: Boolean = false,
+        /** When the reminder fires, in minutes after local midnight. */
+        val reminderMinutes: Int = DEFAULT_REMINDER_MINUTES,
         /** Purely local account profile; empty means "not set". */
         val accountName: String = "",
         val accountEmail: String = "",
@@ -154,6 +156,9 @@ class AppSettings private constructor(private val context: Context) {
     fun setEveningReminder(value: Boolean) =
         update { it.copy(eveningReminder = value) }
 
+    fun setReminderMinutes(value: Int) =
+        update { it.copy(reminderMinutes = value.coerceIn(0, MAX_REMINDER_MINUTES)) }
+
     fun setAccount(name: String, email: String) =
         update { it.copy(accountName = name.trim(), accountEmail = email.trim()) }
 
@@ -215,6 +220,7 @@ class AppSettings private constructor(private val context: Context) {
         textSizeStep = textSizeStep.toInt().coerceIn(0, TEXT_SIZE_STEPS.lastIndex),
         brightness = brightness.toFloat().coerceIn(0f, 1f),
         eveningReminder = eveningReminder,
+        reminderMinutes = reminderMinutes.toInt().coerceIn(0, MAX_REMINDER_MINUTES),
         accountName = accountName,
         accountEmail = accountEmail,
     )
@@ -225,6 +231,7 @@ class AppSettings private constructor(private val context: Context) {
         textSizeStep = textSizeStep.toUByte(),
         brightness = brightness.toDouble(),
         eveningReminder = eveningReminder,
+        reminderMinutes = reminderMinutes.toUShort(),
         accountName = accountName,
         accountEmail = accountEmail,
     )
@@ -241,6 +248,10 @@ class AppSettings private constructor(private val context: Context) {
         val TEXT_SIZE_STEPS = listOf(14.4f, 15.6f, 17f, 18.4f, 20f)
         const val DEFAULT_TEXT_SIZE_STEP = 2
         const val DEFAULT_BRIGHTNESS = 0.78f
+
+        /** 21:00, the fixed "evening" before the hour became configurable. */
+        const val DEFAULT_REMINDER_MINUTES = 21 * 60
+        const val MAX_REMINDER_MINUTES = 23 * 60 + 59
 
         private const val TAG = "InkunaSettings"
 

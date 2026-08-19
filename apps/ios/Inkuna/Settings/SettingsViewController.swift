@@ -17,6 +17,9 @@ final class SettingsViewController: UIViewController {
     private let emailLabel = InkLabel()
 
     private let reminderSwitch = UISwitch()
+    private let reminderTimePicker = UIDatePicker()
+    private var reminderTimeRow = UIView()
+    private var reminderTimeSeparator = UIView()
     private let nightSwitch = UISwitch()
     private let selectionFeedback = UISelectionFeedbackGenerator()
 
@@ -156,15 +159,40 @@ final class SettingsViewController: UIViewController {
         nightSwitch.isOn = settings.readingTheme.isNight
         nightSwitch.addAction(UIAction { [weak self] _ in self?.nightToggled() }, for: .valueChanged)
 
-        // TODO(accounts): the design's "Redeem a code" row needs a
-        // redemption backend; the account is purely local today.
-        let group = groupCard(rows: [
+        reminderTimePicker.datePickerMode = .time
+        reminderTimePicker.preferredDatePickerStyle = .compact
+        reminderTimePicker.tintColor = InkColor.accentText
+        reminderTimePicker.date = Self.pickerDate(minutes: settings.reminderMinutes)
+        reminderTimePicker.addAction(UIAction { [weak self] _ in self?.reminderTimeChanged() }, for: .valueChanged)
+
+        reminderTimeRow = settingRow(
+            symbol: "clock",
+            title: String(localized: "settings_reminder_time", defaultValue: "Reminder time"),
+            trailing: reminderTimePicker
+        )
+        reminderTimeSeparator = hairline()
+        reminderTimeRow.isHidden = !settings.eveningReminder
+        reminderTimeSeparator.isHidden = !settings.eveningReminder
+        reminderTimeRow.alpha = settings.eveningReminder ? 1 : 0
+
+        // The time row lives inside the reminder block, hairline included,
+        // so hiding it when the reminder is off never strands a separator.
+        let reminderBlock = UIStackView(arrangedSubviews: [
             settingRow(
                 symbol: "bell",
                 title: String(localized: "settings_reminder", defaultValue: "Evening reminder"),
                 subtitle: String(localized: "settings_reminder_sub", defaultValue: "A quiet nudge at your reading hour"),
                 trailing: reminderSwitch
             ),
+            reminderTimeSeparator,
+            reminderTimeRow,
+        ])
+        reminderBlock.axis = .vertical
+
+        // TODO(accounts): the design's "Redeem a code" row needs a
+        // redemption backend; the account is purely local today.
+        let group = groupCard(rows: [
+            reminderBlock,
             settingRow(
                 symbol: "moon",
                 title: String(localized: "settings_night", defaultValue: "Night mode"),
@@ -220,32 +248,78 @@ final class SettingsViewController: UIViewController {
     private var reminderTask: Task<Void, Never>?
 
     private func reminderToggled() {
-        reminderTask?.cancel()
         if reminderSwitch.isOn {
-            reminderTask = Task { @MainActor [weak self] in
-                guard let self else { return }
-                if await EveningReminder.enable() {
-                    // enable() ignores cancellation (center.add is not
-                    // cancellable), so re-read the last user intent: if the
-                    // switch went off while we were suspended, undo the add
-                    // instead of committing it.
-                    guard self.reminderSwitch.isOn else {
-                        EveningReminder.disable()
-                        AppSettings.shared.eveningReminder = false
-                        return
-                    }
-                    AppSettings.shared.eveningReminder = true
-                } else {
-                    // Permission declined: the choice cannot take effect.
-                    self.reminderSwitch.setOn(false, animated: true)
-                    AppSettings.shared.eveningReminder = false
-                }
-            }
+            armReminder()
         } else {
+            reminderTask?.cancel()
             EveningReminder.disable()
             AppSettings.shared.eveningReminder = false
         }
+        setReminderTimeVisible(reminderSwitch.isOn)
         selectionFeedback.selectionChanged()
+    }
+
+    /// Schedules — or, after a time change, reschedules — the reminder at
+    /// the stored hour, snapping the switch back off when permission is
+    /// declined.
+    ///
+    /// Arms are chained behind the previous task (the `persist()` pattern):
+    /// enable() ignores cancellation (center.add is not cancellable), so
+    /// unchained concurrent adds could land out of order and leave the
+    /// pending request at a stale hour. Each link re-reads the stored
+    /// minutes first — a burst of picker detents collapses to one add.
+    private func armReminder() {
+        let minutes = AppSettings.shared.reminderMinutes
+        let previous = reminderTask
+        previous?.cancel()
+        reminderTask = Task { @MainActor [weak self] in
+            await previous?.value
+            guard let self else { return }
+            // A newer arm superseded this one; its own add is authoritative.
+            guard minutes == AppSettings.shared.reminderMinutes else { return }
+            if await EveningReminder.enable(minutes: minutes) {
+                // Re-read the last user intent across the suspension: if
+                // the switch went off meanwhile, undo the add instead of
+                // committing it.
+                guard self.reminderSwitch.isOn else {
+                    EveningReminder.disable()
+                    AppSettings.shared.eveningReminder = false
+                    return
+                }
+                AppSettings.shared.eveningReminder = true
+            } else {
+                // Permission declined: the choice cannot take effect.
+                self.reminderSwitch.setOn(false, animated: true)
+                AppSettings.shared.eveningReminder = false
+                self.setReminderTimeVisible(false)
+            }
+        }
+    }
+
+    private func reminderTimeChanged() {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: reminderTimePicker.date)
+        AppSettings.shared.reminderMinutes = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        // A pending request keeps firing at the old hour until re-added.
+        if reminderSwitch.isOn { armReminder() }
+    }
+
+    private func setReminderTimeVisible(_ visible: Bool) {
+        guard reminderTimeRow.isHidden == visible else { return }
+        InkMotion.runQuiet(duration: InkMotion.fast) {
+            self.reminderTimeRow.isHidden = !visible
+            self.reminderTimeSeparator.isHidden = !visible
+            self.reminderTimeRow.alpha = visible ? 1 : 0
+        }
+    }
+
+    /// Today's date at `minutes` after midnight, the compact picker's value.
+    private static func pickerDate(minutes: Int) -> Date {
+        Calendar.current.date(
+            bySettingHour: minutes / 60,
+            minute: minutes % 60,
+            second: 0,
+            of: Date()
+        ) ?? Date()
     }
 
     /// The theme flip queued behind the switch's own thumb animation;
@@ -328,13 +402,7 @@ final class SettingsViewController: UIViewController {
         stack.axis = .vertical
         for (index, row) in rows.enumerated() {
             if index > 0 {
-                let separator = UIView()
-                separator.backgroundColor = InkColor.borderHairline
-                let inset = UIStackView(arrangedSubviews: [separator])
-                inset.isLayoutMarginsRelativeArrangement = true
-                inset.layoutMargins = UIEdgeInsets(top: 0, left: InkSpacing.space4, bottom: 0, right: 0)
-                separator.heightAnchor.constraint(equalToConstant: 1 / max(traitCollection.displayScale, 1)).isActive = true
-                stack.addArrangedSubview(inset)
+                stack.addArrangedSubview(hairline())
             }
             stack.addArrangedSubview(row)
         }
@@ -343,6 +411,17 @@ final class SettingsViewController: UIViewController {
         stack.clipsToBounds = true
         stack.installInkShadow(.sm)
         return stack
+    }
+
+    /// The card's inset hairline, drawn between rows.
+    private func hairline() -> UIView {
+        let separator = UIView()
+        separator.backgroundColor = InkColor.borderHairline
+        let inset = UIStackView(arrangedSubviews: [separator])
+        inset.isLayoutMarginsRelativeArrangement = true
+        inset.layoutMargins = UIEdgeInsets(top: 0, left: InkSpacing.space4, bottom: 0, right: 0)
+        separator.heightAnchor.constraint(equalToConstant: 1 / max(traitCollection.displayScale, 1)).isActive = true
+        return inset
     }
 
     /// Leading symbol, title (+ optional subtitle), and a trailing control.

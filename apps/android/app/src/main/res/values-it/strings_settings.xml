@@ -10,6 +10,7 @@
     <string name="settings_preferences">Preferenze</string>
     <string name="settings_reminder">Promemoria serale</string>
     <string name="settings_reminder_sub">Un discreto invito all’ora della lettura</string>
+    <string name="settings_reminder_time">Orario del promemoria</string>
     <string name="settings_night">Modalità notte</string>
     <string name="settings_account_settings">Impostazioni account</string>
     <string name="settings_edit_name">Nome utente</string>

@@ -10,6 +10,7 @@
     <string name="settings_preferences">การตั้งค่า</string>
     <string name="settings_reminder">การแจ้งเตือนยามค่ำ</string>
     <string name="settings_reminder_sub">เตือนเบา ๆ เมื่อถึงเวลาอ่านหนังสือ</string>
+    <string name="settings_reminder_time">เวลาแจ้งเตือน</string>
     <string name="settings_night">โหมดกลางคืน</string>
     <string name="settings_account_settings">การตั้งค่าบัญชี</string>
     <string name="settings_edit_name">ชื่อผู้ใช้</string>

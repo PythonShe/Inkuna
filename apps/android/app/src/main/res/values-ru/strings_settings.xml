@@ -10,6 +10,7 @@
     <string name="settings_preferences">Настройки</string>
     <string name="settings_reminder">Вечернее напоминание</string>
     <string name="settings_reminder_sub">Тихое напоминание в час чтения</string>
+    <string name="settings_reminder_time">Время напоминания</string>
     <string name="settings_night">Ночной режим</string>
     <string name="settings_account_settings">Настройки аккаунта</string>
     <string name="settings_edit_name">Имя пользователя</string>

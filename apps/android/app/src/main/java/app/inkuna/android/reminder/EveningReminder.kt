@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -14,6 +15,7 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import app.inkuna.android.MainActivity
 import app.inkuna.android.R
+import app.inkuna.android.model.AppSettings
 import java.time.Duration
 import java.time.LocalTime
 import java.time.ZoneId
@@ -34,11 +36,18 @@ object EveningReminder {
     private const val CHANNEL_ID = "reading-reminders"
     private const val NOTIFICATION_ID = 1
 
-    // TODO(settings): make the reading hour configurable; 21:00 is the
-    // fixed "evening" for now.
-    private val readingHour: LocalTime = LocalTime.of(21, 0)
+    /** The chosen reading hour rides the work request, so the chain's
+     *  re-enqueue keeps it without reopening the settings store from the
+     *  worker thread. */
+    internal const val KEY_MINUTES = "minutes"
 
-    fun schedule(context: Context) {
+    /** Schedules (or, under REPLACE, re-anchors) the next nudge at
+     *  [minutes] after local midnight. */
+    fun schedule(context: Context, minutes: Int) {
+        val readingHour = LocalTime.of(
+            (minutes / 60).coerceIn(0, 23),
+            (minutes % 60).coerceIn(0, 59),
+        )
         // Zoned instants, not LocalDateTime: the initial delay is elapsed
         // time, so wall-clock arithmetic would land the nudge an hour off
         // across a DST transition and stay anchored to a left timezone.
@@ -47,6 +56,7 @@ object EveningReminder {
         if (!next.isAfter(now)) next = next.plusDays(1)
         val request = OneTimeWorkRequestBuilder<EveningReminderWorker>()
             .setInitialDelay(Duration.between(now, next))
+            .setInputData(Data.Builder().putInt(KEY_MINUTES, minutes).build())
             .build()
         WorkManager.getInstance(context)
             .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, request)
@@ -107,7 +117,11 @@ class EveningReminderWorker(
         // nudge and re-arm tomorrow's chain against the stored "off".
         if (isStopped) return Result.success()
         EveningReminder.postNotification(applicationContext)
-        if (!isStopped) EveningReminder.schedule(applicationContext)
+        val minutes = inputData.getInt(
+            EveningReminder.KEY_MINUTES,
+            AppSettings.DEFAULT_REMINDER_MINUTES,
+        )
+        if (!isStopped) EveningReminder.schedule(applicationContext, minutes)
         return Result.success()
     }
 }

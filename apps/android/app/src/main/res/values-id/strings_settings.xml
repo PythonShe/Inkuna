@@ -10,6 +10,7 @@
     <string name="settings_preferences">Preferensi</string>
     <string name="settings_reminder">Pengingat malam</string>
     <string name="settings_reminder_sub">Pengingat lembut di jam membaca Anda</string>
+    <string name="settings_reminder_time">Waktu pengingat</string>
     <string name="settings_night">Mode malam</string>
     <string name="settings_account_settings">Pengaturan akun</string>
     <string name="settings_edit_name">Nama pengguna</string>

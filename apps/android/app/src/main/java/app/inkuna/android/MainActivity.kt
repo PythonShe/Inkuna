@@ -55,7 +55,7 @@ class MainActivity : FragmentActivity() {
             // slept would fire the nudge at the old zone's 21:00. REPLACE
             // policy makes this idempotent.
             if (initial.eveningReminder) {
-                EveningReminder.schedule(applicationContext)
+                EveningReminder.schedule(applicationContext, initial.reminderMinutes)
             }
             // Warm the WebView provider behind the first frame: the first
             // WebView a process creates pays for loading the provider and

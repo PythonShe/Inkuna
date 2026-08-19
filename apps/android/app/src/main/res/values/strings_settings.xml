@@ -10,6 +10,7 @@
     <string name="settings_preferences">Preferences</string>
     <string name="settings_reminder">Evening reminder</string>
     <string name="settings_reminder_sub">A quiet nudge at your reading hour</string>
+    <string name="settings_reminder_time">Reminder time</string>
     <string name="settings_night">Night mode</string>
     <string name="settings_account_settings">Account settings</string>
     <string name="settings_edit_name">Username</string>

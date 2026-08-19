@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,6 +42,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +65,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import app.inkuna.android.BuildConfig
 import app.inkuna.android.R
 import app.inkuna.android.ui.components.inkShadow
@@ -92,6 +97,7 @@ fun SettingsSheet(
     val snapshot by model.snapshot.collectAsStateWithLifecycle()
     val updateState by model.updateState.collectAsStateWithLifecycle()
     var editingAccount by rememberSaveable { mutableStateOf(false) }
+    var pickingReminderTime by rememberSaveable { mutableStateOf(false) }
 
     // Turning the reminder on needs notification permission first; a
     // declined request leaves the switch (and the stored choice) off.
@@ -173,6 +179,19 @@ fun SettingsSheet(
                         }
                     },
                 )
+                // Only meaningful while the reminder is on; sliding away
+                // with the toggle keeps the group one glance long.
+                AnimatedVisibility(visible = snapshot.eveningReminder) {
+                    Column {
+                        Hairline()
+                        ValueRow(
+                            icon = { Icon(Icons.Outlined.Schedule, null, tint = ink.textSecondary) },
+                            title = stringResource(R.string.settings_reminder_time),
+                            value = formatReminderTime(context, snapshot.reminderMinutes),
+                            onClick = { pickingReminderTime = true },
+                        )
+                    }
+                }
                 Hairline()
                 // The flip waits for the thumb to land, like iOS: the
                 // whole-app theme change mid-animation reads as a blink.
@@ -241,6 +260,17 @@ fun SettingsSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+
+    if (pickingReminderTime) {
+        ReminderTimeDialog(
+            initialMinutes = snapshot.reminderMinutes,
+            onConfirm = { minutes ->
+                model.setReminderMinutes(minutes)
+                pickingReminderTime = false
+            },
+            onDismiss = { pickingReminderTime = false },
+        )
     }
 
     if (editingAccount) {
@@ -441,6 +471,49 @@ private fun AccountEditDialog(
     )
 }
 
+/** The reading-hour picker, committed only on Save like the account dialog. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderTimeDialog(
+    initialMinutes: Int,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val ink = InkTheme.colors
+    val context = LocalContext.current
+    val state = rememberTimePickerState(
+        initialHour = initialMinutes / 60,
+        initialMinute = initialMinutes % 60,
+        is24Hour = android.text.format.DateFormat.is24HourFormat(context),
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = ink.bgSurface,
+        titleContentColor = ink.textDisplay,
+        title = { Text(stringResource(R.string.settings_reminder_time), style = InkType.heading) },
+        text = { TimePicker(state = state) },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(state.hour * 60 + state.minute) }) {
+                Text(stringResource(R.string.settings_save), color = ink.accentText)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_cancel), color = ink.textSecondary)
+            }
+        },
+    )
+}
+
+/** The stored reading hour in the device's clock format (12/24h). */
+private fun formatReminderTime(context: Context, minutes: Int): String {
+    val calendar = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, minutes / 60)
+        set(Calendar.MINUTE, minutes % 60)
+    }
+    return android.text.format.DateFormat.getTimeFormat(context).format(calendar.time)
+}
+
 /** A browserless device turns the tap into a no-op instead of a crash. */
 private fun openWebPage(context: Context, url: String) {
     try {
@@ -501,6 +574,34 @@ private fun ToggleRow(
                 checkedThumbColor = ink.accentInk,
             ),
         )
+    }
+}
+
+/** A tappable row whose trailing edge shows the current value. */
+@Composable
+private fun ValueRow(
+    icon: @Composable () -> Unit,
+    title: String,
+    value: String,
+    onClick: () -> Unit,
+) {
+    val ink = InkTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick, role = Role.Button)
+            .padding(horizontal = InkSpace.s4, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(InkSpace.s4),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        icon()
+        Text(
+            title,
+            style = InkType.ui,
+            color = ink.textDisplay,
+            modifier = Modifier.weight(1f),
+        )
+        Text(value, style = InkType.ui, color = ink.accentText)
     }
 }
 

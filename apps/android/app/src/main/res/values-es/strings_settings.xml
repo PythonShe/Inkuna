@@ -10,6 +10,7 @@
     <string name="settings_preferences">Preferencias</string>
     <string name="settings_reminder">Recordatorio nocturno</string>
     <string name="settings_reminder_sub">Un aviso discreto a tu hora de lectura</string>
+    <string name="settings_reminder_time">Hora del recordatorio</string>
     <string name="settings_night">Modo noche</string>
     <string name="settings_account_settings">Ajustes de la cuenta</string>
     <string name="settings_edit_name">Nombre de usuario</string>

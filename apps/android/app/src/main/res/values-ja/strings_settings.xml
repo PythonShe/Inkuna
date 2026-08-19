@@ -10,6 +10,7 @@
     <string name="settings_preferences">環境設定</string>
     <string name="settings_reminder">夜のリマインダー</string>
     <string name="settings_reminder_sub">読書の時間をそっとお知らせ</string>
+    <string name="settings_reminder_time">リマインダーの時刻</string>
     <string name="settings_night">ナイトモード</string>
     <string name="settings_account_settings">アカウント設定</string>
     <string name="settings_edit_name">ユーザー名</string>

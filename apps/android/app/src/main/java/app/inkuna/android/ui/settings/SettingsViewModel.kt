@@ -88,9 +88,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setEveningReminder(on: Boolean) {
         settings.setEveningReminder(on)
         if (on) {
-            EveningReminder.schedule(getApplication())
+            EveningReminder.schedule(getApplication(), snapshot.value.reminderMinutes)
         } else {
             EveningReminder.cancel(getApplication())
+        }
+    }
+
+    /** Stores the new reading hour and, when the reminder is on, re-arms
+     *  the pending nudge at it (REPLACE policy makes that atomic). */
+    fun setReminderMinutes(minutes: Int) {
+        settings.setReminderMinutes(minutes)
+        if (snapshot.value.eveningReminder) {
+            EveningReminder.schedule(getApplication(), snapshot.value.reminderMinutes)
         }
     }
 

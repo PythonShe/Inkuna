@@ -10,6 +10,7 @@
     <string name="settings_preferences">偏好設定</string>
     <string name="settings_reminder">晚間提醒</string>
     <string name="settings_reminder_sub">在你的閱讀時刻輕聲提醒</string>
+    <string name="settings_reminder_time">提醒時間</string>
     <string name="settings_night">夜間模式</string>
     <string name="settings_account_settings">帳戶設定</string>
     <string name="settings_edit_name">使用者名稱</string>

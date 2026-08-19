@@ -10,6 +10,7 @@
     <string name="settings_preferences">Tùy chọn</string>
     <string name="settings_reminder">Nhắc nhở buổi tối</string>
     <string name="settings_reminder_sub">Lời nhắc nhẹ nhàng vào giờ đọc sách của bạn</string>
+    <string name="settings_reminder_time">Giờ nhắc nhở</string>
     <string name="settings_night">Chế độ ban đêm</string>
     <string name="settings_account_settings">Cài đặt tài khoản</string>
     <string name="settings_edit_name">Tên người dùng</string>
