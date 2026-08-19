@@ -36,7 +36,7 @@ data class ImportedBook(
  * [ImportFailure.of] is the single place that mapping lives.
  */
 enum class ImportFailureKind {
-    /** Recognized, but not importable yet — MOBI, PDF, CBZ, CBR, TXT. */
+    /** Recognized, but not importable yet — PDF, CBZ, CBR. */
     UnsupportedFormat,
 
     /** Nothing recognizable at all: not a book. */
