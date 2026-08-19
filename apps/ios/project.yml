@@ -23,8 +23,8 @@ settings:
     SWIFT_VERSION: "6.0"
     # The Rust core ships arm64-only simulator slices.
     "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
-    MARKETING_VERSION: "0.8.0"
-    CURRENT_PROJECT_VERSION: "26081901"
+    MARKETING_VERSION: "0.8.2"
+    CURRENT_PROJECT_VERSION: "26081902"
 targets:
   Inkuna:
     type: application
