@@ -57,6 +57,28 @@ fn parses_fdst_and_reassembles_skeletons_with_nontrivial_fragments() {
 }
 
 #[test]
+fn resolves_ncx_titles_through_the_cncx_string_pool() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cncx.azw3");
+    MobiTestBuilder::new(8)
+        .kf8_files(vec![Kf8FileFixture::new(
+            b"<html><body><p>A</p></body></html>",
+        )])
+        .ncx(vec![Kf8NcxFixture::new("第一部", 0, 1)])
+        .write(&path);
+
+    let book = MobiBook::open(&path).unwrap();
+    let content = read(&book).unwrap();
+
+    // The fixture writes the numeric ordinal b"0000" into the raw NCX entry
+    // label; the title must be resolved through the CNCX record via tag 3.
+    let toc = content.toc.as_ref().unwrap();
+    assert_eq!(toc[0].label, "第一部");
+    assert_eq!(toc[0].file, 0);
+    assert_eq!(toc[0].depth, 1);
+}
+
+#[test]
 fn fdst_pairs_are_bounded_and_fully_checked() {
     let mut valid = Vec::from(b"FDST".as_slice());
     valid.extend_from_slice(&28u32.to_be_bytes());

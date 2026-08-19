@@ -6,6 +6,7 @@ use crate::CoreError;
 
 const MAX_FLOWS: usize = 65_536;
 const MAX_INDEX_RECORDS: usize = 65_536;
+const MAX_CNCX_RECORDS: usize = 16;
 
 pub(super) struct Kf8Content {
     pub(super) files: Vec<AssembledFile>,
@@ -69,8 +70,8 @@ pub(super) fn read(book: &MobiBook) -> Result<Kf8Content, CoreError> {
         .first()
         .ok_or_else(|| invalid("KF8 FDST has no primary flow"))?;
 
-    let skeleton_index = load_index(book, pointers.skeleton_index)?;
-    let fragment_index = load_index(book, pointers.fragment_index)?;
+    let (skeleton_index, _) = load_index(book, pointers.skeleton_index)?;
+    let (fragment_index, _) = load_index(book, pointers.fragment_index)?;
     let skeletons = parse_skeletons(&skeleton_index)?;
     let fragments = parse_fragments(&fragment_index)?;
     let files = assemble_files(flow0, &skeletons, &fragments)?;
@@ -128,7 +129,7 @@ pub(super) fn parse_fdst(
     Ok(pairs)
 }
 
-fn load_index(book: &MobiBook, first: u32) -> Result<Index, CoreError> {
+fn load_index(book: &MobiBook, first: u32) -> Result<(Index, Vec<Vec<u8>>), CoreError> {
     let meta = book.relative_record(first)?;
     let record_count = read_u32(meta, 24)? as usize;
     if record_count == 0 || record_count > MAX_INDEX_RECORDS {
@@ -142,7 +143,35 @@ fn load_index(book: &MobiBook, first: u32) -> Result<Index, CoreError> {
             .ok_or_else(|| invalid("KF8 INDX record index overflow"))?;
         records.push(book.relative_record(index)?);
     }
-    indx::parse(&records)
+    let index = indx::parse(&records)?;
+    // The CNCX string-pool records follow the data records; their count sits
+    // at offset 52 of the meta INDX header.
+    let cncx_count = read_u32(meta, 52)? as usize;
+    if cncx_count > MAX_CNCX_RECORDS {
+        return Err(invalid("KF8 CNCX record count is invalid"));
+    }
+    let mut cncx = Vec::with_capacity(cncx_count);
+    for relative in 0..cncx_count {
+        let record = (record_count + 1)
+            .checked_add(relative)
+            .and_then(|offset| u32::try_from(offset).ok())
+            .and_then(|offset| first.checked_add(offset))
+            .ok_or_else(|| invalid("KF8 CNCX record index overflow"))?;
+        cncx.push(book.relative_record(record)?.to_vec());
+    }
+    Ok((index, cncx))
+}
+
+/// Resolves a CNCX offset (record number in the high bits, byte offset in the
+/// low 16 bits) to its varlen-prefixed string.
+fn cncx_string(cncx: &[Vec<u8>], offset: u32) -> Option<String> {
+    let record = cncx.get((offset >> 16) as usize)?;
+    let mut cursor = (offset & 0xffff) as usize;
+    let length = indx::read_varuint(record, &mut cursor).ok()? as usize;
+    let end = cursor.checked_add(length)?;
+    let bytes = record.get(cursor..end)?;
+    let title = String::from_utf8_lossy(bytes).trim().to_string();
+    (!title.is_empty()).then_some(title)
 }
 
 fn parse_skeletons(index: &Index) -> Result<Vec<Skeleton>, CoreError> {
@@ -262,7 +291,7 @@ fn parse_toc(
     skeletons: &[Skeleton],
     fragments: &[Fragment],
 ) -> Result<Vec<Kf8TocEntry>, CoreError> {
-    let index = load_index(book, record)?;
+    let (index, cncx) = load_index(book, record)?;
     index
         .entries
         .iter()
@@ -270,7 +299,14 @@ fn parse_toc(
             let target = one(entry, 1, "NCX target")? as usize;
             let file = target_file(target, skeletons, fragments)
                 .ok_or_else(|| invalid("NCX target does not map to a KF8 file"))?;
-            let label = String::from_utf8_lossy(&entry.label).trim().to_string();
+            // Real KF8 NCX entries carry a numeric ordinal in the label and
+            // the title in the CNCX string pool addressed by TAGX tag 3; the
+            // raw label is only a fallback for files without CNCX data.
+            let label = entry
+                .values(3)
+                .and_then(|values| values.first())
+                .and_then(|offset| cncx_string(&cncx, *offset))
+                .unwrap_or_else(|| String::from_utf8_lossy(&entry.label).trim().to_string());
             if label.is_empty() {
                 return Err(invalid("NCX entry has an empty label"));
             }

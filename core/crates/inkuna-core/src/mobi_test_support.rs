@@ -475,18 +475,31 @@ impl MobiTestBuilder {
         records.extend(skeleton);
         let ncx_index = self.ncx.as_ref().map(|entries| {
             let index = first_record + records.len() as u32;
+            // Real KF8 NCX entries carry a numeric ordinal in the label; the
+            // title lives in the CNCX string pool addressed by TAGX tag 3 as
+            // a varlen-prefixed byte run.
+            let mut cncx = Vec::new();
             let fixtures = entries
                 .iter()
-                .map(|entry| {
-                    IndxEntryFixture::new(entry.label.as_bytes())
+                .enumerate()
+                .map(|(ordinal, entry)| {
+                    let offset = cncx.len() as u32;
+                    push_varuint(&mut cncx, entry.label.len() as u32);
+                    cncx.extend_from_slice(entry.label.as_bytes());
+                    IndxEntryFixture::new(format!("{ordinal:04}").as_bytes())
                         .tag(1, &[skeleton_starts[entry.file]])
+                        .tag(3, &[offset])
                         .tag(4, &[entry.depth])
                 })
                 .collect::<Vec<_>>();
-            records.extend(build_indx_records(
-                &[(1, 1, 0x01, 0), (4, 1, 0x02, 0)],
+            let mut ncx_records = build_indx_records(
+                &[(1, 1, 0x01, 0), (3, 1, 0x02, 0), (4, 1, 0x04, 0)],
                 &fixtures,
-            ));
+            );
+            // CNCX record count at offset 52 of the meta INDX header.
+            ncx_records[0][52..56].copy_from_slice(&1u32.to_be_bytes());
+            records.extend(ncx_records);
+            records.push(cncx);
             index
         });
         Kf8Bundle {
