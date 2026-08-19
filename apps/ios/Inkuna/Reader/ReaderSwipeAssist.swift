@@ -32,9 +32,13 @@ import WebKit
 ///   offset structurally cannot land backward or double.
 /// - At a true resource boundary the turn goes through the navigator's
 ///   `goRight`/`goLeft` (edge-aware, RTL-safe), guarded by the same
-///   at-rest checks so the spread index it consults is committed, and
-///   unanimated so the slide cannot be caught mid-flight by the next
-///   swipe and hand the position to the pager's snap.
+///   at-rest checks so the spread index it consults is committed.
+///
+/// Both turns animate like native ones: what made animation dangerous
+/// before was firing into an in-flight scroll, and firing now only ever
+/// happens from a verified idle, at-rest, page-aligned reader — a smooth
+/// rescue already running is caught by the alignment gate, not composed
+/// with.
 ///
 /// Verification never trusts anything captured at touch-down except the
 /// baselines themselves: the web view is re-resolved (the navigator keeps
@@ -230,6 +234,13 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
                 }
                 let pageWidth = inner.bounds.width
                 guard pageWidth > 0 else { return }
+                // A smooth JS scroll (a previous rescue's, or Readium's
+                // own animated turn) moves the offset without any of the
+                // UIScrollView flags above; off page alignment is its only
+                // tell. Firing into one would compose the two scrolls and
+                // hand the landing to the pager's snap.
+                let innerPage = inner.contentOffset.x / pageWidth
+                guard abs(innerPage - innerPage.rounded()) * pageWidth < 1 else { continue }
                 let drift = startWebView == nil
                     ? 0
                     : abs(inner.contentOffset.x - innerStart)
@@ -258,11 +269,14 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    /// Drives the verified missed turn. Within the resource this is a
-    /// DOM-relative instant scroll on the verified web view — immune to
-    /// the navigator's lagging spread bookkeeping, so it cannot land
-    /// backward or double. Only a true boundary goes through the
-    /// navigator, whose index is committed now that everything rests.
+    /// Drives the verified missed turn, animated like a native one —
+    /// firing only ever happens from a verified idle, at-rest, page-aligned
+    /// reader, which is what made animation dangerous before. Within the
+    /// resource this is a DOM-relative scroll on the verified web view
+    /// (Readium's own turn primitive) — immune to the navigator's lagging
+    /// spread bookkeeping, so it cannot land backward or double. Only a
+    /// true boundary goes through the navigator, whose index is committed
+    /// now that everything rests.
     private func turn(_ direction: UISwipeGestureRecognizer.Direction, webView: WKWebView) {
         let inner = webView.scrollView
         let pageWidth = inner.bounds.width
@@ -271,21 +285,18 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         let target = inner.contentOffset.x + delta
         if target >= -2, target <= inner.contentSize.width - pageWidth + 2 {
             webView.evaluateJavaScript(
-                "window.scrollBy({ left: \(delta), behavior: 'instant' });",
+                "window.scrollBy({ left: \(delta), behavior: 'smooth' });",
                 completionHandler: nil
             )
             return
         }
         guard let navigator else { return }
-        // Unanimated deliberately: a smooth slide here is a window for the
-        // next fast swipe to interrupt it and hand the landing to the
-        // pager's snap — the jump-back this class exists to prevent.
         turnTask = Task { [weak navigator] in
             guard let navigator else { return }
             if direction == .left {
-                _ = await navigator.goRight(options: NavigatorGoOptions(animated: false))
+                _ = await navigator.goRight(options: NavigatorGoOptions(animated: true))
             } else {
-                _ = await navigator.goLeft(options: NavigatorGoOptions(animated: false))
+                _ = await navigator.goLeft(options: NavigatorGoOptions(animated: true))
             }
         }
     }
