@@ -78,7 +78,7 @@ pub(crate) fn convert_to_epub(
     if groups.is_empty() || groups.len() > MAX_CHAPTERS {
         return Err(invalid("KF8 spine cannot be coalesced below 9990 chapters"));
     }
-    let (file_chapters, fragment_chapters) = target_chapters(&groups, content.files.len());
+    let fragment_chapters = target_chapters(&groups);
     let mut images = HashMap::<u32, Option<String>>::new();
     let mut image_budget = ImageBudget { used: 0 };
     let mut file_seen = vec![false; content.files.len()];
@@ -132,7 +132,6 @@ pub(crate) fn convert_to_epub(
     if meaningful == 0 {
         return Err(invalid("KF8 publication has no convertible content"));
     }
-    let _ = file_chapters;
     writer.finish(dst)
 }
 
@@ -261,21 +260,16 @@ fn group_parts(parts: Vec<Part<'_>>) -> Vec<Vec<Part<'_>>> {
     groups
 }
 
-fn target_chapters(
-    groups: &[Vec<Part<'_>>],
-    file_count: usize,
-) -> (Vec<Option<usize>>, HashMap<u32, usize>) {
-    let mut files = vec![None; file_count];
+fn target_chapters(groups: &[Vec<Part<'_>>]) -> HashMap<u32, usize> {
     let mut fragments = HashMap::new();
     for (chapter, group) in groups.iter().enumerate() {
         for part in group {
-            files[part.file].get_or_insert(chapter);
             for anchor in &part.anchors {
                 fragments.insert(anchor.fid, chapter);
             }
         }
     }
-    (files, fragments)
+    fragments
 }
 
 fn insert_anchors(bytes: &[u8], anchors: &[FragmentAnchor]) -> Vec<u8> {
