@@ -187,7 +187,7 @@ pub(crate) struct MobiTestBuilder {
     huff_records: Vec<Vec<u8>>,
     exth: Vec<(u32, Vec<u8>)>,
     images: Vec<Vec<u8>>,
-    extra_data_flags: u32,
+    extra_data_flags: u16,
     trailers: Vec<Vec<u8>>,
     kf8: Option<Box<MobiTestBuilder>>,
     kf8_files: Option<Vec<Kf8FileFixture>>,
@@ -279,7 +279,7 @@ impl MobiTestBuilder {
         self
     }
 
-    pub(crate) fn trailing_data(&mut self, flags: u32, trailers: Vec<Vec<u8>>) -> &mut Self {
+    pub(crate) fn trailing_data(&mut self, flags: u16, trailers: Vec<Vec<u8>>) -> &mut Self {
         self.extra_data_flags = flags;
         self.trailers = trailers;
         self
@@ -364,7 +364,7 @@ impl MobiTestBuilder {
         record0[116..120].copy_from_slice(&(self.huff_records.len() as u32).to_be_bytes());
         record0[128..132]
             .copy_from_slice(&(if exth.is_empty() { 0u32 } else { 0x40 }).to_be_bytes());
-        record0[242..244].copy_from_slice(&(self.extra_data_flags as u16).to_be_bytes());
+        record0[242..244].copy_from_slice(&self.extra_data_flags.to_be_bytes());
         if self.version >= 8 {
             for offset in [244usize, 248, 252, 256, 260] {
                 record0[offset..offset + 4].copy_from_slice(&u32::MAX.to_be_bytes());
