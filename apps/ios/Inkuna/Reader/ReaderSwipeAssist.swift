@@ -106,6 +106,7 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
     private var turnAnimator: UIViewPropertyAnimator?
     private var interruptedTurn = false
     private var turnTargetX: CGFloat = 0
+    private weak var turnScrollView: UIScrollView?
 
     /// Release kinematics from the shadow pan — the swipe recognizers
     /// report no velocity, so a plain pan rides along purely to measure
@@ -213,6 +214,12 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         outerWasBusy = false
         touchDownWebView = nil
         outerScrollView = nil
+        // Zero the numeric baselines too: an early return below (no
+        // outer, zero width, loading reader) would otherwise leave a
+        // previous touch's values for armVerify to copy, and the verify
+        // would compare live views against a stale baseline.
+        touchDownOuterPage = 0
+        touchDownInnerOffset = 0
         guard
             let navigator,
             // Scroll mode has no page snaps to rescue. Paginated
@@ -275,6 +282,10 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         interruptedTurn = false
         guard let navigator, let webView = visibleWebView(in: navigator.view) else { return }
         let inner = webView.scrollView
+        // The target belongs to the scroll view the spring was animating;
+        // if the spread changed under this same touch, applying it to the
+        // new spread would advance a page that was never turning.
+        guard inner === turnScrollView else { return }
         guard !inner.isTracking, !inner.isDragging, !inner.isDecelerating else { return }
         let pageWidth = inner.bounds.width
         guard pageWidth > 0 else { return }
@@ -583,9 +594,17 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         )
         let animator = UIViewPropertyAnimator(duration: 0.3, timingParameters: spring)
         animator.addAnimations { inner.contentOffset = target }
+        animator.addCompletion { [weak self] _ in
+            // A finished animator (ran to the end, or frozen at .current
+            // by touch-down — the freeze keeps its own state) has nothing
+            // left to say; clearing releases the captured scroll view.
+            guard let self, self.turnAnimator === animator else { return }
+            self.turnAnimator = nil
+        }
         turnAnimator?.stopAnimation(true)
         turnAnimator = animator
         turnTargetX = target.x
+        turnScrollView = inner
         animator.startAnimation()
     }
 
