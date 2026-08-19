@@ -5,6 +5,9 @@ use quick_xml::escape::escape;
 use super::chapters::is_cjk_dominant;
 
 const MAX_CHAPTER_TEXT_BYTES: usize = 100 * 1024;
+// How far below the chapter cap an oversized-paragraph split may back off
+// in search of a space or sentence terminator.
+const SPLIT_BACKOFF_BYTES: usize = 4 * 1024;
 
 #[derive(Clone)]
 pub(super) enum Block {
@@ -165,8 +168,7 @@ pub(super) fn split_blocks(blocks: Vec<Block>) -> Vec<Vec<Block>> {
 fn split_long_paragraph(mut text: &str) -> Vec<&str> {
     let mut parts = Vec::new();
     while text.len() > MAX_CHAPTER_TEXT_BYTES {
-        let split = floor_char_boundary(text, MAX_CHAPTER_TEXT_BYTES);
-        let (part, rest) = text.split_at(split);
+        let (part, rest) = text.split_at(long_paragraph_split(text));
         parts.push(part);
         text = rest;
     }
@@ -174,6 +176,24 @@ fn split_long_paragraph(mut text: &str) -> Vec<&str> {
         parts.push(text);
     }
     parts
+}
+
+/// Picks the split index for one part of an oversized paragraph: the byte
+/// after the last ASCII space or sentence terminator within
+/// [`SPLIT_BACKOFF_BYTES`] of the size cap, so a part never ends
+/// mid-sentence — or mid-grapheme, since combining marks and joiners always
+/// follow the character they attach to. Falls back to the cap itself (at a
+/// char boundary) when the window holds no such cut, so the caller's loop
+/// always advances.
+fn long_paragraph_split(text: &str) -> usize {
+    let limit = floor_char_boundary(text, MAX_CHAPTER_TEXT_BYTES);
+    let window_start = floor_char_boundary(text, limit.saturating_sub(SPLIT_BACKOFF_BYTES));
+    text[window_start..limit]
+        .char_indices()
+        .filter(|(_, ch)| matches!(ch, ' ' | '.' | '!' | '?' | '。' | '！' | '？' | '；'))
+        .map(|(index, ch)| window_start + index + ch.len_utf8())
+        .next_back()
+        .unwrap_or(limit)
 }
 
 pub(super) fn render_chapter(title: &str, blocks: &[Block]) -> String {
@@ -218,3 +238,7 @@ pub(super) fn floor_char_boundary(text: &str, mut index: usize) -> usize {
     }
     index
 }
+
+#[cfg(test)]
+#[path = "paragraphs_tests.rs"]
+mod tests;
