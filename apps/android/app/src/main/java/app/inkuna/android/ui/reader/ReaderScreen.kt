@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -55,6 +56,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.preferredFrameRate
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
@@ -426,6 +428,10 @@ private fun ReaderContent(
             enter = fadeIn(tween(240, easing = InkMotion.easeQuiet)),
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
             modifier = Modifier
+                // The chrome's fades run over a page that scrolls at the
+                // display's full rate; without their own votes they'd run
+                // in the 60 Hz category and read as stutter against it.
+                .preferredFrameRate(FrameRateCategory.High)
                 .align(Alignment.BottomCenter)
                 .padding(bottom = navPad + ReaderMetrics.footerLift),
         ) {
@@ -444,6 +450,7 @@ private fun ReaderContent(
             enter = fadeIn(tween(240, easing = InkMotion.easeQuiet)),
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
             modifier = Modifier
+                .preferredFrameRate(FrameRateCategory.High)
                 .align(Alignment.TopStart)
                 .padding(start = 16.dp, top = statusPad + 6.dp),
         ) {
@@ -462,6 +469,7 @@ private fun ReaderContent(
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)) +
                 slideOutVertically(tween(240, easing = InkMotion.easeQuiet)) { it / 10 },
             modifier = Modifier
+                .preferredFrameRate(FrameRateCategory.High)
                 .align(Alignment.BottomEnd)
                 .padding(end = 16.dp, bottom = contentBottom + 46.dp + 12.dp),
         ) {
@@ -522,6 +530,7 @@ private fun ReaderContent(
             enter = fadeIn(tween(240, easing = InkMotion.easeQuiet)),
             exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
             modifier = Modifier
+                .preferredFrameRate(FrameRateCategory.High)
                 .align(Alignment.BottomEnd)
                 .padding(end = 16.dp, bottom = contentBottom),
         ) {
@@ -540,6 +549,7 @@ private fun ReaderContent(
             enter = fadeIn(tween(InkMotion.durFast, easing = InkMotion.easeQuiet)),
             exit = fadeOut(tween(InkMotion.durMed, easing = InkMotion.easeQuiet)),
             modifier = Modifier
+                .preferredFrameRate(FrameRateCategory.High)
                 .align(Alignment.TopCenter)
                 .padding(top = statusPad + 56.dp),
         ) {

@@ -3,6 +3,7 @@ package app.inkuna.android.ui.reader
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Rect
+import android.os.Build
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
@@ -72,6 +73,7 @@ class BoundaryDragFollower(
     private var downX = 0f
     private var downY = 0f
     private var lastX = 0f
+    private var lastMoveUptime = 0L
 
     /** This gesture was examined and declined; stop looking at it. */
     private var rejected = false
@@ -106,6 +108,7 @@ class BoundaryDragFollower(
                 downX = ev.x
                 downY = ev.y
                 lastX = ev.x
+                lastMoveUptime = ev.eventTime
             }
             MotionEvent.ACTION_MOVE -> {
                 if (!dragging && !rejected) considerIntercept(ev)
@@ -133,9 +136,21 @@ class BoundaryDragFollower(
                         beginPending = false
                     } else {
                         lastX = x
+                        lastMoveUptime = ev.eventTime
                         return true
                     }
                 }
+                // Adaptive-refresh displays pick their rate partly from
+                // content velocity, and the hint resets every frame —
+                // feed the finger's instantaneous speed while it drives
+                // the pager.
+                if (Build.VERSION.SDK_INT >= 35) {
+                    val dt = ev.eventTime - lastMoveUptime
+                    if (dt > 0) {
+                        pager?.frameContentVelocity = abs(x - lastX) / dt * 1000f
+                    }
+                }
+                lastMoveUptime = ev.eventTime
                 dragBy(x - lastX)
                 lastX = x
             }
@@ -236,6 +251,7 @@ class BoundaryDragFollower(
             // path snaps back on cancel the same way).
             if (cancelled) dragBy(-dragTotal)
             pager.endFakeDrag()
+            pumpSettleVelocity(pager)
             signal.lastHandledUptime = SystemClock.uptimeMillis()
         } else if (!cancelled && beginPending) {
             // The pager refused the fake drag for the whole gesture (still
@@ -251,6 +267,41 @@ class BoundaryDragFollower(
             }
         }
         endDrag()
+    }
+
+    /**
+     * Keeps the frame-rate content-velocity hint alive through the settle
+     * `endFakeDrag` kicked off: the hint resets on every redraw, and
+     * nothing in ViewPager feeds it, so without this the display can
+     * drop back to its idle rate mid-slide. Stops once the pager holds
+     * still for a couple of frames or the pager's own settle ceiling
+     * (600 ms) has passed.
+     */
+    private fun pumpSettleVelocity(pager: ViewPager) {
+        if (Build.VERSION.SDK_INT < 35) return
+        val deadline = SystemClock.uptimeMillis() + 600
+        pager.postOnAnimation(object : Runnable {
+            var lastScrollX = pager.scrollX
+            var lastTime = SystemClock.uptimeMillis()
+            var stillFrames = 0
+
+            override fun run() {
+                val now = SystemClock.uptimeMillis()
+                val dx = pager.scrollX - lastScrollX
+                val dt = now - lastTime
+                if (dx == 0) {
+                    stillFrames += 1
+                } else {
+                    stillFrames = 0
+                    if (dt > 0) pager.frameContentVelocity = abs(dx).toFloat() / dt * 1000f
+                }
+                lastScrollX = pager.scrollX
+                lastTime = now
+                if (stillFrames < 2 && now < deadline && pager.isAttachedToWindow) {
+                    pager.postOnAnimation(this)
+                }
+            }
+        })
     }
 
     /** Bare state reset; any stranded fake drag is closed without acting. */

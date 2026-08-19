@@ -17,8 +17,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.preferredFrameRate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -46,6 +48,8 @@ fun ReaderGlassButton(
     )
     Box(
         modifier = modifier
+            // Press scales animate over a full-rate page; vote with it.
+            .preferredFrameRate(FrameRateCategory.High)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -87,6 +91,7 @@ fun ReaderMenuPill(
     )
     Row(
         modifier = modifier
+            .preferredFrameRate(FrameRateCategory.High)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
