@@ -121,6 +121,15 @@ class BoundaryDragFollower(
     /** -1 while revealing the layout-right neighbour, +1 the left one. */
     private var revealSign = 0
 
+    /**
+     * The neighbour whose off-screen pre-raster this gesture switched on.
+     * `offscreenPreRaster` significantly increases a WebView's memory use
+     * and is documented for exactly this reveal window; it is switched
+     * back off when the gesture releases — by then the neighbour is
+     * either on screen (rasterized as any visible view) or staying put.
+     */
+    private var preRastered: WebView? = null
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -177,12 +186,12 @@ class BoundaryDragFollower(
                     }
                 }
                 lastMoveUptime = ev.eventTime
-                // Batched samples carry the between-frame finger history;
-                // replaying them hands the pager's velocity tracker the
-                // true release speed, not one point per frame.
-                for (h in 0 until ev.historySize) {
-                    dragTo(ev.getHistoricalX(index, h))
-                }
+                // One correction per MOVE, ignoring the batched history:
+                // fakeDragBy stamps its synthetic tracker event with
+                // uptimeMillis() at call time, so replaying historical
+                // samples would hand the velocity tracker N points
+                // sharing one timestamp — no truer release speed, just
+                // N× the scroll/listener work per frame.
                 dragTo(x)
                 lastX = x
             }
@@ -278,17 +287,22 @@ class BoundaryDragFollower(
      * Whether the WebView cannot move more than [slop] px further toward
      * [direction]. [View.canScrollHorizontally] is a strict boolean and
      * the offsets under it are protected, so the remaining room is
-     * measured with a probe: nudge by [slop], read how far it actually
-     * went, and put it straight back. Both writes land inside one event
+     * measured with a probe: nudge by [slop] and ask the strict test
+     * again from there. The nudged offset itself proves nothing —
+     * `View.scrollTo` writes `mScrollX` unclamped and Chromium corrects
+     * only asynchronously, so `scrollX` always reports the full nudge —
+     * but `canScrollHorizontally` compares the nudged offset against the
+     * renderer-supplied range, so "no room left from here" means less
+     * than [slop] was available. Both writes land inside one event
      * dispatch — nothing is ever drawn displaced.
      */
     private fun WebView.clampedWithin(direction: Int, slop: Int): Boolean {
         if (!canScrollHorizontally(direction)) return true
         val before = scrollX
         scrollBy(direction * slop, 0)
-        val moved = scrollX - before
-        if (moved != 0) scrollBy(-moved, 0)
-        return abs(moved) < slop
+        val roomLeft = canScrollHorizontally(direction)
+        scrollTo(before, scrollY)
+        return !roomLeft
     }
 
     /**
@@ -335,7 +349,7 @@ class BoundaryDragFollower(
             // endFakeDrag reads its velocity tracker with the pager's
             // INVALID_POINTER (-1) id — which happens to also be
             // VelocityTracker's "active pointer" sentinel, so the fling
-            // velocity of the replayed finger samples IS honoured. A
+            // velocity of the per-MOVE finger samples IS honoured. A
             // lucky collision of two unrelated -1 constants; do not
             // "fix" either.
             pager.endFakeDrag()
@@ -402,6 +416,8 @@ class BoundaryDragFollower(
     /** Bare state reset; any stranded fake drag is closed without acting. */
     private fun endDrag() {
         pager?.takeIf { it.isFakeDragging }?.endFakeDrag()
+        preRastered?.settings?.offscreenPreRaster = false
+        preRastered = null
         dragging = false
         beginPending = false
         pager = null
@@ -422,8 +438,10 @@ class BoundaryDragFollower(
         val rtl = nav.overflow.value.readingProgression == ReadingProgression.RTL
         val forward = (revealSign < 0) != rtl
         // Rasterize the incoming resource before it slides on screen —
-        // bounded to the one neighbour a drag can reveal.
+        // bounded to the one neighbour a drag can reveal, and switched
+        // back off in endDrag.
         neighbour.settings.offscreenPreRaster = true
+        preRastered = neighbour
         val js = if (forward) "readium.scrollToStart();" else "readium.scrollToEnd();"
         neighbour.evaluateJavascript(js, null)
     }
