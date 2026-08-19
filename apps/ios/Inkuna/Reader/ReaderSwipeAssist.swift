@@ -63,6 +63,13 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
 
     private var verifyTask: Task<Void, Never>?
 
+    /// The boundary turn lives in its own slot: a fresh touch cancels the
+    /// verify, but must not cancel a turn already handed to the navigator —
+    /// cancellation would propagate into Readium's transition and cut short
+    /// the anti-flash sleep inside its unanimated slide. The navigator's
+    /// own state machine coalesces whatever the next gesture asks for.
+    private var turnTask: Task<Void, Never>?
+
     init(navigator: EPUBNavigatorViewController) {
         self.navigator = navigator
         super.init()
@@ -86,6 +93,7 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
 
     deinit {
         verifyTask?.cancel()
+        turnTask?.cancel()
     }
 
     func gestureRecognizer(
@@ -107,25 +115,35 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         outerScrollView = nil
         guard
             let navigator,
-            // Vertical-writing publications page on the other axis, and
-            // scroll mode has no page snaps to rescue.
+            // Scroll mode has no page snaps to rescue. Paginated
+            // vertical-writing publications still page along x (the axis
+            // is only vertical for scrolled non-vertical text), so they
+            // pass this guard and are handled like any other.
             navigator.presentation.axis == .horizontal,
             !navigator.presentation.scroll,
-            let webView = visibleWebView(in: navigator.view)
+            // Any spread will do for finding the pagination scroll view —
+            // including the alpha-0 ones a loading reader is left with.
+            let anySpread = anyWebView(in: navigator.view)
         else { return }
-        touchDownWebView = webView
-        let outer = nearestScrollView(above: webView)
+        let outer = nearestScrollView(above: anySpread)
         outerScrollView = outer
         if let outer, outer.bounds.width > 0 {
             let page = outer.contentOffset.x / outer.bounds.width
             touchDownOuterPage = page.rounded()
             // Decelerating, frozen off alignment by this very touch, or
-            // locked out by a programmatic slide: this touch is landing on
-            // a still-settling turn.
+            // locked out by a programmatic slide or load: this touch is
+            // landing on a still-settling turn.
             outerWasBusy = outer.isDecelerating ||
                 abs(page - page.rounded()) * outer.bounds.width > 1 ||
                 outer.superview?.isUserInteractionEnabled == false
         }
+
+        // No revealed spread — the centered one is still loading, so this
+        // touch is guaranteed dead (the navigator has input disabled).
+        // Leave the baseline nil; the verify adopts whatever is on screen
+        // once the reader rests.
+        guard let webView = visibleWebView(in: navigator.view) else { return }
+        touchDownWebView = webView
 
         let inner = webView.scrollView
         touchDownInnerOffset = inner.contentOffset.x
@@ -196,17 +214,25 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
                 // advance ahead of the screen.
                 guard let webView = self.visibleWebView(in: navigator.view) else { return }
                 // A different spread on screen means the resource turned
-                // — the gesture worked natively.
-                guard webView === startWebView else { return }
+                // — the gesture worked natively. No baseline at all means
+                // the touch landed on a loading reader whose input was
+                // disabled: nothing could have moved natively, so the
+                // swipe is dead by construction and the comparisons below
+                // have nothing to compare against.
+                if let startWebView, webView !== startWebView { return }
                 let inner = webView.scrollView
                 if inner.isTracking || inner.isDragging || inner.isDecelerating { continue }
 
                 // The outer moving to another page means the resource
                 // turned natively — the gesture worked.
-                guard abs(page.rounded() - outerPage) < 0.5 else { return }
+                if startWebView != nil {
+                    guard abs(page.rounded() - outerPage) < 0.5 else { return }
+                }
                 let pageWidth = inner.bounds.width
                 guard pageWidth > 0 else { return }
-                let drift = abs(inner.contentOffset.x - innerStart)
+                let drift = startWebView == nil
+                    ? 0
+                    : abs(inner.contentOffset.x - innerStart)
                 let remaining = direction == .left
                     ? inner.contentSize.width - pageWidth - inner.contentOffset.x
                     : inner.contentOffset.x
@@ -254,7 +280,8 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
         // Unanimated deliberately: a smooth slide here is a window for the
         // next fast swipe to interrupt it and hand the landing to the
         // pager's snap — the jump-back this class exists to prevent.
-        verifyTask = Task {
+        turnTask = Task { [weak navigator] in
+            guard let navigator else { return }
             if direction == .left {
                 _ = await navigator.goRight(options: NavigatorGoOptions(animated: false))
             } else {
@@ -276,6 +303,17 @@ final class ReaderSwipeAssist: NSObject, UIGestureRecognizerDelegate {
                webView.convert(webView.bounds, to: root).contains(center) {
                 return webView
             }
+            queue.append(contentsOf: view.subviews)
+        }
+        return nil
+    }
+
+    /// Any spread web view at all, revealed or not — only good for walking
+    /// up to the pagination scroll view they all share.
+    private func anyWebView(in root: UIView) -> WKWebView? {
+        var queue: [UIView] = [root]
+        while let view = queue.popLast() {
+            if let webView = view as? WKWebView { return webView }
             queue.append(contentsOf: view.subviews)
         }
         return nil
