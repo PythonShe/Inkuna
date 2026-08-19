@@ -1191,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "inkuna-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "blake3",
  "chardetng",
@@ -1218,7 +1218,7 @@ dependencies = [
 
 [[package]]
 name = "inkuna-ffi"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "inkuna-core",
  "thiserror",
