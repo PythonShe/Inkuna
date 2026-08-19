@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use super::{parse_position, sanitize_css};
+use super::{parse_position, sanitize_css, ImageBudget, MAX_TOTAL_IMAGE_BYTES};
 use crate::formats::epub;
 use crate::formats::mobi::convert_to_epub;
 use crate::test_support::{Kf8FileFixture, Kf8NcxFixture, MobiTestBuilder};
@@ -127,6 +127,18 @@ fn css_sanitizer_removes_imports_and_remote_urls_but_keeps_local_rules() {
     assert!(!css.contains("@import"));
     assert!(!css.contains("https://"));
     assert!(css.contains("../ok.png"));
+}
+
+#[test]
+fn image_budget_charges_the_cover_against_the_shared_total() {
+    // Mirrors the cover block in convert_to_epub: the cover reserves from
+    // the same budget the chapter images draw on, so a cover-sized reserve
+    // shrinks what images may use, and the cap can never be exceeded.
+    let mut budget = ImageBudget { used: 0 };
+    assert!(budget.reserve(MAX_TOTAL_IMAGE_BYTES - 1));
+    assert!(!budget.reserve(2));
+    assert!(budget.reserve(1));
+    assert!(!budget.reserve(1));
 }
 
 #[test]

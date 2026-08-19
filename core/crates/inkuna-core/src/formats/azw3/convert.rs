@@ -62,9 +62,10 @@ pub(crate) fn convert_to_epub(
     writer.language(&language);
     writer.stylesheet(".mobi-center { text-align: center; }");
     append_css(&content, &mut writer);
+    let mut image_budget = ImageBudget { used: 0 };
     if book
         .cover_len()
-        .is_some_and(|length| length <= MAX_IMAGE_BYTES)
+        .is_some_and(|length| length <= MAX_IMAGE_BYTES && image_budget.reserve(length))
     {
         if let Some(cover) = book.cover() {
             if let Some((mime, _)) = image_type(cover) {
@@ -80,7 +81,6 @@ pub(crate) fn convert_to_epub(
     }
     let fragment_chapters = target_chapters(&groups);
     let mut images = HashMap::<u32, Option<String>>::new();
-    let mut image_budget = ImageBudget { used: 0 };
     let mut file_seen = vec![false; content.files.len()];
     let mut meaningful = 0usize;
 
