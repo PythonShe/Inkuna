@@ -407,6 +407,14 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         // Fast swipes at chapter boundaries die in the navigator's nested
         // scroll views; the assist re-drives them. See ReaderSwipeAssist.
         swipeAssist = ReaderSwipeAssist(navigator: navigator)
+        // Chrome leaves at swipe recognition, not on arrival: hiding via
+        // locationDidChange keeps a live backdrop blur composited over
+        // the entire turn (Readium reports the location only after the
+        // settle plus its own debounce). locationDidChange stays as the
+        // fallback for slow drags no swipe recognizer ever sees.
+        swipeAssist?.onPageTurnGesture = { [weak self] in
+            self?.setChrome(visible: false)
+        }
 
         loadingIndicator.stopAnimating()
         updatePageInfo()
@@ -1000,6 +1008,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private func applyBrightness(_ brightness: Double) {
         // The design's veil: alpha ramps up as brightness drops below 78%.
         dimView.alpha = max(0, 0.78 - brightness) / 1.7
+        // At full brightness the veil contributes nothing; hide it so the
+        // compositor provably skips the full-screen blend on every frame.
+        dimView.isHidden = dimView.alpha == 0
     }
 
     /// The honest position line: synthetic positions once the navigator has

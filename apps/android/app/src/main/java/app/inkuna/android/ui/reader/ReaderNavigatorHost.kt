@@ -1,8 +1,12 @@
 package app.inkuna.android.ui.reader
 
+import android.os.Build
+import android.view.View
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentActivity
@@ -37,17 +41,55 @@ fun ReaderNavigatorHost(
     initialLocator: Locator?,
     initialPreferences: EpubPreferences,
     listener: EpubNavigatorFragment.Listener,
+    boundarySignal: BoundaryGestureSignal,
     onNavigator: (EpubNavigatorFragment?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val activity = LocalActivity.current as FragmentActivity
 
+    // Set by the AndroidView factory, which runs before the effect below.
+    val follower = remember { mutableStateOf<BoundaryDragFollower?>(null) }
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            FragmentContainerView(context).apply { id = R.id.reader_navigator_host }
+            // The follower wraps the fragment container so chapter-boundary
+            // drags can be intercepted and replayed into Readium's pager;
+            // see BoundaryDragFollower.
+            BoundaryDragFollower(context, boundarySignal).apply {
+                addView(FragmentContainerView(context).apply { id = R.id.reader_navigator_host })
+                // Frame-rate votes don't propagate to children; the tuner
+                // covers the WebViews and pager, this covers the host.
+                if (Build.VERSION.SDK_INT >= 35) {
+                    requestedFrameRate = View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
+                }
+                follower.value = this
+            }
         },
     )
+
+    // API 33/34 have no per-view frame-rate votes; ask the window for the
+    // display's fastest same-resolution mode while the reader is open.
+    // (On 35+ the view votes above are the mechanism, and this attribute
+    // would be ignored anyway wherever Surface.setFrameRate is in play.)
+    if (Build.VERSION.SDK_INT < 35) {
+        DisposableEffect(Unit) {
+            val window = activity.window
+            val previous = window.attributes.preferredRefreshRate
+            val mode = activity.display?.mode
+            val fastest = activity.display?.supportedModes
+                ?.filter {
+                    it.physicalWidth == mode?.physicalWidth &&
+                        it.physicalHeight == mode?.physicalHeight
+                }
+                ?.maxOfOrNull { it.refreshRate } ?: 0f
+            if (fastest > 0f) {
+                window.attributes = window.attributes.apply { preferredRefreshRate = fastest }
+            }
+            onDispose {
+                window.attributes = window.attributes.apply { preferredRefreshRate = previous }
+            }
+        }
+    }
 
     // Keyed on the factory: one fragment per opened publication. Theme and
     // type changes go through submitPreferences, never a rebuild.
@@ -75,14 +117,15 @@ fun ReaderNavigatorHost(
             setReorderingAllowed(true)
             replace(R.id.reader_navigator_host, fragment, READER_NAVIGATOR_FRAGMENT_TAG)
         }
-        // Readium leaves the resource WebViews on Android's default
-        // overscroll mode, which paints a stretch edge effect on boundary
-        // drags; see WebViewStretchSuppressor.
-        val stretchSuppressor = fragment.view?.let(::WebViewStretchSuppressor)
-        stretchSuppressor?.attach()
+        // Overscroll stretch off and high frame-rate votes on, for every
+        // resource WebView the pager creates; see ReaderWebViewTuner.
+        val webViewTuner = fragment.view?.let(::ReaderWebViewTuner)
+        webViewTuner?.attach()
+        follower.value?.navigator = fragment
         onNavigator(fragment)
         onDispose {
-            stretchSuppressor?.detach()
+            follower.value?.navigator = null
+            webViewTuner?.detach()
             onNavigator(null)
             // After onSaveInstanceState the FragmentManager refuses
             // transactions; the activity is going down with its fragments

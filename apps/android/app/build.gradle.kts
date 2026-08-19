@@ -113,6 +113,9 @@ dependencies {
     // The reader hosts Readium's fragment-based EPUB navigator in Compose
     // and drives the core contract from a ViewModel.
     implementation("androidx.fragment:fragment-ktx:1.9.0")
+    // Referenced directly by BoundaryDragFollower to fake-drag Readium's
+    // resource pager across chapter boundaries.
+    implementation("androidx.viewpager:viewpager:1.1.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     // The evening reminder: WorkManager survives reboots without a boot
     // receiver, so the daily nudge is one self-chaining worker.

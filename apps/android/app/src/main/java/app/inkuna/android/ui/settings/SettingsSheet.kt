@@ -47,7 +47,9 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -486,12 +488,28 @@ private fun ReminderTimeDialog(
         initialMinute = initialMinutes % 60,
         is24Hour = android.text.format.DateFormat.is24HourFormat(context),
     )
+    // derivedStateOf: recompose only when the period flips, not on every
+    // hour change while the hand is being dragged. Constant true in
+    // 24-hour mode: there is no AM/PM toggle to work around there, and a
+    // drag across noon must not re-key the dial mid-gesture.
+    val isPm by remember(state) { derivedStateOf { state.is24hour || state.hour >= 12 } }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = ink.bgSurface,
         titleContentColor = ink.textDisplay,
         title = { Text(stringResource(R.string.settings_reminder_time), style = InkType.heading) },
-        text = { TimePicker(state = state) },
+        text = {
+            // material3 1.4.0: the AM/PM toggle's `hour ±= 12` swaps
+            // AnalogTimePickerState's private Animatable while the dial's
+            // draw node stays subscribed to the discarded instance, so the
+            // hand freezes although the value keeps updating. Re-keying on
+            // the period rebuilds that internal state; the toggle never
+            // changes `hour % 12`, so nothing visibly moves. Fixed upstream
+            // by the 1.5.0 hourInput refactor — drop the key() then.
+            key(isPm) {
+                TimePicker(state = state)
+            }
+        },
         confirmButton = {
             TextButton(onClick = { onConfirm(state.hour * 60 + state.minute) }) {
                 Text(stringResource(R.string.settings_save), color = ink.accentText)
