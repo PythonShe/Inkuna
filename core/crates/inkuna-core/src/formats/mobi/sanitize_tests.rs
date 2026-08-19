@@ -44,3 +44,13 @@ fn empty_and_scheme_edge_cases() {
     assert!(safe_href("1:2"));
     assert!(safe_href("a b:c"));
 }
+
+#[test]
+fn control_characters_cannot_obfuscate_a_dangerous_scheme() {
+    // Entity-decoded `java&#10;script:` arrives here with a literal control
+    // character; a browser would strip it and execute the scheme.
+    assert!(!safe_href("java\nscript:alert(1)"));
+    assert!(!safe_image_src("java\nscript:alert(1)"));
+    assert!(!safe_href("java\tscript:x"));
+    assert!(!safe_image_src("java\tscript:x"));
+}
