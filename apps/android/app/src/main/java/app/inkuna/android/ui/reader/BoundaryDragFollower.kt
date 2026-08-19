@@ -21,6 +21,13 @@ import org.readium.r2.shared.ExperimentalReadiumApi
  * Shared between [BoundaryDragFollower] and [BoundaryFlingRescue]: when the
  * follower drove a boundary gesture itself, the rescue (fed the same gesture
  * through Readium's drag events) must not re-drive the turn.
+ *
+ * In practice an intercepted gesture never even reaches the rescue:
+ * Readium's gesture script listens for `touchend` but not `touchcancel`,
+ * and interception delivers exactly a cancel — so the drag-End the rescue
+ * keys on dies with the intercept. The window is belt and braces for the
+ * follower's navigator-fallback path, not a load-bearing gate; do not
+ * tune gesture feel around it.
  */
 class BoundaryGestureSignal {
     var lastHandledUptime = 0L
@@ -33,6 +40,13 @@ class BoundaryGestureSignal {
         const val SUPPRESS_WINDOW_MS = 600L
     }
 }
+
+/** Residual scroll under this still reads as a clamped resource edge. */
+private const val CLAMP_SLOP_DP = 4f
+
+/** A release at this speed commits even without the ⅓-page travel —
+ *  matching [BoundaryFlingRescue]'s light-flick gate. */
+private const val MIN_FLING_VELOCITY_DP_S = 300f
 
 /**
  * Makes chapter-boundary swipes follow the finger, like iOS.
@@ -69,6 +83,13 @@ class BoundaryDragFollower(
 
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
+    /** How much residual scroll still counts as a clamped resource edge. */
+    private val clampSlopPx =
+        (CLAMP_SLOP_DP * context.resources.displayMetrics.density).toInt().coerceAtLeast(1)
+
+    private val minFlingVelocityPx =
+        MIN_FLING_VELOCITY_DP_S * context.resources.displayMetrics.density
+
     private var activePointerId = MotionEvent.INVALID_POINTER_ID
     private var downX = 0f
     private var downY = 0f
@@ -93,8 +114,9 @@ class BoundaryDragFollower(
 
     private var pager: ViewPager? = null
 
-    /** Cumulative fake-drag offset, clamped to the revealing side only. */
-    private var dragTotal = 0f
+    /** The finger x the fake drag maps from, and the pager offset under it. */
+    private var fingerOrigin = 0f
+    private var startScrollX = 0
 
     /** -1 while revealing the layout-right neighbour, +1 the left one. */
     private var revealSign = 0
@@ -130,15 +152,19 @@ class BoundaryDragFollower(
                 if (index < 0) return true
                 val x = ev.getX(index)
                 if (beginPending) {
-                    // Mid-settle the pager refuses fake drags; keep asking —
-                    // the settle usually finishes under the same finger.
-                    if (pager?.beginFakeDrag() == true) {
-                        beginPending = false
-                    } else {
-                        lastX = x
-                        lastMoveUptime = ev.eventTime
+                    val pager = pager
+                    // ViewPager 1.1.0 refuses a fake drag only while a
+                    // real touch drag is in flight, which the EPUB
+                    // pager's rejected ACTION_DOWN makes impossible — but
+                    // a future toolkit must not leave the reader holding
+                    // a stolen, inert touch stream.
+                    if (pager == null || !pager.beginFakeDrag()) {
+                        rejected = true
+                        endDrag()
                         return true
                     }
+                    beginPending = false
+                    startScrollX = pager.scrollX
                 }
                 // Adaptive-refresh displays pick their rate partly from
                 // content velocity, and the hint resets every frame —
@@ -151,16 +177,22 @@ class BoundaryDragFollower(
                     }
                 }
                 lastMoveUptime = ev.eventTime
-                dragBy(x - lastX)
+                // Batched samples carry the between-frame finger history;
+                // replaying them hands the pager's velocity tracker the
+                // true release speed, not one point per frame.
+                for (h in 0 until ev.historySize) {
+                    dragTo(ev.getHistoricalX(index, h))
+                }
+                dragTo(x)
                 lastX = x
             }
             MotionEvent.ACTION_POINTER_UP -> {
                 if (ev.getPointerId(ev.actionIndex) == activePointerId) {
-                    finishGesture(cancelled = false)
+                    finishGesture(cancelled = false, ev)
                 }
             }
-            MotionEvent.ACTION_UP -> finishGesture(cancelled = false)
-            MotionEvent.ACTION_CANCEL -> finishGesture(cancelled = true)
+            MotionEvent.ACTION_UP -> finishGesture(cancelled = false, ev)
+            MotionEvent.ACTION_CANCEL -> finishGesture(cancelled = true, ev)
         }
         return true
     }
@@ -189,6 +221,16 @@ class BoundaryDragFollower(
         }
         if (abs(dx) <= touchSlop || abs(dx) < 2 * abs(dy)) return
 
+        // Crossing the horizontal slop only now, after a long-press has
+        // had time to fire, is the signature of a text-selection handle
+        // under the finger. Readium's selection state is not readable
+        // synchronously, so the timeout is the guard: stealing that drag
+        // would turn the chapter out from under a selection.
+        if (ev.eventTime - ev.downTime >= ViewConfiguration.getLongPressTimeout()) {
+            rejected = true
+            return
+        }
+
         val nav = navigator ?: run { rejected = true; return }
         // Scroll mode turns pages by overscroll; nothing to follow.
         if (nav.overflow.value.scroll) {
@@ -200,12 +242,25 @@ class BoundaryDragFollower(
         val foundPager = pagerIn(root)
         // Column offsets grow left-to-right regardless of the reading
         // progression, so both clamp tests are geometric: the WebView must
-        // have nothing left in the drag's direction, and the pager must
-        // have a neighbour there.
+        // have nothing meaningful left in the drag's direction, and the
+        // pager must have a neighbour there. "Nothing meaningful" carries
+        // a small tolerance — an interrupted column settle routinely
+        // leaves a few pixels of residue, and a strict test would stand
+        // the follower down exactly when the reader swipes again at a
+        // chapter's edge, handing the gesture to the rescue as a jump.
         val ahead = if (dx < 0) 1 else -1
-        val blocked = webView != null && !webView.canScrollHorizontally(ahead)
+        val blocked = webView != null && webView.clampedWithin(ahead, clampSlopPx)
         val pagerHasNeighbour = foundPager != null && foundPager.canScrollHorizontally(ahead)
-        if (!blocked || !pagerHasNeighbour) {
+        if (webView == null || !blocked || !pagerHasNeighbour) {
+            rejected = true
+            return
+        }
+
+        // The neighbour must exist and hold real content: sliding a blank
+        // white page in under the finger is worse than declining and
+        // letting the rescue turn programmatically a few frames later.
+        val neighbour = neighbourWebView(root, webView, towardRight = dx < 0)
+        if (neighbour == null || neighbour.progress < 100 || neighbour.contentHeight == 0) {
             rejected = true
             return
         }
@@ -214,27 +269,54 @@ class BoundaryDragFollower(
         dragging = true
         beginPending = true
         revealSign = if (dx < 0) -1 else 1
-        dragTotal = 0f
-        lastX = ev.getX(index)
-        prePositionNeighbour(nav, root, webView)
+        fingerOrigin = ev.getX(index)
+        lastX = fingerOrigin
+        prePositionNeighbour(nav, neighbour)
     }
 
     /**
-     * Feeds finger deltas to the pager, clamped to the revealing side: past
-     * the gesture's origin the pager would start exposing the *other*
-     * neighbour, which the WebView's own columns are responsible for.
+     * Whether the WebView cannot move more than [slop] px further toward
+     * [direction]. [View.canScrollHorizontally] is a strict boolean and
+     * the offsets under it are protected, so the remaining room is
+     * measured with a probe: nudge by [slop], read how far it actually
+     * went, and put it straight back. Both writes land inside one event
+     * dispatch — nothing is ever drawn displaced.
      */
-    private fun dragBy(delta: Float) {
+    private fun WebView.clampedWithin(direction: Int, slop: Int): Boolean {
+        if (!canScrollHorizontally(direction)) return true
+        val before = scrollX
+        scrollBy(direction * slop, 0)
+        val moved = scrollX - before
+        if (moved != 0) scrollBy(-moved, 0)
+        return abs(moved) < slop
+    }
+
+    /**
+     * Maps the finger to an *absolute* pager offset and corrects toward
+     * it, rather than accumulating deltas: `beginFakeDrag` does not abort
+     * a Scroller settle already in flight (and the EPUB pager rejects the
+     * ACTION_DOWN that would normally catch one), so during a swipe train
+     * the old settle keeps writing `scrollX` between events — absolute
+     * targeting re-corrects that drift on every sample instead of
+     * fighting it blind.
+     *
+     * The total is clamped to the revealing side: past the gesture's
+     * origin the pager would start exposing the *other* neighbour, which
+     * the WebView's own columns are responsible for. A finger that keeps
+     * going that way finds a dead zone — the intercept already cancelled
+     * the WebView's touch stream and Android cannot un-cancel it; the
+     * columns respond again from the next touch.
+     */
+    private fun dragTo(x: Float) {
         val pager = pager ?: return
         if (!pager.isFakeDragging) return
         val limit = width.toFloat()
-        val clampedTotal = (dragTotal + delta).coerceIn(
+        val total = (x - fingerOrigin).coerceIn(
             if (revealSign < 0) -limit else 0f,
             if (revealSign < 0) 0f else limit,
         )
-        val applied = clampedTotal - dragTotal
-        dragTotal = clampedTotal
-        if (applied != 0f) pager.fakeDragBy(applied)
+        val delta = pager.scrollX - (startScrollX - total)
+        if (delta != 0f) pager.fakeDragBy(delta)
     }
 
     /**
@@ -243,27 +325,40 @@ class BoundaryDragFollower(
      * declined paths would silently swallow the gesture instead of leaving
      * it to BoundaryFlingRescue.
      */
-    private fun finishGesture(cancelled: Boolean) {
+    private fun finishGesture(cancelled: Boolean, ev: MotionEvent?) {
         val pager = pager
         if (pager != null && pager.isFakeDragging) {
             // A cancel is not a release: unwind first so it cannot commit
             // a turn the reader never let go into (ViewPager's own touch
             // path snaps back on cancel the same way).
-            if (cancelled) dragBy(-dragTotal)
+            if (cancelled) dragTo(fingerOrigin)
+            // endFakeDrag reads its velocity tracker with the pager's
+            // INVALID_POINTER (-1) id — which happens to also be
+            // VelocityTracker's "active pointer" sentinel, so the fling
+            // velocity of the replayed finger samples IS honoured. A
+            // lucky collision of two unrelated -1 constants; do not
+            // "fix" either.
             pager.endFakeDrag()
             pumpSettleVelocity(pager)
             signal.lastHandledUptime = SystemClock.uptimeMillis()
         } else if (!cancelled && beginPending) {
-            // The pager refused the fake drag for the whole gesture (still
-            // settling the previous turn) but the touch stream was already
-            // stolen, so nothing else saw it: commit deliberate drags
-            // through the navigator, mirroring the rescue's ⅓-page rule.
+            // The touch stream was stolen but the fake drag never engaged
+            // — an UP hard on the heels of the intercept, so no MOVE ever
+            // arrived in between. Nothing else saw this gesture (the
+            // intercept's cancel killed Readium's JS drag stream too), so
+            // commit what the finger clearly asked for: a flick released
+            // at speed, or a drag past the shells' shared ⅓-page rule.
             val nav = navigator
-            if (nav != null && width > 0 && abs(lastX - downX) >= width / 3f) {
-                val rtl = nav.overflow.value.readingProgression == ReadingProgression.RTL
-                val forward = (revealSign < 0) != rtl
-                if (forward) nav.goForward(animated = true) else nav.goBackward(animated = true)
-                signal.lastHandledUptime = SystemClock.uptimeMillis()
+            val dx = lastX - downX
+            if (nav != null && width > 0 && ev != null && abs(dx) > touchSlop) {
+                val elapsed = (ev.eventTime - ev.downTime).coerceAtLeast(1)
+                val velocity = abs(dx) / elapsed * 1000f
+                if (abs(dx) >= width / 3f || velocity >= minFlingVelocityPx) {
+                    val rtl = nav.overflow.value.readingProgression == ReadingProgression.RTL
+                    val forward = (revealSign < 0) != rtl
+                    if (forward) nav.goForward(animated = true) else nav.goBackward(animated = true)
+                    signal.lastHandledUptime = SystemClock.uptimeMillis()
+                }
             }
         }
         endDrag()
@@ -323,15 +418,12 @@ class BoundaryDragFollower(
      * column-aligned and RTL-aware. Readium re-runs its own positioning on
      * commit, so this can never leave stale state behind.
      */
-    private fun prePositionNeighbour(
-        nav: EpubNavigatorFragment,
-        root: View,
-        current: WebView?,
-    ) {
-        current ?: return
+    private fun prePositionNeighbour(nav: EpubNavigatorFragment, neighbour: WebView) {
         val rtl = nav.overflow.value.readingProgression == ReadingProgression.RTL
         val forward = (revealSign < 0) != rtl
-        val neighbour = neighbourWebView(root, current, towardRight = revealSign < 0) ?: return
+        // Rasterize the incoming resource before it slides on screen —
+        // bounded to the one neighbour a drag can reveal.
+        neighbour.settings.offscreenPreRaster = true
         val js = if (forward) "readium.scrollToStart();" else "readium.scrollToEnd();"
         neighbour.evaluateJavascript(js, null)
     }
