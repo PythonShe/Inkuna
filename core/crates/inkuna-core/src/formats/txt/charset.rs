@@ -34,8 +34,13 @@ pub(super) fn decode_text(bytes: &[u8]) -> DecodedText {
     }
 }
 
-fn bomless_utf16(bytes: &[u8]) -> Option<&'static Encoding> {
-    let sample = &bytes[..bytes.len().min(UTF16_SAMPLE_BYTES)];
+/// Recognizes BOM-less UTF-16 from NUL density: over a clamped 4 KiB
+/// sample, NULs must exceed 30% and skew clearly to even (BE) or odd (LE)
+/// offsets. `None` means "not UTF-16", including for a NUL-free sample —
+/// shared by [`decode_text`] and `Format` detection so the two always
+/// agree.
+pub(crate) fn bomless_utf16(sample: &[u8]) -> Option<&'static Encoding> {
+    let sample = &sample[..sample.len().min(UTF16_SAMPLE_BYTES)];
     if sample.is_empty() {
         return None;
     }

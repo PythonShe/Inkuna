@@ -193,21 +193,10 @@ fn is_plain_text(path: &Path, sample: &[u8]) -> bool {
     if nulls == 0 {
         return true;
     }
-    if nulls * 10 <= sample.len() * 3 {
-        return false;
-    }
-    let (even, odd) = sample
-        .iter()
-        .enumerate()
-        .filter(|(_, byte)| **byte == 0)
-        .fold((0usize, 0usize), |(even, odd), (index, _)| {
-            if index % 2 == 0 {
-                (even + 1, odd)
-            } else {
-                (even, odd + 1)
-            }
-        });
-    even != odd
+    // NUL-bearing content is admitted only when the converter's shared
+    // heuristic would decode it as BOM-less UTF-16, so detection and
+    // decoding always agree.
+    super::txt::bomless_utf16(sample).is_some()
 }
 
 #[cfg(test)]
