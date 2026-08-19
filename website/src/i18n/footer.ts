@@ -1,6 +1,7 @@
 import type { Dictionary } from "./utils";
 
 const en = {
+  changelog: "Changelog",
   source: "Source",
   license: "License",
   support: "Support",
@@ -9,6 +10,7 @@ const en = {
 };
 
 const ja: typeof en = {
+  changelog: "更新履歴",
   source: "ソースコード",
   license: "ライセンス",
   support: "サポート",
@@ -17,6 +19,7 @@ const ja: typeof en = {
 };
 
 const zh: typeof en = {
+  changelog: "更新日志",
   source: "源代码",
   license: "许可证",
   support: "支持",

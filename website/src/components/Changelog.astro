@@ -1,0 +1,162 @@
+---
+// The changelog page, shared by every locale: the release history baked in
+// at build time from the GitHub releases the release workflows publish,
+// each entry in the page's own language (English until a release carries
+// that translation).
+import { getRelativeLocaleUrl } from "astro:i18n";
+import Base from "../layouts/Base.astro";
+import Footer from "./Footer.astro";
+import { type Lang } from "../i18n/locales";
+import { changelog } from "../i18n/changelog";
+import { useTranslations } from "../i18n/utils";
+import { changelogEntries, noteFor, renderNotes } from "../lib/changelog";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(changelog, lang);
+
+const entries = await changelogEntries();
+const dateFormat = new Intl.DateTimeFormat(t("dateLocale"), {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+---
+
+<Base
+  title={t("meta.title")}
+  description={t("meta.description")}
+  lang={lang}
+  og={{ title: t("meta.title"), description: t("meta.description") }}
+  localizedPath="/changelog"
+>
+  <main>
+    <a class="brand" href={getRelativeLocaleUrl(lang, "/")}>Inkuna</a>
+    <h1>{t("h1")}</h1>
+    <p class="intro">{t("intro")}</p>
+
+    {
+      entries.length === 0 && (
+        <p class="empty">
+          {t("empty.pre")}
+          <a href="https://github.com/PythonShe/Inkuna/releases">
+            {t("empty.link")}
+          </a>
+          {t("empty.post")}
+        </p>
+      )
+    }
+
+    {
+      entries.map((entry) => (
+        <article class="release">
+          <header>
+            <h2>
+              {entry.version}
+              <span class="build">({entry.build})</span>
+            </h2>
+            {entry.publishedAt && (
+              <time datetime={entry.publishedAt.slice(0, 10)}>
+                {dateFormat.format(new Date(entry.publishedAt))}
+              </time>
+            )}
+          </header>
+          <div class="notes" set:html={renderNotes(noteFor(entry, lang))} />
+        </article>
+      ))
+    }
+  </main>
+  <Footer lang={lang} path="/changelog" />
+</Base>
+
+<style>
+  main {
+    flex: 1;
+    width: 100%;
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 3rem;
+  }
+  .brand {
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .brand:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 6vw, 2.6rem);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    margin: 0.75rem 0 0.5rem;
+  }
+  .intro {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+    margin-bottom: 3rem;
+  }
+  .empty {
+    color: var(--ink-soft);
+  }
+  .release {
+    padding: 1.75rem 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .release header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+  }
+  .release h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+  .build {
+    color: var(--ink-soft);
+    font-weight: 400;
+    font-size: 0.9rem;
+  }
+  time {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+  .notes :global(h3) {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 1.1rem 0 0.35rem;
+  }
+  /* CJK has no uppercase; the tracking alone keeps the eyebrow feel. */
+  .notes :global(h3:lang(ja)),
+  .notes :global(h3:lang(zh)) {
+    text-transform: none;
+  }
+  .notes :global(p) {
+    margin: 0.35rem 0;
+  }
+  .notes :global(ul) {
+    margin: 0.35rem 0;
+    padding-inline-start: 1.2rem;
+  }
+  .notes :global(li) {
+    margin: 0.25rem 0;
+    color: var(--ink-soft);
+  }
+  @media (min-width: 46rem) {
+    main {
+      padding-top: 5rem;
+    }
+  }
+</style>

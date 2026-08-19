@@ -18,6 +18,7 @@ const t = useTranslations(footer, lang);
 
 <footer>
   <span>© 2026 Inkuna</span>
+  <a href={getRelativeLocaleUrl(lang, "/changelog")}>{t("changelog")}</a>
   <a href={getRelativeLocaleUrl(lang, "/support")}>{t("support")}</a>
   <a href={getRelativeLocaleUrl(lang, "/privacy")}>{t("privacy")}</a>
   <a href="https://github.com/PythonShe/Inkuna">{t("source")}</a>
