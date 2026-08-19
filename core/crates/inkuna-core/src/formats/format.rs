@@ -39,7 +39,9 @@ const MAX_MIMETYPE_BYTES: u64 = 256;
 impl Format {
     /// Detects the format of the file at `path` from its content, never
     /// its extension — the one exception being TXT, which has no magic
-    /// bytes and needs `.txt` plus a NUL-free sample. A ZIP is an EPUB only
+    /// bytes and needs `.txt` plus a sample that is either NUL-free or
+    /// recognized as BOM-carrying / BOM-less UTF-16 (the same heuristic the
+    /// TXT converter decodes with). A ZIP is an EPUB only
     /// if its `mimetype` entry says so (read under a 256-byte cap, so a
     /// crafted entry cannot inflate here) and any other ZIP is taken for a
     /// CBZ. Returns `UnsupportedFormat(None)` when nothing matches, and
@@ -55,8 +57,18 @@ impl Format {
     pub fn detect_as(content: &Path, named: &Path) -> Result<Format, CoreError> {
         let path = content;
         let mut file = File::open(path)?;
-        let mut head = [0u8; 68];
-        let n = file.read(&mut head)?;
+        let mut head = [0u8; 4 * 1024];
+        // `read` may return short: fill the sample until EOF or the buffer
+        // is full, so the magic checks below never see a truncated head.
+        let mut n = 0;
+        while n < head.len() {
+            match file.read(&mut head[n..]) {
+                Ok(0) => break,
+                Ok(read) => n += read,
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(error) => return Err(error.into()),
+            }
+        }
 
         if n >= RAR_MAGIC.len() && head.starts_with(RAR_MAGIC) {
             return Ok(Format::Cbr);
@@ -75,11 +87,8 @@ impl Format {
                 let mut mime = String::new();
                 // One byte past the budget, so an entry that fills the cap
                 // exactly is distinguishable from one that overflows it.
-                let _ = entry
-                    .take(MAX_MIMETYPE_BYTES + 1)
-                    .read_to_string(&mut mime);
-                if mime.len() as u64 <= MAX_MIMETYPE_BYTES
-                    && mime.trim() == "application/epub+zip"
+                let _ = entry.take(MAX_MIMETYPE_BYTES + 1).read_to_string(&mut mime);
+                if mime.len() as u64 <= MAX_MIMETYPE_BYTES && mime.trim() == "application/epub+zip"
                 {
                     return Ok(Format::Epub);
                 }
@@ -169,14 +178,27 @@ fn detect_mobi_generation(file: &mut File) -> Format {
     }
 }
 
-/// TXT has no magic bytes: require the `.txt` extension AND a sample free
-/// of NUL bytes, so binaries renamed to .txt are rejected while non-UTF-8
-/// CJK encodings (GB18030, Big5, Shift-JIS) still pass.
+/// TXT has no magic bytes: require the `.txt` extension and reject NUL-heavy
+/// binary data, while admitting UTF-16 BOMs and the same NUL-density
+/// BOM-less UTF-16 sample recognized by the converter.
 fn is_plain_text(path: &Path, sample: &[u8]) -> bool {
     let is_txt_ext = path
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("txt"));
-    is_txt_ext && !sample.contains(&0)
+    if !is_txt_ext {
+        return false;
+    }
+    if sample.starts_with(&[0xff, 0xfe]) || sample.starts_with(&[0xfe, 0xff]) {
+        return true;
+    }
+    let nulls = sample.iter().filter(|byte| **byte == 0).count();
+    if nulls == 0 {
+        return true;
+    }
+    // NUL-bearing content is admitted only when the converter's shared
+    // heuristic would decode it as BOM-less UTF-16, so detection and
+    // decoding always agree.
+    super::txt::bomless_utf16(sample).is_some()
 }
 
 #[cfg(test)]

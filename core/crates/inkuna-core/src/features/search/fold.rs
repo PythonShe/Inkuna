@@ -74,7 +74,9 @@ pub(super) fn fold_text(text: &str) -> FoldedText {
 impl FoldedText {
     /// Original char index of the folded char at `folded_byte`.
     fn orig_char_at(&self, folded_byte: usize) -> u32 {
-        let i = self.map.partition_point(|&(b, _)| (b as usize) < folded_byte);
+        let i = self
+            .map
+            .partition_point(|&(b, _)| (b as usize) < folded_byte);
         self.map
             .get(i)
             .map(|&(_, orig)| orig)

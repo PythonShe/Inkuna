@@ -50,6 +50,35 @@ fn detects_formats_by_content() {
     ));
 }
 
+#[test]
+fn detects_utf16_txt_but_still_rejects_nul_binary_data() {
+    let dir = tempfile::tempdir().unwrap();
+    let bom = dir.path().join("bom.txt");
+    let mut bytes = vec![0xff, 0xfe];
+    bytes.extend(
+        "第一章 Chapter 1\n山中 Body"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes),
+    );
+    std::fs::write(&bom, bytes).unwrap();
+    assert_eq!(Format::detect(&bom).unwrap(), Format::Txt);
+
+    let bomless = dir.path().join("bomless.txt");
+    let bytes: Vec<u8> = "Chapter 1\nBody"
+        .encode_utf16()
+        .flat_map(u16::to_be_bytes)
+        .collect();
+    std::fs::write(&bomless, bytes).unwrap();
+    assert_eq!(Format::detect(&bomless).unwrap(), Format::Txt);
+
+    let binary = dir.path().join("nul-heavy.txt");
+    std::fs::write(&binary, [0, 1, 0, 2, 3, 0, 4, 0]).unwrap();
+    assert!(matches!(
+        Format::detect(&binary),
+        Err(CoreError::UnsupportedFormat(None))
+    ));
+}
+
 /// A `mimetype` entry that trims to the EPUB literal but inflates far past
 /// the detection budget must not be read whole, and must not pass as an
 /// EPUB — detection falls through exactly as a wrong mimetype string does.
@@ -76,4 +105,3 @@ fn oversized_mimetype_entry_is_not_an_epub() {
 
     assert_eq!(Format::detect(&path).unwrap(), Format::Cbz);
 }
-

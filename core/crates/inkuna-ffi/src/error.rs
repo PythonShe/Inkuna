@@ -39,16 +39,28 @@ impl From<inkuna_core::CoreError> for InkunaError {
     fn from(e: inkuna_core::CoreError) -> Self {
         use inkuna_core::CoreError as C;
         match e {
-            C::Io(e) => InkunaError::Io { detail: e.to_string() },
+            C::Io(e) => InkunaError::Io {
+                detail: e.to_string(),
+            },
             C::FileTooLarge(limit) => InkunaError::FileTooLarge { limit },
-            C::Database(e) => InkunaError::Database { detail: e.to_string() },
+            C::Database(e) => InkunaError::Database {
+                detail: e.to_string(),
+            },
             C::Archive(m) => InkunaError::Archive { detail: m },
             C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat { format: f },
             C::InvalidPublication(m) => InkunaError::InvalidPublication { detail: m },
-            C::InvalidPositionRanges { expected, actual, has_zero } => {
-                InkunaError::InvalidPositionRanges { expected, actual, has_zero }
-            }
-            C::Search(e) => InkunaError::Search { detail: e.to_string() },
+            C::InvalidPositionRanges {
+                expected,
+                actual,
+                has_zero,
+            } => InkunaError::InvalidPositionRanges {
+                expected,
+                actual,
+                has_zero,
+            },
+            C::Search(e) => InkunaError::Search {
+                detail: e.to_string(),
+            },
             C::NotFound(id) => InkunaError::NotFound { id },
         }
     }

@@ -9,13 +9,20 @@ use crate::library::{publication_record, Publication};
 
 #[derive(Debug, uniffi::Enum)]
 pub enum ImportOutcome {
-    Imported { publication: Publication },
+    Imported {
+        publication: Publication,
+    },
     /// The library already holds this content; nothing was added.
-    Duplicate { publication: Publication },
+    Duplicate {
+        publication: Publication,
+    },
     /// Batch-only: one bad file never aborts the rest of a selection.
     /// Carries the same typed error the single-file path throws, so the
     /// two paths classify failures identically.
-    Failed { path: String, error: InkunaError },
+    Failed {
+        path: String,
+        error: InkunaError,
+    },
 }
 
 /// One open file descriptor to import. Android's SAF hands out streams,
@@ -129,14 +136,16 @@ impl Bookshelf {
         let library = self.0.clone();
         blocking(move || {
             let mut file = file_from(item.fd);
-            Ok(match library.import_reader(&mut file, &item.display_name)? {
-                inkuna_core::ImportOutcome::Imported(p) => ImportOutcome::Imported {
-                    publication: publication_record(&library, p),
+            Ok(
+                match library.import_reader(&mut file, &item.display_name)? {
+                    inkuna_core::ImportOutcome::Imported(p) => ImportOutcome::Imported {
+                        publication: publication_record(&library, p),
+                    },
+                    inkuna_core::ImportOutcome::Duplicate(p) => ImportOutcome::Duplicate {
+                        publication: publication_record(&library, p),
+                    },
                 },
-                inkuna_core::ImportOutcome::Duplicate(p) => ImportOutcome::Duplicate {
-                    publication: publication_record(&library, p),
-                },
-            })
+            )
         })
         .await
     }

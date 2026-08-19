@@ -62,10 +62,9 @@ fn schema() -> (Schema, Fields) {
 }
 
 fn register_tokenizers(index: &Index) {
-    index.tokenizers().register(
-        "ink_word",
-        TextAnalyzer::builder(WordTokenizer).build(),
-    );
+    index
+        .tokenizers()
+        .register("ink_word", TextAnalyzer::builder(WordTokenizer).build());
     index.tokenizers().register(
         "ink_uni",
         TextAnalyzer::builder(CjkUnigramTokenizer).build(),
@@ -120,9 +119,7 @@ impl SearchIndex {
     /// freshness deterministic: a search issued after an import commit
     /// always sees that import, and nothing pays for a watcher thread.
     pub(super) fn searcher(&self) -> Result<Searcher, CoreError> {
-        self.reader
-            .reload()
-            .map_err(|e| CoreError::Search(e))?;
+        self.reader.reload().map_err(|e| CoreError::Search(e))?;
         Ok(self.reader.searcher())
     }
 
@@ -202,9 +199,7 @@ fn add_publication<'a>(
     Ok(())
 }
 
-fn commit(
-    mut writer: std::sync::MutexGuard<'_, IndexWriter>,
-) -> Result<(), CoreError> {
+fn commit(mut writer: std::sync::MutexGuard<'_, IndexWriter>) -> Result<(), CoreError> {
     match writer.commit() {
         Ok(_) => Ok(()),
         Err(e) => {
@@ -247,10 +242,7 @@ fn reconcile(
         while terms.advance() {
             let term = tantivy::Term::from_field_bytes(fields.publication_id, terms.key());
             let live_docs = searcher
-                .search(
-                    &TermQuery::new(term, IndexRecordOption::Basic),
-                    &Count,
-                )
+                .search(&TermQuery::new(term, IndexRecordOption::Basic), &Count)
                 .map_err(CoreError::Search)?;
             if live_docs > 0 {
                 indexed.insert(String::from_utf8_lossy(terms.key()).into_owned());
@@ -305,9 +297,7 @@ pub(super) fn doc_fields(
     address: tantivy::DocAddress,
 ) -> Result<(String, u32), CoreError> {
     use tantivy::schema::Value;
-    let doc: TantivyDocument = searcher
-        .doc(address)
-        .map_err(|e| CoreError::Search(e))?;
+    let doc: TantivyDocument = searcher.doc(address).map_err(|e| CoreError::Search(e))?;
     let publication_id = doc
         .get_first(fields.publication_id)
         .and_then(|v| v.as_str())

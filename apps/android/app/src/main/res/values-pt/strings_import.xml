@@ -3,8 +3,8 @@
     <!-- Pontos de entrada -->
     <string name="import_add_books">Adicionar livros</string>
     <string name="import_empty_title">Nada na estante ainda</string>
-    <string name="import_empty_body">Adicione um EPUB dos seus arquivos e ele estará esperando aqui.</string>
-    <string name="import_empty_footnote">EPUB hoje. Quadrinhos e mais por vir.</string>
+    <string name="import_empty_body">Adicione um livro dos seus arquivos e ele estará esperando aqui.</string>
+    <string name="import_empty_footnote">EPUB, MOBI, AZW3 e TXT hoje. Quadrinhos e mais por vir.</string>
     <string name="import_empty_action">Adicionar seu primeiro livro</string>
     <string name="a11y_import_add_books">Adicionar livros à sua biblioteca</string>
     <!-- Progresso -->
@@ -30,9 +30,9 @@
     <string name="import_unknown_author">Autor desconhecido</string>
     <string name="import_unnamed_file">Este arquivo</string>
     <!-- Motivos de erro -->
-    <string name="import_fail_unsupported">Arquivos %1$s ainda não são suportados</string>
+    <string name="import_fail_unsupported">Arquivos %1$s ainda não são suportados — a Inkuna lê EPUB, MOBI, AZW3 e TXT atualmente.</string>
     <string name="import_fail_unknown_format">A Inkuna não conseguiu identificar este arquivo</string>
-    <string name="import_fail_broken">Este EPUB está faltando algo de que precisa</string>
+    <string name="import_fail_broken">Não é possível abrir este livro. Ele pode estar incompleto ou protegido por DRM, que a Inkuna não suporta.</string>
     <string name="import_fail_archive">Este arquivo está danificado</string>
     <string name="import_fail_too_large">Este arquivo é grande demais para adicionar</string>
     <string name="import_fail_unreadable">Não foi possível ler este arquivo.</string>

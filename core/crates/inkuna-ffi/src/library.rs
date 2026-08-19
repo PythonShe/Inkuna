@@ -51,6 +51,8 @@ pub struct Publication {
     pub title: String,
     pub authors: Vec<String>,
     pub language: Option<String>,
+    /// Source charset for normalized plain-text imports; native EPUBs use `None`.
+    pub text_encoding: Option<String>,
     pub format: Format,
     pub file_path: String,
     pub cover_path: Option<String>,
@@ -125,6 +127,7 @@ pub(crate) fn publication_record(
         title: p.title,
         authors: p.authors,
         language: p.language,
+        text_encoding: p.text_encoding,
         format: p.format.into(),
         added_at: p.added_at,
         progression: p.progression,
@@ -197,7 +200,14 @@ impl Bookshelf {
     /// Bookmarks sorted by progression through the book.
     pub async fn bookmarks(&self, id: String) -> Result<Vec<Bookmark>, InkunaError> {
         let library = self.0.clone();
-        blocking(move || Ok(library.bookmarks(&id)?.into_iter().map(Into::into).collect())).await
+        blocking(move || {
+            Ok(library
+                .bookmarks(&id)?
+                .into_iter()
+                .map(Into::into)
+                .collect())
+        })
+        .await
     }
 
     pub async fn remove_bookmark(&self, bookmark_id: String) -> Result<(), InkunaError> {

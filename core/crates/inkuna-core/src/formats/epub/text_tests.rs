@@ -67,7 +67,8 @@ fn budget_truncation_is_a_deterministic_prefix() {
     let stored =
         zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     for i in 0..RESOURCES {
-        zip.start_file(format!("OEBPS/ch{i:02}.xhtml"), stored).unwrap();
+        zip.start_file(format!("OEBPS/ch{i:02}.xhtml"), stored)
+            .unwrap();
         zip.write_all(format!("<html><body><p>{}</p></body></html>", body(i)).as_bytes())
             .unwrap();
     }
@@ -78,16 +79,21 @@ fn budget_truncation_is_a_deterministic_prefix() {
     let each = body(0).len();
     let fits = 5;
     let budget = each * fits;
-    let spine: Vec<String> = (0..RESOURCES).map(|i| format!("OEBPS/ch{i:02}.xhtml")).collect();
-    let expected: Vec<Option<String>> =
-        (0..RESOURCES).map(|i| (i < fits).then(|| body(i))).collect();
+    let spine: Vec<String> = (0..RESOURCES)
+        .map(|i| format!("OEBPS/ch{i:02}.xhtml"))
+        .collect();
+    let expected: Vec<Option<String>> = (0..RESOURCES)
+        .map(|i| (i < fits).then(|| body(i)))
+        .collect();
 
     // Repeated so a scheduling-dependent answer cannot slip through by
     // getting lucky once.
     for _ in 0..32 {
         let texts = extract_spine_text_budgeted(&path, &spine, budget);
-        let texts: Vec<Option<String>> =
-            texts.iter().map(|t| t.as_deref().map(str::to_owned)).collect();
+        let texts: Vec<Option<String>> = texts
+            .iter()
+            .map(|t| t.as_deref().map(str::to_owned))
+            .collect();
         assert_eq!(texts, expected);
     }
 }
@@ -115,7 +121,10 @@ fn repeated_spine_entries_charge_the_budget_per_retained_copy() {
     let budget = 80; // fits two 30-byte CJK copies, not five
     let texts = extract_spine_text_budgeted(&path, &spine, budget);
 
-    let len = texts[0].as_deref().expect("first copy fits the budget").len();
+    let len = texts[0]
+        .as_deref()
+        .expect("first copy fits the budget")
+        .len();
     assert_eq!(len, "満月の夜、風が語る。".len());
     assert_eq!(
         texts.iter().filter(|t| t.is_some()).count(),
@@ -192,14 +201,20 @@ fn repeated_spine_entries_are_extracted_once() {
     // ch02 — reading order survives.
     assert_eq!(
         package.spine,
-        vec!["OEBPS/text/ch02.xhtml".to_string(), "OEBPS/text/ch01.xhtml".to_string()]
+        vec![
+            "OEBPS/text/ch02.xhtml".to_string(),
+            "OEBPS/text/ch01.xhtml".to_string()
+        ]
     );
 
     // Defense in depth below the package: hand the extractor a spine that
     // still repeats (as a crafted caller could) and every repeat must
     // alias one extraction.
     let spine: Vec<String> = std::iter::once("OEBPS/text/ch02.xhtml".to_string())
-        .chain(std::iter::repeat_n("OEBPS/text/ch01.xhtml".to_string(), MAX_SPINE_ITEMS - 1))
+        .chain(std::iter::repeat_n(
+            "OEBPS/text/ch01.xhtml".to_string(),
+            MAX_SPINE_ITEMS - 1,
+        ))
         .collect();
     let texts = extract_spine_text(&path, &spine);
     assert_eq!(texts.len(), MAX_SPINE_ITEMS);

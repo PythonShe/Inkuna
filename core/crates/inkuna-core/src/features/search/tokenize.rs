@@ -141,12 +141,21 @@ impl Tokenizer for WordTokenizer {
                     }
                 }
                 RunKind::Word => {
-                    push(&mut tokens, &mut position, offset, run.len(), fold_query(run));
+                    push(
+                        &mut tokens,
+                        &mut position,
+                        offset,
+                        run.len(),
+                        fold_query(run),
+                    );
                 }
                 RunKind::Other => {}
             }
         }
-        VecTokenStream { tokens, cursor: None }
+        VecTokenStream {
+            tokens,
+            cursor: None,
+        }
     }
 }
 
@@ -183,7 +192,10 @@ impl Tokenizer for CjkUnigramTokenizer {
                 _ => position += 1,
             }
         }
-        VecTokenStream { tokens, cursor: None }
+        VecTokenStream {
+            tokens,
+            cursor: None,
+        }
     }
 }
 

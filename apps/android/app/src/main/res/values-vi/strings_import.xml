@@ -3,8 +3,8 @@
     <!-- Điểm nhập -->
     <string name="import_add_books">Thêm sách</string>
     <string name="import_empty_title">Chưa có cuốn sách nào trên giá</string>
-    <string name="import_empty_body">Thêm tệp EPUB từ Tệp của bạn và sách sẽ chờ bạn ở đây.</string>
-    <string name="import_empty_footnote">Hiện hỗ trợ định dạng EPUB. Truyện tranh và các định dạng khác sẽ sớm ra mắt.</string>
+    <string name="import_empty_body">Thêm sách từ Tệp của bạn và sách sẽ chờ bạn ở đây.</string>
+    <string name="import_empty_footnote">Hiện hỗ trợ định dạng EPUB, MOBI, AZW3 và TXT. Truyện tranh và các định dạng khác sẽ sớm ra mắt.</string>
     <string name="import_empty_action">Thêm cuốn sách đầu tiên của bạn</string>
     <string name="a11y_import_add_books">Thêm sách vào thư viện</string>
 
@@ -32,9 +32,9 @@
     <string name="import_unnamed_file">Tệp này</string>
 
     <!-- Lý do thất bại -->
-    <string name="import_fail_unsupported">Tệp định dạng %1$s chưa được hỗ trợ</string>
+    <string name="import_fail_unsupported">Tệp định dạng %1$s chưa được hỗ trợ — Inkuna hiện hỗ trợ định dạng EPUB, MOBI, AZW3 và TXT.</string>
     <string name="import_fail_unknown_format">Inkuna không nhận dạng được định dạng tệp này</string>
-    <string name="import_fail_broken">Tệp EPUB này thiếu dữ liệu cần thiết để đọc</string>
+    <string name="import_fail_broken">Không thể mở sách này. Tệp có thể không đầy đủ hoặc được bảo vệ bằng DRM mà Inkuna không hỗ trợ.</string>
     <string name="import_fail_archive">Tệp bị hỏng và không thể mở được</string>
     <string name="import_fail_too_large">Tệp này quá lớn để thêm vào</string>
     <string name="import_fail_unreadable">Không thể đọc tệp này</string>

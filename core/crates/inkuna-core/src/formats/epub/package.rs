@@ -10,10 +10,9 @@ use super::cover::image_extension;
 use super::href::{parent_dir, resolve_href};
 use super::model::{Cover, EpubPackage};
 use super::opf::{
-    parse_opf, ManifestItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_METADATA_VALUE_BYTES,
-    MAX_SPINE_ITEMS,
+    parse_opf, ManifestItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_METADATA_VALUE_BYTES, MAX_SPINE_ITEMS,
 };
-use super::toc::{parse_ncx, parse_nav};
+use super::toc::{parse_nav, parse_ncx};
 use crate::CoreError;
 
 /// Parses everything import needs in one pass over the archive: metadata,
@@ -134,15 +133,11 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
         }
     }
     if toc.is_empty() {
-        let ncx_item = opf
-            .spine_toc
-            .as_deref()
-            .and_then(item_by_id)
-            .or_else(|| {
-                opf.items
-                    .iter()
-                    .find(|i| i.media_type == "application/x-dtbncx+xml")
-            });
+        let ncx_item = opf.spine_toc.as_deref().and_then(item_by_id).or_else(|| {
+            opf.items
+                .iter()
+                .find(|i| i.media_type == "application/x-dtbncx+xml")
+        });
         if let Some(item) = ncx_item {
             let ncx_path = resolve(&item.href);
             if let Ok(xml) = read_entry(&mut archive, &ncx_path) {

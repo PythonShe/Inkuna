@@ -3,8 +3,8 @@
     <!-- ทางเข้า -->
     <string name="import_add_books">เพิ่มหนังสือ</string>
     <string name="import_empty_title">ยังไม่มีหนังสือบนชั้น</string>
-    <string name="import_empty_body">เพิ่มไฟล์ EPUB จากไฟล์ของคุณ แล้วหนังสือจะมารออยู่ที่นี่</string>
-    <string name="import_empty_footnote">ปัจจุบันรองรับไฟล์ EPUB ส่วนการ์ตูนและรูปแบบอื่นจะตามมาเร็วๆ นี้</string>
+    <string name="import_empty_body">เพิ่มหนังสือจากไฟล์ของคุณ แล้วหนังสือจะมารออยู่ที่นี่</string>
+    <string name="import_empty_footnote">ปัจจุบันรองรับไฟล์ EPUB, MOBI, AZW3 และ TXT ส่วนการ์ตูนและรูปแบบอื่นจะตามมาเร็วๆ นี้</string>
     <string name="import_empty_action">เพิ่มหนังสือเล่มแรกของคุณ</string>
     <string name="a11y_import_add_books">เพิ่มหนังสือลงในชั้น</string>
 
@@ -32,9 +32,9 @@
     <string name="import_unnamed_file">ไฟล์นี้</string>
 
     <!-- เหตุผลที่ไม่สำเร็จ -->
-    <string name="import_fail_unsupported">ยังไม่รองรับไฟล์รูปแบบ %1$s</string>
+    <string name="import_fail_unsupported">ยังไม่รองรับไฟล์รูปแบบ %1$s — ปัจจุบัน Inkuna รองรับเฉพาะ EPUB, MOBI, AZW3 และ TXT</string>
     <string name="import_fail_unknown_format">Inkuna ไม่รู้จักรูปแบบไฟล์นี้</string>
-    <string name="import_fail_broken">ไฟล์ EPUB นี้ขาดข้อมูลที่จำเป็นสำหรับการอ่าน</string>
+    <string name="import_fail_broken">ไม่สามารถเปิดหนังสือเล่มนี้ได้ ไฟล์อาจไม่สมบูรณ์ หรือได้รับการป้องกันด้วย DRM ซึ่ง Inkuna ไม่รองรับ</string>
     <string name="import_fail_archive">ไฟล์เสียหายและไม่สามารถเปิดได้</string>
     <string name="import_fail_too_large">ไฟล์นี้มีขนาดใหญ่เกินไป</string>
     <string name="import_fail_unreadable">ไม่สามารถอ่านไฟล์นี้ได้</string>

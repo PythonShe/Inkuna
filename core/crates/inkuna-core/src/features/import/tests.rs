@@ -1,12 +1,16 @@
 use crate::test_support::{
-    imported, write_cbz, write_epub, write_epub_parts, write_epub_with, CoverKind, TocKind,
+    imported, write_cbz, write_epub, write_epub_parts, write_epub_with, CoverKind, Kf8FileFixture,
+    MobiTestBuilder, TocKind,
 };
 use crate::{CoreError, ImportOutcome, Library, Shelf, Sort};
 
 fn count(library: &Library, sql: &str, id: &str) -> i64 {
     library
         .readers
-        .with(|conn| conn.query_row(sql, [id], |row| row.get(0)).map_err(Into::into))
+        .with(|conn| {
+            conn.query_row(sql, [id], |row| row.get(0))
+                .map_err(Into::into)
+        })
         .unwrap()
 }
 
@@ -15,13 +19,14 @@ fn table_counts(library: &Library) -> [i64; 4] {
         library
             .readers
             .with(|conn| {
-                conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0))
-                    .map_err(Into::into)
+                conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .map_err(Into::into)
             })
             .unwrap()
     })
 }
-
 
 #[test]
 fn import_extracts_spine_toc_cover_and_corpus() {
@@ -53,11 +58,18 @@ fn import_extracts_spine_toc_cover_and_corpus() {
             ("第二章", "OEBPS/text/ch02.xhtml", 0),
         ]
     );
-    assert_eq!(chapters.iter().map(|c| c.idx).collect::<Vec<_>>(), vec![0, 1, 2]);
+    assert_eq!(
+        chapters.iter().map(|c| c.idx).collect::<Vec<_>>(),
+        vec![0, 1, 2]
+    );
 
     // The spine landed in reading order with one text row per resource.
     assert_eq!(
-        count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+        count(
+            &library,
+            "SELECT COUNT(*) FROM resources WHERE publication_id = ?1",
+            &publication.id
+        ),
         2
     );
     let first_body: String = library
@@ -78,11 +90,19 @@ fn import_extracts_spine_toc_cover_and_corpus() {
     // remove() cascades the children.
     library.remove(&publication.id).unwrap();
     assert_eq!(
-        count(&library, "SELECT COUNT(*) FROM chapters WHERE publication_id = ?1", &publication.id),
+        count(
+            &library,
+            "SELECT COUNT(*) FROM chapters WHERE publication_id = ?1",
+            &publication.id
+        ),
         0
     );
     assert_eq!(
-        count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+        count(
+            &library,
+            "SELECT COUNT(*) FROM resources WHERE publication_id = ?1",
+            &publication.id
+        ),
         0
     );
 }
@@ -91,7 +111,14 @@ fn import_extracts_spine_toc_cover_and_corpus() {
 fn no_toc_epub_still_builds_a_complete_corpus() {
     let dir = tempfile::tempdir().unwrap();
     let epub = dir.path().join("book.epub");
-    write_epub_with(&epub, "無目次", "作者", "ja", TocKind::None, CoverKind::None);
+    write_epub_with(
+        &epub,
+        "無目次",
+        "作者",
+        "ja",
+        TocKind::None,
+        CoverKind::None,
+    );
 
     let library = Library::open(dir.path().join("library")).unwrap();
     let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
@@ -135,14 +162,24 @@ fn malformed_cover_href_still_imports_without_a_cover() {
     assert_eq!(publication.title, "壊れた表紙");
     assert_eq!(library.chapters(&publication.id).unwrap().len(), 3);
     // And nothing was left behind under covers/.
-    assert_eq!(std::fs::read_dir(data_dir.join("covers")).unwrap().count(), 0);
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("covers")).unwrap().count(),
+        0
+    );
 }
 
 #[test]
 fn ncx_fallback_supplies_the_toc() {
     let dir = tempfile::tempdir().unwrap();
     let epub = dir.path().join("book.epub");
-    write_epub_with(&epub, "旧式目次", "作者", "ja", TocKind::Ncx, CoverKind::None);
+    write_epub_with(
+        &epub,
+        "旧式目次",
+        "作者",
+        "ja",
+        TocKind::Ncx,
+        CoverKind::None,
+    );
 
     let library = Library::open(dir.path().join("library")).unwrap();
     let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
@@ -191,7 +228,10 @@ fn crafted_toc_is_capped_at_max_entries_and_still_imports() {
 
     let library = Library::open(dir.path().join("library")).unwrap();
     let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
-    assert_eq!(library.chapters(&publication.id).unwrap().len(), MAX_TOC_ENTRIES);
+    assert_eq!(
+        library.chapters(&publication.id).unwrap().len(),
+        MAX_TOC_ENTRIES
+    );
 }
 
 /// The round-5 amplifier, pinned at the database: one navPoint whose
@@ -258,8 +298,7 @@ fn crafted_ncx_toc_is_bounded_by_the_byte_budget() {
 </package>"#;
     let label = "書".repeat(32 * 1024 / 3); // ~32 KiB of CJK per label
     let n = 300; // ~9.6 MiB retained if uncapped — past the 8 MiB budget
-    let mut ncx =
-        String::from(r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>"#);
+    let mut ncx = String::from(r#"<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>"#);
     for i in 0..n {
         ncx.push_str(&format!(
             r##"<navPoint><navLabel><text>{label}</text></navLabel><content src="ch01.xhtml#p{i}"/></navPoint>"##
@@ -279,7 +318,11 @@ fn crafted_ncx_toc_is_bounded_by_the_byte_budget() {
     let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
     let chapters = library.chapters(&publication.id).unwrap();
     assert!(!chapters.is_empty());
-    assert!(chapters.len() < n, "budget did not truncate: {} rows", chapters.len());
+    assert!(
+        chapters.len() < n,
+        "budget did not truncate: {} rows",
+        chapters.len()
+    );
     let retained: usize = chapters.iter().map(|c| c.title.len() + c.href.len()).sum();
     assert!(retained <= MAX_TOC_TOTAL_BYTES);
 }
@@ -299,8 +342,8 @@ fn oversized_resolved_spine_hrefs_degrade_away() {
     let long_dir = "d".repeat(8_000);
     let file = std::fs::File::create(&epub).unwrap();
     let mut zip = zip::ZipWriter::new(file);
-    let stored = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     let deflated = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
     zip.start_file("mimetype", stored).unwrap();
@@ -316,7 +359,8 @@ fn oversized_resolved_spine_hrefs_degrade_away() {
         .as_bytes(),
     )
     .unwrap();
-    zip.start_file(format!("{long_dir}/content.opf"), deflated).unwrap();
+    zip.start_file(format!("{long_dir}/content.opf"), deflated)
+        .unwrap();
     zip.write_all(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0">
@@ -334,7 +378,11 @@ fn oversized_resolved_spine_hrefs_degrade_away() {
     // Every resolved spine href carries the ~8 KB directory: all skipped,
     // no `resources` row retains the amplified path.
     assert_eq!(
-        count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+        count(
+            &library,
+            "SELECT COUNT(*) FROM resources WHERE publication_id = ?1",
+            &publication.id
+        ),
         0
     );
     assert_eq!(publication.title, "深層書庫");
@@ -437,7 +485,11 @@ fn duplicate_spine_hrefs_collapse_to_one_resource_row() {
     let library = Library::open(dir.path().join("library")).unwrap();
     let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
     assert_eq!(
-        count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+        count(
+            &library,
+            "SELECT COUNT(*) FROM resources WHERE publication_id = ?1",
+            &publication.id
+        ),
         1
     );
     assert_eq!(
@@ -475,10 +527,19 @@ fn manifest_bomb_fails_the_import_cleanly() {
     let data_dir = dir.path().join("library");
     let library = Library::open(&data_dir).unwrap();
     let err = library.import(epub.to_str().unwrap()).unwrap_err();
-    assert!(matches!(err, CoreError::InvalidPublication(_)), "got {err:?}");
+    assert!(
+        matches!(err, CoreError::InvalidPublication(_)),
+        "got {err:?}"
+    );
     // Nothing persisted: no publication row, no staged file left behind.
-    assert!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().is_empty());
-    assert_eq!(std::fs::read_dir(data_dir.join("books")).unwrap().count(), 0);
+    assert!(library
+        .list(Shelf::All, Sort::RecentlyAdded)
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        0
+    );
 }
 
 /// The whole point of the persist budget: tripping it must leave *no
@@ -504,13 +565,11 @@ fn tripped_budget_rolls_back_rows_and_sweeps_staged_files() {
     imported(library.import(existing.to_str().unwrap()).unwrap());
     let baseline = table_counts(&library);
 
-    let fresh = |path: &std::path::Path| match library
-        .prepare_import(path.to_str().unwrap())
-        .unwrap()
-    {
-        Prepared::Fresh(prepared) => *prepared,
-        Prepared::Duplicate(p) => panic!("unexpected duplicate of {}", p.id),
-    };
+    let fresh =
+        |path: &std::path::Path| match library.prepare_import(path.to_str().unwrap()).unwrap() {
+            Prepared::Fresh(prepared) => *prepared,
+            Prepared::Duplicate(p) => panic!("unexpected duplicate of {}", p.id),
+        };
 
     // Row ceiling.
     let err = library
@@ -535,8 +594,14 @@ fn tripped_budget_rolls_back_rows_and_sweeps_staged_files() {
 
     // No trace: every table exactly at baseline, no orphan files.
     assert_eq!(table_counts(&library), baseline);
-    assert_eq!(std::fs::read_dir(data_dir.join("books")).unwrap().count(), 1);
-    assert_eq!(std::fs::read_dir(data_dir.join("covers")).unwrap().count(), 1);
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        1
+    );
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("covers")).unwrap().count(),
+        1
+    );
 }
 
 /// Guard against the breaker becoming the data-loss bug it prevents: an
@@ -555,7 +620,11 @@ fn honest_cjk_book_imports_unaffected_by_the_budget() {
     assert_eq!(publication.title, "吾輩は猫である");
     assert_eq!(library.chapters(&publication.id).unwrap().len(), 3);
     assert_eq!(
-        count(&library, "SELECT COUNT(*) FROM resources WHERE publication_id = ?1", &publication.id),
+        count(
+            &library,
+            "SELECT COUNT(*) FROM resources WHERE publication_id = ?1",
+            &publication.id
+        ),
         2
     );
     assert_eq!(
@@ -634,7 +703,316 @@ fn rejects_non_epub_naming_the_format() {
         CoreError::UnsupportedFormat(Some(format)) => assert_eq!(format, "cbz"),
         other => panic!("expected UnsupportedFormat with name, got {other:?}"),
     }
-    assert!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().is_empty());
+    assert!(library
+        .list(Shelf::All, Sort::RecentlyAdded)
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn imports_gbk_txt_end_to_end_and_dedupes_source_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let txt = dir.path().join("月光書房.txt");
+    let source = "第一章 山中\n松风入夜。\n第二章 城外\n月照长街。\n第三章 归途\n故人归来。";
+    let (bytes, _, had_errors) = encoding_rs::GBK.encode(source);
+    assert!(!had_errors);
+    std::fs::write(&txt, &bytes).unwrap();
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let publication = imported(library.import(txt.to_str().unwrap()).unwrap());
+    assert_eq!(publication.title, "月光書房");
+    assert_eq!(publication.language.as_deref(), Some("zh"));
+    assert_eq!(publication.text_encoding.as_deref(), Some("GBK"));
+    assert_eq!(publication.format, crate::Format::Epub);
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 3);
+
+    let results = library
+        .search_in_book(&publication.id, "松风入夜", 10)
+        .unwrap();
+    assert_eq!(results.total, 1);
+    let stored = data_dir.join(&publication.file_path);
+    let package = crate::formats::epub::read_package(&stored).unwrap();
+    assert_eq!(package.metadata.title.as_deref(), Some("月光書房"));
+    assert_eq!(package.spine.len(), 3);
+
+    match library.import(txt.to_str().unwrap()).unwrap() {
+        ImportOutcome::Duplicate(existing) => assert_eq!(existing.id, publication.id),
+        other => panic!("expected duplicate TXT import, got {other:?}"),
+    }
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        1
+    );
+}
+
+#[test]
+fn imports_txt_reader_using_its_display_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let source = "Chapter 1 Dawn\nThe road opened.\nChapter 2 Noon\nThe sun rose.\nChapter 3 Night\nThe stars appeared.";
+    let mut reader = std::io::Cursor::new(source.as_bytes());
+
+    let publication = imported(
+        library
+            .import_reader(&mut reader, "Field Notes.txt")
+            .unwrap(),
+    );
+    assert_eq!(publication.title, "Field Notes");
+    assert_eq!(publication.language.as_deref(), Some("und"));
+    assert_eq!(publication.text_encoding.as_deref(), Some("UTF-8"));
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 3);
+}
+
+#[test]
+fn failed_txt_conversion_removes_all_staging_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let txt = dir.path().join("empty.txt");
+    std::fs::write(&txt, " \r\n　").unwrap();
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+
+    assert!(matches!(
+        library.import(txt.to_str().unwrap()),
+        Err(CoreError::InvalidPublication(_))
+    ));
+    let leftovers = std::fs::read_dir(data_dir.join("books"))
+        .unwrap()
+        .collect::<Vec<_>>();
+    assert!(leftovers.is_empty(), "staging files leaked: {leftovers:?}");
+}
+
+#[test]
+fn imports_mobi6_end_to_end_and_dedupes_source_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let mobi = dir.path().join("旧书.mobi");
+    let cover = b"\x89PNG\r\n\x1a\ncover";
+    MobiTestBuilder::new(6)
+        .fullname("月光書房".as_bytes())
+        .locale(0x0804)
+        .exth(100, "鲁迅".as_bytes())
+        .exth(201, &0u32.to_be_bytes())
+        .html(
+            "<h1>第一章</h1><p>松风入夜。</p><mbp:pagebreak/><h1>第二章</h1><p>月照长街。</p>"
+                .as_bytes(),
+        )
+        .image(cover)
+        .write(&mobi);
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let publication = imported(library.import(mobi.to_str().unwrap()).unwrap());
+    assert_eq!(publication.title, "月光書房");
+    assert_eq!(publication.authors, ["鲁迅"]);
+    assert_eq!(publication.language.as_deref(), Some("zh"));
+    assert_eq!(publication.text_encoding, None);
+    assert_eq!(publication.format, crate::Format::Epub);
+    assert!(publication.cover_path.is_some());
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 2);
+    assert_eq!(
+        library
+            .search_in_book(&publication.id, "松风入夜", 10)
+            .unwrap()
+            .total,
+        1
+    );
+    let stored = data_dir.join(&publication.file_path);
+    assert_eq!(
+        crate::formats::epub::read_package(&stored)
+            .unwrap()
+            .spine
+            .len(),
+        2
+    );
+
+    match library.import(mobi.to_str().unwrap()).unwrap() {
+        ImportOutcome::Duplicate(existing) => assert_eq!(existing.id, publication.id),
+        other => panic!("expected duplicate MOBI import, got {other:?}"),
+    }
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        1
+    );
+}
+
+#[test]
+fn duplicate_mobi_dedupes_before_conversion() {
+    let dir = tempfile::tempdir().unwrap();
+    let mobi = dir.path().join("tale.mobi");
+    MobiTestBuilder::new(6)
+        .fullname(b"Tale")
+        .html(b"<h1>One</h1><p>Hi.</p>")
+        .write(&mobi);
+
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let publication = imported(library.import(mobi.to_str().unwrap()).unwrap());
+
+    // A DRM-locked MOBI converts to an error, always. Repoint the stored
+    // hash at its bytes: the re-import below can only return `Duplicate` if
+    // the dedupe runs before conversion — a post-conversion check would
+    // never be reached, and no `*.conv.tmp` is ever created.
+    let locked = dir.path().join("locked.mobi");
+    MobiTestBuilder::new(6).encryption(2).write(&locked);
+    let staged = dir.path().join("locked.hash.tmp");
+    let locked_hash = crate::core::files::copy_and_hash(&locked, &staged).unwrap();
+    std::fs::remove_file(&staged).unwrap();
+    library
+        .writer
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE publications SET content_hash = ?1 WHERE id = ?2",
+            [&locked_hash, &publication.id],
+        )
+        .unwrap();
+
+    match library.import(locked.to_str().unwrap()).unwrap() {
+        ImportOutcome::Duplicate(existing) => assert_eq!(existing.id, publication.id),
+        other => panic!("expected pre-conversion duplicate, got {other:?}"),
+    }
+    // Only the first import's stored EPUB remains — the duplicate pass left
+    // no staging or conversion files behind.
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        1
+    );
+}
+
+#[test]
+fn imports_cjk_azw3_end_to_end_and_dedupes_source_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let azw3 = dir.path().join("新书.azw3");
+    MobiTestBuilder::new(8)
+        .fullname("月下新篇".as_bytes())
+        .locale(0x0804)
+        .exth(100, "沈从文".as_bytes())
+        .kf8_files(vec![
+            Kf8FileFixture::new("<body><h1>第一章</h1><p>松风新语。</p></body>".as_bytes()),
+            Kf8FileFixture::new("<body><h1>第二章</h1><p>月照新城。</p></body>".as_bytes()),
+        ])
+        .write(&azw3);
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+
+    let publication = imported(library.import(azw3.to_str().unwrap()).unwrap());
+
+    assert_eq!(publication.title, "月下新篇");
+    assert_eq!(publication.authors, ["沈从文"]);
+    assert_eq!(publication.language.as_deref(), Some("zh"));
+    assert_eq!(publication.format, crate::Format::Epub);
+    assert_eq!(publication.text_encoding, None);
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 2);
+    assert_eq!(
+        library
+            .search_in_book(&publication.id, "松风新语", 10)
+            .unwrap()
+            .total,
+        1
+    );
+    assert_eq!(
+        crate::formats::epub::read_package(&data_dir.join(&publication.file_path))
+            .unwrap()
+            .spine
+            .len(),
+        2
+    );
+    match library.import(azw3.to_str().unwrap()).unwrap() {
+        ImportOutcome::Duplicate(existing) => assert_eq!(existing.id, publication.id),
+        other => panic!("expected duplicate AZW3 import, got {other:?}"),
+    }
+}
+
+#[test]
+fn combo_mobi_import_prefers_the_kf8_part() {
+    let dir = tempfile::tempdir().unwrap();
+    let combo = dir.path().join("combo.mobi");
+    let mut kf8 = MobiTestBuilder::new(8);
+    kf8.kf8_files(vec![Kf8FileFixture::new(
+        "<body><p>preferred modern text</p></body>".as_bytes(),
+    )]);
+    MobiTestBuilder::new(6)
+        .html(b"<p>legacy fallback text</p>")
+        .kf8(kf8)
+        .write(&combo);
+    let library = Library::open(dir.path().join("library")).unwrap();
+
+    let publication = imported(library.import(combo.to_str().unwrap()).unwrap());
+
+    assert_eq!(
+        library
+            .search_in_book(&publication.id, "preferred modern", 10)
+            .unwrap()
+            .total,
+        1
+    );
+    assert_eq!(
+        library
+            .search_in_book(&publication.id, "legacy fallback", 10)
+            .unwrap()
+            .total,
+        0
+    );
+}
+
+#[test]
+fn imports_mobi6_reader_using_its_display_name_fallback() {
+    let dir = tempfile::tempdir().unwrap();
+    let mobi = dir.path().join("reader.mobi");
+    MobiTestBuilder::new(6)
+        .name(b"")
+        .html(b"<p>streamed body</p>")
+        .write(&mobi);
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let mut reader = std::fs::File::open(&mobi).unwrap();
+
+    let publication = imported(
+        library
+            .import_reader(&mut reader, "Reader Tale.mobi")
+            .unwrap(),
+    );
+
+    assert_eq!(publication.title, "Reader Tale");
+    assert_eq!(publication.text_encoding, None);
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 1);
+}
+
+#[test]
+fn imports_titled_mobi_reader_without_a_display_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let mobi = dir.path().join("reader.mobi");
+    MobiTestBuilder::new(6)
+        .fullname("Embedded Title".as_bytes())
+        .html(b"<p>streamed body</p>")
+        .write(&mobi);
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let mut reader = std::fs::File::open(&mobi).unwrap();
+
+    let publication = imported(library.import_reader(&mut reader, "").unwrap());
+
+    assert_eq!(publication.title, "Embedded Title");
+}
+
+#[test]
+fn rejects_drm_mobi_and_kf8_without_leaking_staging_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let drm = dir.path().join("locked.mobi");
+    MobiTestBuilder::new(6).encryption(2).write(&drm);
+    let drm_kf8 = dir.path().join("locked.azw3");
+    MobiTestBuilder::new(8).encryption(2).write(&drm_kf8);
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+
+    let error = library.import(drm.to_str().unwrap()).unwrap_err();
+    assert!(matches!(error, CoreError::InvalidPublication(_)));
+    assert!(error.to_string().contains("DRM"));
+    let error = library.import(drm_kf8.to_str().unwrap()).unwrap_err();
+    assert!(matches!(error, CoreError::InvalidPublication(_)));
+    assert!(error.to_string().contains("DRM"));
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        0
+    );
 }
 
 #[test]
@@ -691,7 +1069,10 @@ fn batch_reader_import_reports_outcomes_and_progress_by_display_name() {
 
     let library = Library::open(dir.path().join("library")).unwrap();
     let items = vec![
-        (std::fs::File::open(&good).unwrap(), "夜の本.epub".to_string()),
+        (
+            std::fs::File::open(&good).unwrap(),
+            "夜の本.epub".to_string(),
+        ),
         (std::fs::File::open(&comic).unwrap(), "漫画.cbz".to_string()),
     ];
     let events: Mutex<Vec<(usize, String)>> = Mutex::new(Vec::new());
@@ -719,7 +1100,10 @@ fn batch_reader_import_reports_outcomes_and_progress_by_display_name() {
     );
     let mut names: Vec<_> = events.into_iter().map(|(_, name)| name).collect();
     names.sort();
-    assert_eq!(names, vec!["夜の本.epub".to_string(), "漫画.cbz".to_string()]);
+    assert_eq!(
+        names,
+        vec!["夜の本.epub".to_string(), "漫画.cbz".to_string()]
+    );
 }
 
 #[test]
@@ -809,14 +1193,14 @@ fn import_is_idempotent_by_content_hash() {
         other => panic!("expected duplicate, got {other:?}"),
     }
 
-    assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 1);
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        1
+    );
     // No stray files: exactly one book in storage.
-    let books: Vec<_> = std::fs::read_dir(data_dir.join("books"))
-        .unwrap()
-        .collect();
+    let books: Vec<_> = std::fs::read_dir(data_dir.join("books")).unwrap().collect();
     assert_eq!(books.len(), 1);
 }
-
 
 #[test]
 fn batch_import_reports_per_item_outcomes_in_order() {
@@ -853,6 +1237,8 @@ fn batch_import_reports_per_item_outcomes_in_order() {
         }
         other => panic!("expected Failed for the comic, got {other:?}"),
     }
-    assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 1);
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        1
+    );
 }
-

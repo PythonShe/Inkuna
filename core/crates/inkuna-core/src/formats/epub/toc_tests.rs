@@ -16,11 +16,27 @@ fn nav_parsing_flattens_with_depth() {
     assert_eq!(
         toc,
         vec![
-            TocEntry { title: "第一章".into(), href: "OEBPS/ch01.xhtml".into(), depth: 0 },
-            TocEntry { title: "第一節".into(), href: "OEBPS/ch01.xhtml#s1".into(), depth: 1 },
-            TocEntry { title: "第二章".into(), href: "OEBPS/ch02.xhtml".into(), depth: 0 },
+            TocEntry {
+                title: "第一章".into(),
+                href: "OEBPS/ch01.xhtml".into(),
+                depth: 0
+            },
+            TocEntry {
+                title: "第一節".into(),
+                href: "OEBPS/ch01.xhtml#s1".into(),
+                depth: 1
+            },
+            TocEntry {
+                title: "第二章".into(),
+                href: "OEBPS/ch02.xhtml".into(),
+                depth: 0
+            },
             // Fragment-only entries anchor inside the nav doc itself.
-            TocEntry { title: "付録".into(), href: "OEBPS/nav.xhtml#landmarks".into(), depth: 0 },
+            TocEntry {
+                title: "付録".into(),
+                href: "OEBPS/nav.xhtml#landmarks".into(),
+                depth: 0
+            },
         ]
     );
 }
@@ -61,7 +77,11 @@ fn nav_toc_stops_at_the_byte_budget() {
     xml.push_str("</ol></nav></body></html>");
     let toc = parse_nav(&xml, "OEBPS/nav.xhtml");
     assert!(!toc.is_empty());
-    assert!(toc.len() < n, "budget did not truncate: {} entries", toc.len());
+    assert!(
+        toc.len() < n,
+        "budget did not truncate: {} entries",
+        toc.len()
+    );
     let retained: usize = toc.iter().map(|e| e.title.len() + e.href.len()).sum();
     assert!(retained <= MAX_TOC_TOTAL_BYTES);
     // Budget accounting never split a multi-byte character.
@@ -131,7 +151,11 @@ fn self_closed_text_does_not_capture_later_character_data() {
     // the stray text belongs to nothing and must not become its title.
     assert_eq!(
         toc,
-        vec![TocEntry { title: "第二章".into(), href: "OEBPS/ch02.xhtml".into(), depth: 0 }]
+        vec![TocEntry {
+            title: "第二章".into(),
+            href: "OEBPS/ch02.xhtml".into(),
+            depth: 0
+        }]
     );
 }
 
@@ -147,9 +171,21 @@ fn ncx_parsing_flattens_with_depth() {
     assert_eq!(
         toc,
         vec![
-            TocEntry { title: "第一章".into(), href: "OEBPS/ch01.xhtml".into(), depth: 0 },
-            TocEntry { title: "第一節".into(), href: "OEBPS/ch01.xhtml#s1".into(), depth: 1 },
-            TocEntry { title: "第二章".into(), href: "OEBPS/ch02.xhtml".into(), depth: 0 },
+            TocEntry {
+                title: "第一章".into(),
+                href: "OEBPS/ch01.xhtml".into(),
+                depth: 0
+            },
+            TocEntry {
+                title: "第一節".into(),
+                href: "OEBPS/ch01.xhtml#s1".into(),
+                depth: 1
+            },
+            TocEntry {
+                title: "第二章".into(),
+                href: "OEBPS/ch02.xhtml".into(),
+                depth: 0
+            },
         ]
     );
 }

@@ -17,8 +17,11 @@ fn library_with_book() -> (tempfile::TempDir, Library, String) {
 fn update_progress_stores_locator_progression_and_positions() {
     let (_dir, library, id) = library_with_book();
 
-    let locator = r#"{"href":"OEBPS/text/ch01.xhtml","locations":{"totalProgression":0.42,"position":12}}"#;
-    library.update_progress(&id, locator, 0.42, Some(12)).unwrap();
+    let locator =
+        r#"{"href":"OEBPS/text/ch01.xhtml","locations":{"totalProgression":0.42,"position":12}}"#;
+    library
+        .update_progress(&id, locator, 0.42, Some(12))
+        .unwrap();
     library.report_position_count(&id, 300).unwrap();
 
     let publication = library.publication(&id).unwrap();

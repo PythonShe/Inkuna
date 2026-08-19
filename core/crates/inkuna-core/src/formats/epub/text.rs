@@ -25,14 +25,30 @@ use crate::CoreError;
 /// was ~25x a huge novel, and measured, it let an 18 KB crafted archive
 /// import into a 364 MB data directory; a crafted spine now stops at a
 /// quarter of that.
-const MAX_TOTAL_TEXT_BYTES: usize = 32 * 1024 * 1024;
+pub(crate) const MAX_TOTAL_TEXT_BYTES: usize = 32 * 1024 * 1024;
 
 /// Elements whose entire content is invisible to a reader.
 const SKIPPED: &[&[u8]] = &[b"head", b"script", b"style", b"template"];
 /// Elements that end a line of text.
 const BLOCK: &[&[u8]] = &[
-    b"p", b"div", b"h1", b"h2", b"h3", b"h4", b"h5", b"h6", b"li", b"blockquote", b"section",
-    b"article", b"tr", b"caption", b"figcaption", b"dt", b"dd", b"pre",
+    b"p",
+    b"div",
+    b"h1",
+    b"h2",
+    b"h3",
+    b"h4",
+    b"h5",
+    b"h6",
+    b"li",
+    b"blockquote",
+    b"section",
+    b"article",
+    b"tr",
+    b"caption",
+    b"figcaption",
+    b"dt",
+    b"dd",
+    b"pre",
 ];
 
 /// Extracts plain text from every spine resource, in parallel across the
@@ -170,7 +186,9 @@ fn extract_spine_text_budgeted(
     spine
         .iter()
         .map(|href| {
-            let text = position.get(href.as_str()).and_then(|&at| texts[at].clone())?;
+            let text = position
+                .get(href.as_str())
+                .and_then(|&at| texts[at].clone())?;
             if retained + text.len() > budget {
                 warn_truncated(&mut warned, path, budget);
                 return None;
@@ -193,7 +211,10 @@ fn extract_resource(
     let xml = match read_spine_entry(archive, href) {
         Ok(xml) => xml,
         Err(e) => {
-            log::warn!("skipping text extraction for {href} in {}: {e}", path.display());
+            log::warn!(
+                "skipping text extraction for {href} in {}: {e}",
+                path.display()
+            );
             return None;
         }
     };
@@ -296,7 +317,8 @@ fn extract_text(xml: &str) -> Option<String> {
                 let name = e.local_name();
                 if SKIPPED.contains(&name.as_ref()) {
                     skip_depth = skip_depth.saturating_sub(1);
-                } else if skip_depth == 0 && (BLOCK.contains(&name.as_ref()) || name.as_ref() == b"br")
+                } else if skip_depth == 0
+                    && (BLOCK.contains(&name.as_ref()) || name.as_ref() == b"br")
                 {
                     flush(&mut out, &mut line);
                 }

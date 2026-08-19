@@ -100,7 +100,14 @@ fn library_wide_ranked_search_across_books() {
     let jp_id = imported_id(&library, &jp);
     let en = dir.path().join("en.epub");
     // Same spine texts, different metadata → different content hash.
-    write_epub_with(&en, "Another Book", "Someone", "en", TocKind::Ncx, CoverKind::None);
+    write_epub_with(
+        &en,
+        "Another Book",
+        "Someone",
+        "en",
+        TocKind::Ncx,
+        CoverKind::None,
+    );
     imported_id(&library, &en);
 
     // Both books carry the same texts, so both match; single CJK char.
@@ -187,7 +194,8 @@ fn reconcile_drops_docs_whose_publication_left_the_database() {
     // Drop the row behind the core's back — what a crash mid-remove, or an
     // older build, leaves behind. Only reconcile can heal it.
     let conn = rusqlite::Connection::open(data_dir.join("inkuna.db")).unwrap();
-    conn.execute("DELETE FROM publications WHERE id = ?1", [&id]).unwrap();
+    conn.execute("DELETE FROM publications WHERE id = ?1", [&id])
+        .unwrap();
     drop(conn);
 
     let library = Library::open(&data_dir).unwrap();

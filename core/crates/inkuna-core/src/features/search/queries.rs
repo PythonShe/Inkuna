@@ -37,9 +37,7 @@ impl Library {
                  JOIN resource_text t ON t.resource_id = r.id
                  WHERE r.publication_id = ?1 ORDER BY r.spine_idx",
             )?;
-            let rows = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-            })?;
+            let rows = stmt.query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
             rows.collect::<Result<_, _>>().map_err(Into::into)
         })?;
         if rows.is_empty() {
@@ -47,7 +45,10 @@ impl Library {
             self.publication(id)?;
         }
         if needle.is_empty() {
-            return Ok(BookSearchResults { hits: Vec::new(), total: 0 });
+            return Ok(BookSearchResults {
+                hits: Vec::new(),
+                total: 0,
+            });
         }
 
         let mut hits = Vec::new();
@@ -200,10 +201,9 @@ impl Library {
                  JOIN resource_text t ON t.resource_id = r.id
                  WHERE r.publication_id = ?1 AND r.spine_idx = ?2",
             )?;
-            let mut rows = stmt.query_map(
-                rusqlite::params![publication_id, spine_idx],
-                |row| row.get(0),
-            )?;
+            let mut rows = stmt.query_map(rusqlite::params![publication_id, spine_idx], |row| {
+                row.get(0)
+            })?;
             rows.next().transpose().map_err(Into::into)
         })?;
         let Some(body) = body else {

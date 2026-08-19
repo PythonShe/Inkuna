@@ -78,18 +78,53 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         # "Open with Inkuna" from Files, Mail, Safari, and the share sheet.
-        # `org.idpf.epub-container` is a system-declared type (UTType.epub),
-        # so no UTImportedTypeDeclarations entry is needed — declaring one
-        # would shadow the system's with a weaker definition.
+        # `org.idpf.epub-container` and `public.plain-text` are
+        # system-declared types (UTType.epub / .plainText), so they need no
+        # UTImportedTypeDeclarations entry — declaring one would shadow the
+        # system's with a weaker definition. MOBI and AZW3 have no system
+        # UTI, so they ARE declared below under the standard Amazon
+        # identifiers other reader apps import.
         # Rank Alternate, not Owner: Apple Books owns EPUB on a stock
         # device, and claiming Owner would silently steal every EPUB tap
-        # from it.
+        # from it. Same courtesy for the other formats.
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.amazon.mobi-pocket-ebook
+            UTTypeDescription: Mobipocket ebook
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - mobi
+                - prc
+          - UTTypeIdentifier: com.amazon.azw3-ebook
+            UTTypeDescription: Kindle AZW3 ebook
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - azw3
+                - azw
         CFBundleDocumentTypes:
           - CFBundleTypeName: EPUB Book
             CFBundleTypeRole: Viewer
             LSHandlerRank: Alternate
             LSItemContentTypes:
               - org.idpf.epub-container
+          - CFBundleTypeName: Mobipocket ebook
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.amazon.mobi-pocket-ebook
+          - CFBundleTypeName: Kindle AZW3 ebook
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.amazon.azw3-ebook
+          - CFBundleTypeName: Plain text book
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - public.plain-text
         # Deliberately NOT opening documents in place: iOS then hands the
         # app a copy in Documents/Inbox instead of a live reference to the
         # reader's file. That is exactly the contract the core wants — it

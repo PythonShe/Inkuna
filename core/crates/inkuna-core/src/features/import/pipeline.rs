@@ -10,7 +10,7 @@ use super::model::{BatchImportOutcome, ImportOutcome};
 use crate::core::files::{copy_and_hash, stream_and_hash, sync_dir};
 use crate::core::time::unix_now;
 use crate::features::library::{join_authors, map_publication, Library, PUB_COLUMNS};
-use crate::formats::epub;
+use crate::formats::{epub, mobi, txt};
 use crate::{CoreError, Format, Publication};
 
 /// A fully parsed import, ready to commit: the file already sits at
@@ -24,6 +24,7 @@ pub(crate) struct PreparedImport {
     title: String,
     authors: Vec<String>,
     language: Option<String>,
+    text_encoding: Option<String>,
     /// Spine hrefs in reading order, paired with each resource's extracted
     /// plain text (`None` = malformed or budget-skipped resource, its text
     /// row is skipped). Repeated spine entries share one extraction.
@@ -46,7 +47,8 @@ impl Library {
     /// A crafted or damaged book degrades rather than failing wherever the
     /// missing part is optional — an oversized TOC is truncated, an
     /// unreadable chapter loses only its text row, an unusable cover is
-    /// dropped. It fails with `UnsupportedFormat` for anything but EPUB
+    /// dropped. It accepts native EPUB plus MOBI/AZW3 and TXT normalized to
+    /// EPUB, fails with `UnsupportedFormat` for fixed-layout formats
     /// today, and with `InvalidPublication` when a mandatory part is
     /// missing, no title can be derived, or the per-publication
     /// persistence budget trips (in which case the transaction rolls back
@@ -162,15 +164,37 @@ impl Library {
         // Detect before copying, so a wrong-format file is rejected
         // without paying for a copy of it.
         let format = Format::detect(src)?;
-        if format != Format::Epub {
-            return Err(CoreError::UnsupportedFormat(Some(format.as_str().to_string())));
+        if !matches!(
+            format,
+            Format::Epub | Format::Mobi | Format::Azw3 | Format::Txt
+        ) {
+            return Err(CoreError::UnsupportedFormat(Some(
+                format.as_str().to_string(),
+            )));
         }
 
         let (id, rel_path, tmp_path) = self.stage_slot();
         let content_hash = copy_and_hash(src, &tmp_path).inspect_err(|_| {
             let _ = std::fs::remove_file(&tmp_path);
         })?;
-        self.prepare_staged(id, rel_path, tmp_path, content_hash, src.file_stem())
+        // Dedupe on the original bytes before conversion: the hash never
+        // changes, so a duplicate must not pay for a MOBI/AZW3/TXT convert.
+        if let Some(existing) = self.duplicate_by_hash(&content_hash, &tmp_path)? {
+            return Ok(Prepared::Duplicate(Box::new(existing)));
+        }
+        let text_encoding = if format == Format::Epub {
+            None
+        } else {
+            self.convert_staged(format, &id, &tmp_path, src.file_stem())?
+        };
+        self.prepare_staged(
+            id,
+            rel_path,
+            tmp_path,
+            content_hash,
+            src.file_stem(),
+            text_encoding,
+        )
     }
 
     /// [`prepare_import`](Self::prepare_import) over an open stream. The
@@ -191,11 +215,32 @@ impl Library {
         let format = Format::detect_as(&tmp_path, named).inspect_err(|_| {
             let _ = std::fs::remove_file(&tmp_path);
         })?;
-        if format != Format::Epub {
+        if !matches!(
+            format,
+            Format::Epub | Format::Mobi | Format::Azw3 | Format::Txt
+        ) {
             let _ = std::fs::remove_file(&tmp_path);
-            return Err(CoreError::UnsupportedFormat(Some(format.as_str().to_string())));
+            return Err(CoreError::UnsupportedFormat(Some(
+                format.as_str().to_string(),
+            )));
         }
-        self.prepare_staged(id, rel_path, tmp_path, content_hash, named.file_stem())
+        // Same pre-conversion dedupe as `prepare_import`.
+        if let Some(existing) = self.duplicate_by_hash(&content_hash, &tmp_path)? {
+            return Ok(Prepared::Duplicate(Box::new(existing)));
+        }
+        let text_encoding = if format == Format::Epub {
+            None
+        } else {
+            self.convert_staged(format, &id, &tmp_path, named.file_stem())?
+        };
+        self.prepare_staged(
+            id,
+            rel_path,
+            tmp_path,
+            content_hash,
+            named.file_stem(),
+            text_encoding,
+        )
     }
 
     /// One fresh staging slot under `books/`: `(id, rel_path, tmp_path)`.
@@ -204,6 +249,68 @@ impl Library {
         let rel_path = format!("books/{id}.epub");
         let tmp_path = self.data_dir.join(format!("books/{id}.epub.tmp"));
         (id, rel_path, tmp_path)
+    }
+
+    /// Replaces staged source bytes with their normalized EPUB while the
+    /// content hash continues to identify the original bytes.
+    fn convert_staged(
+        &self,
+        format: Format,
+        id: &str,
+        tmp_path: &Path,
+        fallback_stem: Option<&OsStr>,
+    ) -> Result<Option<String>, CoreError> {
+        let conv_path = self.data_dir.join(format!("books/{id}.epub.conv.tmp"));
+        let title = fallback_stem
+            .map(|stem| nfc(&stem.to_string_lossy()))
+            .filter(|title| !title.is_empty());
+        let conversion: Result<Option<String>, CoreError> = match format {
+            Format::Txt => title
+                .ok_or_else(|| CoreError::InvalidPublication("untitled".into()))
+                .and_then(|title| txt::convert_to_epub(tmp_path, &conv_path, &title))
+                .map(|conversion| Some(conversion.encoding)),
+            Format::Mobi | Format::Azw3 => {
+                mobi::convert_to_epub(tmp_path, &conv_path, title.as_deref().unwrap_or(""))
+                    .map(|()| None)
+            }
+            _ => unreachable!(),
+        };
+        let conversion = match conversion {
+            Ok(conversion) => conversion,
+            Err(error) => {
+                let _ = std::fs::remove_file(tmp_path);
+                let _ = std::fs::remove_file(&conv_path);
+                return Err(error);
+            }
+        };
+        if let Err(error) = std::fs::File::open(&conv_path).and_then(|file| file.sync_all()) {
+            let _ = std::fs::remove_file(tmp_path);
+            let _ = std::fs::remove_file(&conv_path);
+            return Err(error.into());
+        }
+        if let Err(error) = std::fs::rename(&conv_path, tmp_path) {
+            let _ = std::fs::remove_file(tmp_path);
+            let _ = std::fs::remove_file(&conv_path);
+            return Err(error.into());
+        }
+        Ok(conversion)
+    }
+
+    /// Looks the content hash up in the library and, on a hit, sweeps the
+    /// staged `.tmp` and returns the existing publication. Also sweeps on a
+    /// lookup error.
+    fn duplicate_by_hash(
+        &self,
+        content_hash: &str,
+        tmp_path: &Path,
+    ) -> Result<Option<Publication>, CoreError> {
+        let existing = self.publication_by_hash(content_hash).inspect_err(|_| {
+            let _ = std::fs::remove_file(tmp_path);
+        })?;
+        if existing.is_some() {
+            let _ = std::fs::remove_file(tmp_path);
+        }
+        Ok(existing)
     }
 
     /// The back half both sources share once the bytes sit staged: dedupe
@@ -216,9 +323,12 @@ impl Library {
         tmp_path: PathBuf,
         content_hash: String,
         fallback_stem: Option<&OsStr>,
+        text_encoding: Option<String>,
     ) -> Result<Prepared, CoreError> {
-        if let Some(existing) = self.publication_by_hash(&content_hash)? {
-            let _ = std::fs::remove_file(&tmp_path);
+        // Re-checked here even though both callers dedupe before conversion:
+        // this closes the window for the reader path, where another import of
+        // the same content may have committed since the pre-conversion check.
+        if let Some(existing) = self.duplicate_by_hash(&content_hash, &tmp_path)? {
             return Ok(Prepared::Duplicate(Box::new(existing)));
         }
 
@@ -247,6 +357,7 @@ impl Library {
             title,
             authors: parsed.metadata.authors,
             language: parsed.metadata.language,
+            text_encoding,
             spine,
             toc: parsed.toc,
             // Normalized here, in the parallel parse stage, so the commit
@@ -262,7 +373,10 @@ impl Library {
     /// ordering hold across a power loss and not just a process crash. A
     /// concurrent import of the same content loses the unique-index race
     /// and resolves to `Duplicate`.
-    pub(crate) fn commit_import(&self, prepared: PreparedImport) -> Result<ImportOutcome, CoreError> {
+    pub(crate) fn commit_import(
+        &self,
+        prepared: PreparedImport,
+    ) -> Result<ImportOutcome, CoreError> {
         // One meter per publication: a batch never shares it.
         self.commit_import_budgeted(prepared, PersistBudget::for_import())
     }
@@ -329,6 +443,7 @@ impl Library {
             title: prepared.title,
             authors: prepared.authors,
             language: prepared.language,
+            text_encoding: prepared.text_encoding,
             format: Format::Epub,
             file_path: prepared.rel_path,
             cover_path: cover_rel.clone(),
@@ -344,66 +459,67 @@ impl Library {
         // the transaction makes rollback free, but the WAL still grows on
         // disk while it runs, so the meter must abort within one row of
         // the ceiling rather than bound only the committed state.
-        let insert = |tx: &rusqlite::Transaction,
-                      budget: &mut PersistBudget|
-         -> Result<(), CoreError> {
-            let authors = join_authors(&publication.authors);
-            budget.charge(
-                publication.title.len()
-                    + authors.len()
-                    + publication.language.as_deref().map_or(0, str::len),
-            )?;
-            tx.execute(
-                "INSERT INTO publications
-                    (id, title, authors, language, format, file_path, cover_path,
-                     content_hash, added_at, progression)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-                rusqlite::params![
-                    publication.id,
-                    publication.title,
-                    authors,
-                    publication.language,
-                    publication.format.as_str(),
-                    publication.file_path,
-                    publication.cover_path,
-                    prepared.content_hash,
-                    publication.added_at,
-                    publication.progression,
-                ],
-            )?;
-            for (spine_idx, (href, text)) in prepared.spine.iter().enumerate() {
-                let resource_id = uuid::Uuid::new_v4().to_string();
-                budget.charge(href.len())?;
-                tx.execute(
-                    "INSERT INTO resources (id, publication_id, spine_idx, href)
-                     VALUES (?1, ?2, ?3, ?4)",
-                    rusqlite::params![resource_id, publication.id, spine_idx as i64, href],
+        let insert =
+            |tx: &rusqlite::Transaction, budget: &mut PersistBudget| -> Result<(), CoreError> {
+                let authors = join_authors(&publication.authors);
+                budget.charge(
+                    publication.title.len()
+                        + authors.len()
+                        + publication.language.as_deref().map_or(0, str::len)
+                        + publication.text_encoding.as_deref().map_or(0, str::len),
                 )?;
-                if let Some(body) = text {
-                    budget.charge(body.len())?;
-                    tx.execute(
-                        "INSERT INTO resource_text (resource_id, body) VALUES (?1, ?2)",
-                        rusqlite::params![resource_id, body.as_ref()],
-                    )?;
-                }
-            }
-            for (idx, entry) in prepared.toc.iter().enumerate() {
-                budget.charge(entry.title.len() + entry.href.len())?;
                 tx.execute(
-                    "INSERT INTO chapters (id, publication_id, idx, title, href, depth)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    "INSERT INTO publications
+                    (id, title, authors, language, text_encoding, format, file_path,
+                     cover_path, content_hash, added_at, progression)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                     rusqlite::params![
-                        uuid::Uuid::new_v4().to_string(),
                         publication.id,
-                        idx as i64,
-                        entry.title,
-                        entry.href,
-                        entry.depth,
+                        publication.title,
+                        authors,
+                        publication.language,
+                        publication.text_encoding,
+                        publication.format.as_str(),
+                        publication.file_path,
+                        publication.cover_path,
+                        prepared.content_hash,
+                        publication.added_at,
+                        publication.progression,
                     ],
                 )?;
-            }
-            Ok(())
-        };
+                for (spine_idx, (href, text)) in prepared.spine.iter().enumerate() {
+                    let resource_id = uuid::Uuid::new_v4().to_string();
+                    budget.charge(href.len())?;
+                    tx.execute(
+                        "INSERT INTO resources (id, publication_id, spine_idx, href)
+                     VALUES (?1, ?2, ?3, ?4)",
+                        rusqlite::params![resource_id, publication.id, spine_idx as i64, href],
+                    )?;
+                    if let Some(body) = text {
+                        budget.charge(body.len())?;
+                        tx.execute(
+                            "INSERT INTO resource_text (resource_id, body) VALUES (?1, ?2)",
+                            rusqlite::params![resource_id, body.as_ref()],
+                        )?;
+                    }
+                }
+                for (idx, entry) in prepared.toc.iter().enumerate() {
+                    budget.charge(entry.title.len() + entry.href.len())?;
+                    tx.execute(
+                        "INSERT INTO chapters (id, publication_id, idx, title, href, depth)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        rusqlite::params![
+                            uuid::Uuid::new_v4().to_string(),
+                            publication.id,
+                            idx as i64,
+                            entry.title,
+                            entry.href,
+                            entry.depth,
+                        ],
+                    )?;
+                }
+                Ok(())
+            };
 
         let inserted = {
             let mut conn = self.writer.lock().unwrap();
@@ -449,9 +565,7 @@ impl Library {
                     .spine
                     .iter()
                     .enumerate()
-                    .filter_map(|(idx, (_, text))| {
-                        text.as_ref().map(|t| (idx as u32, t.as_ref()))
-                    }),
+                    .filter_map(|(idx, (_, text))| text.as_ref().map(|t| (idx as u32, t.as_ref()))),
             ) {
                 log::warn!("search indexing failed for {}: {e}", publication.id);
             }

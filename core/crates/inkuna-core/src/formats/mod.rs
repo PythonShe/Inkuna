@@ -3,7 +3,10 @@
 //! import; fixed-layout formats (PDF, CBZ/CBR) get dedicated navigators in
 //! the shells, so nothing here ever renders.
 
+pub(crate) mod azw3;
 pub(crate) mod epub;
 pub(crate) mod format;
+pub(crate) mod mobi;
+pub(crate) mod txt;
 
 pub use format::Format;

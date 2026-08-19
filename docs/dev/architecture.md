@@ -78,9 +78,13 @@ for upcoming needs: deadpool-sqlite, notify, rayon, argon2, lofty.
 1. Readium Swift + Kotlin toolkits: shelf → open EPUB → paginated reading.
 2. Import UI (document picker on both platforms; copy into app storage).
 3. Reader chrome: themes (ink/moonlight), typography controls, scrubber.
-4. Comics: CBZ via Readium; CBR via unrar in the core.
-5. Full-text search in core — shipped: tantivy + jieba library-wide index
+4. Reflowable formats — shipped (2026-08): MOBI6 + KF8/AZW3 (hand-rolled
+   clean-room Palm/KF8 readers, DRM-free only) and TXT (chardetng charset
+   detection, Legado-style CJK chapter rules) all normalize to EPUB at
+   import via the core's own EPUB 3 writer.
+5. Comics: CBZ via Readium; CBR via unrar in the core.
+6. Full-text search in core — shipped: tantivy + jieba library-wide index
    (plus a CJK-unigram field for single-char/substring queries) and an
    exact case-folded scan for in-book search, both over the
    `resource_text` corpus.
-6. Sync: core logic compiled to WASM on Cloudflare Workers.
+7. Sync: core logic compiled to WASM on Cloudflare Workers.

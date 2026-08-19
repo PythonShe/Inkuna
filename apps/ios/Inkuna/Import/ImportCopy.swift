@@ -15,12 +15,12 @@ enum ImportCopy {
     static var emptyBody: String {
         String(
             localized: "import_empty_body",
-            defaultValue: "Add an EPUB from Files, iCloud Drive, or wherever your books live. Inkuna keeps its own copy, so the original stays where it is."
+            defaultValue: "Add a book from Files, iCloud Drive, or wherever your books live. Inkuna keeps its own copy, so the original stays where it is."
         )
     }
 
     static var emptyFootnote: String {
-        String(localized: "import_empty_footnote", defaultValue: "EPUB today. Comics and more to come.")
+        String(localized: "import_empty_footnote", defaultValue: "EPUB, MOBI, AZW3, and TXT today. Comics to come.")
     }
 
     static var addBooks: String {
@@ -143,7 +143,7 @@ enum ImportCopy {
         case .damagedArchive:
             return String(localized: "import_fail_archive", defaultValue: "The file is damaged and couldn't be opened.")
         case .invalidPublication:
-            return String(localized: "import_fail_broken", defaultValue: "This EPUB is missing something Inkuna needs to read it.")
+            return String(localized: "import_fail_broken", defaultValue: "This book can't be opened. It may be incomplete — or protected by DRM, which Inkuna doesn't support.")
         case .tooLarge:
             return String(localized: "import_fail_too_large", defaultValue: "This file is too large for Inkuna to add.")
         case .storage:

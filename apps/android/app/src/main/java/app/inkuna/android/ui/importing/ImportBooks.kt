@@ -58,7 +58,7 @@ fun ImportBooksHost(
 ) {
     val context = LocalContext.current
     val state by ImportEngine.state.collectAsStateWithLifecycle()
-    val pick = rememberEpubPicker { uris -> ImportEngine.start(context, uris) }
+    val pick = rememberBookPicker { uris -> ImportEngine.start(context, uris) }
 
     val notify by rememberUpdatedState(onLibraryChanged)
     val report = (state as? ImportState.Finished)?.report

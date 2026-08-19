@@ -223,7 +223,10 @@ internal object ImportStaging {
             .joinToString("")
             .trim()
             .trimStart('.')
-            .ifBlank { "book.epub" }
+            // Neutral: this names only the cache copy — the core receives the
+            // display name separately and detects format by content, so no
+            // extension is implied here.
+            .ifBlank { "book.bin" }
         if (cleaned.toByteArray(Charsets.UTF_8).size <= MAX_NAME_BYTES) return cleaned
 
         val extension = cleaned.substringAfterLast('.', "").takeIf { it.length in 1..8 }?.let { ".$it" } ?: ""

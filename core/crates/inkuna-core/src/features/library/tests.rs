@@ -14,10 +14,14 @@ fn imports_cjk_epub_and_roundtrips() {
     assert_eq!(publication.title, "月光書房");
     assert_eq!(publication.authors, vec!["紫式部"]);
     assert_eq!(publication.language.as_deref(), Some("ja"));
+    assert_eq!(publication.text_encoding, None);
     assert_eq!(publication.format, Format::Epub);
 
     // The file was copied into core-owned storage under a relative path.
-    assert_eq!(publication.file_path, format!("books/{}.epub", publication.id));
+    assert_eq!(
+        publication.file_path,
+        format!("books/{}.epub", publication.id)
+    );
     assert!(data_dir.join(&publication.file_path).is_file());
 
     let listed = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
@@ -27,13 +31,19 @@ fn imports_cjk_epub_and_roundtrips() {
     library
         .update_progress(&publication.id, "{}", 0.42, None)
         .unwrap();
-    assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap()[0].progression, 0.42);
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap()[0].progression,
+        0.42
+    );
 
     let cover_path = publication.cover_path.clone().unwrap();
     assert!(data_dir.join(&cover_path).is_file());
 
     library.remove(&publication.id).unwrap();
-    assert!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().is_empty());
+    assert!(library
+        .list(Shelf::All, Sort::RecentlyAdded)
+        .unwrap()
+        .is_empty());
     assert!(!data_dir.join(&publication.file_path).exists());
     assert!(!data_dir.join(&cover_path).exists());
     assert!(matches!(
@@ -42,28 +52,46 @@ fn imports_cjk_epub_and_roundtrips() {
     ));
 }
 
-
 #[test]
 fn shelves_and_sorts_partition_the_library() {
     let dir = tempfile::tempdir().unwrap();
     let first = dir.path().join("first.epub");
     write_epub(&first, "最初の本", "著者A", "ja");
     let second = dir.path().join("second.epub");
-    write_epub_with(&second, "Second Book", "Author B", "en", TocKind::None, CoverKind::None);
+    write_epub_with(
+        &second,
+        "Second Book",
+        "Author B",
+        "en",
+        TocKind::None,
+        CoverKind::None,
+    );
 
     let library = Library::open(dir.path().join("library")).unwrap();
     let first = imported(library.import(first.to_str().unwrap()).unwrap());
     let second = imported(library.import(second.to_str().unwrap()).unwrap());
 
     // Nothing opened yet: Reading and Finished are empty, All has both.
-    assert!(library.list(Shelf::Reading, Sort::RecentlyAdded).unwrap().is_empty());
-    assert!(library.list(Shelf::Finished, Sort::RecentlyAdded).unwrap().is_empty());
-    assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 2);
+    assert!(library
+        .list(Shelf::Reading, Sort::RecentlyAdded)
+        .unwrap()
+        .is_empty());
+    assert!(library
+        .list(Shelf::Finished, Sort::RecentlyAdded)
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        2
+    );
     // Unfinished is what a library screen lists, so an imported book is on
     // it immediately — the distinction from Reading that makes a just-added
     // book visible instead of belonging to no shelf at all.
     assert_eq!(
-        library.list(Shelf::Unfinished, Sort::RecentlyAdded).unwrap().len(),
+        library
+            .list(Shelf::Unfinished, Sort::RecentlyAdded)
+            .unwrap()
+            .len(),
         2
     );
 
@@ -79,12 +107,17 @@ fn shelves_and_sorts_partition_the_library() {
 
     // Finishing moves it off Reading onto Finished.
     library.set_finished(&first.id, true).unwrap();
-    assert!(library.list(Shelf::Reading, Sort::RecentlyAdded).unwrap().is_empty());
+    assert!(library
+        .list(Shelf::Reading, Sort::RecentlyAdded)
+        .unwrap()
+        .is_empty());
     let finished = library.list(Shelf::Finished, Sort::RecentlyAdded).unwrap();
     assert_eq!(finished.len(), 1);
     assert_eq!(finished[0].id, first.id);
     // ...and off Unfinished too, which keeps only the second book.
-    let unfinished = library.list(Shelf::Unfinished, Sort::RecentlyAdded).unwrap();
+    let unfinished = library
+        .list(Shelf::Unfinished, Sort::RecentlyAdded)
+        .unwrap();
     assert_eq!(unfinished.len(), 1);
     assert_eq!(unfinished[0].id, second.id);
 }
@@ -95,7 +128,14 @@ fn search_library_matches_cjk_and_casefolds() {
     let a = dir.path().join("a.epub");
     write_epub(&a, "月光書房", "紫式部", "ja");
     let b = dir.path().join("b.epub");
-    write_epub_with(&b, "Die Straße", "Hans Müller", "de", TocKind::None, CoverKind::None);
+    write_epub_with(
+        &b,
+        "Die Straße",
+        "Hans Müller",
+        "de",
+        TocKind::None,
+        CoverKind::None,
+    );
 
     let library = Library::open(dir.path().join("library")).unwrap();
     library.import(a.to_str().unwrap()).unwrap();
@@ -122,10 +162,18 @@ fn bookmarks_roundtrip_sorted_by_progression() {
     let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
 
     let late = library
-        .add_bookmark(&publication.id, r#"{"locations":{"totalProgression":0.8}}"#, 0.8)
+        .add_bookmark(
+            &publication.id,
+            r#"{"locations":{"totalProgression":0.8}}"#,
+            0.8,
+        )
         .unwrap();
     let early = library
-        .add_bookmark(&publication.id, r#"{"locations":{"totalProgression":0.2}}"#, 0.2)
+        .add_bookmark(
+            &publication.id,
+            r#"{"locations":{"totalProgression":0.2}}"#,
+            0.2,
+        )
         .unwrap();
 
     let listed = library.bookmarks(&publication.id).unwrap();
@@ -142,7 +190,6 @@ fn bookmarks_roundtrip_sorted_by_progression() {
         Err(CoreError::NotFound(_))
     ));
 }
-
 
 #[test]
 fn open_sweeps_unreferenced_and_tmp_files() {
@@ -168,7 +215,10 @@ fn open_sweeps_unreferenced_and_tmp_files() {
     assert!(!data_dir.join("covers/orphan.jpg").exists());
     // The referenced book survived.
     assert!(data_dir.join(&kept.file_path).is_file());
-    assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 1);
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        1
+    );
 }
 
 #[test]
@@ -183,5 +233,8 @@ fn reads_do_not_queue_behind_the_writer() {
     // Hold the writer lock; a read must still complete — if list()
     // touched the writer connection this would deadlock the test.
     let _writer_held = library.writer.lock().unwrap();
-    assert_eq!(library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(), 1);
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        1
+    );
 }

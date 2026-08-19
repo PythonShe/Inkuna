@@ -16,9 +16,11 @@ common defaults.
 | XML | quick-xml | streaming events, no DOM; entity unescape via `quick_xml::escape::unescape` |
 | FFI | UniFFI proc-macros, latest | Swift + Kotlin bindings from one surface; async methods use `#[uniffi::export(async_runtime = "tokio")]` |
 
-Formats: EPUB (full metadata), MOBI/AZW3 (PalmDB header distinguishes by KF8
-version; DRM-free only), TXT (charset-aware CJK handling planned), PDF,
-CBZ/CBR. Reflowables normalize to EPUB at import; see root CLAUDE.md.
+Formats: EPUB (full metadata), MOBI/AZW3 (hand-rolled clean-room Palm/KF8
+readers in `formats/mobi` + `formats/azw3`; DRM-free only), TXT
+(chardetng/encoding_rs charset detection, CJK chapter auto-detection) — all
+reflowables normalize to EPUB at import through `formats/epub/write.rs`.
+PDF and CBZ/CBR are detected but not yet importable; see root CLAUDE.md.
 
 ```bash
 cargo test                      # full workspace tests — must pass before commit
@@ -46,9 +48,10 @@ cargo test                      # full workspace tests — must pass before comm
 |------|------|
 | `src/lib.rs` | crate root: module declarations plus the public `pub use` re-exports — keep it thin |
 | `src/core/` | infrastructure leaves: `error`, `db/` (connection setup, reader pool, migrations), `files`, `time`. No business logic |
-| `src/formats/` | detection (`format.rs`) and one parser module per format (`epub/`; CBZ/CBR/MOBI land beside it) |
+| `src/formats/` | detection (`format.rs`) and one module per format (`epub/`, `mobi/`, `azw3/`, `txt/`; CBZ/CBR land beside them) |
 | `src/features/` | vertical slices — `library/`, `import/`, `progress/`, `stats/`, `settings/` — each owning its types, reads, and writes |
 | `src/test_support.rs` | shared `#[cfg(test)]` fixtures (the `write_epub` / `write_cbz` / `write_mobi` builders) |
+| `src/mobi_test_support.rs` | shared `#[cfg(test)]` MOBI/KF8 fixtures (`MobiTestBuilder`, INDX/KF8 fixture builders, `palmdoc_compress`) |
 
 - **`mod.rs` is declarations only**: module doc comments, `mod`/`pub mod`,
   `use`/`pub use`, and module-level constants. Never a `fn`, `struct`, `enum`,
@@ -110,5 +113,6 @@ cargo test                      # full workspace tests — must pass before comm
   `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`; a folder module gets
   `tests.rs` inside it, declared from `mod.rs` as `#[cfg(test)] mod tests;`.
 - Tests build their own fixtures in `tempfile` dirs; shared builders live in
-  `src/test_support.rs` (the `write_epub` helper) — no binary fixtures in git.
+  `src/test_support.rs` (the `write_epub` helper) and
+  `src/mobi_test_support.rs` (MOBI/KF8) — no binary fixtures in git.
 - Format detection, metadata parsing, and DB roundtrips must stay covered.

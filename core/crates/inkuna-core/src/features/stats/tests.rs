@@ -130,36 +130,48 @@ fn stats_attribute_sessions_to_local_buckets() {
     // One sitting spanning local midnight Feb 28 → Mar 1: attributed
     // wholly to February — no minutes, no dots this month.
     insert_session(
-        &library, &id,
-        ts(2026, 2, 28, 23, 30), Some(ts(2026, 3, 1, 0, 30)), ts(2026, 3, 1, 0, 30),
-        Some(1), Some(9),
+        &library,
+        &id,
+        ts(2026, 2, 28, 23, 30),
+        Some(ts(2026, 3, 1, 0, 30)),
+        ts(2026, 3, 1, 0, 30),
+        Some(1),
+        Some(9),
     );
     // Sunday Mar 1, 20 minutes, 5 pages: this month, but before the
     // Monday-started week.
     insert_session(
-        &library, &id,
-        ts(2026, 3, 1, 8, 0), Some(ts(2026, 3, 1, 8, 20)), ts(2026, 3, 1, 8, 20),
-        Some(100), Some(105),
+        &library,
+        &id,
+        ts(2026, 3, 1, 8, 0),
+        Some(ts(2026, 3, 1, 8, 20)),
+        ts(2026, 3, 1, 8, 20),
+        Some(100),
+        Some(105),
     );
     // Monday Mar 2, 30 minutes, 15 pages: in week and month.
     insert_session(
-        &library, &id,
-        ts(2026, 3, 2, 10, 0), Some(ts(2026, 3, 2, 10, 30)), ts(2026, 3, 2, 10, 30),
-        Some(10), Some(25),
+        &library,
+        &id,
+        ts(2026, 3, 2, 10, 0),
+        Some(ts(2026, 3, 2, 10, 30)),
+        ts(2026, 3, 2, 10, 30),
+        Some(10),
+        Some(25),
     );
     // Tuesday Mar 3, 10 minutes, pages backwards: clamps to 0 pages.
     insert_session(
-        &library, &id,
-        ts(2026, 3, 3, 9, 0), Some(ts(2026, 3, 3, 9, 10)), ts(2026, 3, 3, 9, 10),
-        Some(50), Some(40),
+        &library,
+        &id,
+        ts(2026, 3, 3, 9, 0),
+        Some(ts(2026, 3, 3, 9, 10)),
+        ts(2026, 3, 3, 9, 10),
+        Some(50),
+        Some(40),
     );
     // In-flight tonight (no ended_at), NULL positions: counted via the
     // effective-end rule for minutes and dots, 0 pages.
-    insert_session(
-        &library, &id,
-        now - 1200, None, now - 600,
-        None, None,
-    );
+    insert_session(&library, &id, now - 1200, None, now - 600, None, None);
 
     // Finished in January of the simulated year. Stamped directly, like
     // the sessions above: `set_finished` would stamp the *machine* clock,
@@ -187,9 +199,13 @@ fn stats_fall_back_to_utc_on_unknown_zone() {
     let (_dir, library, id) = library_with_book();
     let now = ts(2026, 3, 3, 22, 0);
     insert_session(
-        &library, &id,
-        ts(2026, 3, 2, 10, 0), Some(ts(2026, 3, 2, 10, 30)), ts(2026, 3, 2, 10, 30),
-        Some(10), Some(25),
+        &library,
+        &id,
+        ts(2026, 3, 2, 10, 0),
+        Some(ts(2026, 3, 2, 10, 30)),
+        ts(2026, 3, 2, 10, 30),
+        Some(10),
+        Some(25),
     );
 
     // A zone id the tz database does not know must fall back to UTC
@@ -197,7 +213,9 @@ fn stats_fall_back_to_utc_on_unknown_zone() {
     let unknown = library
         .stats_overview_at(at(now), "Not/AZone", Weekday::Mon)
         .unwrap();
-    let utc = library.stats_overview_at(at(now), "UTC", Weekday::Mon).unwrap();
+    let utc = library
+        .stats_overview_at(at(now), "UTC", Weekday::Mon)
+        .unwrap();
     assert_eq!(unknown, utc);
 }
 
@@ -219,9 +237,13 @@ fn month_boundary_holds_across_dst_transition() {
         .unwrap()
         .timestamp();
     insert_session(
-        &library, &id,
-        late_february, Some(late_february + 600), late_february + 600,
-        Some(0), Some(5),
+        &library,
+        &id,
+        late_february,
+        Some(late_february + 600),
+        late_february + 600,
+        Some(0),
+        Some(5),
     );
 
     let overview = library
@@ -250,9 +272,13 @@ fn week_boundary_survives_a_skipped_local_day() {
         .unwrap()
         .timestamp();
     insert_session(
-        &library, &id,
-        thursday, Some(thursday + 600), thursday + 600,
-        Some(0), Some(7),
+        &library,
+        &id,
+        thursday,
+        Some(thursday + 600),
+        thursday + 600,
+        Some(0),
+        Some(7),
     );
 
     let overview = library
