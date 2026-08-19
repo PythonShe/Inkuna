@@ -1,9 +1,8 @@
 package app.inkuna.android.ui.reader
 
 import android.graphics.Rect
-import android.os.Handler
-import android.os.Looper
 import android.os.SystemClock
+import android.view.Choreographer
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -55,7 +54,9 @@ class BoundaryFlingRescue(
     private val samples = ArrayDeque<Sample>()
     private val minDistancePx = MIN_DISTANCE_DP * density
     private val minVelocityPx = MIN_VELOCITY_DP_S * density
-    private val handler = Handler(Looper.getMainLooper())
+
+    /** The armed verification, so a fresh drag can supersede it. */
+    private var pendingVerify: Choreographer.FrameCallback? = null
 
     // The resource WebView as the drag began: whether each direction was
     // already clamped (a true edge), and where the view sat on screen so
@@ -73,6 +74,7 @@ class BoundaryFlingRescue(
         val now = SystemClock.uptimeMillis()
         when (event.type) {
             DragEvent.Type.Start -> {
+                cancelVerify()
                 samples.clear()
                 samples += Sample(now, event.offset.x)
                 val webView = visibleWebView()
@@ -127,25 +129,50 @@ class BoundaryFlingRescue(
         val forward = (dx < 0) != rtl
 
         // Readium's own gate occasionally passes (the force-drag case) and
-        // moves its pager within a frame. Give it a beat: if the dragged
-        // WebView is still attached at the same screen position, nothing
-        // happened — perform the turn ourselves. (The current locator is
-        // debounced and lags animations; the view check is race-free.)
+        // moves its pager within a frame of the release. Watch at frame
+        // rate instead of sleeping a blind wall-clock beat: any movement
+        // of the dragged WebView means Readium acted — stand down; a view
+        // still holding its exact screen position after a few quiet
+        // frames proves the swipe died, and the turn fires right then.
+        // (The current locator is debounced and lags animations; the view
+        // check is race-free.) The old 250 ms sleep made every rescued
+        // turn eat a quarter second before anything moved.
         val webViewRef = startWebView
         val screenX = startScreenX
-        handler.postDelayed({
-            val webView = webViewRef?.get()
-            val untouched = webView != null &&
-                webView.isAttachedToWindow &&
-                webView.screenX() == screenX
-            if (untouched) {
-                if (forward) {
-                    navigator.goForward(animated = true)
+        cancelVerify()
+        val armedAt = now
+        var quietFrames = 0
+        val choreographer = Choreographer.getInstance()
+        val callback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (pendingVerify !== this) return
+                val webView = webViewRef?.get()
+                if (webView == null || !webView.isAttachedToWindow ||
+                    webView.screenX() != screenX
+                ) {
+                    pendingVerify = null
+                    return
+                }
+                quietFrames += 1
+                val quietMs = SystemClock.uptimeMillis() - armedAt
+                if (quietFrames >= QUIET_FRAMES && quietMs >= QUIET_MS) {
+                    pendingVerify = null
+                    if (forward) {
+                        navigator.goForward(animated = true)
+                    } else {
+                        navigator.goBackward(animated = true)
+                    }
                 } else {
-                    navigator.goBackward(animated = true)
+                    choreographer.postFrameCallback(this)
                 }
             }
-        }, RESCUE_DELAY_MS)
+        }
+        pendingVerify = callback
+        choreographer.postFrameCallback(callback)
+    }
+
+    private fun cancelVerify() {
+        pendingVerify = null
     }
 
     /**
@@ -173,7 +200,16 @@ class BoundaryFlingRescue(
 
     private companion object {
         const val VELOCITY_WINDOW_MS = 120L
-        const val RESCUE_DELAY_MS = 250L
+
+        /**
+         * How long the released WebView must hold perfectly still before
+         * the rescue concludes Readium is not acting. Readium's own gate
+         * moves its pager within a frame of the drag-end it accepts, so
+         * a handful of quiet frames — with a wall-clock floor for very
+         * fast displays — is proof; ~48 ms at 60 Hz, ~33 ms at 120 Hz.
+         */
+        const val QUIET_FRAMES = 3
+        const val QUIET_MS = 32L
         const val MIN_DISTANCE_DP = 24f
         /** Deliberately below Readium's 400 dp/s gate — a light flick. */
         const val MIN_VELOCITY_DP_S = 300f
