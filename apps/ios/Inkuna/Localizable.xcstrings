@@ -8333,7 +8333,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add an EPUB from Files, iCloud Drive, or wherever your books live. Inkuna keeps its own copy, so the original stays where it is."
+            "value": "Add a book from Files, iCloud Drive, or wherever your books live. Inkuna keeps its own copy, so the original stays where it is."
           }
         },
         "zh-Hans": {
@@ -8422,7 +8422,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "EPUB today. Comics and more to come."
+            "value": "EPUB, MOBI, AZW3, and TXT today. Comics to come."
           }
         },
         "zh-Hans": {
@@ -11359,7 +11359,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This EPUB is missing something Inkuna needs to read it."
+            "value": "This book can't be opened. It may be incomplete — or protected by DRM, which Inkuna doesn't support."
           }
         },
         "zh-Hans": {
