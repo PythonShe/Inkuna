@@ -753,6 +753,21 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         return commands
     }
 
+    /// VoiceOver's three-finger swipe. Geometric, exactly like the edge
+    /// taps and the arrow keys: a swipe left asks for the +x page, so
+    /// reading progression is honored by the pager rather than re-derived
+    /// here. Vertical scrolls are none of the reader's business.
+    override func accessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
+        guard let pager else { return false }
+        switch direction {
+        case .left: pager.turnRight()
+        case .right: pager.turnLeft()
+        default: return false
+        }
+        UIAccessibility.post(notification: .pageScrolled, argument: nil)
+        return true
+    }
+
     @objc private func keyTurnLeft() { pager?.turnLeft() }
     @objc private func keyTurnRight() { pager?.turnRight() }
     @objc private func keyTurnForward() { pager?.turnForward() }
