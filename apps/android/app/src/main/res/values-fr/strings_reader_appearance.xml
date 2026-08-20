@@ -30,6 +30,6 @@
     <string name="a11y_letter_spacing">Espacement des lettres</string>
     <string name="a11y_word_spacing">Espacement des mots</string>
     <string name="a11y_margins">Marges de page</string>
-    <string name="a11y_reset_defaults">Rétablir la typographie et la mise en page</string>
+    <string name="a11y_reset_defaults">Rétablir la typographie et la mise en page par défaut</string>
     <string name="a11y_preview_sample">Aperçu</string>
 </resources>

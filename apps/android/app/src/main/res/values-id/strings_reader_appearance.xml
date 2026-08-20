@@ -23,7 +23,7 @@
     <string name="reader_value_px">%1$s px</string>
     <string name="reader_preview_fallback">Jam-jam yang tenang adalah milik pembaca.</string>
     <string name="a11y_customize_appearance">Sesuaikan tipografi dan tata letak</string>
-    <string name="a11y_back_to_theme_type">Kembali ke tema dan tipografi</string>
+    <string name="a11y_back_to_theme_type">Kembali ke tema &amp; jenis huruf</string>
     <string name="a11y_font_option">Fon %1$s</string>
     <string name="a11y_bold_text">Teks tebal</string>
     <string name="a11y_line_spacing">Jarak baris</string>

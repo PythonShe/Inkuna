@@ -23,7 +23,7 @@
     <string name="reader_value_px">%1$s px</string>
     <string name="reader_preview_fallback">Le ore quiete appartengono al lettore.</string>
     <string name="a11y_customize_appearance">Personalizza tipografia e layout</string>
-    <string name="a11y_back_to_theme_type">Torna a tema e tipografia</string>
+    <string name="a11y_back_to_theme_type">Torna a tema e caratteri</string>
     <string name="a11y_font_option">Carattere %1$s</string>
     <string name="a11y_bold_text">Testo in grassetto</string>
     <string name="a11y_line_spacing">Interlinea</string>

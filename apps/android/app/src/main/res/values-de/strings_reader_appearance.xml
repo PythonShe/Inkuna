@@ -23,7 +23,7 @@
     <string name="reader_value_px">%1$s px</string>
     <string name="reader_preview_fallback">Die stillen Stunden gehören dem Lesenden.</string>
     <string name="a11y_customize_appearance">Schrift und Layout anpassen</string>
-    <string name="a11y_back_to_theme_type">Zurück zu Thema und Schrift</string>
+    <string name="a11y_back_to_theme_type">Zurück zu Design &amp; Typografie</string>
     <string name="a11y_font_option">Schriftart %1$s</string>
     <string name="a11y_bold_text">Fetter Text</string>
     <string name="a11y_line_spacing">Zeilenabstand</string>

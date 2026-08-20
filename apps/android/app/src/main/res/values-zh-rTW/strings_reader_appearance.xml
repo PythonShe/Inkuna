@@ -23,7 +23,7 @@
     <string name="reader_value_px">%1$spx</string>
     <string name="reader_preview_fallback">靜謐的時光屬於讀書的人。</string>
     <string name="a11y_customize_appearance">自訂文字與版式</string>
-    <string name="a11y_back_to_theme_type">返回主題與文字</string>
+    <string name="a11y_back_to_theme_type">返回版面與主題</string>
     <string name="a11y_font_option">%1$s字型</string>
     <string name="a11y_bold_text">粗體</string>
     <string name="a11y_line_spacing">行距</string>

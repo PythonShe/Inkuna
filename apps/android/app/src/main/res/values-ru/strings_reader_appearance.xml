@@ -23,7 +23,7 @@
     <string name="reader_value_px">%1$s px</string>
     <string name="reader_preview_fallback">Тихие часы принадлежат читателю.</string>
     <string name="a11y_customize_appearance">Настроить шрифт и макет</string>
-    <string name="a11y_back_to_theme_type">Назад к теме и шрифту</string>
+    <string name="a11y_back_to_theme_type">Назад к оформлению и шрифту</string>
     <string name="a11y_font_option">Шрифт %1$s</string>
     <string name="a11y_bold_text">Жирный текст</string>
     <string name="a11y_line_spacing">Межстрочный интервал</string>

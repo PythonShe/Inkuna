@@ -15628,7 +15628,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chữ"
+            "value": "Kiểu chữ"
           }
         },
         "zh-Hans": {
@@ -16245,7 +16245,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ขอบ"
+            "value": "ระยะขอบ"
           }
         },
         "vi": {
@@ -17052,7 +17052,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tùy chỉnh chữ và bố cục"
+            "value": "Tùy chỉnh kiểu chữ và bố cục"
           }
         },
         "zh-Hans": {
@@ -17580,7 +17580,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ขอบหน้า"
+            "value": "ระยะขอบหน้า"
           }
         },
         "vi": {
@@ -17627,7 +17627,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rétablir la typographie et la mise en page"
+            "value": "Rétablir la typographie et la mise en page par défaut"
           }
         },
         "id": {
@@ -17669,13 +17669,13 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "รีเซ็ตตัวอักษรและเค้าโครง"
+            "value": "รีเซ็ตตัวอักษรและเค้าโครงเป็นค่าเริ่มต้น"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đặt lại chữ và bố cục về mặc định"
+            "value": "Đặt lại kiểu chữ và bố cục về mặc định"
           }
         },
         "zh-Hans": {
