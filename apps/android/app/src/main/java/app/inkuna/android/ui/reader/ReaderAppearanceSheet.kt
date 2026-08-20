@@ -343,7 +343,10 @@ private fun AppearancePreviewCard(
             .inkShadow(2.dp, InkRadius.mdShape)
             .clip(InkRadius.mdShape)
             .background(theme.background)
-            .heightIn(max = 118.dp)
+            // A minimum, not a maximum: the card keeps its designed slice
+            // height but grows when large type or wide line spacing needs
+            // more room, so the third line is never cut mid-glyph.
+            .heightIn(min = 118.dp)
             .clearAndSetSemantics { contentDescription = "$a11yPreview: $phrase" }
             .padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
