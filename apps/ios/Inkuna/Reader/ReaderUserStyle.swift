@@ -44,11 +44,14 @@ struct ReaderUserStyle: Equatable {
         settings.readingMargins = margins
     }
 
-    /// The full stylesheet. Every rule is rooted at `html` — specificity
-    /// (0,0,2) beats ReadiumCSS's body/:root rules regardless of which
-    /// stylesheet lands later in `<head>`, so the serve-time splice and the
-    /// live re-append behave identically. ASCII-only and free of `</`, so
-    /// it is safe both spliced into HTML and quoted into a JS literal.
+    /// The full stylesheet. Every rule is `html`-rooted and `!important`.
+    /// ReadiumCSS's competing typography rules are `:root` — specificity
+    /// (0,1,0), which would beat our (0,0,2) — but every one of them is
+    /// gated on a `--USER__*` preference this app never submits, so they
+    /// stay inert. Invariant: never route line-height/letter/word-spacing/
+    /// font-family through `EPUBPreferences`, or ReadiumCSS wins silently.
+    /// ASCII-only and free of `</`, so the sheet is safe both spliced into
+    /// HTML and quoted into a JS literal.
     func css() -> String {
         // Non-localized formatting: a de-locale device must not emit 1,65.
         func num(_ value: Double) -> String {
@@ -68,10 +71,12 @@ struct ReaderUserStyle: Equatable {
 
         // Margins: body is the fragmented child of the :root multicol, so
         // inline-axis padding repeats inside every column and never moves
-        // the column grid the pager measures.
+        // the column grid the pager measures. Logical properties, because in
+        // vertical-rl the physical left/right become the fragmentation axis,
+        // where sliced padding lands only on the first and last page.
         rules.append(
-            "html body{padding-left:var(--inkuna-margins)!important;"
-                + "padding-right:var(--inkuna-margins)!important}"
+            "html body{padding-inline-start:var(--inkuna-margins)!important;"
+                + "padding-inline-end:var(--inkuna-margins)!important}"
         )
 
         // Line height: root value + explicit inherit on the blocks a
@@ -168,7 +173,7 @@ struct ReaderUserStyle: Equatable {
         var a=window.__inkunaAnchor;
         if(a&&a.isConnected){
         var b=a.getBoundingClientRect();
-        target=Math.abs(el.scrollLeft)+b.left;
+        target=Math.abs(el.scrollLeft)+sign*b.left;
         }else{
         target=(window.__inkunaFallback||0)*el.scrollWidth;
         }
