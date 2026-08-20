@@ -29,15 +29,22 @@ class ReaderAppearanceController(
     private val pager: () -> ReaderPagerLayout?,
 ) {
     private var anchorJson: String? = null
+    private var captureJob: Job? = null
     private var restoreJob: Job? = null
 
-    /** A slider touch landed: capture the reflow anchor once. */
+    /**
+     * A slider touch landed: capture the reflow anchor once. The capture
+     * is a job, not a bare callback, so the restore below can join it —
+     * `applyCommitted` begins and re-lands in the same breath, and a
+     * callback still in flight would have the restore read a null anchor
+     * and skip the re-land (the page jumping to column 0).
+     */
     fun beginPreview() {
-        if (anchorJson != null) return
+        if (anchorJson != null || captureJob?.isActive == true) return
         val visible = pager()?.currentWebView() ?: return
         pager()?.cancelInteraction()
-        visible.evaluateJavascript(CAPTURE_JS) { result ->
-            anchorJson = result?.let(::decodeJsString)
+        captureJob = scope.launch {
+            anchorJson = visible.evaluateJavascriptAndAwait(CAPTURE_JS)?.let(::decodeJsString)
         }
     }
 
@@ -76,6 +83,9 @@ class ReaderAppearanceController(
     private fun restoreAndRecalibrate() {
         restoreJob?.cancel()
         restoreJob = scope.launch {
+            // The anchor capture may still be in flight — a commit begins
+            // and re-lands in one pass — so join it before reading.
+            captureJob?.join()
             // Let the WebView reach the frame after the CSS lands, then
             // give Blink's column relayout a beat before re-landing.
             awaitFrame()
@@ -89,6 +99,7 @@ class ReaderAppearanceController(
                 visible.evaluateJavascriptAndAwait("($RESTORE_JS)($anchor)")
             }
             anchorJson = null
+            captureJob = null
             pager()?.recalibrate()
         }
     }
@@ -137,11 +148,10 @@ class ReaderAppearanceController(
     }
 }
 
-private suspend fun WebView.evaluateJavascriptAndAwait(script: String) {
+private suspend fun WebView.evaluateJavascriptAndAwait(script: String): String? =
     suspendCancellableCoroutine { continuation ->
-        evaluateJavascript(script) { continuation.resume(Unit) }
+        evaluateJavascript(script) { result -> continuation.resume(result) }
     }
-}
 
 /** Extracts a phrase from the visible column of a resource WebView. */
 object ReaderPhraseProbe {
