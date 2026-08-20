@@ -45,6 +45,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -297,12 +298,22 @@ private fun ReaderContent(
     val pagerLayout = remember { mutableStateOf<ReaderPagerLayout?>(null) }
     val nextPageLabel = stringResource(R.string.a11y_next_page)
     val previousPageLabel = stringResource(R.string.a11y_previous_page)
+    // Named page turns are only honest while the pager exists and the
+    // overflow is paginated: `turnGeometric` refuses in vertical-scroll
+    // mode, so advertising the actions there gives TalkBack a "Next page"
+    // that silently does nothing.
+    val overflowFlow = remember(navigator) { navigator?.overflow }
+    val scrollMode by produceState(false, overflowFlow) {
+        val flow = overflowFlow
+        if (flow == null) value = false else flow.collect { value = it.scroll }
+    }
+    val pageTurnActions = pagerLayout.value != null && !scrollMode
     // Hoisted so the fragment host's modifier is one stable value: rebuilt
     // per recomposition, the fresh semantics lambda would re-update the
     // AndroidView's modifier node on every page turn.
     val hostModifier = remember(
         contentTop, contentBottom, toggleLabel, toggleChrome,
-        nextPageLabel, previousPageLabel,
+        nextPageLabel, previousPageLabel, pageTurnActions,
     ) {
         Modifier
             .fillMaxSize()
@@ -317,14 +328,16 @@ private fun ReaderContent(
                     toggleChrome()
                     true
                 }
-                customActions = listOf(
-                    CustomAccessibilityAction(nextPageLabel) {
-                        pagerLayout.value?.turnForward() ?: false
-                    },
-                    CustomAccessibilityAction(previousPageLabel) {
-                        pagerLayout.value?.turnBackward() ?: false
-                    },
-                )
+                if (pageTurnActions) {
+                    customActions = listOf(
+                        CustomAccessibilityAction(nextPageLabel) {
+                            pagerLayout.value?.turnForward() ?: false
+                        },
+                        CustomAccessibilityAction(previousPageLabel) {
+                            pagerLayout.value?.turnBackward() ?: false
+                        },
+                    )
+                }
             }
     }
     // The reader's own user stylesheet (Customize: font, bold, spacings,

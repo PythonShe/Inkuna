@@ -784,6 +784,11 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     fun turnGeometric(sign: Int): Boolean {
         val nav = navigator ?: return false
         if (nav.overflow.value.scroll || dragging) return false
+        // Set once the return/rubber abort below has destroyed an in-flight
+        // settle: from that point the tap is ours no matter what, since
+        // returning false would hand it to the chrome-tap listener after
+        // the settle is already gone.
+        var didAbortSettle = false
         // A turn already in flight: successive taps chain by moving the
         // running spring's goal one page further, staying inside the
         // resource; a running boundary commit takes the tap as seen.
@@ -811,20 +816,21 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                     // The spring is stopped, so settleDone's reset closes the
                     // fake drag by driving it back to the base offset first.
                     settleDone()
+                    didAbortSettle = true
                 }
                 else -> return true
             }
         }
-        val root = nav.view ?: return false
-        val visible = visibleWebView(root) ?: return false
+        val root = nav.view ?: return didAbortSettle
+        val visible = visibleWebView(root) ?: return didAbortSettle
         webView = visible
-        if (visible.width <= 0) return false
+        if (visible.width <= 0) return didAbortSettle
         onTurnGesture?.invoke()
 
         if (visible.canScrollHorizontally(sign)) {
             seedInnerMax(visible)
             val pitch = innerPitch
-            if (pitch <= 0f) return false
+            if (pitch <= 0f) return didAbortSettle
             startPage = (visible.scrollX / pitch).roundToInt()
             val ceiling = if (innerMax == Int.MAX_VALUE) Float.MAX_VALUE else innerMax.toFloat()
             val target = ((startPage + sign) * pitch).coerceIn(0f, ceiling)

@@ -3,11 +3,13 @@ package app.inkuna.android.ui.reader
 import android.webkit.WebView
 import app.inkuna.android.model.AppSettings
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import org.json.JSONTokener
 import kotlin.coroutines.resume
@@ -38,12 +40,21 @@ class ReaderAppearanceController(
      * `applyCommitted` begins and re-lands in the same breath, and a
      * callback still in flight would have the restore read a null anchor
      * and skip the re-land (the page jumping to column 0).
+     *
+     * UNDISPATCHED is load-bearing: `rememberCoroutineScope`'s
+     * AndroidUiDispatcher never runs a launch inline, so a dispatched
+     * coroutine would enqueue CAPTURE_JS *after* the caller's
+     * `injector.setCss` has already enqueued its own JS — measuring the
+     * anchor post-reflow, which is exactly the position loss this guards.
+     * Starting undispatched runs the body inline up to the first real
+     * suspension (the evaluateJavascript callback await), so the capture
+     * is submitted to the WebView before any CSS in the same call stack.
      */
     fun beginPreview() {
         if (anchorJson != null || captureJob?.isActive == true) return
         val visible = pager()?.currentWebView() ?: return
         pager()?.cancelInteraction()
-        captureJob = scope.launch {
+        captureJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             anchorJson = visible.evaluateJavascriptAndAwait(CAPTURE_JS)?.let(::decodeJsString)
         }
     }
@@ -84,8 +95,12 @@ class ReaderAppearanceController(
         restoreJob?.cancel()
         restoreJob = scope.launch {
             // The anchor capture may still be in flight — a commit begins
-            // and re-lands in one pass — so join it before reading.
-            captureJob?.join()
+            // and re-lands in one pass — so join it before reading. Bounded:
+            // a destroyed view or renderer can drop the evaluateJavascript
+            // callback outright, and an unbounded join would strand the
+            // pager on stale metrics with anchorJson pinned non-null,
+            // short-circuiting every later beginPreview.
+            withTimeoutOrNull(CAPTURE_JOIN_TIMEOUT_MS) { captureJob?.join() }
             // Let the WebView reach the frame after the CSS lands, then
             // give Blink's column relayout a beat before re-landing.
             awaitFrame()
@@ -98,14 +113,18 @@ class ReaderAppearanceController(
             if (visible != null && anchor != null) {
                 visible.evaluateJavascriptAndAwait("($RESTORE_JS)($anchor)")
             }
-            anchorJson = null
+            // Always cleared, timeout or not — a capture still pending after
+            // the timeout must not resurrect a stale anchor later.
+            captureJob?.cancel()
             captureJob = null
+            anchorJson = null
             pager()?.recalibrate()
         }
     }
 
     private companion object {
         const val REFLOW_SETTLE_MS = 32L
+        const val CAPTURE_JOIN_TIMEOUT_MS = 500L
 
         /**
          * Captures the first visible text element as a Readium locator
@@ -214,7 +233,10 @@ object ReaderPhraseProbe {
           var picks = [];
           for (var j = 0; j < chunks.length; j++) {
             var c = chunks[j].trim();
-            if (c.length >= min && c.length <= max && !/^[\s\W_]+${'$'}/.test(c)) picks.push(c);
+            // Characters, not UTF-16 code units — the same unit the
+            // fallback below counts, so one window means one thing.
+            var len = Array.from(c).length;
+            if (len >= min && len <= max && !/^[\s\W_]+${'$'}/.test(c)) picks.push(c);
           }
           if (!picks.length) {
             // Slice by character, not UTF-16 code unit: substr would cut a
