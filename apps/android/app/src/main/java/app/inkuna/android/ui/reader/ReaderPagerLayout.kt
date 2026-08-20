@@ -43,9 +43,10 @@ import org.readium.r2.shared.ExperimentalReadiumApi
  * Release physics and thresholds are shared with the iOS shell: commits
  * take a third of a page or a flick (an opposing flick always cancels),
  * and every settle is a critically damped [SettleSpring] fed the
- * finger's release velocity. A boundary settle lands on the exact page
- * offset at ~zero velocity *before* `endFakeDrag`, so ViewPager's own
- * target computation deterministically commits that page and Readium's
+ * finger's release velocity. A boundary commit lands the moment its
+ * displacement reaches the exact page offset — arrival, not velocity
+ * rest, ends it — *before* `endFakeDrag`, so ViewPager's own target
+ * computation deterministically commits that page and Readium's
  * `onPageSelected` bookkeeping runs exactly as for a programmatic turn.
  * Every flight is interruptible: a touch-down freezes it in place, a
  * drag from there picks it up under the finger, and a bare tap lets it
@@ -154,6 +155,31 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     private val spring = SettleSpring()
     private enum class Settle { NONE, INNER, PAGER_COMMIT_PLUS, PAGER_COMMIT_MINUS, PAGER_RETURN, RUBBER }
     private var settle = Settle.NONE
+
+    /**
+     * The open fake drag's VelocityTracker is about to be (or was)
+     * recycled under us: ViewPager's `onInterceptTouchEvent` runs
+     * `resetTouch()` on every UP/CANCEL that passes it — and every touch
+     * that reaches the page while a settle is in flight does pass it,
+     * because Readium's EPUB pager only short-circuits ACTION_DOWN. That
+     * recycle nulls the tracker while `mFakeDragging` stays set, so the
+     * next `fakeDragBy`/`endFakeDrag` would throw an NPE and crash.
+     * Armed by [freezeSettle] (the only door such a touch can come
+     * through), consumed by [rearmFakeDrag] before the next drive.
+     */
+    private var fakeDragArmNeeded = false
+
+    /** The live gesture picked an in-flight boundary commit off its
+     *  spring — a turn the reader has already been shown. */
+    private var pickedUpCommit = false
+
+    /** A turn owed to a flick the boundary commit would otherwise
+     *  swallow, fired once the commit lands. 0 means none. */
+    private var chainTurnSign = 0
+
+    /** The queuing flick's content velocity — the chained turn rides it
+     *  so it moves like the flick that asked for it, not a tap. */
+    private var chainTurnVelocity = 0f
 
     // MARK: Touch pipeline
 
@@ -293,6 +319,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         rubberRaw = 0f
         neighbourReadyPlus = 0
         neighbourReadyMinus = 0
+        pickedUpCommit = false
         dragging = true
         onTurnGesture?.invoke()
     }
@@ -306,6 +333,10 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         frozenVelocity = spring.currentVelocity
         spring.cancel()
         settle = Settle.NONE
+        // Whatever this touch turns out to be — a bare tap's UP, or the
+        // child-cancel a pickup's claim sends — it will pass ViewPager's
+        // intercept and recycle the fake drag's velocity tracker.
+        if (pager?.isFakeDragging == true) fakeDragArmNeeded = true
     }
 
     /** The frozen flight's touch moved past slop: the finger picks the
@@ -331,6 +362,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                 }
                 boundaryPx = (currentPager.scrollX - basePagerScrollX).toFloat()
                 baseStrip = visible.scrollX + boundaryPx
+                pickedUpCommit = kind != Settle.PAGER_RETURN
             }
             Settle.INNER -> {
                 baseStrip = visible.scrollX.toFloat()
@@ -470,6 +502,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             // intercept's child-cancel used to cause.
             if (!currentPager.beginFakeDrag()) return false
             basePagerScrollX = currentPager.scrollX
+            fakeDragArmNeeded = false
         }
         prePositionNeighbour(nav, neighbour, sign)
         return true
@@ -487,6 +520,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             boundaryPx = 0f
             return
         }
+        rearmFakeDrag(currentPager)
         boundaryPx = displacement
         val target = basePagerScrollX + displacement
         val delta = currentPager.scrollX - target
@@ -519,6 +553,23 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         neighbour.evaluateJavascript(js, null)
     }
 
+    /**
+     * Re-obtains the fake drag's recycled velocity tracker (see
+     * [fakeDragArmNeeded]). `beginFakeDrag` on an already-fake-dragging
+     * pager is the one public re-arm: its only guard is a *real* touch
+     * drag (impossible here — the EPUB pager rejects the ACTION_DOWN
+     * that would start one), and all it does is re-obtain the tracker
+     * and re-zero the synthetic motion baseline. Neither is read by this
+     * regime: every settle lands on the exact page offset at ~zero
+     * velocity before `endFakeDrag`, so ViewPager's release computation
+     * never falls back on that synthetic history.
+     */
+    private fun rearmFakeDrag(currentPager: ViewPager) {
+        if (!fakeDragArmNeeded) return
+        fakeDragArmNeeded = false
+        currentPager.beginFakeDrag()
+    }
+
     /** The classic rubber-band curve: travel beyond an edge approaches
      *  but never reaches half a page, with the familiar 0.55 resistance. */
     private fun rubberBand(excess: Float): Float {
@@ -539,11 +590,24 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         val contentVelocity = -fingerVelocity
         activePointerId = MotionEvent.INVALID_POINTER_ID
 
+        chainTurnSign = 0
         val currentPager = pager
         when {
             currentPager != null && currentPager.isFakeDragging && abs(boundaryPx) > 0.5f -> {
                 val sign = if (boundaryPx > 0f) 1 else -1
                 val commits = !cancelled && boundaryCommits(boundaryPx, contentVelocity)
+                // A second same-direction flick over a picked-up commit
+                // is a demand for one more page — the strip is clamped
+                // to one resource per gesture, so the extra travel would
+                // otherwise vanish. Queue exactly one chained turn for
+                // the moment the commit lands.
+                if (commits && pickedUpCommit &&
+                    abs(contentVelocity) >= minFlingVelocityPx &&
+                    (contentVelocity > 0f) == (sign > 0)
+                ) {
+                    chainTurnSign = sign
+                    chainTurnVelocity = contentVelocity
+                }
                 settlePager(
                     target = basePagerScrollX + (if (commits) sign * width else 0),
                     velocity = contentVelocity,
@@ -557,6 +621,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             abs(rubberRaw) > 0.5f -> settleRubber()
             else -> settleInner(contentVelocity)
         }
+        pickedUpCommit = false
     }
 
     /** Shared with iOS: a flick decides by its direction alone; a plain
@@ -571,46 +636,85 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     private fun settlePager(target: Int, velocity: Float, kind: Settle) {
         val currentPager = pager ?: return
         settle = kind
+        val targetF = target.toFloat()
+        val commitDir = when (kind) {
+            Settle.PAGER_COMMIT_PLUS -> 1f
+            Settle.PAGER_COMMIT_MINUS -> -1f
+            else -> 0f
+        }
         spring.start(
             from = currentPager.scrollX.toFloat(),
             velocity = velocity,
-            target = target.toFloat(),
+            target = targetF,
             onFrame = { position, springVelocity ->
                 val live = pager
                 if (live != null && live.isFakeDragging && live.isAttachedToWindow) {
-                    live.fakeDragBy(live.scrollX - position)
-                    boundaryPx = position - basePagerScrollX
-                    feedSpringVelocity(live, springVelocity)
-                    true
+                    // A resumed settle's first frame runs after the
+                    // freezing tap's UP already recycled the tracker.
+                    rearmFakeDrag(live)
+                    if (commitDir != 0f && (position - targetF) * commitDir >= -COMMIT_LAND_DISTANCE_PX) {
+                        // A commit is done the instant its displacement
+                        // arrives — crossing counts. The pager clamps at
+                        // the page offset, so bleeding the spring's
+                        // residual velocity to rest would only pin the
+                        // display while the reader's next swipe freezes
+                        // and re-energizes the flight: a fast reader's
+                        // commit would land seconds late or never.
+                        spring.cancel()
+                        live.fakeDragBy(live.scrollX - targetF)
+                        boundaryPx = targetF - basePagerScrollX
+                        landPagerSettle(kind)
+                        false
+                    } else {
+                        live.fakeDragBy(live.scrollX - position)
+                        boundaryPx = position - basePagerScrollX
+                        feedSpringVelocity(live, springVelocity)
+                        true
+                    }
                 } else {
                     false
                 }
             },
-            onSettle = {
-                // Landing exactly on a page offset at ~zero velocity:
-                // ViewPager's own release computation deterministically
-                // keeps this page, and `onPageSelected` runs Readium's
-                // bookkeeping exactly as for a programmatic turn.
-                val committed = if (kind != Settle.PAGER_RETURN) preRastered else null
-                val positionedX = committed?.scrollX ?: 0
-                pager?.takeIf { it.isFakeDragging }?.endFakeDrag()
-                // One piece of that bookkeeping is wrong for us in RTL:
-                // `onPageSelected` re-seats the committed resource by
-                // *physical* column index chosen from the *logical*
-                // direction (`setCurrentItem(0)` going forward), and in
-                // RTL physical column 0 is the chapter's LAST page.
-                // Readium never hits this itself (its EPUB pager refuses
-                // native touch; programmatic turns take the RTL-aware
-                // `goToNextResource`), but a fake-drag commit does. The
-                // neighbour was pre-positioned correctly before it slid
-                // in, so restore that offset; synchronous, no flash.
-                if (committed != null && committed.scrollX != positionedX) {
-                    committed.scrollTo(positionedX, committed.scrollY)
-                }
-                settleDone()
-            },
+            onSettle = { landPagerSettle(kind) },
             onAbort = { abortSettle() },
         )
+    }
+
+    /** Ends a pager settle that reached its offset: commits the page
+     *  through `endFakeDrag`, corrects the RTL re-seat, and fires any
+     *  turn queued behind the commit. */
+    private fun landPagerSettle(kind: Settle) {
+        // Landing exactly on a page offset: ViewPager's own release
+        // computation deterministically keeps this page, and
+        // `onPageSelected` runs Readium's bookkeeping exactly as for a
+        // programmatic turn.
+        val committed = if (kind != Settle.PAGER_RETURN) preRastered else null
+        val positionedX = committed?.scrollX ?: 0
+        pager?.takeIf { it.isFakeDragging }?.endFakeDrag()
+        // One piece of that bookkeeping is wrong for us in RTL:
+        // `onPageSelected` re-seats the committed resource by
+        // *physical* column index chosen from the *logical*
+        // direction (`setCurrentItem(0)` going forward), and in
+        // RTL physical column 0 is the chapter's LAST page.
+        // Readium never hits this itself (its EPUB pager refuses
+        // native touch; programmatic turns take the RTL-aware
+        // `goToNextResource`), but a fake-drag commit does. The
+        // neighbour was pre-positioned correctly before it slid
+        // in, so restore that offset; synchronous, no flash.
+        if (committed != null && committed.scrollX != positionedX) {
+            committed.scrollTo(positionedX, committed.scrollY)
+        }
+        settleDone()
+        if (kind != Settle.PAGER_RETURN && chainTurnSign != 0) {
+            val chained = chainTurnSign
+            val chainedVelocity = chainTurnVelocity
+            chainTurnSign = 0
+            chainTurnVelocity = 0f
+            // The turn a second flick queued behind this commit.
+            // Next frame, so Readium's commit bookkeeping (which
+            // `endFakeDrag` just fired) lands first.
+            post { turnGeometric(chained, chainedVelocity) }
+        }
     }
 
     private fun settleRubber() {
@@ -659,9 +763,34 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         } else {
             (innerMax / pitch).roundToInt()
         }
+        // A fast flick barely travels before it releases: on a resource's
+        // edge page the strip never overflows during the touch, so the
+        // clamped inner settle below would swallow a turn the reader
+        // clearly asked for. Route a flick past the known edge into the
+        // same boundary flight a dragged crossing takes.
+        if (innerMax != Int.MAX_VALUE && abs(velocity) >= minFlingVelocityPx) {
+            val sign = if (velocity > 0f) 1 else -1
+            if ((sign > 0 && targetPage > maxPage) || (sign < 0 && targetPage < 0)) {
+                if (startBoundaryFlight(sign, velocity)) return
+            }
+        }
         val ceiling = if (innerMax == Int.MAX_VALUE) Float.MAX_VALUE else innerMax.toFloat()
         val target = (targetPage.coerceIn(0, maxPage) * pitch).coerceIn(0f, ceiling)
         startInnerSpring(offset, velocity, target)
+    }
+
+    /** Slides the neighbour in with the commit spring — the boundary
+     *  flight a flick past the edge page takes in place of a clamped
+     *  inner settle. False when no neighbour can slide. */
+    private fun startBoundaryFlight(sign: Int, velocity: Float): Boolean {
+        if (pager == null) return false
+        if (!neighbourReady(sign)) return false
+        settlePager(
+            target = basePagerScrollX + sign * width,
+            velocity = velocity,
+            kind = if (sign > 0) Settle.PAGER_COMMIT_PLUS else Settle.PAGER_COMMIT_MINUS,
+        )
+        return true
     }
 
     private fun startInnerSpring(from: Float, velocity: Float, target: Float) {
@@ -690,6 +819,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
      *  fake drag, pre-raster, and settle kind all leak. */
     private fun abortSettle() {
         settle = Settle.NONE
+        chainTurnSign = 0
         settleDone()
     }
 
@@ -722,6 +852,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
      */
     private fun closeFakeDrag() {
         val currentPager = pager?.takeIf { it.isFakeDragging } ?: return
+        rearmFakeDrag(currentPager)
         runCatching {
             currentPager.fakeDragBy((currentPager.scrollX - basePagerScrollX).toFloat())
             currentPager.endFakeDrag()
@@ -752,7 +883,10 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         spring.cancel()
         settle = Settle.NONE
         frozen = Settle.NONE
+        chainTurnSign = 0
+        pickedUpCommit = false
         closeFakeDrag()
+        fakeDragArmNeeded = false
         setChildTranslationX(0f)
         preRastered?.settings?.offscreenPreRaster = false
         preRastered = null
@@ -780,8 +914,10 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     }
 
     /** Turns toward +x (sign 1) or -x (sign -1) — the geometric sides,
-     *  whatever the reading progression. */
-    fun turnGeometric(sign: Int): Boolean {
+     *  whatever the reading progression. [velocity] seeds the flight —
+     *  zero for taps and keys; a chained turn passes its flick's release
+     *  velocity so it moves like the flick that asked for it. */
+    fun turnGeometric(sign: Int, velocity: Float = 0f): Boolean {
         val nav = navigator ?: return false
         if (nav.overflow.value.scroll || dragging) return false
         // Set once the return/rubber abort below has destroyed an in-flight
@@ -834,7 +970,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             startPage = (visible.scrollX / pitch).roundToInt()
             val ceiling = if (innerMax == Int.MAX_VALUE) Float.MAX_VALUE else innerMax.toFloat()
             val target = ((startPage + sign) * pitch).coerceIn(0f, ceiling)
-            startInnerSpring(visible.scrollX.toFloat(), 0f, target)
+            startInnerSpring(visible.scrollX.toFloat(), velocity, target)
             return true
         }
 
@@ -848,7 +984,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         if (foundPager != null && neighbourReady(sign)) {
             settlePager(
                 target = basePagerScrollX + sign * width,
-                velocity = 0f,
+                velocity = velocity,
                 kind = if (sign > 0) Settle.PAGER_COMMIT_PLUS else Settle.PAGER_COMMIT_MINUS,
             )
             return true
@@ -953,5 +1089,9 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
 
         /** A turn commits at a third of the page — matched to iOS. */
         const val COMMIT_FRACTION = 1f / 3f
+
+        /** A commit flight lands within this of its offset — the spring's
+         *  asymptotic tail below it is invisible dead time. */
+        const val COMMIT_LAND_DISTANCE_PX = 3f
     }
 }
