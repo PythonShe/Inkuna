@@ -786,14 +786,34 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         if (nav.overflow.value.scroll || dragging) return false
         // A turn already in flight: successive taps chain by moving the
         // running spring's goal one page further, staying inside the
-        // resource; a running boundary turn takes the tap as seen.
+        // resource; a running boundary commit takes the tap as seen.
         if (spring.isRunning) {
-            if (settle == Settle.INNER && innerPitch > 0f) {
-                val next = spring.currentTarget + sign * innerPitch
-                val ceiling = if (innerMax == Int.MAX_VALUE) Float.MAX_VALUE else innerMax.toFloat()
-                if (next in 0f..ceiling) spring.retarget(next)
+            when (settle) {
+                Settle.INNER -> {
+                    if (innerPitch > 0f) {
+                        val next = spring.currentTarget + sign * innerPitch
+                        val ceiling =
+                            if (innerMax == Int.MAX_VALUE) Float.MAX_VALUE else innerMax.toFloat()
+                        if (next in 0f..ceiling) spring.retarget(next)
+                    }
+                    return true
+                }
+                // A return or rubber-band settle is purely cosmetic — it is
+                // travelling back to the page already on screen. Swallowing
+                // the tap would lose a real turn, so land the settle now and
+                // fall through to perform it. (Returning false instead would
+                // let the chrome-tap listener registered after the page-turn
+                // one toggle the chrome on an edge tap.)
+                Settle.PAGER_RETURN, Settle.RUBBER -> {
+                    val wasRubber = settle == Settle.RUBBER
+                    spring.cancel()
+                    if (wasRubber) setChildTranslationX(0f)
+                    // The spring is stopped, so settleDone's reset closes the
+                    // fake drag by driving it back to the base offset first.
+                    settleDone()
+                }
+                else -> return true
             }
-            return true
         }
         val root = nav.view ?: return false
         val visible = visibleWebView(root) ?: return false
