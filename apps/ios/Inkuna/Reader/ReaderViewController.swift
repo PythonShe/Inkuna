@@ -1001,6 +1001,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             guard let self, let host else { return }
             host.pushViewController(self.makeCustomizePanel(), animated: true)
         }
+        // Belt and braces: whatever route the sheet leaves by — including a
+        // swipe-down, which never reaches `onClose` — the live style
+        // session must not outlive it, or progress writes stay paused.
+        host.presentationController?.delegate = self
         present(host, animated: true)
     }
 
@@ -1035,7 +1039,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             self.applyUserStyle(style, anchor: .end)
         }
         panel.onClose = { [weak self] in
-            self?.presentedViewController?.dismiss(animated: true)
+            guard let self else { return }
+            self.liveStyleSession = false
+            self.presentedViewController?.dismiss(animated: true)
         }
         return panel
     }
@@ -1271,5 +1277,14 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         DispatchQueue.main.async { [weak self] in
             self?.pager?.engageIfNeeded()
         }
+    }
+}
+
+extension ReaderViewController: UIAdaptivePresentationControllerDelegate {
+    /// The Theme & type sheet went away by swipe-down. A live style
+    /// session can never outlive the panel that opened it, or progress
+    /// writes would stay paused for the rest of the reading session.
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        liveStyleSession = false
     }
 }
