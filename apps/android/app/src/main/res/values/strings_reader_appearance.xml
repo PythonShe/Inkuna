@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type & layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">Customize</string>
+    <string name="reader_type_section">Type</string>
+    <string name="reader_layout_section">Layout</string>
+    <string name="reader_font">Font</string>
+    <string name="reader_font_publisher">Publisher default</string>
+    <string name="reader_font_system_serif">System Serif</string>
+    <string name="reader_font_system_sans">System Sans</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Bold text</string>
+    <string name="reader_line_spacing">Line spacing</string>
+    <string name="reader_letter_spacing">Letter spacing</string>
+    <string name="reader_word_spacing">Word spacing</string>
+    <string name="reader_margins">Margins</string>
+    <string name="reader_reset_defaults">Reset to defaults</string>
+    <!-- %1$s is a plain number; the unit is a CSS pixel. -->
+    <string name="reader_value_px">%1$s px</string>
+    <!-- Shown while the current page has no extractable prose. -->
+    <string name="reader_preview_fallback">The quiet hours belong to the reader.</string>
+    <string name="a11y_customize_appearance">Customize type and layout</string>
+    <string name="a11y_back_to_theme_type">Back to theme and type</string>
+    <string name="a11y_font_option">%1$s font</string>
+    <string name="a11y_bold_text">Bold text</string>
+    <string name="a11y_line_spacing">Line spacing</string>
+    <string name="a11y_letter_spacing">Letter spacing</string>
+    <string name="a11y_word_spacing">Word spacing</string>
+    <string name="a11y_margins">Page margins</string>
+    <string name="a11y_reset_defaults">Reset type and layout to defaults</string>
+    <string name="a11y_preview_sample">Preview</string>
+</resources>

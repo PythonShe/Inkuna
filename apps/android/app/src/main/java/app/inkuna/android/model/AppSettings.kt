@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import app.inkuna.android.ui.theme.ReadingFont
 import app.inkuna.android.ui.theme.ReadingTheme
 import app.inkuna.core.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,6 +62,20 @@ class AppSettings private constructor(private val context: Context) {
         /** Purely local account profile; empty means "not set". */
         val accountName: String = "",
         val accountEmail: String = "",
+        val readingFont: ReadingFont = ReadingFont.DEFAULT,
+        /** The stored font id verbatim — round-trips opaquely like
+         *  [rawReadingTheme], so a newer install's font choice survives. */
+        val rawReadingFont: String = ReadingFont.DEFAULT.id,
+        /** Body text forced to weight 600 on the reading surface. */
+        val readingBold: Boolean = false,
+        /** Line-height multiplier, [MIN_LINE_SPACING]..[MAX_LINE_SPACING]. */
+        val lineSpacing: Float = DEFAULT_LINE_SPACING,
+        /** Extra letter spacing in em, 0..[MAX_LETTER_SPACING]. */
+        val letterSpacing: Float = 0f,
+        /** Extra word spacing in em, 0..[MAX_WORD_SPACING]. */
+        val wordSpacing: Float = 0f,
+        /** Horizontal page margins in CSS px inside the reading WebView. */
+        val readingMargins: Int = DEFAULT_READING_MARGINS,
     )
 
     private val _snapshot = MutableStateFlow(Snapshot())
@@ -162,6 +177,38 @@ class AppSettings private constructor(private val context: Context) {
     fun setAccount(name: String, email: String) =
         update { it.copy(accountName = name.trim(), accountEmail = email.trim()) }
 
+    fun setReadingFont(font: ReadingFont) =
+        update { it.copy(readingFont = font, rawReadingFont = font.id) }
+
+    fun setReadingBold(value: Boolean) =
+        update { it.copy(readingBold = value) }
+
+    fun setLineSpacing(value: Float) =
+        update { it.copy(lineSpacing = value.coerceIn(MIN_LINE_SPACING, MAX_LINE_SPACING)) }
+
+    fun setLetterSpacing(value: Float) =
+        update { it.copy(letterSpacing = value.coerceIn(0f, MAX_LETTER_SPACING)) }
+
+    fun setWordSpacing(value: Float) =
+        update { it.copy(wordSpacing = value.coerceIn(0f, MAX_WORD_SPACING)) }
+
+    fun setReadingMargins(value: Int) =
+        update { it.copy(readingMargins = value.coerceIn(MIN_READING_MARGINS, MAX_READING_MARGINS)) }
+
+    /** Resets only the Customize six — never text size, theme, or
+     *  brightness — in one record write. */
+    fun setReadingAppearanceDefaults() = update {
+        it.copy(
+            readingFont = ReadingFont.DEFAULT,
+            rawReadingFont = ReadingFont.DEFAULT.id,
+            readingBold = false,
+            lineSpacing = DEFAULT_LINE_SPACING,
+            letterSpacing = 0f,
+            wordSpacing = 0f,
+            readingMargins = DEFAULT_READING_MARGINS,
+        )
+    }
+
     /**
      * Every change made while [loaded] is false, in order. When a write
      * finally reaches the core they are replayed over the *stored* record,
@@ -223,6 +270,13 @@ class AppSettings private constructor(private val context: Context) {
         reminderMinutes = reminderMinutes.toInt().coerceIn(0, MAX_REMINDER_MINUTES),
         accountName = accountName,
         accountEmail = accountEmail,
+        readingFont = ReadingFont.from(readingFont),
+        rawReadingFont = readingFont,
+        readingBold = readingBold,
+        lineSpacing = lineSpacing.toFloat().coerceIn(MIN_LINE_SPACING, MAX_LINE_SPACING),
+        letterSpacing = letterSpacing.toFloat().coerceIn(0f, MAX_LETTER_SPACING),
+        wordSpacing = wordSpacing.toFloat().coerceIn(0f, MAX_WORD_SPACING),
+        readingMargins = readingMargins.toInt().coerceIn(MIN_READING_MARGINS, MAX_READING_MARGINS),
     )
 
     private fun Snapshot.toRecord() = Settings(
@@ -234,6 +288,12 @@ class AppSettings private constructor(private val context: Context) {
         reminderMinutes = reminderMinutes.toUShort(),
         accountName = accountName,
         accountEmail = accountEmail,
+        readingFont = rawReadingFont,
+        readingBold = readingBold,
+        lineSpacing = lineSpacing.toDouble(),
+        letterSpacing = letterSpacing.toDouble(),
+        wordSpacing = wordSpacing.toDouble(),
+        readingMargins = readingMargins.toUShort(),
     )
 
     private object LegacyKeys {
@@ -252,6 +312,17 @@ class AppSettings private constructor(private val context: Context) {
         /** 21:00, the fixed "evening" before the hour became configurable. */
         const val DEFAULT_REMINDER_MINUTES = 21 * 60
         const val MAX_REMINDER_MINUTES = 23 * 60 + 59
+
+        // The Customize clamps, mirrored from the core (settings/model.rs)
+        // so the in-memory snapshot never diverges from what gets stored.
+        const val DEFAULT_LINE_SPACING = 1.65f
+        const val MIN_LINE_SPACING = 1.30f
+        const val MAX_LINE_SPACING = 2.10f
+        const val MAX_LETTER_SPACING = 0.06f
+        const val MAX_WORD_SPACING = 0.30f
+        const val DEFAULT_READING_MARGINS = 26
+        const val MIN_READING_MARGINS = 16
+        const val MAX_READING_MARGINS = 48
 
         private const val TAG = "InkunaSettings"
 
