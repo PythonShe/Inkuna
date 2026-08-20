@@ -131,6 +131,10 @@ final class ReaderPagerSpring {
     private(set) var target: CGFloat = 0
     var isRunning: Bool { loop.isRunning }
 
+    /// The integrated velocity right now — what a freeze must remember
+    /// for its momentum to survive the resume.
+    var currentVelocity: CGFloat { isRunning ? velocity : 0 }
+
     /// Starts (or restarts) the spring. `onFrame` returns whether the
     /// spring may keep running; `onSettle` fires once, after the final
     /// exactly-on-target frame has been delivered.

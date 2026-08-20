@@ -80,6 +80,9 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     private struct FrozenSpring {
         var role: SpringRole
         var target: CGFloat
+        /// Momentum at the freeze — a resume restarts with it, so a tap
+        /// mid-turn doesn't stall the flight to a rest-start crawl.
+        var velocity: CGFloat
     }
     private var frozen: FrozenSpring?
     /// Re-asserts the displaced outer offset every frame while a
@@ -238,7 +241,11 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard gestureRecognizer === pan else { return true }
-        guard surface.isEngageable, !committing else { return false }
+        // A commit in flight does not refuse recognition: the gesture is
+        // funneled into the awaiting-baseline path below, so a flick
+        // landing during the commit's bookkeeping window is honored
+        // instead of silently dropped.
+        guard surface.isEngageable else { return false }
         // Horizontal drags belong to the selection handles while text is
         // selected.
         guard !surface.hasActiveSelection else { return false }
@@ -258,7 +265,11 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             // Freeze the flight where it is. The strip state stays live;
             // what happens next decides whether it resumes or turns into
             // a drag.
-            frozen = FrozenSpring(role: springRole, target: spring.target)
+            frozen = FrozenSpring(
+                role: springRole,
+                target: spring.target,
+                velocity: spring.currentVelocity
+            )
             spring.cancel()
             updateHoldLoop()
         case .ended, .cancelled, .failed:
@@ -275,13 +286,27 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     private func resumeFrozenSpring() {
         guard let frozen else { return }
         self.frozen = nil
+        // A vanished strip (spread torn down mid-freeze) must resolve the
+        // interaction, not orphan it: a bare return here would leave
+        // `interactionActive` and the hold loop running forever.
         switch frozen.role {
         case .inner:
-            guard let inner = surface.innerMetrics() else { return }
-            startInnerSpring(from: inner.offset, to: frozen.target, velocity: 0)
+            guard let inner = surface.innerMetrics() else {
+                cancelInteraction()
+                return
+            }
+            startInnerSpring(from: inner.offset, to: frozen.target, velocity: frozen.velocity)
         case .outerCommit, .outerReturn:
-            guard let outer = surface.outerMetrics() else { return }
-            startOuterSpring(from: outer.offset, to: frozen.target, velocity: 0, role: frozen.role)
+            guard let outer = surface.outerMetrics() else {
+                cancelInteraction()
+                return
+            }
+            startOuterSpring(
+                from: outer.offset,
+                to: frozen.target,
+                velocity: frozen.velocity,
+                role: frozen.role
+            )
         }
     }
 
@@ -292,7 +317,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             onPageTurnGesture?()
             frozen = nil
             spring.cancel()
-            if surface.isBusy, !interactionActive {
+            if surface.isBusy || committing, !interactionActive {
                 // Landing right on a commit or jump: honor the gesture by
                 // deferring the baseline to the first quiet frame instead
                 // of dropping the flick — the old pipeline's second
@@ -311,7 +336,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             applyTranslation(recognizer.translation(in: view).x)
         case .changed:
             if awaitingBaseline {
-                guard !surface.isBusy else {
+                guard !surface.isBusy, !committing else {
                     lastTranslationX = recognizer.translation(in: view).x
                     return
                 }
@@ -373,15 +398,37 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         startPage = pageWidth > 0 ? Int((inner.offset / pageWidth).rounded()) : 0
         exitBound = innerRange.upperBound
         boundaryDisplacement = 0
+        neighborVerdictRight = 0
+        neighborVerdictLeft = 0
         interactionActive = true
         boundaryHaptic.prepare()
         return true
     }
 
+    /// Per-gesture neighbor verdicts: 0 unknown, 1 ready, -1 declined.
+    /// The readiness walk runs once per side per interaction.
+    private var neighborVerdictRight = 0
+    private var neighborVerdictLeft = 0
+
+    /// A neighbor the strip can reveal: one exists in the outer range
+    /// *and* it is loaded enough to show — the renderer keeps in-flight
+    /// preloads transparent, and dragging one in would slide a blank
+    /// sheet across the screen.
     private func neighborExists(direction: CGFloat) -> Bool {
-        direction > 0
+        let inRange = direction > 0
             ? outerHome + pageWidth <= outerRange.upperBound + 0.5
             : outerHome - pageWidth >= outerRange.lowerBound - 0.5
+        guard inRange else { return false }
+        let toRight = direction > 0
+        let cached = toRight ? neighborVerdictRight : neighborVerdictLeft
+        if cached != 0 { return cached > 0 }
+        let ready = surface.neighborIsReady(toRight: toRight)
+        if toRight {
+            neighborVerdictRight = ready ? 1 : -1
+        } else {
+            neighborVerdictLeft = ready ? 1 : -1
+        }
+        return ready
     }
 
     // MARK: The strip
@@ -451,7 +498,15 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
                 pageWidth: pageWidth,
                 maxPage: maxPage
             )
-            startInnerSpring(from: innerX, to: CGFloat(targetPage) * pageWidth, velocity: velocity)
+            let unclamped = CGFloat(targetPage) * pageWidth
+            startInnerSpring(
+                from: innerX,
+                // `maxPage` rounds, so the last page of a resource whose
+                // content overruns its column grid would otherwise settle
+                // past the scrollable maximum.
+                to: min(max(unclamped, innerRange.lowerBound), innerRange.upperBound),
+                velocity: velocity
+            )
         }
     }
 

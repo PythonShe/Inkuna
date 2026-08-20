@@ -45,6 +45,12 @@ protocol ReaderPagerSurface: AnyObject {
     func outerMetrics() -> ReaderPagerStrip?
     func setOuterOffset(_ x: CGFloat)
 
+    /// Whether the neighboring resource on that side is loaded and
+    /// showable. The renderer keeps still-loading preloads transparent;
+    /// sliding one in would drag a blank sheet across the screen, so an
+    /// unready neighbor reads as "no neighbor" (rubber band, honest snap).
+    func neighborIsReady(toRight: Bool) -> Bool
+
     /// Commits a resource crossing the pager has already animated to its
     /// exact landing offset: the renderer updates its own bookkeeping
     /// (index, preloads, locator) without moving anything on screen.
@@ -75,11 +81,12 @@ struct ReaderPagerStrip {
 /// - Taps, chrome, footnotes, and selection ride a separate pipeline
 ///   (JS pointer events → `didTapAt`, WebKit's own selection gestures)
 ///   and keep working untouched.
-/// - The commit relies on a verified no-op: with the outer strip already
-///   resting exactly on the neighbor's slot, `goRight`/`goLeft`
-///   (unanimated) fails its within-resource attempt at the clamp, falls
-///   back to the pagination view's own index move, and lands where the
-///   screen already is — state committed, nothing visibly moves. And
+/// - The commit is a visual no-op that is *verified*, not assumed: with
+///   the outer strip already resting exactly on the neighbor's slot,
+///   `goRight`/`goLeft` (unanimated) normally fails its within-resource
+///   attempt at the clamp, falls back to the pagination view's own index
+///   move, and lands where the screen already is — and the surface
+///   confirms the location actually changed before reporting success. And
 ///   because the outer pan is disabled, Readium's spread index can only
 ///   ever change inside its own `goToIndex`, so the index the commit
 ///   consults is never stale — the lag that used to turn a boundary
@@ -167,14 +174,43 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
         outer.contentOffset = CGPoint(x: x, y: outer.contentOffset.y)
     }
 
+    // MARK: Neighbor readiness
+
+    func neighborIsReady(toRight: Bool) -> Bool {
+        guard let navigator, let outer = outerScrollView(), outer.bounds.width > 0,
+              visibleInnerScrollView() != nil, let current = cachedVisibleWebView
+        else { return false }
+        let width = outer.bounds.width
+        // Content coordinates (a scroll view's own space), so a live
+        // displacement doesn't shift the answer: the neighbor's slot
+        // sits exactly one page width beside the visible spread's.
+        let target = current.convert(current.bounds, to: outer).midX + (toRight ? width : -width)
+        for webView in allWebViews(in: navigator.view) where webView !== current {
+            if abs(webView.convert(webView.bounds, to: outer).midX - target) < width / 2 {
+                return webView.scrollView.alpha > 0
+            }
+        }
+        return false
+    }
+
     // MARK: Commit
 
     func commitBoundaryCrossing(toRight: Bool) async -> Bool {
         guard let navigator else { return false }
+        let before = navigator.currentLocation?.href
         let options = NavigatorGoOptions(animated: false)
-        return toRight
+        let moved = toRight
             ? await navigator.goRight(options: options)
             : await navigator.goLeft(options: options)
+        // The no-op path is not guaranteed: when a resource's content
+        // width overruns its column grid (wide table, oversized image),
+        // the *old* spread's within-resource attempt can pass its clamp
+        // guard and swallow the move without ever touching the
+        // pagination index — which the next layout pass would then snap
+        // a full chapter backward. Verify the reader actually moved;
+        // a false return routes the pager to its honest snap-back.
+        guard moved, navigator.currentLocation?.href != before else { return false }
+        return true
     }
 
     // MARK: Hierarchy

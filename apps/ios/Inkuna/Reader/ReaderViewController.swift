@@ -683,7 +683,12 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     /// Hardware keyboard paging, replacing what Readium's directional
     /// adapter used to provide: arrows are geometric, space reads on.
+    /// Withheld entirely while the search field owns the keyboard —
+    /// guarding here, not in the handlers, so space and arrows reach the
+    /// text-input system (CJK composition drives on space) instead of
+    /// being swallowed by the priority flag.
     override var keyCommands: [UIKeyCommand]? {
+        if searchPanel?.isEditing == true { return nil }
         let commands = [
             UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [], action: #selector(keyTurnLeft)),
             UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(keyTurnRight)),

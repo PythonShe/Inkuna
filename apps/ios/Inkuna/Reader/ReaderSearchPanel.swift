@@ -141,6 +141,12 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         field.becomeFirstResponder()
     }
 
+    /// Whether the query field owns the keyboard — the reader withholds
+    /// its page-turn key commands while it does.
+    var isEditing: Bool {
+        field.isFirstResponder
+    }
+
     /// Clears the query and drops the keyboard (called when the panel hides).
     func reset() {
         searchTask?.cancel()
