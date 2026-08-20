@@ -25,11 +25,8 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     private let phraseProvider: () async -> String?
 
     private var previewCard: ReaderPreviewCard?
-    private var fontList: ReaderFontListView?
     private var fontValueLabel: InkLabel?
-    private var fontRow: UIControl?
-    private var fontChevron: UIImageView?
-    private var fontListExpanded = false
+    private var fontRow: MenuRowControl?
     private var sliders: [InkStepSlider] = []
     private var boldSwitch: UISwitch?
     private let selectionFeedback = UISelectionFeedbackGenerator()
@@ -131,7 +128,9 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     private func buildTypeSection(into stack: UIStackView) {
         stack.addArrangedSubview(eyebrow(String(localized: "reader_type_section", defaultValue: "Type")))
 
-        // Font: disclosure row expanding into the roster inline.
+        // Font: a value row that is its own pull-down — UIKit's menu is
+        // the platform picker, so the roster no longer pushes the panel
+        // around and its items are natively focusable for VoiceOver.
         let valueLabel = InkLabel()
         valueLabel.text = style.font.displayName
         valueLabel.font = InkFont.caption
@@ -140,13 +139,12 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
 
         let chevron = UIImageView(
             image: UIImage(
-                systemName: "chevron.down",
+                systemName: "chevron.up.chevron.down",
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
             )
         )
         chevron.tintColor = InkColor.textTertiary
         chevron.setContentHuggingPriority(.required, for: .horizontal)
-        fontChevron = chevron
 
         let trailing = UIStackView(arrangedSubviews: [valueLabel, chevron])
         trailing.axis = .horizontal
@@ -154,11 +152,11 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         trailing.alignment = .center
 
         let fontTitle = String(localized: "reader_font", defaultValue: "Font")
-        let fontRow = tappableRow(
+        let fontRow = menuRow(
             symbol: "textformat",
             title: fontTitle,
             trailing: trailing
-        ) { [weak self] in self?.toggleFontList() }
+        )
         fontRow.accessibilityLabel = fontTitle
         self.fontRow = fontRow
         setFontDisplay(style.font)
@@ -181,23 +179,37 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
             trailing: boldToggle
         )
 
-        stack.addArrangedSubview(groupCard(rows: [fontRow, boldRow]))
+        let card = groupCard(rows: [fontRow, boldRow])
+        stack.addArrangedSubview(card)
+        stack.setCustomSpacing(InkSpacing.space5, after: card)
+    }
 
-        let list = ReaderFontListView(selected: style.font)
-        list.isHidden = true
-        list.alpha = 0
-        list.onSelect = { [weak self] font in
-            guard let self else { return }
-            self.style.font = font
-            // An explicit pick is the one thing allowed to overwrite a
-            // stored id this build does not know.
-            self.style.fontID = font.rawValue
-            self.setFontDisplay(font)
-            self.commitStyle()
+    /// The five faces, current one checked. Rebuilt on every pick so the
+    /// checkmark and the row's readout can never disagree. Per-item
+    /// specimens are deliberately absent: `UIMenu` renders plain titles
+    /// only, and the preview card already shows the face in use.
+    private func fontMenu() -> UIMenu {
+        let current = style.font
+        let actions = ReadingFont.allCases.map { font in
+            UIAction(
+                title: font.displayName,
+                state: font == current ? .on : .off
+            ) { [weak self] _ in
+                self?.pickFont(font)
+            }
         }
-        fontList = list
-        stack.addArrangedSubview(list)
-        stack.setCustomSpacing(InkSpacing.space5, after: list)
+        return UIMenu(children: actions)
+    }
+
+    /// Always commits, even for the face already shown: a stored id this
+    /// build does not know reads back as `.publisher`, and an explicit
+    /// pick is the one thing allowed to overwrite it.
+    private func pickFont(_ font: ReadingFont) {
+        selectionFeedback.selectionChanged()
+        style.font = font
+        style.fontID = font.rawValue
+        setFontDisplay(font)
+        commitStyle()
     }
 
     private func buildLayoutSection(into stack: UIStackView) {
@@ -306,11 +318,12 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         }
     }
 
-    /// The Font row's readout and its VoiceOver value move together —
-    /// either both change or neither does.
+    /// The Font row's readout, its VoiceOver value, and the menu's checked
+    /// item move together — either all change or none do.
     private func setFontDisplay(_ font: ReadingFont) {
         fontValueLabel?.text = font.displayName
         fontRow?.accessibilityValue = font.displayName
+        fontRow?.menu = fontMenu()
     }
 
     /// Persist + apply, and refresh the preview card.
@@ -333,7 +346,6 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         // Rebuild the controls to the fresh values in place.
         boldSwitch?.setOn(false, animated: true)
         setFontDisplay(style.font)
-        if fontListExpanded { toggleFontList() }
         let values: [Double] = [style.lineSpacing, style.letterSpacing, style.wordSpacing, Double(style.margins)]
         for (slider, value) in zip(sliders, values) {
             slider.setValue(value)
@@ -341,27 +353,13 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         commitStyle()
     }
 
-    private func toggleFontList() {
-        guard let fontList, let fontChevron else { return }
-        fontListExpanded.toggle()
-        let expanded = fontListExpanded
-        fontChevron.image = UIImage(
-            systemName: expanded ? "chevron.up" : "chevron.down",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
-        )
-        let apply = {
-            fontList.isHidden = !expanded
-            fontList.alpha = expanded ? 1 : 0
-        }
-        if UIAccessibility.isReduceMotionEnabled {
-            apply()
-        } else {
-            let animator = InkMotion.quietAnimator(duration: InkMotion.fast)
-            animator.addAnimations(apply)
-            animator.startAnimation()
-        }
-        UIAccessibility.post(notification: .layoutChanged, argument: expanded ? fontList : nil)
+    #if DEBUG
+    /// Screenshot loop only: `-inkuna.debugReaderUI fontmenu` opens the
+    /// Font pull-down without a finger.
+    func debugOpenFontMenu() {
+        fontRow?.performPrimaryAction()
     }
+    #endif
 
     private func fetchPhrase() {
         Task { [weak self] in
@@ -447,12 +445,10 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         return row
     }
 
-    private func tappableRow(
-        symbol: String,
-        title: String,
-        trailing: UIView,
-        onTap: @escaping @MainActor () -> Void
-    ) -> UIControl {
+    /// A grouped-list row whose whole surface is the pull-down: the menu
+    /// is the row's primary action, so one tap opens it right over the
+    /// value it replaces.
+    private func menuRow(symbol: String, title: String, trailing: UIView) -> MenuRowControl {
         let content = UIStackView(arrangedSubviews: [rowGlyph(symbol), rowTitle(title), UIView(), trailing])
         content.axis = .horizontal
         content.alignment = .center
@@ -460,7 +456,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         content.isUserInteractionEnabled = false
         content.translatesAutoresizingMaskIntoConstraints = false
 
-        let control = RowControl(onTap: onTap)
+        let control = MenuRowControl()
         control.addSubview(content)
         NSLayoutConstraint.activate([
             content.leadingAnchor.constraint(equalTo: control.leadingAnchor, constant: InkSpacing.space4),
@@ -472,16 +468,15 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     }
 }
 
-/// A grouped-list row that washes accent-soft while pressed.
-private final class RowControl: UIControl {
-    private let onTap: @MainActor () -> Void
-
-    init(onTap: @escaping @MainActor () -> Void) {
-        self.onTap = onTap
+/// A grouped-list row that presents its `menu` on a plain tap and washes
+/// accent-soft while pressed. One accessibility element: the row reads as
+/// "Font, <value>", and the menu's own items are focusable on their own.
+final class MenuRowControl: UIButton {
+    init() {
         super.init(frame: .zero)
+        showsMenuAsPrimaryAction = true
         isAccessibilityElement = true
         accessibilityTraits = .button
-        addAction(UIAction { [weak self] _ in self?.onTap() }, for: .touchUpInside)
     }
 
     @available(*, unavailable)

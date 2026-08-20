@@ -326,6 +326,18 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
             }
         case "contents": presentContents()
         case "theme": presentThemeSheet()
+        case "customize", "fontmenu":
+            presentThemeSheet()
+            let openMenu = UserDefaults.standard.string(forKey: "inkuna.debugReaderUI") == "fontmenu"
+            let panel = makeCustomizePanel()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let host = self?.presentedViewController as? UINavigationController else { return }
+                host.pushViewController(panel, animated: false)
+                guard openMenu else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    panel.debugOpenFontMenu()
+                }
+            }
         case "immersed": setChrome(visible: false)
         default: break
         }
