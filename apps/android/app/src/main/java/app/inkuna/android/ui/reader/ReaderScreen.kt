@@ -71,7 +71,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.inkuna.android.R
@@ -83,6 +85,7 @@ import app.inkuna.android.ui.theme.InkMotion
 import app.inkuna.android.ui.theme.InkType
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.navigator.input.InputListener
@@ -115,6 +118,22 @@ fun ReaderScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val theme = snapshot.readingTheme
 
+    // The enter slide and the navigator must not share frames: the
+    // fragment's first WebView spawns Chromium's sandboxed renderer on the
+    // main thread, and that cost mid-transition reads as a stutter in the
+    // push. The back-stack entry reaches RESUMED exactly when the slide
+    // settles, so the navigator mounts onto a still screen instead; the
+    // latch (saved across config changes) keeps it mounted through the pop
+    // transition, when the entry leaves RESUMED again.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var transitionSettled by rememberSaveable { mutableStateOf(false) }
+    if (!transitionSettled) {
+        LaunchedEffect(lifecycle) {
+            lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
+            transitionSettled = true
+        }
+    }
+
     val background by animateColorAsState(
         theme.background,
         tween(InkMotion.durMed, easing = InkMotion.easeQuiet),
@@ -146,7 +165,7 @@ fun ReaderScreen(
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
-            is ReaderViewModel.UiState.Ready -> {
+            is ReaderViewModel.UiState.Ready -> if (transitionSettled) {
                 ReaderContent(
                     viewModel = viewModel,
                     book = current.book,
@@ -161,8 +180,10 @@ fun ReaderScreen(
         }
 
         // The back affordance survives every state — a book that will not
-        // open must never trap the reader.
-        if (state !is ReaderViewModel.UiState.Ready) {
+        // open must never trap the reader. It also covers the beat between
+        // Ready and the transition settling, before the chrome's own back
+        // button exists.
+        if (state !is ReaderViewModel.UiState.Ready || !transitionSettled) {
             Box(
                 Modifier
                     .align(Alignment.TopStart)
