@@ -27,6 +27,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     private var previewCard: ReaderPreviewCard?
     private var fontList: ReaderFontListView?
     private var fontValueLabel: InkLabel?
+    private var fontRow: UIControl?
     private var fontChevron: UIImageView?
     private var fontListExpanded = false
     private var sliders: [InkStepSlider] = []
@@ -159,7 +160,8 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
             trailing: trailing
         ) { [weak self] in self?.toggleFontList() }
         fontRow.accessibilityLabel = fontTitle
-        fontRow.accessibilityValue = style.font.displayName
+        self.fontRow = fontRow
+        setFontDisplay(style.font)
 
         // Bold text.
         let boldToggle = UISwitch()
@@ -187,8 +189,10 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         list.onSelect = { [weak self] font in
             guard let self else { return }
             self.style.font = font
-            self.fontValueLabel?.text = font.displayName
-            fontRow.accessibilityValue = font.displayName
+            // An explicit pick is the one thing allowed to overwrite a
+            // stored id this build does not know.
+            self.style.fontID = font.rawValue
+            self.setFontDisplay(font)
             self.commitStyle()
         }
         fontList = list
@@ -302,6 +306,13 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         }
     }
 
+    /// The Font row's readout and its VoiceOver value move together —
+    /// either both change or neither does.
+    private func setFontDisplay(_ font: ReadingFont) {
+        fontValueLabel?.text = font.displayName
+        fontRow?.accessibilityValue = font.displayName
+    }
+
     /// Persist + apply, and refresh the preview card.
     private func commitStyle() {
         previewCard?.apply(style)
@@ -312,6 +323,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         style = ReaderUserStyle(
             font: .publisher,
+            fontID: ReadingFont.publisher.rawValue,
             bold: false,
             lineSpacing: 1.65,
             letterSpacing: 0,
@@ -320,7 +332,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         )
         // Rebuild the controls to the fresh values in place.
         boldSwitch?.setOn(false, animated: true)
-        fontValueLabel?.text = style.font.displayName
+        setFontDisplay(style.font)
         if fontListExpanded { toggleFontList() }
         let values: [Double] = [style.lineSpacing, style.letterSpacing, style.wordSpacing, Double(style.margins)]
         for (slider, value) in zip(sliders, values) {

@@ -245,6 +245,15 @@ final class AppSettings {
         set { mutate { $0.readingFont = newValue.rawValue } }
     }
 
+    /// The stored font id verbatim, unparsed. A commit that is not itself a
+    /// font pick writes this back, so an id this build does not know
+    /// survives a bold toggle or a slider release instead of collapsing to
+    /// `publisher`.
+    var readingFontID: String {
+        get { record.readingFont }
+        set { mutate { $0.readingFont = newValue } }
+    }
+
     /// Whether body text is forced to weight 600 on the reading surface.
     var readingBold: Bool {
         get { record.readingBold }

@@ -12,6 +12,11 @@ import Synchronization
 /// them.
 struct ReaderUserStyle: Equatable {
     var font: ReadingFont
+    /// The stored font id verbatim — `font.rawValue` for anything this
+    /// build knows, and the untouched original for anything it does not.
+    /// Persisting this instead of `font.rawValue` keeps an unknown id
+    /// intact through commits that are not font picks.
+    var fontID: String = ReadingFont.publisher.rawValue
     var bold: Bool
     var lineSpacing: Double
     var letterSpacing: Double
@@ -25,6 +30,7 @@ struct ReaderUserStyle: Equatable {
         let settings = AppSettings.shared
         return ReaderUserStyle(
             font: settings.readingFont,
+            fontID: settings.readingFontID,
             bold: settings.readingBold,
             lineSpacing: settings.lineSpacing,
             letterSpacing: settings.letterSpacing,
@@ -36,7 +42,7 @@ struct ReaderUserStyle: Equatable {
     /// Persists this snapshot as the committed settings.
     @MainActor func persist() {
         let settings = AppSettings.shared
-        settings.readingFont = font
+        settings.readingFontID = fontID
         settings.readingBold = bold
         settings.lineSpacing = lineSpacing
         settings.letterSpacing = letterSpacing
