@@ -239,6 +239,14 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
 
     // MARK: Sessions
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Belt and braces beside `viewDidAppear`: any route back to the
+        // reader — a popped push, a dismissed sheet whose delegate never
+        // fired — finds the chain retaken before the first frame.
+        takeKeyCommandChain()
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         takeKeyCommandChain()
@@ -740,6 +748,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
     // MARK: Chrome
 
     func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
+        // Any path that quietly took the chain away — a text selection in
+        // the web view, a sheet dismissed by a route with no delegate —
+        // is repaired by the next tap, so hardware paging never stays dead
+        // for the rest of the session.
+        takeKeyCommandChain()
         if let searchPanel, searchPanel.alpha > 0 {
             hideSearch()
         } else if menuVisible {
@@ -800,6 +813,16 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         completion: (() -> Void)? = nil
     ) {
         _ = resignFirstResponder()
+        // Every sheet the reader puts up must hand the key-command chain
+        // back when it leaves, and an interactive swipe-down reaches
+        // neither `dismiss(animated:)` nor any `onClose` — only the
+        // adaptive presentation delegate. Claiming that delegate here, for
+        // whatever is presented, closes the whole family in one place; a
+        // controller that already installed a delegate of its own keeps it.
+        if let presentation = viewControllerToPresent.presentationController,
+           presentation.delegate == nil {
+            presentation.delegate = self
+        }
         super.present(viewControllerToPresent, animated: flag, completion: completion)
     }
 
@@ -1007,6 +1030,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         sheet.onSelectChapter = { [weak self] chapter in
             self?.jump(to: chapter)
         }
+        // A swiped-down page sheet fires neither `dismiss(animated:)` nor
+        // `onClose`; the delegate is what brings the key-command chain back.
+        sheet.presentationController?.delegate = self
         present(sheet, animated: true)
     }
 
