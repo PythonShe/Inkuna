@@ -1091,13 +1091,17 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
           var cjk = (text.match(/[\\u2E80-\\u9FFF\\uF900-\\uFAFF\\uFF66-\\uFF9F\\u3040-\\u30FF\\uAC00-\\uD7AF]/g) || []).length;
           var dense = cjk / text.length > 0.25;
           var lo = dense ? 8 : 24, hi = dense ? 56 : 170;
+          // Bounds and the fallback cut count characters, not UTF-16 code
+          // units: slicing mid-surrogate would end the phrase in U+FFFD,
+          // and emoji and rarer CJK live above the BMP.
           var cands = sentences.filter(function (s) {
             if (!s || /^[\\s\\W_]+$/.test(s)) return false;
-            return s.length >= lo && s.length <= hi;
+            var n = Array.from(s).length;
+            return n >= lo && n <= hi;
           });
           if (!cands.length) {
-            var t = text.trim();
-            return t.length >= lo ? t.slice(0, hi) : null;
+            var chars = Array.from(text.trim());
+            return chars.length >= lo ? chars.slice(0, hi).join('') : null;
           }
           return cands[Math.floor(Math.random() * cands.length)];
         })()
