@@ -116,6 +116,8 @@ dependencies {
     // Referenced directly by BoundaryDragFollower to fake-drag Readium's
     // resource pager across chapter boundaries.
     implementation("androidx.viewpager:viewpager:1.1.0")
+    // Document-start JS injection for the reader's own user stylesheet.
+    implementation("androidx.webkit:webkit:1.17.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     // The evening reminder: WorkManager survives reboots without a boot
     // receiver, so the daily nudge is one self-chaining worker.

@@ -29,11 +29,16 @@ import androidx.viewpager.widget.ViewPager
  * hierarchy listeners of their own, the walk stops at each WebView, and
  * everything degrades to a no-op if a future toolkit changes shape.
  */
-class ReaderWebViewTuner(private val root: View) {
+class ReaderWebViewTuner(
+    private val root: View,
+    private val styleInjector: ReaderStyleInjector? = null,
+) {
 
     private val listener = object : ViewGroup.OnHierarchyChangeListener {
         override fun onChildViewAdded(parent: View, child: View) = install(child)
-        override fun onChildViewRemoved(parent: View, child: View) = Unit
+        override fun onChildViewRemoved(parent: View, child: View) {
+            if (child is WebView) styleInjector?.unregister(child)
+        }
     }
 
     fun attach() = install(root)
@@ -46,6 +51,9 @@ class ReaderWebViewTuner(private val root: View) {
                 view.overScrollMode = View.OVER_SCROLL_NEVER
             }
             voteHigh(view)
+            // The reader's own user stylesheet, planted at document start
+            // for every resource this WebView will ever load.
+            styleInjector?.register(view)
             return
         }
         if (view is ViewPager) voteHigh(view)
