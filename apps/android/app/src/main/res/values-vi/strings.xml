@@ -112,6 +112,8 @@
     <string name="a11y_theme_tile">%1$s. %2$s</string>
     <string name="a11y_no_results">Không có kết quả</string>
     <string name="a11y_toggle_reader_controls">Hiện hoặc ẩn điều khiển đọc sách</string>
+    <string name="a11y_next_page">Trang sau</string>
+    <string name="a11y_previous_page">Trang trước</string>
     <string name="a11y_calendar_day">Ngày %2$d %1$s</string>
     <string name="a11y_calendar_day_read">Ngày %2$d %1$s, đã đọc</string>
     <string name="a11y_fact">%1$s %2$s</string>

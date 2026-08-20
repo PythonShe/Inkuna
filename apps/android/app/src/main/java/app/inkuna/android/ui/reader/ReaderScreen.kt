@@ -62,6 +62,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.preferredFrameRate
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -290,25 +292,41 @@ private fun ReaderContent(
     val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
     val contentTop = ReaderMetrics.contentTop(max(statusPad, cutoutTop), isTablet)
     val contentBottom = ReaderMetrics.contentBottom(navPad, isTablet)
+    // The pager layout drives every page turn; held so taps, keys, and
+    // jumps can route through its springs.
+    val pagerLayout = remember { mutableStateOf<ReaderPagerLayout?>(null) }
+    val nextPageLabel = stringResource(R.string.a11y_next_page)
+    val previousPageLabel = stringResource(R.string.a11y_previous_page)
     // Hoisted so the fragment host's modifier is one stable value: rebuilt
     // per recomposition, the fresh semantics lambda would re-update the
     // AndroidView's modifier node on every page turn.
-    val hostModifier = remember(contentTop, contentBottom, toggleLabel, toggleChrome) {
+    val hostModifier = remember(
+        contentTop, contentBottom, toggleLabel, toggleChrome,
+        nextPageLabel, previousPageLabel,
+    ) {
         Modifier
             .fillMaxSize()
             .padding(top = contentTop, bottom = contentBottom)
             // The WebView owns raw touch; TalkBack still needs a named way
-            // to reach the chrome.
+            // to reach the chrome — and named page turns, since the host is
+            // not a scrollable container in Compose semantics, so the scroll
+            // actions would be a lie. turnForward/turnBackward already
+            // resolve the reading progression, RTL included.
             .semantics {
                 onClick(label = toggleLabel) {
                     toggleChrome()
                     true
                 }
+                customActions = listOf(
+                    CustomAccessibilityAction(nextPageLabel) {
+                        pagerLayout.value?.turnForward() ?: false
+                    },
+                    CustomAccessibilityAction(previousPageLabel) {
+                        pagerLayout.value?.turnBackward() ?: false
+                    },
+                )
             }
     }
-    // The pager layout drives every page turn; held so taps, keys, and
-    // jumps can route through its springs.
-    val pagerLayout = remember { mutableStateOf<ReaderPagerLayout?>(null) }
     // The reader's own user stylesheet (Customize: font, bold, spacings,
     // margins) — never EpubPreferences, so the pipeline outlives Readium.
     val styleInjector = remember(book) { ReaderStyleInjector() }

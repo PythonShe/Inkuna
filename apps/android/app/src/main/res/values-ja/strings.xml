@@ -112,6 +112,8 @@
     <string name="a11y_theme_tile">%1$s。%2$s</string>
     <string name="a11y_no_results">検索結果なし</string>
     <string name="a11y_toggle_reader_controls">読書コントロールの表示/非表示</string>
+    <string name="a11y_next_page">次のページ</string>
+    <string name="a11y_previous_page">前のページ</string>
     <string name="a11y_calendar_day">%1$s%2$d日</string>
     <string name="a11y_calendar_day_read">%1$s%2$d日、読書済み</string>
     <string name="a11y_fact">%1$s %2$s</string>

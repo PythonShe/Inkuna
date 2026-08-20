@@ -112,6 +112,8 @@
     <string name="a11y_theme_tile">%1$s。%2$s</string>
     <string name="a11y_no_results">無搜尋結果</string>
     <string name="a11y_toggle_reader_controls">顯示或隱藏閱讀控制項</string>
+    <string name="a11y_next_page">下一頁</string>
+    <string name="a11y_previous_page">上一頁</string>
     <string name="a11y_calendar_day">%1$s%2$d日</string>
     <string name="a11y_calendar_day_read">%1$s%2$d日，已閱讀</string>
     <string name="a11y_fact">%1$s %2$s</string>
