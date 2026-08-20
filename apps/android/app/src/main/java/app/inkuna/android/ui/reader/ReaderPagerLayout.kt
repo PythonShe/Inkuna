@@ -855,10 +855,12 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         }
         // Honest fallback when the neighbour cannot slide (still loading,
         // or the hierarchy changed shape): an instant, unanimated turn.
+        // The navigator's own verdict is the result — at the end of the
+        // book there is no page to turn to, and an accessibility action
+        // that reported success there would be lying to TalkBack.
         val rtl = nav.overflow.value.readingProgression == ReadingProgression.RTL
         val forward = (sign > 0) != rtl
-        if (forward) nav.goForward(animated = false) else nav.goBackward(animated = false)
-        return true
+        return if (forward) nav.goForward(animated = false) else nav.goBackward(animated = false)
     }
 
     // MARK: Frame-rate hints
