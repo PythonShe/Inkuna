@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type &amp; layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">Настроить</string>
+    <string name="reader_type_section">Текст</string>
+    <string name="reader_layout_section">Макет</string>
+    <string name="reader_font">Шрифт</string>
+    <string name="reader_font_publisher">Шрифт издателя</string>
+    <string name="reader_font_system_serif">Системный с засечками</string>
+    <string name="reader_font_system_sans">Системный без засечек</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Жирный текст</string>
+    <string name="reader_line_spacing">Межстрочный интервал</string>
+    <string name="reader_letter_spacing">Межбуквенный интервал</string>
+    <string name="reader_word_spacing">Интервал между словами</string>
+    <string name="reader_margins">Поля</string>
+    <string name="reader_reset_defaults">Сбросить настройки</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">Тихие часы принадлежат читателю.</string>
+    <string name="a11y_customize_appearance">Настроить шрифт и макет</string>
+    <string name="a11y_back_to_theme_type">Назад к теме и шрифту</string>
+    <string name="a11y_font_option">Шрифт %1$s</string>
+    <string name="a11y_bold_text">Жирный текст</string>
+    <string name="a11y_line_spacing">Межстрочный интервал</string>
+    <string name="a11y_letter_spacing">Межбуквенный интервал</string>
+    <string name="a11y_word_spacing">Интервал между словами</string>
+    <string name="a11y_margins">Поля страницы</string>
+    <string name="a11y_reset_defaults">Сбросить шрифт и макет</string>
+    <string name="a11y_preview_sample">Предпросмотр</string>
+</resources>

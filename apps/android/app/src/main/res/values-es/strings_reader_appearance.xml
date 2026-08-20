@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type &amp; layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">Personalizar</string>
+    <string name="reader_type_section">Tipografía</string>
+    <string name="reader_layout_section">Diseño</string>
+    <string name="reader_font">Fuente</string>
+    <string name="reader_font_publisher">Predeterminada del editor</string>
+    <string name="reader_font_system_serif">Serif del sistema</string>
+    <string name="reader_font_system_sans">Sans del sistema</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Texto en negrita</string>
+    <string name="reader_line_spacing">Interlineado</string>
+    <string name="reader_letter_spacing">Espaciado entre letras</string>
+    <string name="reader_word_spacing">Espaciado entre palabras</string>
+    <string name="reader_margins">Márgenes</string>
+    <string name="reader_reset_defaults">Restablecer valores</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">Las horas tranquilas pertenecen al lector.</string>
+    <string name="a11y_customize_appearance">Personalizar tipografía y diseño</string>
+    <string name="a11y_back_to_theme_type">Volver a tema y tipografía</string>
+    <string name="a11y_font_option">Fuente %1$s</string>
+    <string name="a11y_bold_text">Texto en negrita</string>
+    <string name="a11y_line_spacing">Interlineado</string>
+    <string name="a11y_letter_spacing">Espaciado entre letras</string>
+    <string name="a11y_word_spacing">Espaciado entre palabras</string>
+    <string name="a11y_margins">Márgenes de página</string>
+    <string name="a11y_reset_defaults">Restablecer tipografía y diseño</string>
+    <string name="a11y_preview_sample">Vista previa</string>
+</resources>

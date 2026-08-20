@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type &amp; layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">Personalizza</string>
+    <string name="reader_type_section">Tipografia</string>
+    <string name="reader_layout_section">Layout</string>
+    <string name="reader_font">Carattere</string>
+    <string name="reader_font_publisher">Predefinito dell\'editore</string>
+    <string name="reader_font_system_serif">Serif di sistema</string>
+    <string name="reader_font_system_sans">Sans di sistema</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Testo in grassetto</string>
+    <string name="reader_line_spacing">Interlinea</string>
+    <string name="reader_letter_spacing">Spaziatura lettere</string>
+    <string name="reader_word_spacing">Spaziatura parole</string>
+    <string name="reader_margins">Margini</string>
+    <string name="reader_reset_defaults">Ripristina predefiniti</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">Le ore quiete appartengono al lettore.</string>
+    <string name="a11y_customize_appearance">Personalizza tipografia e layout</string>
+    <string name="a11y_back_to_theme_type">Torna a tema e tipografia</string>
+    <string name="a11y_font_option">Carattere %1$s</string>
+    <string name="a11y_bold_text">Testo in grassetto</string>
+    <string name="a11y_line_spacing">Interlinea</string>
+    <string name="a11y_letter_spacing">Spaziatura lettere</string>
+    <string name="a11y_word_spacing">Spaziatura parole</string>
+    <string name="a11y_margins">Margini di pagina</string>
+    <string name="a11y_reset_defaults">Ripristina tipografia e layout</string>
+    <string name="a11y_preview_sample">Anteprima</string>
+</resources>

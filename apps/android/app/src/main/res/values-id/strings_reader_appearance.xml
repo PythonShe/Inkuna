@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type &amp; layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">Sesuaikan</string>
+    <string name="reader_type_section">Tipografi</string>
+    <string name="reader_layout_section">Tata letak</string>
+    <string name="reader_font">Fon</string>
+    <string name="reader_font_publisher">Bawaan penerbit</string>
+    <string name="reader_font_system_serif">Serif sistem</string>
+    <string name="reader_font_system_sans">Sans sistem</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Teks tebal</string>
+    <string name="reader_line_spacing">Jarak baris</string>
+    <string name="reader_letter_spacing">Jarak huruf</string>
+    <string name="reader_word_spacing">Jarak kata</string>
+    <string name="reader_margins">Margin</string>
+    <string name="reader_reset_defaults">Setel ulang ke default</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">Jam-jam yang tenang adalah milik pembaca.</string>
+    <string name="a11y_customize_appearance">Sesuaikan tipografi dan tata letak</string>
+    <string name="a11y_back_to_theme_type">Kembali ke tema dan tipografi</string>
+    <string name="a11y_font_option">Fon %1$s</string>
+    <string name="a11y_bold_text">Teks tebal</string>
+    <string name="a11y_line_spacing">Jarak baris</string>
+    <string name="a11y_letter_spacing">Jarak huruf</string>
+    <string name="a11y_word_spacing">Jarak kata</string>
+    <string name="a11y_margins">Margin halaman</string>
+    <string name="a11y_reset_defaults">Setel ulang tipografi dan tata letak</string>
+    <string name="a11y_preview_sample">Pratinjau</string>
+</resources>

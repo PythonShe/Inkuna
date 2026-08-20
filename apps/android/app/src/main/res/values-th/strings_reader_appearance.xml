@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type &amp; layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">ปรับแต่ง</string>
+    <string name="reader_type_section">ตัวอักษร</string>
+    <string name="reader_layout_section">เค้าโครง</string>
+    <string name="reader_font">ฟอนต์</string>
+    <string name="reader_font_publisher">ค่าเริ่มต้นของสำนักพิมพ์</string>
+    <string name="reader_font_system_serif">เซริฟระบบ</string>
+    <string name="reader_font_system_sans">ซานส์ระบบ</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">ตัวหนา</string>
+    <string name="reader_line_spacing">ระยะห่างบรรทัด</string>
+    <string name="reader_letter_spacing">ระยะห่างตัวอักษร</string>
+    <string name="reader_word_spacing">ระยะห่างคำ</string>
+    <string name="reader_margins">ขอบ</string>
+    <string name="reader_reset_defaults">รีเซ็ตเป็นค่าเริ่มต้น</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">ชั่วโมงอันเงียบสงบเป็นของผู้อ่าน</string>
+    <string name="a11y_customize_appearance">ปรับแต่งตัวอักษรและเค้าโครง</string>
+    <string name="a11y_back_to_theme_type">กลับไปยังธีมและตัวอักษร</string>
+    <string name="a11y_font_option">ฟอนต์ %1$s</string>
+    <string name="a11y_bold_text">ตัวหนา</string>
+    <string name="a11y_line_spacing">ระยะห่างบรรทัด</string>
+    <string name="a11y_letter_spacing">ระยะห่างตัวอักษร</string>
+    <string name="a11y_word_spacing">ระยะห่างคำ</string>
+    <string name="a11y_margins">ขอบหน้า</string>
+    <string name="a11y_reset_defaults">รีเซ็ตตัวอักษรและเค้าโครง</string>
+    <string name="a11y_preview_sample">ตัวอย่าง</string>
+</resources>

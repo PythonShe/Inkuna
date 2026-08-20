@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type &amp; layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">Personalizar</string>
+    <string name="reader_type_section">Tipografia</string>
+    <string name="reader_layout_section">Layout</string>
+    <string name="reader_font">Fonte</string>
+    <string name="reader_font_publisher">Padrão da editora</string>
+    <string name="reader_font_system_serif">Serifada do sistema</string>
+    <string name="reader_font_system_sans">Sem serifa do sistema</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Texto em negrito</string>
+    <string name="reader_line_spacing">Espaçamento entre linhas</string>
+    <string name="reader_letter_spacing">Espaçamento entre letras</string>
+    <string name="reader_word_spacing">Espaçamento entre palavras</string>
+    <string name="reader_margins">Margens</string>
+    <string name="reader_reset_defaults">Redefinir padrões</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">As horas tranquilas pertencem ao leitor.</string>
+    <string name="a11y_customize_appearance">Personalizar tipografia e layout</string>
+    <string name="a11y_back_to_theme_type">Voltar para tema e tipografia</string>
+    <string name="a11y_font_option">Fonte %1$s</string>
+    <string name="a11y_bold_text">Texto em negrito</string>
+    <string name="a11y_line_spacing">Espaçamento entre linhas</string>
+    <string name="a11y_letter_spacing">Espaçamento entre letras</string>
+    <string name="a11y_word_spacing">Espaçamento entre palavras</string>
+    <string name="a11y_margins">Margens da página</string>
+    <string name="a11y_reset_defaults">Redefinir tipografia e layout</string>
+    <string name="a11y_preview_sample">Pré-visualização</string>
+</resources>
