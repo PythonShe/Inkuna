@@ -225,6 +225,14 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
                 // the Android shell's F17 fix; commit flights below stay
                 // "seen", because those are turns the reader has already
                 // been shown.
+                //
+                // Viability comes first: the settle may only be destroyed
+                // when a turn can take its place this instant. At a true
+                // book boundary there is no neighbor to turn to, and
+                // cancelling would snap `outerHome` into place with no
+                // animation for nothing — so leave the settle running and
+                // take the tap as "seen".
+                guard returnAbortCanTurn(direction: direction) else { return true }
                 spring.cancel()
                 surface.setOuterOffset(outerHome)
                 boundaryDisplacement = 0
@@ -444,6 +452,20 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         interactionActive = true
         boundaryHaptic.prepare()
         return true
+    }
+
+    /// Can a tap that lands during a return settle be honoured by a turn
+    /// right away? Either the strip still holds a page in `direction`, or a
+    /// loaded neighbor can be revealed. Consulted before the settle is
+    /// cancelled, so a refused turn never costs the settle its animation.
+    private func returnAbortCanTurn(direction: CGFloat) -> Bool {
+        if let inner = surface.innerMetrics() {
+            let target = inner.offset + direction * inner.pageWidth
+            if target >= inner.range.lowerBound - 2, target <= inner.range.upperBound + 2 {
+                return true
+            }
+        }
+        return neighborExists(direction: direction)
     }
 
     /// Per-gesture neighbor verdicts: 0 unknown, 1 ready, -1 declined.
