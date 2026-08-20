@@ -46,7 +46,13 @@ class ReaderAppearanceController(
         injector.setCss(ReaderUserCss.build(draft))
     }
 
-    /** The interaction committed: restore the anchor and recalibrate. */
+    /**
+     * The interaction committed: restore the anchor and recalibrate. Called
+     * on every slider release — including one that commits the value
+     * already stored, where the conflating snapshot flow never re-emits and
+     * `applyCommitted` never runs. Without this the anchor would outlive
+     * the session and teleport the reader on a later interaction.
+     */
     fun endPreview() {
         restoreAndRecalibrate()
     }
@@ -74,9 +80,12 @@ class ReaderAppearanceController(
             // give Blink's column relayout a beat before re-landing.
             awaitFrame()
             delay(REFLOW_SETTLE_MS)
+            // No anchor means nothing captured the pre-reflow position; a
+            // null argument would fall through to progression 0 and jump to
+            // the resource start, so skip the re-land entirely.
+            val anchor = anchorJson
             val visible = pager()?.currentWebView()
-            if (visible != null) {
-                val anchor = anchorJson ?: "null"
+            if (visible != null && anchor != null) {
                 visible.evaluateJavascriptAndAwait("($RESTORE_JS)($anchor)")
             }
             anchorJson = null

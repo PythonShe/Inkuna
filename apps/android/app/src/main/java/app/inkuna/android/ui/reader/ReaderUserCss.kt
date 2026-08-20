@@ -64,10 +64,12 @@ object ReaderUserCss {
         // Margins: body is the fragmented child of the :root multicol, so
         // inline-axis padding repeats inside every column and never moves
         // the column grid the pager measures (ReadiumCSS's own pageMargins
-        // rule works the same way).
+        // rule works the same way). Logical properties, because in
+        // vertical-rl the physical left/right become the fragmentation
+        // axis, where sliced padding lands only on the first and last page.
         append(
-            ":root[style] body{padding-left:var(--inkuna-margins)!important;" +
-                "padding-right:var(--inkuna-margins)!important}"
+            ":root[style] body{padding-inline-start:var(--inkuna-margins)!important;" +
+                "padding-inline-end:var(--inkuna-margins)!important}"
         )
 
         // Line height: root value + explicit inherit on the blocks a

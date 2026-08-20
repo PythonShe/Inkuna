@@ -109,6 +109,14 @@ internal fun CustomizePanel(
         write()
     }
 
+    // Slider releases must close the anchor session themselves: a commit of
+    // the value already stored never re-emits the snapshot, so the
+    // applyCommitted path would leave the anchor stranded.
+    fun commitSlider(next: ReaderTypeDraft, write: () -> Unit) {
+        commit(next, write)
+        appearance.endPreview()
+    }
+
     Column(
         Modifier
             .fillMaxWidth()
@@ -187,7 +195,7 @@ internal fun CustomizePanel(
                     appearance.preview(draft)
                 },
                 onCommit = { value ->
-                    commit(draft.copy(lineSpacing = value)) { settings.setLineSpacing(value) }
+                    commitSlider(draft.copy(lineSpacing = value)) { settings.setLineSpacing(value) }
                 },
             )
             Spacer(Modifier.height(InkSpace.s4))
@@ -204,7 +212,7 @@ internal fun CustomizePanel(
                     appearance.preview(draft)
                 },
                 onCommit = { value ->
-                    commit(draft.copy(letterSpacing = value)) { settings.setLetterSpacing(value) }
+                    commitSlider(draft.copy(letterSpacing = value)) { settings.setLetterSpacing(value) }
                 },
             )
             Spacer(Modifier.height(InkSpace.s4))
@@ -221,7 +229,7 @@ internal fun CustomizePanel(
                     appearance.preview(draft)
                 },
                 onCommit = { value ->
-                    commit(draft.copy(wordSpacing = value)) { settings.setWordSpacing(value) }
+                    commitSlider(draft.copy(wordSpacing = value)) { settings.setWordSpacing(value) }
                 },
             )
             Spacer(Modifier.height(InkSpace.s4))
@@ -238,7 +246,7 @@ internal fun CustomizePanel(
                     appearance.preview(draft)
                 },
                 onCommit = { value ->
-                    commit(draft.copy(margins = value.roundToInt())) {
+                    commitSlider(draft.copy(margins = value.roundToInt())) {
                         settings.setReadingMargins(value.roundToInt())
                     }
                 },
@@ -477,8 +485,10 @@ private fun SteppedSliderRow(
     val ink = InkTheme.colors
     val haptics = LocalHapticFeedback.current
     val steps = (((range.endInclusive - range.start) / step).roundToInt() - 1).coerceAtLeast(0)
+    // Both re-key on the external value: Reset rewrites the draft without a
+    // gesture, and a stale lastTick would make a bare tap commit it.
     var live by remember(value) { mutableFloatStateOf(value) }
-    var lastTick by remember { mutableIntStateOf(((value - range.start) / step).roundToInt()) }
+    var lastTick by remember(value) { mutableIntStateOf(((value - range.start) / step).roundToInt()) }
     var dragging by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth()) {
@@ -501,8 +511,13 @@ private fun SteppedSliderRow(
                 }
             },
             onValueChangeFinished = {
-                dragging = false
-                onCommit(range.start + lastTick * step)
+                // A tap that lands on the current tick fires no
+                // onValueChange first; committing there would write a value
+                // the user never chose, with no anchor session open.
+                if (dragging) {
+                    dragging = false
+                    onCommit(range.start + lastTick * step)
+                }
             },
             valueRange = range,
             steps = steps,
