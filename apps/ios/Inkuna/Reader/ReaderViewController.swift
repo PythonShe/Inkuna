@@ -3,6 +3,7 @@ import ReadiumNavigator
 import ReadiumShared
 import ReadiumStreamer
 import UIKit
+import WebKit
 
 // The UniFFI bindings are compiled into this target, so the core's
 // `Publication` record is the module-local `Publication` type and shadows
@@ -31,7 +32,7 @@ private final class ReaderSession {
 /// The division of labor is the core contract: Readium owns rendering,
 /// pagination, and locators; the Rust core owns storage, progress, sessions,
 /// and bookmarks. One `updateProgress` per page turn, one session per sitting.
-final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
+final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, ReaderAccessibilityScrolling {
     /// The core publication being read.
     private let publication: Publication
     /// Where to open instead of the saved position: the chapter the reader
@@ -39,9 +40,21 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private let initialChapter: Chapter?
 
     private var navigator: EPUBNavigatorViewController?
+
+    /// The Readium-shaped styling surface behind `pager` — the walk that
+    /// finds the loaded spread web views for user-stylesheet pushes.
+    private var pagerSurface: ReadiumPagerSurface?
+
+    /// The live user stylesheet, read by the container transform whenever
+    /// a resource is served. Seeded before the book opens.
+    private let userStyleBox = ReaderUserStyleBox()
+
+    /// True while the Customize panel is previewing an uncommitted style —
+    /// the reflow re-landing fires a locationDidChange per step, and those
+    /// must not each queue a core progress write.
+    private var liveStyleSession = false
     private var readiumPublication: ReadiumShared.Publication?
-    private var navigationAdapter: DirectionalNavigationAdapter?
-    private var swipeAssist: ReaderSwipeAssist?
+    private var pager: ReaderPager?
 
     /// Reading-order resource lookup: normalized href → reading-order index.
     private var resourceIndexByHref: [String: Int] = [:]
@@ -57,6 +70,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private var coreChapters: [Chapter] = []
 
     private var currentLocator: Locator?
+    /// Armed while a VoiceOver-requested turn is on its way to settling:
+    /// the position announcement waits for the landing, and this is its
+    /// backstop if no location ever arrives.
+    private var pendingScrollAnnouncement: Task<Void, Never>?
     /// Set before restores, jumps, preference reloads, and rotations so the
     /// resulting `locationDidChange` doesn't read as a page turn and tuck the
     /// chrome away.
@@ -126,6 +143,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     deinit {
         jumpTask?.cancel()
+        pendingScrollAnnouncement?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -221,8 +239,17 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     // MARK: Sessions
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Belt and braces beside `viewDidAppear`: any route back to the
+        // reader — a popped push, a dismissed sheet whose delegate never
+        // fired — finds the chain retaken before the first frame.
+        takeKeyCommandChain()
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        takeKeyCommandChain()
         startSession()
         #if DEBUG
         runDebugRouteIfNeeded()
@@ -308,6 +335,18 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             }
         case "contents": presentContents()
         case "theme": presentThemeSheet()
+        case "customize", "fontmenu":
+            presentThemeSheet()
+            let openMenu = UserDefaults.standard.string(forKey: "inkuna.debugReaderUI") == "fontmenu"
+            let panel = makeCustomizePanel()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let host = self?.presentedViewController as? UINavigationController else { return }
+                host.pushViewController(panel, animated: false)
+                guard openMenu else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    panel.debugOpenFontMenu()
+                }
+            }
         case "immersed": setChrome(visible: false)
         default: break
         }
@@ -335,10 +374,12 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private func openPublication() async {
         let opened: OpenedBook
         do {
+            userStyleBox.write(ReaderUserStyle.current.css())
             opened = try await Self.openBook(
                 path: publication.filePath,
                 locatorJSON: publication.locator,
-                progression: publication.progression
+                progression: publication.progression,
+                style: userStyleBox
             )
         } catch {
             logger.error("Opening \(self.publication.id, privacy: .public) failed: \(error)")
@@ -367,10 +408,15 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
         let navigator: EPUBNavigatorViewController
         do {
+            var config = EPUBNavigatorViewController.Configuration(preferences: readerPreferences())
+            // Serves the bundled Noto files to every spread; which family
+            // the page uses is our stylesheet's decision, never a Readium
+            // preference. See ReadingFontDeclarations.
+            config.fontFamilyDeclarations = ReadingFont.fontFamilyDeclarations
             navigator = try EPUBNavigatorViewController(
                 publication: opened.publication,
                 initialLocation: initialLocation,
-                config: EPUBNavigatorViewController.Configuration(preferences: readerPreferences())
+                config: config
             )
         } catch {
             logger.error("Navigator init for \(self.publication.id, privacy: .public) failed: \(error)")
@@ -397,24 +443,29 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         navigator.didMove(toParent: self)
         self.navigator = navigator
 
-        // Edge taps turn pages, Apple Books style; center taps fall through
-        // to `didTapAt` and toggle the chrome.
-        let adapter = DirectionalNavigationAdapter(animatedTransition: true) { [weak self] in
-            self?.setChrome(visible: false)
-        }
-        adapter.bind(to: navigator)
-        navigationAdapter = adapter
-        // Fast swipes at chapter boundaries die in the navigator's nested
-        // scroll views; the assist re-drives them. See ReaderSwipeAssist.
-        swipeAssist = ReaderSwipeAssist(navigator: navigator)
-        // Chrome leaves at swipe recognition, not on arrival: hiding via
+        // The pager owns every horizontal page turn — inner pages and
+        // chapter boundaries alike — on our gestures and physics;
+        // Readium's native paging is suppressed. See ReaderPager.
+        let surface = ReadiumPagerSurface(navigator: navigator)
+        pagerSurface = surface
+        let pager = ReaderPager(
+            surface: surface,
+            view: navigator.view
+        )
+        // Chrome leaves at gesture claim, not on arrival: hiding via
         // locationDidChange keeps a live backdrop blur composited over
         // the entire turn (Readium reports the location only after the
         // settle plus its own debounce). locationDidChange stays as the
-        // fallback for slow drags no swipe recognizer ever sees.
-        swipeAssist?.onPageTurnGesture = { [weak self] in
+        // fallback for programmatic moves.
+        // Under VoiceOver the chrome stays: a page turn there is a scroll
+        // action, and the buttons it would strip are how the reader
+        // navigates. The Android shell suppresses the same hide under
+        // touch exploration.
+        pager.onPageTurnGesture = { [weak self] in
+            guard !UIAccessibility.isVoiceOverRunning else { return }
             self?.setChrome(visible: false)
         }
+        self.pager = pager
 
         loadingIndicator.stopAnimating()
         updatePageInfo()
@@ -427,7 +478,8 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private nonisolated static func openBook(
         path: String,
         locatorJSON: String?,
-        progression: Double
+        progression: Double,
+        style: ReaderUserStyleBox
     ) async throws -> OpenedBook {
         guard let file = FileURL(path: path, isDirectory: false) else {
             throw ReaderOpenError.fileNotFound
@@ -438,10 +490,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         }
         // EPUB only, DRM-free: the core rejects other formats at import and
         // DRM circumvention is out of scope by policy. Every XHTML resource
-        // gets the fragmentation fix injected before WebKit ever paginates
-        // it; see fixingFragmentation.
+        // gets the fragmentation fix and the user stylesheet injected
+        // before WebKit ever paginates it; see injectingInkunaStyles.
         let opener = PublicationOpener(parser: EPUBParser()) { _, container, _ in
-            container = fixingFragmentation(container)
+            container = injectingInkunaStyles(container, style: style)
         }
         guard let readiumPublication = await opener.open(
             asset: asset,
@@ -482,15 +534,21 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         "}" +
         "</style>"
 
-    /// Injects `fragmentationFixStyle` at the end of each XHTML resource's
-    /// `<head>`. The splice is done on raw bytes, never through a decoded
-    /// string: the ASCII marker survives any ASCII-compatible encoding
-    /// (including legacy CJK ones) unchanged, and in UTF-16 its interleaved
-    /// NULs mean the marker simply isn't found — the resource passes
-    /// through untouched instead of being blanked by a failed decode.
-    /// NCX and non-XHTML resources are never touched.
-    private nonisolated static func fixingFragmentation(_ container: Container) -> Container {
-        let style = Data(fragmentationFixStyle.utf8)
+    /// Injects `fragmentationFixStyle` plus the live user stylesheet at
+    /// the end of each XHTML resource's `<head>`. The splice is done on
+    /// raw bytes, never through a decoded string: the ASCII markers
+    /// survive any ASCII-compatible encoding (including legacy CJK ones)
+    /// unchanged, and in UTF-16 the marker simply isn't found — the
+    /// resource passes through untouched instead of being blanked by a
+    /// failed decode. NCX and non-XHTML resources are never touched.
+    ///
+    /// The user CSS is read from `style` at *serve* time, not open time:
+    /// a spread preloaded after a settings change must paint with the new
+    /// typography rather than flash and reflow.
+    private nonisolated static func injectingInkunaStyles(
+        _ container: Container,
+        style: ReaderUserStyleBox
+    ) -> Container {
         // XHTML mandates lowercase; the uppercase form covers stray HTML.
         let markers = [Data("</head>".utf8), Data("</HEAD>".utf8)]
         return container.map { href, resource in
@@ -504,12 +562,33 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
                         .compactMap({ data.range(of: $0, options: .backwards) })
                         .first
                     else { return data }
+                    let splice = fragmentationFixStyle
+                        + "<style id=\"\(ReaderUserStyle.styleElementID)\">\(style.read())</style>"
                     var fixed = data
-                    fixed.insert(contentsOf: style, at: head.lowerBound)
+                    fixed.insert(contentsOf: Data(splice.utf8), at: head.lowerBound)
                     return fixed
                 }
             }
         }
+    }
+
+    /// Renders `style` into every loaded spread — visible and preloaded —
+    /// and stores it for spreads not served yet. This is the apply path
+    /// for everything the Customize panel controls; it never touches the
+    /// navigator's preferences.
+    private func applyUserStyle(_ style: ReaderUserStyle, anchor: ReaderUserStyle.AnchorMode) {
+        userStyleBox.write(style.css())
+        guard let pagerSurface else { return }
+        // The reflow moves content under any in-flight gesture; stand the
+        // pager down and let it re-derive its baselines afterwards, the
+        // same contract applyPreferences already follows.
+        expectProgrammaticMove = true
+        pager?.cancelInteraction()
+        let script = style.applyScript(mode: anchor)
+        for webView in pagerSurface.loadedWebViews() {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+        pager?.engageIfNeeded()
     }
 
     /// Builds the resource lookups the contents sheet and jump targets use.
@@ -572,17 +651,31 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
         currentLocator = locator
         updatePageInfo()
+        // Every navigation shifts the preload window; new spreads arrive
+        // with their native gestures enabled and must be re-suppressed.
+        pager?.engageIfNeeded()
 
         if expectProgrammaticMove {
             expectProgrammaticMove = false
-        } else {
-            // Reading takes the page: turning it tucks the chrome away.
+        } else if !UIAccessibility.isVoiceOverRunning {
+            // Reading takes the page: turning it tucks the chrome away —
+            // except under VoiceOver, where the turn came from a scroll
+            // action and the chrome is the navigation.
             setChrome(visible: false)
         }
 
+        // A turn VoiceOver asked for announces its new position here, the
+        // moment the navigator reports where the page landed.
+        if pendingScrollAnnouncement != nil {
+            postPageAnnouncement()
+        }
+
         // One `updateProgress` per page turn: opaque locator, book-wide
-        // totalProgression, and the synthetic position once known.
+        // totalProgression, and the synthetic position once known. A live
+        // style preview reflows per slider step; the single write that
+        // matters lands when the interaction commits.
         guard
+            !liveStyleSession,
             let locatorJSON = try? locator.jsonString(),
             let totalProgression = locator.locations.totalProgression
         else { return }
@@ -655,14 +748,160 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     // MARK: Chrome
 
     func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
+        // Any path that quietly took the chain away — a text selection in
+        // the web view, a sheet dismissed by a route with no delegate —
+        // is repaired by the next tap, so hardware paging never stays dead
+        // for the rest of the session.
+        takeKeyCommandChain()
         if let searchPanel, searchPanel.alpha > 0 {
             hideSearch()
         } else if menuVisible {
             setMenu(visible: false)
+        } else if let pager, let zone = edgeTapZone(for: point) {
+            // Edge taps turn pages, Apple Books style — geometric, like
+            // the drags: the right edge always asks for the +x page.
+            // A refused turn (the end of the book) is simply nothing
+            // happening, exactly as before.
+            if zone == .right {
+                pager.turnRight()
+            } else {
+                pager.turnLeft()
+            }
         } else {
             setChrome(visible: !chromeVisible)
         }
     }
+
+    private enum EdgeTapZone { case left, right }
+
+    /// The side tap bands: 30% of the width, at least 80 pt — shared
+    /// with the Android shell.
+    private func edgeTapZone(for point: CGPoint) -> EdgeTapZone? {
+        let width = view.bounds.width
+        let band = max(width * 0.3, 80)
+        if point.x < band { return .left }
+        if point.x > width - band { return .right }
+        return nil
+    }
+
+    /// Hardware keyboard paging, replacing what Readium's directional
+    /// adapter used to provide: arrows are geometric, space reads on.
+    /// Withheld entirely while the search field owns the keyboard —
+    /// guarding here, not in the handlers, so space and arrows reach the
+    /// text-input system (CJK composition drives on space) instead of
+    /// being swallowed by the priority flag.
+    override var canBecomeFirstResponder: Bool { true }
+
+    /// The reader owns the responder chain the key commands are collected
+    /// from — Readium's navigator used to take it for its own press
+    /// observation and is refused it now (`ReadiumNavigatorShim`).
+    ///
+    /// It holds the chain only while it is the frontmost thing on screen.
+    /// A first responder that is not a text input summons the software
+    /// keyboard the moment something enables the scene's focus system, and
+    /// every `UIMenu` pull-down does exactly that — so anything presented
+    /// over the reader (the Theme & type sheet, whose Font row is such a
+    /// pull-down) gets the chain back for as long as it is up.
+    private func takeKeyCommandChain() {
+        guard presentedViewController == nil, searchPanel?.isEditing != true else { return }
+        becomeFirstResponder()
+    }
+
+    override func present(
+        _ viewControllerToPresent: UIViewController,
+        animated flag: Bool,
+        completion: (() -> Void)? = nil
+    ) {
+        _ = resignFirstResponder()
+        // Every sheet the reader puts up must hand the key-command chain
+        // back when it leaves, and an interactive swipe-down reaches
+        // neither `dismiss(animated:)` nor any `onClose` — only the
+        // adaptive presentation delegate. Claiming that delegate here, for
+        // whatever is presented, closes the whole family in one place; a
+        // controller that already installed a delegate of its own keeps it.
+        if let presentation = viewControllerToPresent.presentationController,
+           presentation.delegate == nil {
+            presentation.delegate = self
+        }
+        super.present(viewControllerToPresent, animated: flag, completion: completion)
+    }
+
+    override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+        super.dismiss(animated: flag) { [weak self] in
+            completion?()
+            self?.takeKeyCommandChain()
+        }
+    }
+
+    override var keyCommands: [UIKeyCommand]? {
+        if searchPanel?.isEditing == true { return nil }
+        let commands = [
+            UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [], action: #selector(keyTurnLeft)),
+            UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(keyTurnRight)),
+            UIKeyCommand(input: " ", modifierFlags: [], action: #selector(keyTurnForward)),
+        ]
+        for command in commands {
+            command.wantsPriorityOverSystemBehavior = true
+        }
+        return commands
+    }
+
+    /// VoiceOver's three-finger swipe, reached through the shim that stops
+    /// Readium's navigator from claiming it first (see
+    /// `ReadiumNavigatorShim`); the override below is the path
+    /// for anything that does bubble all the way up to the reader.
+    ///
+    /// Horizontal is geometric, exactly like the edge taps and the arrow
+    /// keys: a swipe left asks for the +x page, so reading progression is
+    /// honored by the pager rather than re-derived here. `.next`/
+    /// `.previous` — and the vertical pair VoiceOver sends for page
+    /// up/down — read in reading order, like the space key.
+    override func accessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
+        readerAccessibilityScroll(direction)
+    }
+
+    func readerAccessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
+        guard let pager else { return false }
+        let turned: Bool
+        switch direction {
+        case .left: turned = pager.turnRight()
+        case .right: turned = pager.turnLeft()
+        case .next, .down: turned = pager.turnForward()
+        case .previous, .up: turned = pager.turnBackward()
+        default: return false
+        }
+        // A refusal — the end of the book, a renderer mid-move — is
+        // reported as one, so VoiceOver can bubble the gesture instead of
+        // announcing a page that never turned.
+        guard turned else { return false }
+        announcePageAfterTurn()
+        return true
+    }
+
+    /// Arms the post-turn announcement. The page position is read *after*
+    /// the turn settles — `locationDidChange` fires it the moment the
+    /// navigator reports where the page landed, and this timer is the
+    /// backstop for a location refresh that never arrives.
+    private func announcePageAfterTurn() {
+        pendingScrollAnnouncement?.cancel()
+        pendingScrollAnnouncement = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            self?.postPageAnnouncement()
+        }
+    }
+
+    private func postPageAnnouncement() {
+        pendingScrollAnnouncement?.cancel()
+        pendingScrollAnnouncement = nil
+        // The argument is the shell's own page line ("12 of 340, 4%") —
+        // the same truth the chrome shows.
+        UIAccessibility.post(notification: .pageScrolled, argument: pageInfoText())
+    }
+
+    @objc private func keyTurnLeft() { pager?.turnLeft() }
+    @objc private func keyTurnRight() { pager?.turnRight() }
+    @objc private func keyTurnForward() { pager?.turnForward() }
 
     private func setMenu(visible: Bool) {
         guard menuVisible != visible else { return }
@@ -791,6 +1030,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         sheet.onSelectChapter = { [weak self] chapter in
             self?.jump(to: chapter)
         }
+        // A swiped-down page sheet fires neither `dismiss(animated:)` nor
+        // `onClose`; the delegate is what brings the key-command chain back.
+        sheet.presentationController?.delegate = self
         present(sheet, animated: true)
     }
 
@@ -804,7 +1046,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             return
         }
         expectProgrammaticMove = true
-        Task {
+        // The jump owns the reader now: a spring, frozen turn, or commit
+        // still in flight would keep writing offsets over the new spread.
+        pager?.cancelInteraction()
+        jumpTask?.cancel()
+        jumpTask = Task {
             _ = await navigator.go(to: target, options: NavigatorGoOptions(animated: false))
         }
     }
@@ -856,7 +1102,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         guard let navigator else { return }
         // The reload the navigator performs is not a page turn.
         expectProgrammaticMove = true
+        pager?.cancelInteraction()
         navigator.submitPreferences(readerPreferences())
+        // Preferences can flip the presentation (and recreate spreads);
+        // the reload's locationDidChange re-enforces afterwards too.
+        pager?.engageIfNeeded()
     }
 
     private func presentThemeSheet() {
@@ -880,7 +1130,119 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             AppSettings.shared.brightness = brightness
             self?.applyBrightness(brightness)
         }
-        present(sheet, animated: true)
+        let host = ReaderSheetNavigationController(root: sheet)
+        sheet.onCustomize = { [weak self, weak host] in
+            guard let self, let host else { return }
+            host.pushViewController(self.makeCustomizePanel(), animated: true)
+        }
+        // Belt and braces: whatever route the sheet leaves by — including a
+        // swipe-down, which never reaches `onClose` — the live style
+        // session must not outlive it, or progress writes stay paused.
+        host.presentationController?.delegate = self
+        present(host, animated: true)
+    }
+
+    /// The Customize panel, wired into the user-stylesheet pipeline:
+    /// slider touches open a live session (anchor capture, paused progress
+    /// writes), previews restyle without persisting, commits persist and
+    /// re-land once.
+    private func makeCustomizePanel() -> ReaderCustomizeViewController {
+        let settings = AppSettings.shared
+        let panel = ReaderCustomizeViewController(
+            theme: settings.readingTheme,
+            textSize: settings.textSize,
+            style: .current,
+            fallbackPhrase: String(
+                localized: "reader_preview_fallback",
+                defaultValue: "The quiet hours belong to the reader."
+            ),
+            phraseProvider: { [weak self] in await self?.currentPagePhrase() }
+        )
+        panel.onSessionBegin = { [weak self] style in
+            guard let self else { return }
+            self.liveStyleSession = true
+            self.applyUserStyle(style, anchor: .begin)
+        }
+        panel.onPreview = { [weak self] style in
+            self?.applyUserStyle(style, anchor: .live)
+        }
+        panel.onCommit = { [weak self] style in
+            guard let self else { return }
+            style.persist()
+            self.liveStyleSession = false
+            self.applyUserStyle(style, anchor: .end)
+        }
+        panel.onClose = { [weak self] in
+            guard let self else { return }
+            self.liveStyleSession = false
+            self.presentedViewController?.dismiss(animated: true)
+        }
+        return panel
+    }
+
+    /// A phrase from the page the reader is looking at, for the Customize
+    /// preview: visible text nodes of the current column, segmented
+    /// script-agnostically (Intl.Segmenter handles CJK and Thai; the regex
+    /// is a defensive fallback), one random pick. Nil on image-only pages.
+    private func currentPagePhrase() async -> String? {
+        guard let navigator else { return nil }
+        let script = """
+        (function () {
+          var d = document, W = window.innerWidth, H = window.innerHeight;
+          if (!d.body) return null;
+          function visible(r) {
+            var cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+            return r.width > 0 && r.height > 0 && cx >= 0 && cx <= W && cy >= 0 && cy <= H;
+          }
+          var walker = d.createTreeWalker(d.body, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (n) {
+              if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+              var p = n.parentElement; if (!p) return NodeFilter.FILTER_REJECT;
+              var t = p.tagName;
+              if (t === 'SCRIPT' || t === 'STYLE' || t === 'NOSCRIPT' || t === 'RT' || t === 'RP' ||
+                  t === 'CODE' || t === 'PRE' || t === 'SUP' || t === 'SUB')
+                return NodeFilter.FILTER_REJECT;
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          });
+          var parts = [], n, budget = 6000, visited = 0;
+          while (budget > 0 && visited++ < 4000 && (n = walker.nextNode())) {
+            var r = d.createRange(); r.selectNodeContents(n);
+            var rects = r.getClientRects(), hit = false;
+            for (var i = 0; i < rects.length; i++) if (visible(rects[i])) { hit = true; break; }
+            if (hit) { parts.push(n.nodeValue); budget -= n.nodeValue.length; }
+          }
+          var text = parts.join(' ').replace(/\\s+/g, ' ').trim();
+          if (!text) return null;
+          var sentences = [];
+          try {
+            var seg = new Intl.Segmenter(d.documentElement.lang || undefined, { granularity: 'sentence' });
+            var it = seg.segment(text)[Symbol.iterator](), s;
+            while (!(s = it.next()).done) sentences.push(s.value.segment.trim());
+          } catch (e) {
+            sentences = text.split(/(?<=[.!?\\u3002\\uFF01\\uFF1F\\u2026])\\s*/);
+          }
+          var cjk = (text.match(/[\\u2E80-\\u9FFF\\uF900-\\uFAFF\\uFF66-\\uFF9F\\u3040-\\u30FF\\uAC00-\\uD7AF]/g) || []).length;
+          var dense = cjk / text.length > 0.25;
+          var lo = dense ? 8 : 24, hi = dense ? 56 : 170;
+          // Bounds and the fallback cut count characters, not UTF-16 code
+          // units: slicing mid-surrogate would end the phrase in U+FFFD,
+          // and emoji and rarer CJK live above the BMP.
+          var cands = sentences.filter(function (s) {
+            if (!s || /^[\\s\\W_]+$/.test(s)) return false;
+            var n = Array.from(s).length;
+            return n >= lo && n <= hi;
+          });
+          if (!cands.length) {
+            var chars = Array.from(text.trim());
+            return chars.length >= lo ? chars.slice(0, hi).join('') : null;
+          }
+          return cands[Math.floor(Math.random() * cands.length)];
+        })()
+        """
+        guard case let .success(value) = await navigator.evaluateJavaScript(script) else { return nil }
+        guard let phrase = value as? String, !phrase.isEmpty else { return nil }
+        return phrase
     }
 
     // MARK: In-book search
@@ -940,6 +1302,8 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         }
         animator.startAnimation()
         setChrome(visible: true)
+        // The query field owned the chain while the panel was up.
+        takeKeyCommandChain()
     }
 
     /// One in-book search through the core. A failure is not an error the
@@ -997,6 +1361,8 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             locations: Locator.Locations(progression: min(max(hit.progression, 0), 1))
         )
         expectProgrammaticMove = true
+        // The jump owns the reader now — same standdown as a contents jump.
+        pager?.cancelInteraction()
         jumpTask?.cancel()
         jumpTask = Task {
             _ = await navigator.go(to: target, options: NavigatorGoOptions(animated: false))
@@ -1038,7 +1404,30 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     override func viewWillTransition(to size: CGSize, with coordinator: any UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         // The navigator re-lays out and re-emits its location on rotation;
-        // that is not a page turn either.
+        // that is not a page turn either. A gesture caught mid-rotation is
+        // abandoned — the re-layout owns the screen now.
         expectProgrammaticMove = true
+        pager?.cancelInteraction()
+    }
+
+    /// Fires while each spread web view is being configured — the
+    /// earliest tick after Readium creates a new one, whose native
+    /// gestures must be suppressed before it can claim a touch.
+    func navigator(_ navigator: EPUBNavigatorViewController, setupUserScripts userContentController: WKUserContentController) {
+        DispatchQueue.main.async { [weak self] in
+            self?.pager?.engageIfNeeded()
+        }
+    }
+}
+
+extension ReaderViewController: UIAdaptivePresentationControllerDelegate {
+    /// The Theme & type sheet went away by swipe-down. A live style
+    /// session can never outlive the panel that opened it, or progress
+    /// writes would stay paused for the rest of the reading session.
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        liveStyleSession = false
+        // The swipe-down never routes through `dismiss(animated:)`, so the
+        // key-command chain is taken back here too.
+        takeKeyCommandChain()
     }
 }

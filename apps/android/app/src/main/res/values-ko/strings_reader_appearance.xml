@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type &amp; layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">사용자 지정</string>
+    <string name="reader_type_section">글자</string>
+    <string name="reader_layout_section">레이아웃</string>
+    <string name="reader_font">글꼴</string>
+    <string name="reader_font_publisher">출판사 기본</string>
+    <string name="reader_font_system_serif">시스템 세리프</string>
+    <string name="reader_font_system_sans">시스템 산세리프</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">굵은 글씨</string>
+    <string name="reader_line_spacing">줄 간격</string>
+    <string name="reader_letter_spacing">자간</string>
+    <string name="reader_word_spacing">단어 간격</string>
+    <string name="reader_margins">여백</string>
+    <string name="reader_reset_defaults">기본값으로 재설정</string>
+    <string name="reader_value_px">%1$spx</string>
+    <string name="reader_preview_fallback">고요한 시간은 읽는 이의 것이다.</string>
+    <string name="a11y_customize_appearance">글자와 레이아웃 사용자 지정</string>
+    <string name="a11y_back_to_theme_type">테마 및 글꼴로 돌아가기</string>
+    <string name="a11y_bold_text">굵은 글씨</string>
+    <string name="a11y_line_spacing">줄 간격</string>
+    <string name="a11y_letter_spacing">자간</string>
+    <string name="a11y_word_spacing">단어 간격</string>
+    <string name="a11y_margins">페이지 여백</string>
+    <string name="a11y_reset_defaults">글자와 레이아웃을 기본값으로 재설정</string>
+    <string name="a11y_preview_sample">미리보기</string>
+</resources>

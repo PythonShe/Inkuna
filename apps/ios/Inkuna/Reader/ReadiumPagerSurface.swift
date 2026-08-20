@@ -1,0 +1,454 @@
+import ObjectiveC
+import ReadiumNavigator
+import ReadiumShared
+import UIKit
+import WebKit
+
+/// What the pager needs from whatever renders the book: two horizontal
+/// strips (the pages inside the current resource, and the resources
+/// themselves), a way to silence the renderer's own gestures, and a hook
+/// to commit a resource crossing the pager has already animated.
+///
+/// `ReaderPager` speaks only this protocol. `ReadiumPagerSurface` is the
+/// one implementation today and dies with the Readium navigator when the
+/// custom reader frontend lands — the pager, its physics, and its feel
+/// carry over unchanged.
+@MainActor
+protocol ReaderPagerSurface: AnyObject {
+    /// True when the reader is paginated along x and the strips resolve.
+    /// False disengages the pager entirely (scroll mode, fixed layout,
+    /// or a hierarchy this surface no longer recognizes — the fail-open
+    /// path that leaves the renderer's native handling in charge).
+    var isEngageable: Bool { get }
+    /// True while the renderer runs its own move (a jump, a preference
+    /// reload, a resource load). The pager never captures baselines from
+    /// a busy renderer.
+    var isBusy: Bool { get }
+    /// True while text is selected — horizontal drags then belong to the
+    /// selection handles, never to page turns.
+    var hasActiveSelection: Bool { get }
+    /// Whether the publication reads right-to-left. The pager itself is
+    /// purely geometric; this only maps "forward" for keys and taps.
+    var isRightToLeft: Bool { get }
+
+    /// Disables the renderer's own horizontal gesture handling.
+    /// Idempotent, and safe to call often — the pager re-enforces it on
+    /// every navigation change because the renderer creates new views as
+    /// it preloads.
+    func suppressNativeGestures()
+    /// Re-enables native handling when the pager disengages.
+    func restoreNativeGestures()
+
+    /// The current resource's page strip, resolved live. Nil while no
+    /// resource is on screen or its geometry is degenerate.
+    func innerMetrics() -> ReaderPagerStrip?
+    func setInnerOffset(_ x: CGFloat)
+    /// The resource strip, resolved live.
+    func outerMetrics() -> ReaderPagerStrip?
+    func setOuterOffset(_ x: CGFloat)
+
+    /// Whether the neighboring resource on that side is loaded and
+    /// showable. The renderer keeps still-loading preloads transparent;
+    /// sliding one in would drag a blank sheet across the screen, so an
+    /// unready neighbor reads as "no neighbor" (rubber band, honest snap).
+    func neighborIsReady(toRight: Bool) -> Bool
+
+    /// Commits a resource crossing the pager has already animated to its
+    /// exact landing offset: the renderer updates its own bookkeeping
+    /// (index, preloads, locator) without moving anything on screen.
+    /// Returns as soon as the renderer's move resolves — fast, so the
+    /// pager can lift its gesture gate immediately.
+    func commitBoundaryCrossing(toRight: Bool) async -> Bool
+    /// Confirms the last `commitBoundaryCrossing` actually landed. May
+    /// take a while to resolve (the renderer refreshes its location
+    /// asynchronously); the pager runs it after the gate is lifted and
+    /// only a refusal has any consequence.
+    func verifyBoundaryCommit() async -> Bool
+}
+
+/// One horizontal strip: where it sits, how far it goes, and its page.
+struct ReaderPagerStrip {
+    var offset: CGFloat
+    var range: ClosedRange<CGFloat>
+    var pageWidth: CGFloat
+}
+
+/// The Readium-backed surface. Everything Readium-shaped lives here — the
+/// hierarchy walking, the pan-recognizer suppression, the `goLeft`/
+/// `goRight` commit — so replacing the navigator later replaces exactly
+/// this file.
+///
+/// How the takeover works (verified against the Readium 3.x sources):
+///
+/// - Paging is 100% native `UIScrollView` panning — pages inside a
+///   resource on the spread web view's own scroll view, resources on the
+///   outer pagination scroll view. Readium's JS never consumes horizontal
+///   touches, so disabling those two pan recognizers is a complete
+///   takeover. Readium toggles `isScrollEnabled` in several places but
+///   never touches `panGestureRecognizer.isEnabled`, which is why the
+///   suppression targets the recognizers, not the scroll flags.
+/// - Taps, chrome, footnotes, and selection ride a separate pipeline
+///   (JS pointer events → `didTapAt`, WebKit's own selection gestures)
+///   and keep working untouched.
+/// - The commit is a visual no-op that is *verified*, not assumed: with
+///   the outer strip already resting exactly on the neighbor's slot,
+///   `goRight`/`goLeft` (unanimated) normally fails its within-resource
+///   attempt at the clamp, falls back to the pagination view's own index
+///   move, and lands where the screen already is — and the surface
+///   confirms the location actually changed before reporting success. And
+///   because the outer pan is disabled, Readium's spread index can only
+///   ever change inside its own `goToIndex`, so the index the commit
+///   consults is never stale — the lag that used to turn a boundary
+///   gesture into a backward jump is structurally gone.
+@MainActor
+final class ReadiumPagerSurface: ReaderPagerSurface {
+    private weak var navigator: EPUBNavigatorViewController?
+
+    init(navigator: EPUBNavigatorViewController) {
+        self.navigator = navigator
+        ReadiumNavigatorShim.install(on: navigator)
+    }
+
+    // MARK: Engagement
+
+    var isEngageable: Bool {
+        guard let navigator else { return false }
+        return navigator.presentation.axis == .horizontal &&
+            !navigator.presentation.scroll &&
+            outerScrollView() != nil
+    }
+
+    /// The navigator's own tell: it drops the pagination view's
+    /// interaction during every programmatic move and load.
+    var isBusy: Bool {
+        outerScrollView()?.superview?.isUserInteractionEnabled == false
+    }
+
+    var hasActiveSelection: Bool {
+        navigator?.currentSelection != nil
+    }
+
+    var isRightToLeft: Bool {
+        navigator?.presentation.readingProgression == .rtl
+    }
+
+    // MARK: Gesture suppression
+
+    func suppressNativeGestures() {
+        setNativeGestures(enabled: false)
+    }
+
+    func restoreNativeGestures() {
+        setNativeGestures(enabled: true)
+    }
+
+    /// Both halves matter. The pan recognizers are what a finger drives;
+    /// `isScrollEnabled` is what *VoiceOver* drives — a scroll view with
+    /// scrolling enabled answers the three-finger swipe itself, paging by
+    /// raw content offset with no locator behind it, and it sits below the
+    /// reader in the accessibility hierarchy, so it would swallow the
+    /// gesture before the pager ever heard of it. Programmatic movement is
+    /// unaffected: `contentOffset` writes (ours) and `setContentOffset`
+    /// (Readium's own paging, and WebKit's for a JS `scrollLeft`) all work
+    /// on a scroll view whose user scrolling is off.
+    private func setNativeGestures(enabled: Bool) {
+        guard let navigator else { return }
+        if let outer = outerScrollView() {
+            outer.panGestureRecognizer.isEnabled = enabled
+            outer.isScrollEnabled = enabled
+        }
+        for webView in allWebViews(in: navigator.view) {
+            webView.scrollView.panGestureRecognizer.isEnabled = enabled
+            webView.scrollView.isScrollEnabled = enabled
+        }
+    }
+
+    // MARK: Strips
+
+    func innerMetrics() -> ReaderPagerStrip? {
+        guard let inner = visibleInnerScrollView() else { return nil }
+        let width = inner.bounds.width
+        guard width > 0 else { return nil }
+        return ReaderPagerStrip(
+            offset: inner.contentOffset.x,
+            range: 0 ... max(0, inner.contentSize.width - width),
+            pageWidth: width
+        )
+    }
+
+    func setInnerOffset(_ x: CGFloat) {
+        guard let inner = visibleInnerScrollView() else { return }
+        inner.contentOffset = CGPoint(x: x, y: inner.contentOffset.y)
+    }
+
+    func outerMetrics() -> ReaderPagerStrip? {
+        guard let outer = outerScrollView() else { return nil }
+        let width = outer.bounds.width
+        guard width > 0 else { return nil }
+        return ReaderPagerStrip(
+            offset: outer.contentOffset.x,
+            range: 0 ... max(0, outer.contentSize.width - width),
+            pageWidth: width
+        )
+    }
+
+    func setOuterOffset(_ x: CGFloat) {
+        guard let outer = outerScrollView() else { return }
+        outer.contentOffset = CGPoint(x: x, y: outer.contentOffset.y)
+    }
+
+    // MARK: Neighbor readiness
+
+    func neighborIsReady(toRight: Bool) -> Bool {
+        guard let navigator, let outer = outerScrollView(), outer.bounds.width > 0,
+              visibleInnerScrollView() != nil, let current = cachedVisibleWebView
+        else { return false }
+        let width = outer.bounds.width
+        // Content coordinates (a scroll view's own space), so a live
+        // displacement doesn't shift the answer: the neighbor's slot
+        // sits exactly one page width beside the visible spread's.
+        let target = current.convert(current.bounds, to: outer).midX + (toRight ? width : -width)
+        for webView in allWebViews(in: navigator.view) where webView !== current {
+            if abs(webView.convert(webView.bounds, to: outer).midX - target) < width / 2 {
+                return webView.scrollView.alpha > 0
+            }
+        }
+        return false
+    }
+
+    // MARK: Commit
+
+    /// The current location's href captured just before the last commit —
+    /// what the verification poll measures change against.
+    private var hrefBeforeCommit: AnyURL?
+    /// A moved commit whose verification has not resolved yet. While one
+    /// is outstanding, `currentLocation` may still describe the resource
+    /// *before* that commit, so a capture taken now is untrustworthy.
+    private var verificationUnresolved = false
+    /// The last capture was taken during an outstanding verification.
+    private var captureWasStale = false
+
+    func commitBoundaryCrossing(toRight: Bool) async -> Bool {
+        guard let navigator else { return false }
+        let now = navigator.currentLocation?.href
+        // The doubt clears on evidence, never by assumption: the location
+        // having moved off the previous commit's origin proves that
+        // commit's refresh landed, so this capture reads the live truth.
+        if verificationUnresolved, now != hrefBeforeCommit {
+            verificationUnresolved = false
+        }
+        captureWasStale = verificationUnresolved
+        hrefBeforeCommit = now
+        let options = NavigatorGoOptions(animated: false)
+        let moved = toRight
+            ? await navigator.goRight(options: options)
+            : await navigator.goLeft(options: options)
+        if moved {
+            verificationUnresolved = true
+        }
+        return moved
+    }
+
+    func verifyBoundaryCommit() async -> Bool {
+        // The commit's no-op path is not guaranteed: when a resource's
+        // content width overruns its column grid (wide table, oversized
+        // image), the *old* spread's within-resource attempt can pass its
+        // clamp guard and swallow the move without ever touching the
+        // pagination index — which the next layout pass then snaps a full
+        // chapter backward. So the move is verified, not assumed.
+        //
+        // `currentLocation` cannot be read straight away: the navigator
+        // refreshes it through a debounced job (0.1 s idle poll + a JS
+        // round-trip) that lands *after* `goRight` returns, so the
+        // immediate value is routinely stale even for a genuine commit.
+        // A resource crossing always changes the href (reflowable spreads
+        // are strictly single-resource), so poll for that change; a
+        // swallow never produces one, and only that rare path pays the
+        // full timeout.
+        guard let navigator else { return false }
+        if captureWasStale {
+            // The capture raced an earlier commit's unresolved refresh: a
+            // swallowed move could "confirm" on the *earlier* commit's
+            // href change. Verifying against a value known to be stale is
+            // worse than not verifying — report landed and leave the
+            // renderer's own layout as the backstop, exactly the pre-
+            // verification behavior, and only under rapid back-to-back
+            // crossings. The unresolved flag stands until a capture sees
+            // the location move — evidence, not assumption.
+            return true
+        }
+        let before = hrefBeforeCommit
+        for _ in 0 ..< 20 {
+            // A cancelled poll leaves `verificationUnresolved` standing,
+            // so the next capture knows it cannot be trusted.
+            if Task.isCancelled { return false }
+            if let now = navigator.currentLocation?.href, now != before {
+                verificationUnresolved = false
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        // Timed out: no crossing happened, so the location was never
+        // going to change — the capture for the next commit is clean.
+        verificationUnresolved = false
+        return false
+    }
+
+    // MARK: Hierarchy
+
+    /// The pagination scroll view, re-proved live on each use: the cached
+    /// answer is only trusted while it is still in a window.
+    private weak var cachedOuterScrollView: UIScrollView?
+
+    private func outerScrollView() -> UIScrollView? {
+        if let cached = cachedOuterScrollView, cached.window != nil {
+            return cached
+        }
+        guard let navigator, let anySpread = anyWebView(in: navigator.view) else { return nil }
+        let outer = nearestScrollView(above: anySpread)
+        cachedOuterScrollView = outer
+        return outer
+    }
+
+    /// The last answer `visibleInnerScrollView` walked the tree for; the
+    /// walk crosses WKWebView's internal hierarchy, so a still-visible
+    /// previous answer short-circuits it. Visibility is re-proved live on
+    /// each use, so a spread change is caught the frame it happens.
+    private weak var cachedVisibleWebView: WKWebView?
+
+    /// The spread web view currently covering the reader's center — the
+    /// navigator keeps preloaded spreads at alpha 0 until revealed.
+    private func visibleInnerScrollView() -> UIScrollView? {
+        visibleWebView()?.scrollView
+    }
+
+    private func isVisibleSpread(_ webView: WKWebView, in root: UIView) -> Bool {
+        webView.isDescendant(of: root) &&
+            !webView.isHidden &&
+            webView.scrollView.alpha > 0 &&
+            webView.convert(webView.bounds, to: root)
+                .contains(CGPoint(x: root.bounds.midX, y: root.bounds.midY))
+    }
+
+    /// Any spread web view at all, revealed or not — only good for walking
+    /// up to the pagination scroll view they all share.
+    private func anyWebView(in root: UIView) -> WKWebView? {
+        var queue: [UIView] = [root]
+        while let view = queue.popLast() {
+            if let webView = view as? WKWebView { return webView }
+            queue.append(contentsOf: view.subviews)
+        }
+        return nil
+    }
+
+    private func allWebViews(in root: UIView) -> [WKWebView] {
+        var found: [WKWebView] = []
+        var queue: [UIView] = [root]
+        while let view = queue.popLast() {
+            if let webView = view as? WKWebView {
+                found.append(webView)
+                // A web view's own subtree holds no further spreads.
+                continue
+            }
+            queue.append(contentsOf: view.subviews)
+        }
+        return found
+    }
+
+    /// The pagination scroll view: the nearest scroll view ancestor of a
+    /// spread (the web view's own scroll view sits below it, inside).
+    private func nearestScrollView(above view: UIView) -> UIScrollView? {
+        var ancestor = view.superview
+        while let current = ancestor {
+            if let scrollView = current as? UIScrollView { return scrollView }
+            ancestor = current.superview
+        }
+        return nil
+    }
+}
+
+// MARK: - Navigator interposition
+
+/// Implemented by the reader, called for VoiceOver's three-finger swipe.
+@MainActor
+protocol ReaderAccessibilityScrolling: AnyObject {
+    /// Returns whether a page was actually turned — a refusal must bubble,
+    /// never be reported as a turn that did not happen.
+    func readerAccessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool
+}
+
+/// Two things Readium's navigator does to the responder chain that the
+/// reader has to undo.
+///
+/// 1. `EPUBNavigatorViewController` overrides `accessibilityScroll` itself
+///    and unconditionally claims it, paging through its own `goRight`/
+///    `goLeft` — which bypasses the pager entirely and, sitting below the
+///    reader in the responder chain, means the reader's own override could
+///    never run.
+/// 2. Its `InputObservableViewController` base makes itself first responder
+///    in `viewDidAppear` (`canBecomeFirstResponder` is hard-coded `true`)
+///    to observe `presses` — and takes it back on every re-appearance, so
+///    it cannot be resigned once and for all from outside. A first
+///    responder that is not a text input is harmless until something
+///    enables the scene's focus system — a `UIMenu` pull-down does exactly
+///    that on presentation — at which point UIKit reloads input views for
+///    it, decides it needs a keyboard, and raises the software keyboard
+///    behind the menu. The reader does not use Readium's press observation
+///    at all (hardware paging is the reader's own `keyCommands`), so the
+///    navigator refuses the role and the reader owns the chain itself,
+///    dropping it whenever anything is presented over it.
+///
+/// The designated initializer is private, so the navigator cannot be
+/// subclassed where it is built; the instance's class is swapped after
+/// construction instead — the trick KVO itself uses, and safe here
+/// because the subclass adds no storage and no initializer, only
+/// overrides that forward to the reader.
+///
+/// Readium-shaped, so it lives in this file and dies with the navigator.
+enum ReadiumNavigatorShim {
+    static func install(on navigator: EPUBNavigatorViewController) {
+        guard !(navigator is ShimmedNavigator) else { return }
+        object_setClass(navigator, ShimmedNavigator.self)
+        // It may already own the chain by the time the surface is built.
+        _ = navigator.resignFirstResponder()
+    }
+
+    private final class ShimmedNavigator: EPUBNavigatorViewController {
+        override func accessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
+            if let reader = parent as? ReaderAccessibilityScrolling {
+                return reader.readerAccessibilityScroll(direction)
+            }
+            return super.accessibilityScroll(direction)
+        }
+
+        /// See (2) above: never the first responder, so no menu, sheet, or
+        /// focus-system change can summon a keyboard for it.
+        override var canBecomeFirstResponder: Bool { false }
+    }
+}
+
+// MARK: - ReaderStyleSurface
+
+extension ReadiumPagerSurface: ReaderStyleSurface {
+    func loadedWebViews() -> [WKWebView] {
+        guard let navigator else { return [] }
+        return allWebViews(in: navigator.view)
+    }
+
+    func visibleWebView() -> WKWebView? {
+        guard let navigator else { return nil }
+        let root: UIView = navigator.view
+        if let cached = cachedVisibleWebView, isVisibleSpread(cached, in: root) {
+            return cached
+        }
+        var queue: [UIView] = [root]
+        while let view = queue.popLast() {
+            if let webView = view as? WKWebView, isVisibleSpread(webView, in: root) {
+                cachedVisibleWebView = webView
+                return webView
+            }
+            queue.append(contentsOf: view.subviews)
+        }
+        return nil
+    }
+}

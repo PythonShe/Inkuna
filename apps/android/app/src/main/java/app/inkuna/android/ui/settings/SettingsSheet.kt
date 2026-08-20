@@ -70,6 +70,8 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import app.inkuna.android.BuildConfig
 import app.inkuna.android.R
+import app.inkuna.android.ui.components.GroupCard
+import app.inkuna.android.ui.components.GroupHairline
 import app.inkuna.android.ui.components.inkShadow
 import app.inkuna.android.ui.main.EyebrowText
 import app.inkuna.android.ui.reader.SheetCloseButton
@@ -185,7 +187,7 @@ fun SettingsSheet(
                 // with the toggle keeps the group one glance long.
                 AnimatedVisibility(visible = snapshot.eveningReminder) {
                     Column {
-                        Hairline()
+                        GroupHairline()
                         ValueRow(
                             icon = { Icon(Icons.Outlined.Schedule, null, tint = ink.textSecondary) },
                             title = stringResource(R.string.settings_reminder_time),
@@ -194,7 +196,7 @@ fun SettingsSheet(
                         )
                     }
                 }
-                Hairline()
+                GroupHairline()
                 // The flip waits for the thumb to land, like iOS: the
                 // whole-app theme change mid-animation reads as a blink.
                 // The switch shows the pending value meanwhile — it is
@@ -245,7 +247,7 @@ fun SettingsSheet(
                         }
                     },
                 )
-                Hairline()
+                GroupHairline()
                 DisclosureRow(
                     icon = { Icon(Icons.Outlined.Info, null, tint = ink.textSecondary) },
                     title = stringResource(R.string.settings_about),
@@ -543,21 +545,6 @@ private fun openWebPage(context: Context, url: String) {
 
 // MARK-style shared row scaffolding below.
 
-/** Surface + shadow + clip, the grouped-list card idiom of this sheet. */
-@Composable
-private fun GroupCard(content: @Composable () -> Unit) {
-    val ink = InkTheme.colors
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .inkShadow(4.dp, InkRadius.lgShape)
-            .clip(InkRadius.lgShape)
-            .background(ink.bgSurface),
-    ) {
-        content()
-    }
-}
-
 @Composable
 private fun ToggleRow(
     icon: @Composable () -> Unit,
@@ -654,14 +641,3 @@ private fun DisclosureRow(
     }
 }
 
-@Composable
-private fun Hairline() {
-    val ink = InkTheme.colors
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .padding(start = InkSpace.s4)
-            .height(hairlineThickness())
-            .background(ink.borderHairline),
-    )
-}

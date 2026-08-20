@@ -15,7 +15,7 @@ use rusqlite::{Connection, Transaction};
 use crate::core::files::copy_and_hash_unbounded;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 6;
+pub(crate) const SCHEMA_VERSION: i64 = 7;
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -141,6 +141,21 @@ const V6_SQL: &str = "
 ALTER TABLE settings ADD COLUMN reminder_minutes INTEGER NOT NULL DEFAULT 1260;
 ";
 
+// 0007: reader typography and layout. `reading_font` is opaque like
+// `reading_theme` (shells own the roster; 'publisher' means the EPUB's own
+// faces). Spacings are CSS-semantic — a unitless line-height multiplier and
+// em offsets — and `reading_margins` is horizontal page padding in CSS px
+// inside the rendering web view, so one stored value means the same thing
+// on both shells.
+const V7_SQL: &str = "
+ALTER TABLE settings ADD COLUMN reading_font    TEXT    NOT NULL DEFAULT 'publisher';
+ALTER TABLE settings ADD COLUMN reading_bold    INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE settings ADD COLUMN line_spacing    REAL    NOT NULL DEFAULT 1.65;
+ALTER TABLE settings ADD COLUMN letter_spacing  REAL    NOT NULL DEFAULT 0;
+ALTER TABLE settings ADD COLUMN word_spacing    REAL    NOT NULL DEFAULT 0;
+ALTER TABLE settings ADD COLUMN reading_margins INTEGER NOT NULL DEFAULT 26;
+";
+
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
     loop {
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
@@ -159,6 +174,7 @@ pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), Core
             3 => tx.execute_batch(V4_SQL)?,
             4 => tx.execute_batch(V5_SQL)?,
             5 => tx.execute_batch(V6_SQL)?,
+            6 => tx.execute_batch(V7_SQL)?,
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type &amp; layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">Personnaliser</string>
+    <string name="reader_type_section">Typographie</string>
+    <string name="reader_layout_section">Mise en page</string>
+    <string name="reader_font">Police</string>
+    <string name="reader_font_publisher">Police de l\'éditeur</string>
+    <string name="reader_font_system_serif">Serif système</string>
+    <string name="reader_font_system_sans">Sans système</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Texte en gras</string>
+    <string name="reader_line_spacing">Interligne</string>
+    <string name="reader_letter_spacing">Espacement des lettres</string>
+    <string name="reader_word_spacing">Espacement des mots</string>
+    <string name="reader_margins">Marges</string>
+    <string name="reader_reset_defaults">Rétablir les réglages</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">Les heures calmes appartiennent au lecteur.</string>
+    <string name="a11y_customize_appearance">Personnaliser la typographie et la mise en page</string>
+    <string name="a11y_back_to_theme_type">Retour au thème et à la typographie</string>
+    <string name="a11y_bold_text">Texte en gras</string>
+    <string name="a11y_line_spacing">Interligne</string>
+    <string name="a11y_letter_spacing">Espacement des lettres</string>
+    <string name="a11y_word_spacing">Espacement des mots</string>
+    <string name="a11y_margins">Marges de page</string>
+    <string name="a11y_reset_defaults">Rétablir la typographie et la mise en page par défaut</string>
+    <string name="a11y_preview_sample">Aperçu</string>
+</resources>

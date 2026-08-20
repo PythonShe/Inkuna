@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The reader's Customize (type &amp; layout) panel strings, split out of
+  strings.xml the way strings_import.xml is; they share one namespace with
+  the other files.
+-->
+<resources>
+    <string name="reader_customize">Anpassen</string>
+    <string name="reader_type_section">Schrift</string>
+    <string name="reader_layout_section">Layout</string>
+    <string name="reader_font">Schriftart</string>
+    <string name="reader_font_publisher">Verlagsvorgabe</string>
+    <string name="reader_font_system_serif">System-Serif</string>
+    <string name="reader_font_system_sans">System-Sans</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Fetter Text</string>
+    <string name="reader_line_spacing">Zeilenabstand</string>
+    <string name="reader_letter_spacing">Zeichenabstand</string>
+    <string name="reader_word_spacing">Wortabstand</string>
+    <string name="reader_margins">Ränder</string>
+    <string name="reader_reset_defaults">Auf Standard zurücksetzen</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">Die stillen Stunden gehören dem Lesenden.</string>
+    <string name="a11y_customize_appearance">Schrift und Layout anpassen</string>
+    <string name="a11y_back_to_theme_type">Zurück zu Design &amp; Typografie</string>
+    <string name="a11y_bold_text">Fetter Text</string>
+    <string name="a11y_line_spacing">Zeilenabstand</string>
+    <string name="a11y_letter_spacing">Zeichenabstand</string>
+    <string name="a11y_word_spacing">Wortabstand</string>
+    <string name="a11y_margins">Seitenränder</string>
+    <string name="a11y_reset_defaults">Schrift und Layout auf Standard zurücksetzen</string>
+    <string name="a11y_preview_sample">Vorschau</string>
+</resources>

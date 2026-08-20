@@ -17,6 +17,17 @@ pub struct Settings {
     /// Purely local account profile; empty strings mean "not set".
     pub account_name: String,
     pub account_email: String,
+    /// Opaque reading-font identifier; shells own the font roster.
+    pub reading_font: String,
+    pub reading_bold: bool,
+    /// Line-height multiplier (1.30..=2.10).
+    pub line_spacing: f64,
+    /// Extra letter spacing in em (0.0..=0.06).
+    pub letter_spacing: f64,
+    /// Extra word spacing in em (0.0..=0.30).
+    pub word_spacing: f64,
+    /// Horizontal page margins in CSS px (16..=48).
+    pub reading_margins: u16,
 }
 
 impl From<inkuna_core::Settings> for Settings {
@@ -30,6 +41,12 @@ impl From<inkuna_core::Settings> for Settings {
             reminder_minutes: s.reminder_minutes,
             account_name: s.account_name,
             account_email: s.account_email,
+            reading_font: s.reading_font,
+            reading_bold: s.reading_bold,
+            line_spacing: s.line_spacing,
+            letter_spacing: s.letter_spacing,
+            word_spacing: s.word_spacing,
+            reading_margins: s.reading_margins,
         }
     }
 }
@@ -45,6 +62,12 @@ impl From<Settings> for inkuna_core::Settings {
             reminder_minutes: s.reminder_minutes,
             account_name: s.account_name,
             account_email: s.account_email,
+            reading_font: s.reading_font,
+            reading_bold: s.reading_bold,
+            line_spacing: s.line_spacing,
+            letter_spacing: s.letter_spacing,
+            word_spacing: s.word_spacing,
+            reading_margins: s.reading_margins,
         }
     }
 }

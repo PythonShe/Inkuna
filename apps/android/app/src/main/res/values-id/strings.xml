@@ -102,6 +102,8 @@
     <string name="a11y_theme_tile">%1$s. %2$s</string>
     <string name="a11y_no_results">Tidak ada hasil</string>
     <string name="a11y_toggle_reader_controls">Tampilkan atau sembunyikan kontrol baca</string>
+    <string name="a11y_next_page">Halaman berikutnya</string>
+    <string name="a11y_previous_page">Halaman sebelumnya</string>
     <string name="a11y_calendar_day">%2$d %1$s</string>
     <string name="a11y_calendar_day_read">%2$d %1$s, dibaca</string>
     <string name="a11y_fact">%1$s %2$s</string>

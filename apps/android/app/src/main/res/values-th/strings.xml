@@ -112,6 +112,8 @@
     <string name="a11y_theme_tile">%1$s. %2$s</string>
     <string name="a11y_no_results">ไม่พบผลลัพธ์</string>
     <string name="a11y_toggle_reader_controls">แสดงหรือซ่อนการควบคุมการอ่าน</string>
+    <string name="a11y_next_page">หน้าถัดไป</string>
+    <string name="a11y_previous_page">หน้าก่อนหน้า</string>
     <string name="a11y_calendar_day">%2$d %1$s</string>
     <string name="a11y_calendar_day_read">%2$d %1$s อ่านแล้ว</string>
     <string name="a11y_fact">%1$s %2$s</string>

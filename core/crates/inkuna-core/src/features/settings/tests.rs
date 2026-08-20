@@ -1,4 +1,7 @@
-use super::model::{Settings, MAX_REMINDER_MINUTES, MAX_TEXT_SIZE_STEP};
+use super::model::{
+    Settings, MAX_LETTER_SPACING, MAX_LINE_SPACING, MAX_READING_MARGINS, MAX_REMINDER_MINUTES,
+    MAX_TEXT_SIZE_STEP,
+};
 use crate::Library;
 
 #[test]
@@ -21,6 +24,14 @@ fn defaults_clamping_and_roundtrip() {
             reminder_minutes: 40_000,
             account_name: "夜読み".to_string(),
             account_email: "reader@example.com".to_string(),
+            // Unknown font ids are stored as-is (fonts ship shell-first);
+            // spacings and margins clamp on write like the other numerics.
+            reading_font: "brush-script-experiment".to_string(),
+            reading_bold: true,
+            line_spacing: 9.0,
+            letter_spacing: 1.0,
+            word_spacing: -2.0,
+            reading_margins: 500,
         })
         .unwrap();
     let stored = library.settings().unwrap();
@@ -32,6 +43,12 @@ fn defaults_clamping_and_roundtrip() {
     assert_eq!(stored.reminder_minutes, MAX_REMINDER_MINUTES);
     assert_eq!(stored.account_name, "夜読み");
     assert_eq!(stored.account_email, "reader@example.com");
+    assert_eq!(stored.reading_font, "brush-script-experiment");
+    assert!(stored.reading_bold);
+    assert_eq!(stored.line_spacing, MAX_LINE_SPACING);
+    assert_eq!(stored.letter_spacing, MAX_LETTER_SPACING);
+    assert_eq!(stored.word_spacing, 0.0);
+    assert_eq!(stored.reading_margins, MAX_READING_MARGINS);
 
     // Settings survive reopen (single persistent row).
     drop(library);
@@ -69,6 +86,12 @@ fn a_missing_settings_row_reads_as_defaults_and_is_restored_on_write() {
             reminder_minutes: 6 * 60 + 30,
             account_name: "林深".to_string(),
             account_email: "shen@example.com".to_string(),
+            reading_font: "noto-serif".to_string(),
+            reading_bold: true,
+            line_spacing: 1.4,
+            letter_spacing: 0.02,
+            word_spacing: 0.1,
+            reading_margins: 40,
         })
         .unwrap();
 
@@ -81,4 +104,10 @@ fn a_missing_settings_row_reads_as_defaults_and_is_restored_on_write() {
     assert_eq!(stored.reminder_minutes, 6 * 60 + 30);
     assert_eq!(stored.account_name, "林深");
     assert_eq!(stored.account_email, "shen@example.com");
+    assert_eq!(stored.reading_font, "noto-serif");
+    assert!(stored.reading_bold);
+    assert_eq!(stored.line_spacing, 1.4);
+    assert_eq!(stored.letter_spacing, 0.02);
+    assert_eq!(stored.word_spacing, 0.1);
+    assert_eq!(stored.reading_margins, 40);
 }

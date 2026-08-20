@@ -2,6 +2,7 @@ package app.inkuna.android
 
 import android.app.UiModeManager
 import android.os.Bundle
+import android.view.ActionMode
 import android.webkit.WebView
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -11,6 +12,7 @@ import app.inkuna.android.model.AppSettings
 import app.inkuna.android.reminder.EveningReminder
 import app.inkuna.android.ui.InkunaApp
 import app.inkuna.android.ui.reader.READER_NAVIGATOR_FRAGMENT_TAG
+import app.inkuna.android.ui.reader.SelectionModeTracker
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 
@@ -72,5 +74,20 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    // Text-selection tracking for the reader's pager: the WebView starts
+    // its selection ActionMode through the activity, so these overrides
+    // see every selection without owning the selection menu. While one is
+    // live, horizontal drags belong to the handles, not to page turns.
+
+    override fun onActionModeStarted(mode: ActionMode?) {
+        super.onActionModeStarted(mode)
+        SelectionModeTracker.started()
+    }
+
+    override fun onActionModeFinished(mode: ActionMode?) {
+        super.onActionModeFinished(mode)
+        SelectionModeTracker.finished()
     }
 }

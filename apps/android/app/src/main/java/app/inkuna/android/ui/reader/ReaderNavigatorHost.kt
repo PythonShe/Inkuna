@@ -41,28 +41,30 @@ fun ReaderNavigatorHost(
     initialLocator: Locator?,
     initialPreferences: EpubPreferences,
     listener: EpubNavigatorFragment.Listener,
-    boundarySignal: BoundaryGestureSignal,
+    styleInjector: ReaderStyleInjector,
+    onPager: (ReaderPagerLayout?) -> Unit,
     onNavigator: (EpubNavigatorFragment?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val activity = LocalActivity.current as FragmentActivity
 
     // Set by the AndroidView factory, which runs before the effect below.
-    val follower = remember { mutableStateOf<BoundaryDragFollower?>(null) }
+    val pagerLayout = remember { mutableStateOf<ReaderPagerLayout?>(null) }
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            // The follower wraps the fragment container so chapter-boundary
-            // drags can be intercepted and replayed into Readium's pager;
-            // see BoundaryDragFollower.
-            BoundaryDragFollower(context, boundarySignal).apply {
+            // The pager wraps the fragment container and owns every
+            // horizontal page turn — Readium's own gesture pipeline never
+            // sees a horizontal drag; see ReaderPagerLayout.
+            ReaderPagerLayout(context).apply {
                 addView(FragmentContainerView(context).apply { id = R.id.reader_navigator_host })
                 // Frame-rate votes don't propagate to children; the tuner
                 // covers the WebViews and pager, this covers the host.
                 if (Build.VERSION.SDK_INT >= 35) {
                     requestedFrameRate = View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
                 }
-                follower.value = this
+                pagerLayout.value = this
+                onPager(this)
             }
         },
     )
@@ -106,6 +108,11 @@ fun ReaderNavigatorHost(
             // for the same reason.
             configuration = EpubNavigatorFragment.Configuration(
                 shouldApplyInsetsPadding = false,
+                // The bundled Noto files, served from app assets on the
+                // CORS-enabled https://readium_assets/ origin. Which family
+                // the page uses is decided by our own injected stylesheet
+                // (ReaderUserCss), never by an EpubPreferences value.
+                servedAssets = listOf("fonts/.*"),
             ),
         ).instantiate(
             activity.classLoader,
@@ -119,12 +126,16 @@ fun ReaderNavigatorHost(
         }
         // Overscroll stretch off and high frame-rate votes on, for every
         // resource WebView the pager creates; see ReaderWebViewTuner.
-        val webViewTuner = fragment.view?.let(::ReaderWebViewTuner)
+        val webViewTuner = fragment.view?.let { ReaderWebViewTuner(it, styleInjector) }
         webViewTuner?.attach()
-        follower.value?.navigator = fragment
+        pagerLayout.value?.navigator = fragment
         onNavigator(fragment)
         onDispose {
-            follower.value?.navigator = null
+            pagerLayout.value?.let { layout ->
+                layout.cancelInteraction()
+                layout.navigator = null
+            }
+            onPager(null)
             webViewTuner?.detach()
             onNavigator(null)
             // After onSaveInstanceState the FragmentManager refuses

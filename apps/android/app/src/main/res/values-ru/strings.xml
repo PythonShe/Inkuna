@@ -118,6 +118,8 @@
     <string name="a11y_theme_tile">%1$s. %2$s</string>
     <string name="a11y_no_results">Ничего не найдено</string>
     <string name="a11y_toggle_reader_controls">Показать или скрыть элементы управления</string>
+    <string name="a11y_next_page">Следующая страница</string>
+    <string name="a11y_previous_page">Предыдущая страница</string>
     <string name="a11y_calendar_day">%2$d %1$s</string>
     <string name="a11y_calendar_day_read">%2$d %1$s, прочитано</string>
     <string name="a11y_fact">%1$s %2$s</string>

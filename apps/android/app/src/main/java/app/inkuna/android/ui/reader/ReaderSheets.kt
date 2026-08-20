@@ -1,5 +1,14 @@
 package app.inkuna.android.ui.reader
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BrightnessHigh
 import androidx.compose.material.icons.outlined.BrightnessLow
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -31,10 +41,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +60,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -57,11 +71,14 @@ import androidx.compose.ui.unit.sp
 import app.inkuna.android.R
 import app.inkuna.android.model.AppSettings
 import app.inkuna.android.ui.components.BookCover
+import app.inkuna.android.ui.components.InkButton
+import app.inkuna.android.ui.components.InkButtonVariant
 import app.inkuna.core.Chapter as CoreChapter
 import app.inkuna.core.Publication as CorePublication
 import kotlin.math.abs
 import app.inkuna.android.ui.components.inkShadow
 import app.inkuna.android.ui.stats.hairlineThickness
+import app.inkuna.android.ui.theme.InkMotion
 import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkSerif
 import app.inkuna.android.ui.theme.InkSpace
@@ -117,11 +134,15 @@ private fun rememberSheetDismiss(
     }
 }
 
+/** The two pages the Theme & type sheet swaps between. */
+private enum class ThemeSheetPage { ThemeType, Customize }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThemeTypeSheet(
     snapshot: AppSettings.Snapshot,
     settings: AppSettings,
+    appearance: ReaderAppearanceController,
     onBrightnessPreview: (Float) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -130,6 +151,18 @@ fun ThemeTypeSheet(
     val sheetState = rememberModalBottomSheetState()
     val dismiss = rememberSheetDismiss(sheetState, onDismiss)
 
+    // One modal sheet, two pages: stacking a second ModalBottomSheet would
+    // paint a second scrim and elevation, which M3 forbids. The Customize
+    // page is tall, so entering it expands the sheet.
+    var page by rememberSaveable { mutableStateOf(ThemeSheetPage.ThemeType) }
+    LaunchedEffect(page) {
+        if (page == ThemeSheetPage.Customize) sheetState.expand()
+    }
+    // Predictive back pops to level 1 before the sheet dismisses.
+    BackHandler(enabled = page == ThemeSheetPage.Customize) {
+        page = ThemeSheetPage.ThemeType
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -137,47 +170,96 @@ fun ThemeTypeSheet(
         scrimColor = ink.scrim,
         shape = sheetShape,
     ) {
-        Column(
-            Modifier.padding(
-                start = InkSpace.pageMargin,
-                end = InkSpace.pageMargin,
-                bottom = InkSpace.s6,
-            )
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    stringResource(R.string.reader_menu_theme_type),
-                    style = InkType.heading,
-                    color = ink.textDisplay,
-                    modifier = Modifier.weight(1f),
-                )
-                SheetCloseButton(onClick = dismiss)
+        val themeTypeTitle = stringResource(R.string.reader_menu_theme_type)
+        val customizeTitle = stringResource(R.string.reader_customize)
+        val customizeA11y = stringResource(R.string.a11y_customize_appearance)
+        AnimatedContent(
+            targetState = page,
+            transitionSpec = {
+                val forward = targetState == ThemeSheetPage.Customize
+                val enter = slideInHorizontally(
+                    tween(InkMotion.durFast, easing = InkMotion.easeQuiet)
+                ) { full -> if (forward) full / 3 else -full / 3 } +
+                    fadeIn(tween(InkMotion.durFast, easing = InkMotion.easeQuiet))
+                val exit = slideOutHorizontally(
+                    tween(InkMotion.durFast, easing = InkMotion.easeQuiet)
+                ) { full -> if (forward) -full / 3 else full / 3 } +
+                    fadeOut(tween(InkMotion.durFast, easing = InkMotion.easeQuiet))
+                (enter togetherWith exit).using(SizeTransform(clip = false))
+            },
+            label = "themeSheetPage",
+        ) { current ->
+            when (current) {
+                ThemeSheetPage.ThemeType -> Column(
+                    Modifier
+                        .padding(
+                            start = InkSpace.pageMargin,
+                            end = InkSpace.pageMargin,
+                            bottom = InkSpace.s6,
+                        )
+                        .semantics { paneTitle = themeTypeTitle },
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            themeTypeTitle,
+                            style = InkType.heading,
+                            color = ink.textDisplay,
+                            modifier = Modifier.weight(1f),
+                        )
+                        SheetCloseButton(onClick = dismiss)
+                    }
+                    Spacer(Modifier.height(InkSpace.s4))
+                    TextSizeStepper(
+                        step = snapshot.textSizeStep,
+                        onStep = { newStep ->
+                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            settings.setTextSizeStep(newStep)
+                        },
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    BrightnessRow(
+                        brightness = snapshot.brightness,
+                        onPreview = onBrightnessPreview,
+                        onCommit = { value -> settings.setBrightness(value) },
+                    )
+                    Spacer(Modifier.height(InkSpace.s4))
+                    ThemeGrid(
+                        selected = snapshot.readingTheme,
+                        onPick = { theme ->
+                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            settings.setReadingTheme(theme)
+                        },
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    InkButton(
+                        text = customizeTitle,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            page = ThemeSheetPage.Customize
+                        },
+                        variant = InkButtonVariant.Recessed,
+                        icon = Icons.Outlined.Tune,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics { contentDescription = customizeA11y },
+                    )
+                }
+
+                ThemeSheetPage.Customize -> Box(
+                    Modifier.semantics { paneTitle = customizeTitle },
+                ) {
+                    CustomizePanel(
+                        snapshot = snapshot,
+                        settings = settings,
+                        appearance = appearance,
+                        onBack = { page = ThemeSheetPage.ThemeType },
+                        onClose = dismiss,
+                    )
+                }
             }
-            Spacer(Modifier.height(InkSpace.s4))
-            TextSizeStepper(
-                step = snapshot.textSizeStep,
-                onStep = { newStep ->
-                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    settings.setTextSizeStep(newStep)
-                },
-            )
-            Spacer(Modifier.height(14.dp))
-            BrightnessRow(
-                brightness = snapshot.brightness,
-                onPreview = onBrightnessPreview,
-                onCommit = { value -> settings.setBrightness(value) },
-            )
-            Spacer(Modifier.height(InkSpace.s4))
-            ThemeGrid(
-                selected = snapshot.readingTheme,
-                onPick = { theme ->
-                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    settings.setReadingTheme(theme)
-                },
-            )
         }
     }
 }

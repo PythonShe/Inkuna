@@ -45,7 +45,9 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,6 +63,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.preferredFrameRate
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -85,7 +89,6 @@ import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.navigator.preferences.Color as ReadiumColor
 import org.readium.r2.navigator.preferences.Theme as ReadiumTheme
-import org.readium.r2.navigator.util.DirectionalNavigationAdapter
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
@@ -290,34 +293,88 @@ private fun ReaderContent(
     val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
     val contentTop = ReaderMetrics.contentTop(max(statusPad, cutoutTop), isTablet)
     val contentBottom = ReaderMetrics.contentBottom(navPad, isTablet)
+    // The pager layout drives every page turn; held so taps, keys, and
+    // jumps can route through its springs.
+    val pagerLayout = remember { mutableStateOf<ReaderPagerLayout?>(null) }
+    val nextPageLabel = stringResource(R.string.a11y_next_page)
+    val previousPageLabel = stringResource(R.string.a11y_previous_page)
+    // Named page turns are only honest while the pager exists and the
+    // overflow is paginated: `turnGeometric` refuses in vertical-scroll
+    // mode, so advertising the actions there gives TalkBack a "Next page"
+    // that silently does nothing.
+    val overflowFlow = remember(navigator) { navigator?.overflow }
+    val scrollMode by produceState(false, overflowFlow) {
+        val flow = overflowFlow
+        if (flow == null) value = false else flow.collect { value = it.scroll }
+    }
+    val pageTurnActions = pagerLayout.value != null && !scrollMode
     // Hoisted so the fragment host's modifier is one stable value: rebuilt
     // per recomposition, the fresh semantics lambda would re-update the
     // AndroidView's modifier node on every page turn.
-    val hostModifier = remember(contentTop, contentBottom, toggleLabel, toggleChrome) {
+    val hostModifier = remember(
+        contentTop, contentBottom, toggleLabel, toggleChrome,
+        nextPageLabel, previousPageLabel, pageTurnActions,
+    ) {
         Modifier
             .fillMaxSize()
             .padding(top = contentTop, bottom = contentBottom)
             // The WebView owns raw touch; TalkBack still needs a named way
-            // to reach the chrome.
+            // to reach the chrome — and named page turns, since the host is
+            // not a scrollable container in Compose semantics, so the scroll
+            // actions would be a lie. turnForward/turnBackward already
+            // resolve the reading progression, RTL included.
             .semantics {
                 onClick(label = toggleLabel) {
                     toggleChrome()
                     true
                 }
+                if (pageTurnActions) {
+                    customActions = listOf(
+                        CustomAccessibilityAction(nextPageLabel) {
+                            pagerLayout.value?.turnForward() ?: false
+                        },
+                        CustomAccessibilityAction(previousPageLabel) {
+                            pagerLayout.value?.turnBackward() ?: false
+                        },
+                    )
+                }
             }
     }
-    // Lets BoundaryFlingRescue stand down for gestures BoundaryDragFollower
-    // already drove into the pager itself.
-    val boundarySignal = remember(book) { BoundaryGestureSignal() }
+    // The reader's own user stylesheet (Customize: font, bold, spacings,
+    // margins) — never EpubPreferences, so the pipeline outlives Readium.
+    val styleInjector = remember(book) { ReaderStyleInjector() }
+    val appearanceScope = rememberCoroutineScope()
+    val appearance = remember(styleInjector) {
+        ReaderAppearanceController(appearanceScope, styleInjector) { pagerLayout.value }
+    }
+    DisposableEffect(styleInjector) {
+        onDispose { styleInjector.detach() }
+    }
     ReaderNavigatorHost(
         navigatorFactory = book.navigatorFactory,
         initialLocator = book.initialLocator,
         initialPreferences = initialPreferences,
         listener = navigatorListener,
-        boundarySignal = boundarySignal,
+        styleInjector = styleInjector,
+        onPager = { pagerLayout.value = it },
         onNavigator = { navigator = it },
         modifier = hostModifier,
     )
+
+    // Chrome leaves the moment a page-turn drag is claimed — before the
+    // motion — matching iOS; the locator collect below stays as the
+    // fallback for programmatic turns. Under TalkBack a page gesture is
+    // a scroll, so the chrome must not vanish on it.
+    LaunchedEffect(pagerLayout.value, touchExploration) {
+        pagerLayout.value?.onTurnGesture = if (touchExploration) {
+            null
+        } else {
+            {
+                chromeVisible.value = false
+                menuOpen.value = false
+            }
+        }
+    }
 
     // The design system's reading themes and type scale, routed through
     // Readium's user preferences instead of fighting the navigator. The
@@ -332,40 +389,49 @@ private fun ReaderContent(
         nav.submitPreferences(preferences)
     }
 
-    // Edge taps turn pages (reading-progression aware); everything else
-    // toggles the chrome.
+    // Committed Customize values only — the preview path writes CSS
+    // directly through the controller, so this never fires mid-drag. The
+    // injector seeds new WebViews itself; this pass re-lands the current
+    // page and recalibrates the pager after the reflow.
+    var appliedDraft by remember(book) { mutableStateOf<ReaderTypeDraft?>(null) }
+    LaunchedEffect(
+        navigator, snapshot.readingFont, snapshot.readingBold, snapshot.lineSpacing,
+        snapshot.letterSpacing, snapshot.wordSpacing, snapshot.readingMargins,
+    ) {
+        if (navigator == null) return@LaunchedEffect
+        val draft = ReaderTypeDraft.from(snapshot)
+        val first = appliedDraft == null
+        if (draft == appliedDraft) return@LaunchedEffect
+        appliedDraft = draft
+        if (first) {
+            // The open itself: seed the stylesheet without an anchor dance —
+            // the navigator is restoring the saved locator anyway.
+            appearance.preview(draft)
+        } else {
+            appearance.applyCommitted(snapshot)
+        }
+    }
+
+    // Edge taps and hardware keys turn pages through the pager's springs
+    // (a tapped boundary turn slides the neighbour in, exactly like a
+    // dragged one); everything else toggles the chrome.
     DisposableEffect(navigator) {
         val nav = navigator ?: return@DisposableEffect onDispose {}
-        // animatedTransition deliberately off (Readium's own default): an
-        // animated turn across a resource boundary scrolls the pager while
-        // the next chapter's WebView is still loading, which reads as a
-        // stuttering half-blank slide. Snapping is instant and honest.
-        val pageTurns = DirectionalNavigationAdapter(nav)
+        val pageTurns = ReaderPageTurnListener(nav, pagerLayout::value)
         val chromeTaps = object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 toggleChrome()
                 return true
             }
         }
-        // Fast swipes at chapter boundaries die in the toolkit's fling
-        // gate; the rescue re-drives them. It stands down for gestures the
-        // follower already replayed into the pager. See BoundaryFlingRescue
-        // and BoundaryDragFollower.
-        val flingRescue = BoundaryFlingRescue(
-            nav,
-            context.resources.displayMetrics.density,
-            isSuppressed = boundarySignal::handledRecently,
-        )
         nav.addInputListener(pageTurns)
         nav.addInputListener(chromeTaps)
-        nav.addInputListener(flingRescue)
         onDispose {
             nav.removeInputListener(pageTurns)
             nav.removeInputListener(chromeTaps)
-            nav.removeInputListener(flingRescue)
-            // An armed frame-callback verification would survive the
-            // listener's removal and could still turn a page mid-teardown.
-            flingRescue.cancel()
+            // Backstop for a missed onActionModeFinished: a stuck flag
+            // would otherwise kill every page turn for the process.
+            SelectionModeTracker.reset()
         }
     }
 
@@ -401,6 +467,8 @@ private fun ReaderContent(
     val jumpTo: (Locator) -> Unit = remember {
         { target ->
             navigator?.let { nav ->
+                // A turn mid-flight must not land on top of the jump.
+                pagerLayout.value?.cancelInteraction()
                 jumping = true
                 nav.go(target)
                 chromeVisible.value = true
@@ -479,6 +547,7 @@ private fun ReaderContent(
         ThemeTypeSheet(
             snapshot = snapshot,
             settings = settings,
+            appearance = appearance,
             onBrightnessPreview = { brightnessPreview = it },
             onDismiss = { themeSheetOpen = false },
         )

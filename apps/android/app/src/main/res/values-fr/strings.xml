@@ -114,6 +114,8 @@
     <string name="a11y_theme_tile">%1$s. %2$s</string>
     <string name="a11y_no_results">Aucun résultat</string>
     <string name="a11y_toggle_reader_controls">Afficher ou masquer les commandes de lecture</string>
+    <string name="a11y_next_page">Page suivante</string>
+    <string name="a11y_previous_page">Page précédente</string>
     <string name="a11y_calendar_day">%2$d %1$s</string>
     <string name="a11y_calendar_day_read">%2$d %1$s, lu</string>
     <string name="a11y_fact">%1$s %2$s</string>
