@@ -85,9 +85,14 @@ private final class FontOptionRow: UIControl {
 
         let specimen = InkLabel()
         specimen.text = "Aa"
-        specimen.font = font.previewFont(size: 19, bold: false)
+        // InkLabel's `adjustsFontForContentSizeCategory` is inert on a font
+        // that never went through UIFontMetrics, so the specimen is scaled
+        // explicitly; the 44 pt column is then a floor, not a clip.
+        specimen.font = UIFontMetrics(forTextStyle: .body)
+            .scaledFont(for: font.previewFont(size: 19, bold: false))
         specimen.textColor = InkColor.textDisplay
-        specimen.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        specimen.setContentCompressionResistancePriority(.required, for: .horizontal)
+        specimen.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
 
         let name = InkLabel()
         name.text = font.displayName
