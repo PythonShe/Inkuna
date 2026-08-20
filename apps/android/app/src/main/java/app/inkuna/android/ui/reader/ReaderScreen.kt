@@ -46,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -308,11 +309,22 @@ private fun ReaderContent(
     // The pager layout drives every page turn; held so taps, keys, and
     // jumps can route through its springs.
     val pagerLayout = remember { mutableStateOf<ReaderPagerLayout?>(null) }
+    // The reader's own user stylesheet (Customize: font, bold, spacings,
+    // margins) — never EpubPreferences, so the pipeline outlives Readium.
+    val styleInjector = remember(book) { ReaderStyleInjector() }
+    val appearanceScope = rememberCoroutineScope()
+    val appearance = remember(styleInjector) {
+        ReaderAppearanceController(appearanceScope, styleInjector) { pagerLayout.value }
+    }
+    DisposableEffect(styleInjector) {
+        onDispose { styleInjector.detach() }
+    }
     ReaderNavigatorHost(
         navigatorFactory = book.navigatorFactory,
         initialLocator = book.initialLocator,
         initialPreferences = initialPreferences,
         listener = navigatorListener,
+        styleInjector = styleInjector,
         onPager = { pagerLayout.value = it },
         onNavigator = { navigator = it },
         modifier = hostModifier,
@@ -344,6 +356,29 @@ private fun ReaderContent(
         if (preferences == submittedPreferences) return@LaunchedEffect
         submittedPreferences = preferences
         nav.submitPreferences(preferences)
+    }
+
+    // Committed Customize values only — the preview path writes CSS
+    // directly through the controller, so this never fires mid-drag. The
+    // injector seeds new WebViews itself; this pass re-lands the current
+    // page and recalibrates the pager after the reflow.
+    var appliedDraft by remember(book) { mutableStateOf<ReaderTypeDraft?>(null) }
+    LaunchedEffect(
+        navigator, snapshot.readingFont, snapshot.readingBold, snapshot.lineSpacing,
+        snapshot.letterSpacing, snapshot.wordSpacing, snapshot.readingMargins,
+    ) {
+        if (navigator == null) return@LaunchedEffect
+        val draft = ReaderTypeDraft.from(snapshot)
+        val first = appliedDraft == null
+        if (draft == appliedDraft) return@LaunchedEffect
+        appliedDraft = draft
+        if (first) {
+            // The open itself: seed the stylesheet without an anchor dance —
+            // the navigator is restoring the saved locator anyway.
+            appearance.preview(draft)
+        } else {
+            appearance.applyCommitted(snapshot)
+        }
     }
 
     // Edge taps and hardware keys turn pages through the pager's springs
@@ -481,6 +516,7 @@ private fun ReaderContent(
         ThemeTypeSheet(
             snapshot = snapshot,
             settings = settings,
+            appearance = appearance,
             onBrightnessPreview = { brightnessPreview = it },
             onDismiss = { themeSheetOpen = false },
         )

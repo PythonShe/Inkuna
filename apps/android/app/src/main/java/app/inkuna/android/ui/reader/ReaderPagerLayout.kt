@@ -728,6 +728,25 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         }
     }
 
+    /** The WebView showing the current page, for the shell's own JS probes. */
+    fun currentWebView(): WebView? = navigator?.view?.let(::visibleWebView)
+
+    /**
+     * The page reflowed under us (a user-CSS change). Drop every cached
+     * measurement so the next claim re-derives the column grid from the
+     * new layout, standing any interaction down first. `rejected` is left
+     * set by the cancel, which is harmless — it resets on the next
+     * ACTION_DOWN.
+     */
+    fun recalibrate() {
+        cancelInteraction()
+        pitchSource = null
+        innerPitch = 0f
+        innerMax = Int.MAX_VALUE
+        innerMaxGeneration++
+        webView = null
+    }
+
     /** Cancels everything mid-flight — teardown, jumps, detach. */
     fun cancelInteraction() {
         spring.cancel()

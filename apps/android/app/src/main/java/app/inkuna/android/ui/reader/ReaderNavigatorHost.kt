@@ -41,6 +41,7 @@ fun ReaderNavigatorHost(
     initialLocator: Locator?,
     initialPreferences: EpubPreferences,
     listener: EpubNavigatorFragment.Listener,
+    styleInjector: ReaderStyleInjector,
     onPager: (ReaderPagerLayout?) -> Unit,
     onNavigator: (EpubNavigatorFragment?) -> Unit,
     modifier: Modifier = Modifier,
@@ -107,6 +108,11 @@ fun ReaderNavigatorHost(
             // for the same reason.
             configuration = EpubNavigatorFragment.Configuration(
                 shouldApplyInsetsPadding = false,
+                // The bundled Noto files, served from app assets on the
+                // CORS-enabled https://readium_assets/ origin. Which family
+                // the page uses is decided by our own injected stylesheet
+                // (ReaderUserCss), never by an EpubPreferences value.
+                servedAssets = listOf("fonts/.*"),
             ),
         ).instantiate(
             activity.classLoader,
@@ -120,7 +126,7 @@ fun ReaderNavigatorHost(
         }
         // Overscroll stretch off and high frame-rate votes on, for every
         // resource WebView the pager creates; see ReaderWebViewTuner.
-        val webViewTuner = fragment.view?.let(::ReaderWebViewTuner)
+        val webViewTuner = fragment.view?.let { ReaderWebViewTuner(it, styleInjector) }
         webViewTuner?.attach()
         pagerLayout.value?.navigator = fragment
         onNavigator(fragment)
