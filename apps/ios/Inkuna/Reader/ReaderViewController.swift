@@ -32,7 +32,7 @@ private final class ReaderSession {
 /// The division of labor is the core contract: Readium owns rendering,
 /// pagination, and locators; the Rust core owns storage, progress, sessions,
 /// and bookmarks. One `updateProgress` per page turn, one session per sitting.
-final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
+final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, ReaderAccessibilityScrolling {
     /// The core publication being read.
     private let publication: Publication
     /// Where to open instead of the saved position: the chapter the reader
@@ -70,6 +70,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private var coreChapters: [Chapter] = []
 
     private var currentLocator: Locator?
+    /// Armed while a VoiceOver-requested turn is on its way to settling:
+    /// the position announcement waits for the landing, and this is its
+    /// backstop if no location ever arrives.
+    private var pendingScrollAnnouncement: Task<Void, Never>?
     /// Set before restores, jumps, preference reloads, and rotations so the
     /// resulting `locationDidChange` doesn't read as a page turn and tuck the
     /// chrome away.
@@ -139,6 +143,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     deinit {
         jumpTask?.cancel()
+        pendingScrollAnnouncement?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -431,7 +436,12 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         // the entire turn (Readium reports the location only after the
         // settle plus its own debounce). locationDidChange stays as the
         // fallback for programmatic moves.
+        // Under VoiceOver the chrome stays: a page turn there is a scroll
+        // action, and the buttons it would strip are how the reader
+        // navigates. The Android shell suppresses the same hide under
+        // touch exploration.
         pager.onPageTurnGesture = { [weak self] in
+            guard !UIAccessibility.isVoiceOverRunning else { return }
             self?.setChrome(visible: false)
         }
         self.pager = pager
@@ -626,9 +636,17 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
         if expectProgrammaticMove {
             expectProgrammaticMove = false
-        } else {
-            // Reading takes the page: turning it tucks the chrome away.
+        } else if !UIAccessibility.isVoiceOverRunning {
+            // Reading takes the page: turning it tucks the chrome away —
+            // except under VoiceOver, where the turn came from a scroll
+            // action and the chrome is the navigation.
             setChrome(visible: false)
+        }
+
+        // A turn VoiceOver asked for announces its new position here, the
+        // moment the navigator reports where the page landed.
+        if pendingScrollAnnouncement != nil {
+            postPageAnnouncement()
         }
 
         // One `updateProgress` per page turn: opaque locator, book-wide
@@ -716,7 +734,13 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         } else if let pager, let zone = edgeTapZone(for: point) {
             // Edge taps turn pages, Apple Books style — geometric, like
             // the drags: the right edge always asks for the +x page.
-            zone == .right ? pager.turnRight() : pager.turnLeft()
+            // A refused turn (the end of the book) is simply nothing
+            // happening, exactly as before.
+            if zone == .right {
+                pager.turnRight()
+            } else {
+                pager.turnLeft()
+            }
         } else {
             setChrome(visible: !chromeVisible)
         }
@@ -753,19 +777,57 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         return commands
     }
 
-    /// VoiceOver's three-finger swipe. Geometric, exactly like the edge
-    /// taps and the arrow keys: a swipe left asks for the +x page, so
-    /// reading progression is honored by the pager rather than re-derived
-    /// here. Vertical scrolls are none of the reader's business.
+    /// VoiceOver's three-finger swipe, reached through the shim that stops
+    /// Readium's navigator from claiming it first (see
+    /// `ReadiumAccessibilityScrollShim`); the override below is the path
+    /// for anything that does bubble all the way up to the reader.
+    ///
+    /// Horizontal is geometric, exactly like the edge taps and the arrow
+    /// keys: a swipe left asks for the +x page, so reading progression is
+    /// honored by the pager rather than re-derived here. `.next`/
+    /// `.previous` — and the vertical pair VoiceOver sends for page
+    /// up/down — read in reading order, like the space key.
     override func accessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
+        readerAccessibilityScroll(direction)
+    }
+
+    func readerAccessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
         guard let pager else { return false }
+        let turned: Bool
         switch direction {
-        case .left: pager.turnRight()
-        case .right: pager.turnLeft()
+        case .left: turned = pager.turnRight()
+        case .right: turned = pager.turnLeft()
+        case .next, .down: turned = pager.turnForward()
+        case .previous, .up: turned = pager.turnBackward()
         default: return false
         }
-        UIAccessibility.post(notification: .pageScrolled, argument: nil)
+        // A refusal — the end of the book, a renderer mid-move — is
+        // reported as one, so VoiceOver can bubble the gesture instead of
+        // announcing a page that never turned.
+        guard turned else { return false }
+        announcePageAfterTurn()
         return true
+    }
+
+    /// Arms the post-turn announcement. The page position is read *after*
+    /// the turn settles — `locationDidChange` fires it the moment the
+    /// navigator reports where the page landed, and this timer is the
+    /// backstop for a location refresh that never arrives.
+    private func announcePageAfterTurn() {
+        pendingScrollAnnouncement?.cancel()
+        pendingScrollAnnouncement = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            self?.postPageAnnouncement()
+        }
+    }
+
+    private func postPageAnnouncement() {
+        pendingScrollAnnouncement?.cancel()
+        pendingScrollAnnouncement = nil
+        // The argument is the shell's own page line ("12 of 340, 4%") —
+        // the same truth the chrome shows.
+        UIAccessibility.post(notification: .pageScrolled, argument: pageInfoText())
     }
 
     @objc private func keyTurnLeft() { pager?.turnLeft() }

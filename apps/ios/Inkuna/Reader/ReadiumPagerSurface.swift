@@ -1,3 +1,4 @@
+import ObjectiveC
 import ReadiumNavigator
 import ReadiumShared
 import UIKit
@@ -105,6 +106,7 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
 
     init(navigator: EPUBNavigatorViewController) {
         self.navigator = navigator
+        ReadiumAccessibilityScrollShim.install(on: navigator)
     }
 
     // MARK: Engagement
@@ -140,11 +142,24 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
         setNativeGestures(enabled: true)
     }
 
+    /// Both halves matter. The pan recognizers are what a finger drives;
+    /// `isScrollEnabled` is what *VoiceOver* drives — a scroll view with
+    /// scrolling enabled answers the three-finger swipe itself, paging by
+    /// raw content offset with no locator behind it, and it sits below the
+    /// reader in the accessibility hierarchy, so it would swallow the
+    /// gesture before the pager ever heard of it. Programmatic movement is
+    /// unaffected: `contentOffset` writes (ours) and `setContentOffset`
+    /// (Readium's own paging, and WebKit's for a JS `scrollLeft`) all work
+    /// on a scroll view whose user scrolling is off.
     private func setNativeGestures(enabled: Bool) {
         guard let navigator else { return }
-        outerScrollView()?.panGestureRecognizer.isEnabled = enabled
+        if let outer = outerScrollView() {
+            outer.panGestureRecognizer.isEnabled = enabled
+            outer.isScrollEnabled = enabled
+        }
         for webView in allWebViews(in: navigator.view) {
             webView.scrollView.panGestureRecognizer.isEnabled = enabled
+            webView.scrollView.isScrollEnabled = enabled
         }
     }
 
@@ -349,6 +364,43 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
             ancestor = current.superview
         }
         return nil
+    }
+}
+
+// MARK: - Accessibility scroll interposition
+
+/// Implemented by the reader, called for VoiceOver's three-finger swipe.
+@MainActor
+protocol ReaderAccessibilityScrolling: AnyObject {
+    /// Returns whether a page was actually turned — a refusal must bubble,
+    /// never be reported as a turn that did not happen.
+    func readerAccessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool
+}
+
+/// `EPUBNavigatorViewController` overrides `accessibilityScroll` itself
+/// and unconditionally claims it, paging through its own `goRight`/
+/// `goLeft` — which bypasses the pager entirely and, sitting below the
+/// reader in the responder chain, means the reader's own override could
+/// never run. Its designated initializer is private, so it cannot be
+/// subclassed where it is built; the instance's class is swapped after
+/// construction instead — the trick KVO itself uses, and safe here
+/// because the subclass adds no storage and no initializer, only one
+/// override that forwards to the reader.
+///
+/// Readium-shaped, so it lives in this file and dies with the navigator.
+enum ReadiumAccessibilityScrollShim {
+    static func install(on navigator: EPUBNavigatorViewController) {
+        guard !(navigator is ShimmedNavigator) else { return }
+        object_setClass(navigator, ShimmedNavigator.self)
+    }
+
+    private final class ShimmedNavigator: EPUBNavigatorViewController {
+        override func accessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
+            if let reader = parent as? ReaderAccessibilityScrolling {
+                return reader.readerAccessibilityScroll(direction)
+            }
+            return super.accessibilityScroll(direction)
+        }
     }
 }
 
