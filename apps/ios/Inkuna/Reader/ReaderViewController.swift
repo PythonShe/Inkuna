@@ -241,6 +241,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        takeKeyCommandChain()
         startSession()
         #if DEBUG
         runDebugRouteIfNeeded()
@@ -776,6 +777,39 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
     /// guarding here, not in the handlers, so space and arrows reach the
     /// text-input system (CJK composition drives on space) instead of
     /// being swallowed by the priority flag.
+    override var canBecomeFirstResponder: Bool { true }
+
+    /// The reader owns the responder chain the key commands are collected
+    /// from — Readium's navigator used to take it for its own press
+    /// observation and is refused it now (`ReadiumNavigatorShim`).
+    ///
+    /// It holds the chain only while it is the frontmost thing on screen.
+    /// A first responder that is not a text input summons the software
+    /// keyboard the moment something enables the scene's focus system, and
+    /// every `UIMenu` pull-down does exactly that — so anything presented
+    /// over the reader (the Theme & type sheet, whose Font row is such a
+    /// pull-down) gets the chain back for as long as it is up.
+    private func takeKeyCommandChain() {
+        guard presentedViewController == nil, searchPanel?.isEditing != true else { return }
+        becomeFirstResponder()
+    }
+
+    override func present(
+        _ viewControllerToPresent: UIViewController,
+        animated flag: Bool,
+        completion: (() -> Void)? = nil
+    ) {
+        _ = resignFirstResponder()
+        super.present(viewControllerToPresent, animated: flag, completion: completion)
+    }
+
+    override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+        super.dismiss(animated: flag) { [weak self] in
+            completion?()
+            self?.takeKeyCommandChain()
+        }
+    }
+
     override var keyCommands: [UIKeyCommand]? {
         if searchPanel?.isEditing == true { return nil }
         let commands = [
@@ -791,7 +825,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
 
     /// VoiceOver's three-finger swipe, reached through the shim that stops
     /// Readium's navigator from claiming it first (see
-    /// `ReadiumAccessibilityScrollShim`); the override below is the path
+    /// `ReadiumNavigatorShim`); the override below is the path
     /// for anything that does bubble all the way up to the reader.
     ///
     /// Horizontal is geometric, exactly like the edge taps and the arrow
@@ -1242,6 +1276,8 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         }
         animator.startAnimation()
         setChrome(visible: true)
+        // The query field owned the chain while the panel was up.
+        takeKeyCommandChain()
     }
 
     /// One in-book search through the core. A failure is not an error the
@@ -1364,5 +1400,8 @@ extension ReaderViewController: UIAdaptivePresentationControllerDelegate {
     /// writes would stay paused for the rest of the reading session.
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
         liveStyleSession = false
+        // The swipe-down never routes through `dismiss(animated:)`, so the
+        // key-command chain is taken back here too.
+        takeKeyCommandChain()
     }
 }

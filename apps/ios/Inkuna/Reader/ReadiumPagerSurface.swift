@@ -106,7 +106,7 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
 
     init(navigator: EPUBNavigatorViewController) {
         self.navigator = navigator
-        ReadiumAccessibilityScrollShim.install(on: navigator)
+        ReadiumNavigatorShim.install(on: navigator)
     }
 
     // MARK: Engagement
@@ -367,7 +367,7 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
     }
 }
 
-// MARK: - Accessibility scroll interposition
+// MARK: - Navigator interposition
 
 /// Implemented by the reader, called for VoiceOver's three-finger swipe.
 @MainActor
@@ -377,21 +377,40 @@ protocol ReaderAccessibilityScrolling: AnyObject {
     func readerAccessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool
 }
 
-/// `EPUBNavigatorViewController` overrides `accessibilityScroll` itself
-/// and unconditionally claims it, paging through its own `goRight`/
-/// `goLeft` — which bypasses the pager entirely and, sitting below the
-/// reader in the responder chain, means the reader's own override could
-/// never run. Its designated initializer is private, so it cannot be
+/// Two things Readium's navigator does to the responder chain that the
+/// reader has to undo.
+///
+/// 1. `EPUBNavigatorViewController` overrides `accessibilityScroll` itself
+///    and unconditionally claims it, paging through its own `goRight`/
+///    `goLeft` — which bypasses the pager entirely and, sitting below the
+///    reader in the responder chain, means the reader's own override could
+///    never run.
+/// 2. Its `InputObservableViewController` base makes itself first responder
+///    in `viewDidAppear` (`canBecomeFirstResponder` is hard-coded `true`)
+///    to observe `presses` — and takes it back on every re-appearance, so
+///    it cannot be resigned once and for all from outside. A first
+///    responder that is not a text input is harmless until something
+///    enables the scene's focus system — a `UIMenu` pull-down does exactly
+///    that on presentation — at which point UIKit reloads input views for
+///    it, decides it needs a keyboard, and raises the software keyboard
+///    behind the menu. The reader does not use Readium's press observation
+///    at all (hardware paging is the reader's own `keyCommands`), so the
+///    navigator refuses the role and the reader owns the chain itself,
+///    dropping it whenever anything is presented over it.
+///
+/// The designated initializer is private, so the navigator cannot be
 /// subclassed where it is built; the instance's class is swapped after
 /// construction instead — the trick KVO itself uses, and safe here
-/// because the subclass adds no storage and no initializer, only one
-/// override that forwards to the reader.
+/// because the subclass adds no storage and no initializer, only
+/// overrides that forward to the reader.
 ///
 /// Readium-shaped, so it lives in this file and dies with the navigator.
-enum ReadiumAccessibilityScrollShim {
+enum ReadiumNavigatorShim {
     static func install(on navigator: EPUBNavigatorViewController) {
         guard !(navigator is ShimmedNavigator) else { return }
         object_setClass(navigator, ShimmedNavigator.self)
+        // It may already own the chain by the time the surface is built.
+        _ = navigator.resignFirstResponder()
     }
 
     private final class ShimmedNavigator: EPUBNavigatorViewController {
@@ -401,6 +420,10 @@ enum ReadiumAccessibilityScrollShim {
             }
             return super.accessibilityScroll(direction)
         }
+
+        /// See (2) above: never the first responder, so no menu, sheet, or
+        /// focus-system change can summon a keyboard for it.
+        override var canBecomeFirstResponder: Bool { false }
     }
 }
 
