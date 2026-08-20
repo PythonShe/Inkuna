@@ -22,7 +22,13 @@ final class AppSettings {
         eveningReminder: false,
         reminderMinutes: 21 * 60,
         accountName: "",
-        accountEmail: ""
+        accountEmail: "",
+        readingFont: ReadingFont.publisher.rawValue,
+        readingBold: false,
+        lineSpacing: 1.65,
+        letterSpacing: 0,
+        wordSpacing: 0,
+        readingMargins: 26
     )
 
     /// Whether `record` reflects the stored settings. Stays false when the
@@ -229,6 +235,59 @@ final class AppSettings {
     var reminderMinutes: Int {
         get { Int(record.reminderMinutes) }
         set { mutate { $0.reminderMinutes = UInt16(min(max(newValue, 0), 23 * 60 + 59)) } }
+    }
+
+    /// The reader's body-text font. Stored as an opaque id like the theme:
+    /// an unknown id reads as `.publisher` here but is not overwritten
+    /// unless the user actually picks a font.
+    var readingFont: ReadingFont {
+        get { ReadingFont(rawValue: record.readingFont.lowercased()) ?? .publisher }
+        set { mutate { $0.readingFont = newValue.rawValue } }
+    }
+
+    /// Whether body text is forced to weight 600 on the reading surface.
+    var readingBold: Bool {
+        get { record.readingBold }
+        set { mutate { $0.readingBold = newValue } }
+    }
+
+    /// Reading line-height multiplier. Clamped here as well as by the core
+    /// so the in-memory record never diverges from what gets stored.
+    var lineSpacing: Double {
+        get { record.lineSpacing }
+        set { mutate { $0.lineSpacing = min(max(newValue, 1.30), 2.10) } }
+    }
+
+    /// Extra letter spacing on the reading surface, in em.
+    var letterSpacing: Double {
+        get { record.letterSpacing }
+        set { mutate { $0.letterSpacing = min(max(newValue, 0), 0.06) } }
+    }
+
+    /// Extra word spacing on the reading surface, in em.
+    var wordSpacing: Double {
+        get { record.wordSpacing }
+        set { mutate { $0.wordSpacing = min(max(newValue, 0), 0.30) } }
+    }
+
+    /// Horizontal page margins, in CSS px inside the reading web view.
+    var readingMargins: Int {
+        get { Int(record.readingMargins) }
+        set { mutate { $0.readingMargins = UInt16(min(max(newValue, 16), 48)) } }
+    }
+
+    /// The six Customize values back to their defaults in one record write.
+    /// Text size, theme, and brightness deliberately survive — the design's
+    /// reset covers only the Customize panel.
+    func resetReadingCustomization() {
+        mutate {
+            $0.readingFont = ReadingFont.publisher.rawValue
+            $0.readingBold = false
+            $0.lineSpacing = 1.65
+            $0.letterSpacing = 0
+            $0.wordSpacing = 0
+            $0.readingMargins = 26
+        }
     }
 
     /// Display name of the purely local account; empty means "not set".
