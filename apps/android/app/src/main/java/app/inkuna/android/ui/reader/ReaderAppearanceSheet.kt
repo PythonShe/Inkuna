@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -44,6 +45,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -350,7 +353,9 @@ private fun AppearancePreviewCard(
 
 /**
  * The Font selector: a value row that opens a native Material 3 menu
- * anchored to itself. The menu is the platform's own picker — items are
+ * anchored to the whole row and matched to its measured width, so the
+ * menu drops straight down the selector instead of hugging one side.
+ * The menu is the platform's own picker — items are
  * natively focusable and readable by TalkBack — so the row keeps only
  * its own "Font: <value>" announcement, and each item still renders in
  * its own typeface so the roster reads as a specimen sheet.
@@ -361,7 +366,18 @@ private fun FontRow(current: ReadingFont, onPick: (ReadingFont) -> Unit) {
     val title = stringResource(R.string.reader_font)
     val value = stringResource(current.nameRes)
     var expanded by remember { mutableStateOf(false) }
-    Box(Modifier.fillMaxWidth()) {
+    // The anchor Box spans the row, and the menu takes the row's measured
+    // width, so it opens as a full-width sheet under the selector.
+    val density = LocalDensity.current
+    var rowWidth by remember { mutableStateOf(0.dp) }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .onSizeChanged { size ->
+                val width = with(density) { size.width.toDp() }
+                if (width != rowWidth) rowWidth = width
+            },
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -394,6 +410,7 @@ private fun FontRow(current: ReadingFont, onPick: (ReadingFont) -> Unit) {
             onDismissRequest = { expanded = false },
             containerColor = ink.bgRaised,
             shape = InkRadius.mdShape,
+            modifier = if (rowWidth > 0.dp) Modifier.width(rowWidth) else Modifier,
         ) {
             ReadingFont.entries.forEach { font ->
                 val chosen = font == current
