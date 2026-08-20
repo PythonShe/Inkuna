@@ -476,7 +476,9 @@ final class MenuRowControl: UIButton {
         super.init(frame: .zero)
         showsMenuAsPrimaryAction = true
         isAccessibilityElement = true
-        accessibilityTraits = .button
+        // No manual trait override: a `UIButton` whose primary action is a
+        // menu supplies its own traits, and pinning `.button` here would
+        // flatten whatever pop-up semantics UIKit adds.
     }
 
     @available(*, unavailable)
