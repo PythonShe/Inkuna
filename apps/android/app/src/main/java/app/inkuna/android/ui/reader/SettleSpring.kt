@@ -20,6 +20,7 @@ class SettleSpring {
     private var lastFrameNanos = 0L
     private var onFrame: ((position: Float, velocity: Float) -> Boolean)? = null
     private var onSettle: (() -> Unit)? = null
+    private var onAbort: (() -> Unit)? = null
 
     private val callback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
@@ -49,7 +50,12 @@ class SettleSpring {
             if (onFrame?.invoke(position, velocity) == true) {
                 Choreographer.getInstance().postFrameCallback(this)
             } else {
+                // The drive surface refused the frame (detached, drag
+                // ended under us): the flight cannot land, but its owner
+                // still needs to tear its state down.
+                val abort = onAbort
                 cancel()
+                abort?.invoke()
             }
         }
     }
@@ -57,14 +63,17 @@ class SettleSpring {
     val isRunning: Boolean get() = onFrame != null
 
     /** The goal the running spring is heading for. */
-    var currentTarget: Float = 0f
-        get() = target
-        private set
+    val currentTarget: Float get() = target
+
+    /** The integrated velocity right now — what a freeze must remember
+     *  for its momentum to survive the resume. */
+    val currentVelocity: Float get() = if (isRunning) velocity else 0f
 
     /**
      * Starts (or restarts) the spring. [onFrame] returns whether the
      * spring may keep running; [onSettle] fires once, after the final
-     * exactly-on-target frame has been delivered.
+     * exactly-on-target frame has been delivered. [onAbort] fires
+     * instead when a frame is refused and the flight dies mid-air.
      */
     fun start(
         from: Float,
@@ -72,6 +81,7 @@ class SettleSpring {
         target: Float,
         onFrame: (position: Float, velocity: Float) -> Boolean,
         onSettle: () -> Unit,
+        onAbort: (() -> Unit)? = null,
     ) {
         cancel()
         position = from
@@ -79,6 +89,7 @@ class SettleSpring {
         this.target = target
         this.onFrame = onFrame
         this.onSettle = onSettle
+        this.onAbort = onAbort
         lastFrameNanos = 0L
         Choreographer.getInstance().postFrameCallback(callback)
     }
@@ -95,6 +106,7 @@ class SettleSpring {
         Choreographer.getInstance().removeFrameCallback(callback)
         onFrame = null
         onSettle = null
+        onAbort = null
     }
 
     private companion object {

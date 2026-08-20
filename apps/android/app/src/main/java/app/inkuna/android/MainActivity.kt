@@ -83,11 +83,11 @@ class MainActivity : FragmentActivity() {
 
     override fun onActionModeStarted(mode: ActionMode?) {
         super.onActionModeStarted(mode)
-        SelectionModeTracker.active = true
+        SelectionModeTracker.started()
     }
 
     override fun onActionModeFinished(mode: ActionMode?) {
         super.onActionModeFinished(mode)
-        SelectionModeTracker.active = false
+        SelectionModeTracker.finished()
     }
 }

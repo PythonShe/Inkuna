@@ -47,8 +47,11 @@ import org.readium.r2.shared.ExperimentalReadiumApi
  * offset at ~zero velocity *before* `endFakeDrag`, so ViewPager's own
  * target computation deterministically commits that page and Readium's
  * `onPageSelected` bookkeeping runs exactly as for a programmatic turn.
- * Every flight is interruptible: a touch-down catches it and the page
- * sticks to the finger.
+ * Every flight is interruptible: a touch-down freezes it in place, a
+ * drag from there picks it up under the finger, and a bare tap lets it
+ * finish — the touch stream itself stays with the page (so Readium's
+ * JS taps still fire, and a tap on a settling page chains the turn
+ * through the spring's retarget instead of being swallowed).
  *
  * Everything here probes public view APIs only (the toolkit's classes
  * are `internal`) and no-ops gracefully when the hierarchy changes
@@ -83,13 +86,28 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     /** This view owns the gesture. */
     private var dragging = false
 
+    /** A settle frozen by a touch-down, waiting to be picked up by a
+     *  drag or resumed by the touch ending. [Settle.NONE] means none. */
+    private var frozen = Settle.NONE
+    private var frozenTarget = 0f
+    private var frozenVelocity = 0f
+
     private var velocityTracker: VelocityTracker? = null
 
     // MARK: Strip state (one interaction)
 
     private var webView: WebView? = null
     private var pager: ViewPager? = null
-    private var clientWidth = 0
+
+    /**
+     * The column pitch in device px. Seeded from the view width and
+     * refined by the page's own geometry over the JS bridge: Readium's
+     * CSS columns are *not* always exactly a view-width apart (content
+     * width need not divide evenly), and every page target must sit on
+     * the true grid or the error accumulates a visible sliver per turn.
+     */
+    private var innerPitch = 0f
+    private var pitchSource: WebView? = null
 
     /** The finger x that maps to [baseStrip]; strip = base + (anchor − x). */
     private var anchorX = 0f
@@ -151,21 +169,31 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                 velocityTracker?.recycle()
                 velocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
                 if (spring.isRunning) {
-                    // Catch the flight: the page freezes under the finger
-                    // and the touch owns it from the very DOWN — no slop.
-                    catchSettle(ev)
+                    // Freeze the flight in place, but let the touch
+                    // stream through: a drag from here picks the page up
+                    // (no slop to Chromium's pan — ours claims first),
+                    // while a bare tap resumes the settle on the way out
+                    // and still reaches Readium's JS tap recognizer —
+                    // which is how tap-chained turns hit the retarget
+                    // path instead of being swallowed.
+                    freezeSettle()
                 }
             }
             MotionEvent.ACTION_MOVE -> {
                 if (!dragging && !rejected) {
                     velocityTracker?.addMovement(ev)
-                    considerClaim(ev)
+                    if (frozen != Settle.NONE) claimFrozen(ev) else considerClaim(ev)
                 }
             }
             // A second finger means pinch/selection territory, not a page
             // turn; leave the gesture alone for good.
             MotionEvent.ACTION_POINTER_DOWN -> if (!dragging) rejected = true
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (!dragging) reset()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (!dragging) {
+                // Resume first: reset()'s stranded-drag close must see
+                // the spring running again and stand down.
+                resumeFrozen()
+                reset()
+            }
         }
         return dragging
     }
@@ -231,13 +259,11 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         if (abs(dx) <= touchSlop || abs(dx) < abs(dy)) return
 
         // While a selection is up, horizontal drags belong to its
-        // handles. The timeout heuristic backs the tracker up: crossing
-        // the horizontal slop only after a long-press has had time to
-        // fire is the signature of a handle grabbed before the action
-        // mode showed.
-        if (SelectionModeTracker.active ||
-            ev.eventTime - ev.downTime >= ViewConfiguration.getLongPressTimeout()
-        ) {
+        // handles. `startedSince` backs the flag up: a handle grabbed in
+        // the beat before the ActionMode's start callback ran still
+        // reads as selection, while a thumb merely resting on the page
+        // before a swipe (which trips no selection) claims normally.
+        if (SelectionModeTracker.active || SelectionModeTracker.startedSince(ev.downTime)) {
             rejected = true
             return
         }
@@ -254,15 +280,14 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
 
         webView = visible
         pager = foundPager
-        clientWidth = visible.width
-        if (clientWidth <= 0) {
+        if (visible.width <= 0) {
             rejected = true
             return
         }
         baseStrip = visible.scrollX.toFloat()
-        startPage = (visible.scrollX.toFloat() / clientWidth).roundToInt()
         anchorX = ev.getX(index)
         seedInnerMax(visible)
+        startPage = (visible.scrollX / innerPitch).roundToInt()
         basePagerScrollX = foundPager?.scrollX ?: 0
         boundaryPx = 0f
         rubberRaw = 0f
@@ -272,23 +297,44 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         onTurnGesture?.invoke()
     }
 
-    /** A DOWN landing on a running settle claims instantly and adopts
-     *  the live positions as its baselines — the "catch". */
-    private fun catchSettle(ev: MotionEvent) {
-        val kind = settle
+    /** A DOWN landing on a running settle: stop the flight where it is
+     *  and remember it. The strip baselines from the settling gesture
+     *  stay live, so a pickup or resume continues seamlessly. */
+    private fun freezeSettle() {
+        frozen = settle
+        frozenTarget = spring.currentTarget
+        frozenVelocity = spring.currentVelocity
         spring.cancel()
         settle = Settle.NONE
-        val visible = webView ?: return
+    }
+
+    /** The frozen flight's touch moved past slop: the finger picks the
+     *  page up, adopting the live positions as its baselines. The usual
+     *  claim checks don't apply — the motion was already ours. */
+    private fun claimFrozen(ev: MotionEvent) {
+        val index = ev.findPointerIndex(activePointerId)
+        if (index < 0) return
+        if (abs(ev.getX(index) - downX) <= touchSlop) return
+        val kind = frozen
+        val visible = webView ?: run {
+            frozen = Settle.NONE
+            rejected = true
+            return
+        }
         val currentPager = pager
         when (kind) {
             Settle.PAGER_COMMIT_PLUS, Settle.PAGER_COMMIT_MINUS, Settle.PAGER_RETURN -> {
-                if (currentPager == null || !currentPager.isFakeDragging) return
+                if (currentPager == null || !currentPager.isFakeDragging) {
+                    frozen = Settle.NONE
+                    rejected = true
+                    return
+                }
                 boundaryPx = (currentPager.scrollX - basePagerScrollX).toFloat()
                 baseStrip = visible.scrollX + boundaryPx
             }
             Settle.INNER -> {
                 baseStrip = visible.scrollX.toFloat()
-                startPage = (visible.scrollX.toFloat() / clientWidth).roundToInt()
+                startPage = (visible.scrollX / innerPitch).roundToInt()
             }
             Settle.RUBBER -> {
                 // Adopt the displayed (damped) travel as the raw strip;
@@ -298,9 +344,27 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             }
             Settle.NONE -> return
         }
-        anchorX = ev.x
+        frozen = Settle.NONE
+        anchorX = ev.getX(index)
         dragging = true
         onTurnGesture?.invoke()
+    }
+
+    /** The frozen flight's touch ended without a pickup (a tap): let the
+     *  settle finish from where it froze, momentum intact. */
+    private fun resumeFrozen() {
+        val kind = frozen
+        frozen = Settle.NONE
+        when (kind) {
+            Settle.INNER -> {
+                val visible = webView ?: return
+                startInnerSpring(visible.scrollX.toFloat(), frozenVelocity, frozenTarget)
+            }
+            Settle.PAGER_COMMIT_PLUS, Settle.PAGER_COMMIT_MINUS, Settle.PAGER_RETURN ->
+                settlePager(frozenTarget.roundToInt(), frozenVelocity, kind)
+            Settle.RUBBER -> settleRubber()
+            Settle.NONE -> {}
+        }
     }
 
     /**
@@ -312,16 +376,31 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
      */
     private fun seedInnerMax(target: WebView) {
         innerMax = if (!target.canScrollHorizontally(1)) target.scrollX else Int.MAX_VALUE
+        if (pitchSource !== target) {
+            innerPitch = target.width.toFloat()
+            pitchSource = target
+        }
         val generation = ++innerMaxGeneration
         target.evaluateJavascript(
             "(function(){var d=document.scrollingElement;" +
-                "return Math.max(0,Math.round((d.scrollWidth-d.clientWidth)*window.devicePixelRatio));})()"
+                "var m=Math.max(0,Math.round((d.scrollWidth-d.clientWidth)*window.devicePixelRatio));" +
+                "var c=Math.max(1,Math.round(d.scrollWidth/d.clientWidth));" +
+                "return m+'|'+c;})()"
         ) { result ->
             if (generation != innerMaxGeneration || target !== webView) return@evaluateJavascript
-            result?.trim()?.toIntOrNull()?.let { measured ->
-                // The probe's "already clamped here" verdict outranks a
-                // measurement quantized across the px-ratio round-trip.
-                if (innerMax == Int.MAX_VALUE) innerMax = measured
+            val parts = result?.trim('"', ' ')?.split('|') ?: return@evaluateJavascript
+            val measured = parts.getOrNull(0)?.toIntOrNull() ?: return@evaluateJavascript
+            val columns = parts.getOrNull(1)?.toIntOrNull() ?: return@evaluateJavascript
+            // The probe's "already clamped here" verdict outranks a
+            // measurement quantized across the px-ratio round-trip.
+            if (innerMax == Int.MAX_VALUE) innerMax = measured
+            // The true column grid: the ceiling spans columns−1 pitches.
+            // Every settle target derives from this one source of truth,
+            // so pages land exactly on the grid — including the last
+            // one, where the edge probe needs `canScrollHorizontally`
+            // to genuinely clamp.
+            if (columns > 1 && innerMax in 1 until Int.MAX_VALUE) {
+                innerPitch = innerMax.toFloat() / (columns - 1)
             }
         }
     }
@@ -512,9 +591,25 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                 // ViewPager's own release computation deterministically
                 // keeps this page, and `onPageSelected` runs Readium's
                 // bookkeeping exactly as for a programmatic turn.
+                val committed = if (kind != Settle.PAGER_RETURN) preRastered else null
+                val positionedX = committed?.scrollX ?: 0
                 pager?.takeIf { it.isFakeDragging }?.endFakeDrag()
+                // One piece of that bookkeeping is wrong for us in RTL:
+                // `onPageSelected` re-seats the committed resource by
+                // *physical* column index chosen from the *logical*
+                // direction (`setCurrentItem(0)` going forward), and in
+                // RTL physical column 0 is the chapter's LAST page.
+                // Readium never hits this itself (its EPUB pager refuses
+                // native touch; programmatic turns take the RTL-aware
+                // `goToNextResource`), but a fake-drag commit does. The
+                // neighbour was pre-positioned correctly before it slid
+                // in, so restore that offset; synchronous, no flash.
+                if (committed != null && committed.scrollX != positionedX) {
+                    committed.scrollTo(positionedX, committed.scrollY)
+                }
                 settleDone()
             },
+            onAbort = { abortSettle() },
         )
     }
 
@@ -532,17 +627,19 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                 rubberRaw = 0f
                 settleDone()
             },
+            onAbort = { abortSettle() },
         )
     }
 
     private fun settleInner(velocity: Float) {
         val visible = webView ?: run { settleDone(); return }
-        if (clientWidth <= 0) {
+        val pitch = innerPitch
+        if (pitch <= 0f) {
             settleDone()
             return
         }
         val offset = visible.scrollX.toFloat()
-        val page = offset / clientWidth
+        val page = offset / pitch
         val targetPage = if (abs(velocity) >= minFlingVelocityPx) {
             // A flick always advances to the next page boundary in its
             // direction.
@@ -560,12 +657,17 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         val maxPage = if (innerMax == Int.MAX_VALUE) {
             (page.roundToInt() + 1)
         } else {
-            (innerMax.toFloat() / clientWidth).roundToInt()
+            (innerMax / pitch).roundToInt()
         }
-        val target = (targetPage.coerceIn(0, maxPage) * clientWidth).toFloat()
+        val ceiling = if (innerMax == Int.MAX_VALUE) Float.MAX_VALUE else innerMax.toFloat()
+        val target = (targetPage.coerceIn(0, maxPage) * pitch).coerceIn(0f, ceiling)
+        startInnerSpring(offset, velocity, target)
+    }
+
+    private fun startInnerSpring(from: Float, velocity: Float, target: Float) {
         settle = Settle.INNER
         spring.start(
-            from = offset,
+            from = from,
             velocity = velocity,
             target = target,
             onFrame = { position, springVelocity ->
@@ -579,7 +681,16 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                 }
             },
             onSettle = { settleDone() },
+            onAbort = { abortSettle() },
         )
+    }
+
+    /** A settle whose drive surface died mid-flight (detached view, the
+     *  toolkit rebuilding its pager): tear the state down anyway, or the
+     *  fake drag, pre-raster, and settle kind all leak. */
+    private fun abortSettle() {
+        settle = Settle.NONE
+        settleDone()
     }
 
     private fun settleDone() {
@@ -594,7 +705,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     /** Bare state reset; any stranded fake drag is closed without acting. */
     private fun reset() {
         if (!spring.isRunning) {
-            pager?.takeIf { it.isFakeDragging }?.endFakeDrag()
+            closeFakeDrag()
         }
         dragging = false
         activePointerId = MotionEvent.INVALID_POINTER_ID
@@ -602,11 +713,27 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         velocityTracker = null
     }
 
+    /**
+     * Ends a live fake drag *without* turning a page: `endFakeDrag`
+     * always runs ViewPager's release computation, so ending it at an
+     * arbitrary mid-boundary offset would commit the neighbour and fire
+     * `onPageSelected` — racing whatever navigation interrupted us.
+     * Driving back to the base offset first makes the end a no-op.
+     */
+    private fun closeFakeDrag() {
+        val currentPager = pager?.takeIf { it.isFakeDragging } ?: return
+        runCatching {
+            currentPager.fakeDragBy((currentPager.scrollX - basePagerScrollX).toFloat())
+            currentPager.endFakeDrag()
+        }
+    }
+
     /** Cancels everything mid-flight — teardown, jumps, detach. */
     fun cancelInteraction() {
         spring.cancel()
         settle = Settle.NONE
-        pager?.takeIf { it.isFakeDragging }?.endFakeDrag()
+        frozen = Settle.NONE
+        closeFakeDrag()
         setChildTranslationX(0f)
         preRastered?.settings?.offscreenPreRaster = false
         preRastered = null
@@ -642,8 +769,8 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         // running spring's goal one page further, staying inside the
         // resource; a running boundary turn takes the tap as seen.
         if (spring.isRunning) {
-            if (settle == Settle.INNER && clientWidth > 0) {
-                val next = spring.currentTarget + sign * clientWidth
+            if (settle == Settle.INNER && innerPitch > 0f) {
+                val next = spring.currentTarget + sign * innerPitch
                 val ceiling = if (innerMax == Int.MAX_VALUE) Float.MAX_VALUE else innerMax.toFloat()
                 if (next in 0f..ceiling) spring.retarget(next)
             }
@@ -652,31 +779,17 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         val root = nav.view ?: return false
         val visible = visibleWebView(root) ?: return false
         webView = visible
-        clientWidth = visible.width
-        if (clientWidth <= 0) return false
+        if (visible.width <= 0) return false
         onTurnGesture?.invoke()
 
         if (visible.canScrollHorizontally(sign)) {
             seedInnerMax(visible)
-            startPage = (visible.scrollX.toFloat() / clientWidth).roundToInt()
-            val target = ((startPage + sign) * clientWidth).toFloat().coerceAtLeast(0f)
-            settle = Settle.INNER
-            spring.start(
-                from = visible.scrollX.toFloat(),
-                velocity = 0f,
-                target = target,
-                onFrame = { position, springVelocity ->
-                    val live = webView
-                    if (live != null && live.isAttachedToWindow) {
-                        live.scrollTo(position.roundToInt(), live.scrollY)
-                        feedSpringVelocity(live, springVelocity)
-                        true
-                    } else {
-                        false
-                    }
-                },
-                onSettle = { settleDone() },
-            )
+            val pitch = innerPitch
+            if (pitch <= 0f) return false
+            startPage = (visible.scrollX / pitch).roundToInt()
+            val ceiling = if (innerMax == Int.MAX_VALUE) Float.MAX_VALUE else innerMax.toFloat()
+            val target = ((startPage + sign) * pitch).coerceIn(0f, ceiling)
+            startInnerSpring(visible.scrollX.toFloat(), 0f, target)
             return true
         }
 

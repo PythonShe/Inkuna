@@ -363,6 +363,9 @@ private fun ReaderContent(
         onDispose {
             nav.removeInputListener(pageTurns)
             nav.removeInputListener(chromeTaps)
+            // Backstop for a missed onActionModeFinished: a stuck flag
+            // would otherwise kill every page turn for the process.
+            SelectionModeTracker.reset()
         }
     }
 
