@@ -981,7 +981,109 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             AppSettings.shared.brightness = brightness
             self?.applyBrightness(brightness)
         }
-        present(sheet, animated: true)
+        let host = ReaderSheetNavigationController(root: sheet)
+        sheet.onCustomize = { [weak self, weak host] in
+            guard let self, let host else { return }
+            host.pushViewController(self.makeCustomizePanel(), animated: true)
+        }
+        present(host, animated: true)
+    }
+
+    /// The Customize panel, wired into the user-stylesheet pipeline:
+    /// slider touches open a live session (anchor capture, paused progress
+    /// writes), previews restyle without persisting, commits persist and
+    /// re-land once.
+    private func makeCustomizePanel() -> ReaderCustomizeViewController {
+        let settings = AppSettings.shared
+        let panel = ReaderCustomizeViewController(
+            theme: settings.readingTheme,
+            textSize: settings.textSize,
+            style: .current,
+            fallbackPhrase: String(
+                localized: "reader_preview_fallback",
+                defaultValue: "The quiet hours belong to the reader."
+            ),
+            phraseProvider: { [weak self] in await self?.currentPagePhrase() }
+        )
+        panel.onSessionBegin = { [weak self] style in
+            guard let self else { return }
+            self.liveStyleSession = true
+            self.applyUserStyle(style, anchor: .begin)
+        }
+        panel.onPreview = { [weak self] style in
+            self?.applyUserStyle(style, anchor: .live)
+        }
+        panel.onCommit = { [weak self] style in
+            guard let self else { return }
+            style.persist()
+            self.liveStyleSession = false
+            self.applyUserStyle(style, anchor: .end)
+        }
+        panel.onClose = { [weak self] in
+            self?.presentedViewController?.dismiss(animated: true)
+        }
+        return panel
+    }
+
+    /// A phrase from the page the reader is looking at, for the Customize
+    /// preview: visible text nodes of the current column, segmented
+    /// script-agnostically (Intl.Segmenter handles CJK and Thai; the regex
+    /// is a defensive fallback), one random pick. Nil on image-only pages.
+    private func currentPagePhrase() async -> String? {
+        guard let navigator else { return nil }
+        let script = """
+        (function () {
+          var d = document, W = window.innerWidth, H = window.innerHeight;
+          if (!d.body) return null;
+          function visible(r) {
+            var cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+            return r.width > 0 && r.height > 0 && cx >= 0 && cx <= W && cy >= 0 && cy <= H;
+          }
+          var walker = d.createTreeWalker(d.body, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (n) {
+              if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+              var p = n.parentElement; if (!p) return NodeFilter.FILTER_REJECT;
+              var t = p.tagName;
+              if (t === 'SCRIPT' || t === 'STYLE' || t === 'NOSCRIPT' || t === 'RT' || t === 'RP' ||
+                  t === 'CODE' || t === 'PRE' || t === 'SUP' || t === 'SUB')
+                return NodeFilter.FILTER_REJECT;
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          });
+          var parts = [], n, budget = 6000, visited = 0;
+          while (budget > 0 && visited++ < 4000 && (n = walker.nextNode())) {
+            var r = d.createRange(); r.selectNodeContents(n);
+            var rects = r.getClientRects(), hit = false;
+            for (var i = 0; i < rects.length; i++) if (visible(rects[i])) { hit = true; break; }
+            if (hit) { parts.push(n.nodeValue); budget -= n.nodeValue.length; }
+          }
+          var text = parts.join(' ').replace(/\\s+/g, ' ').trim();
+          if (!text) return null;
+          var sentences = [];
+          try {
+            var seg = new Intl.Segmenter(d.documentElement.lang || undefined, { granularity: 'sentence' });
+            var it = seg.segment(text)[Symbol.iterator](), s;
+            while (!(s = it.next()).done) sentences.push(s.value.segment.trim());
+          } catch (e) {
+            sentences = text.split(/(?<=[.!?\\u3002\\uFF01\\uFF1F\\u2026])\\s*/);
+          }
+          var cjk = (text.match(/[\\u2E80-\\u9FFF\\uF900-\\uFAFF\\uFF66-\\uFF9F\\u3040-\\u30FF\\uAC00-\\uD7AF]/g) || []).length;
+          var dense = cjk / text.length > 0.25;
+          var lo = dense ? 8 : 24, hi = dense ? 56 : 170;
+          var cands = sentences.filter(function (s) {
+            if (!s || /^[\\s\\W_]+$/.test(s)) return false;
+            return s.length >= lo && s.length <= hi;
+          });
+          if (!cands.length) {
+            var t = text.trim();
+            return t.length >= lo ? t.slice(0, hi) : null;
+          }
+          return cands[Math.floor(Math.random() * cands.length)];
+        })()
+        """
+        guard case let .success(value) = await navigator.evaluateJavaScript(script) else { return nil }
+        guard let phrase = value as? String, !phrase.isEmpty else { return nil }
+        return phrase
     }
 
     // MARK: In-book search

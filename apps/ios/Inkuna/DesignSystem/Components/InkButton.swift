@@ -8,6 +8,9 @@ final class InkButton: UIButton {
         case primary
         case secondary
         case ghost
+        /// A quiet full-width pill on the recessed ground (the design's
+        /// Customize / Reset buttons).
+        case recessed
     }
 
     enum Size {
@@ -37,6 +40,9 @@ final class InkButton: UIButton {
         case .ghost:
             config.baseBackgroundColor = .clear
             config.baseForegroundColor = InkColor.textBody
+        case .recessed:
+            config.baseBackgroundColor = InkColor.bgRecessed
+            config.baseForegroundColor = InkColor.textDisplay
         }
 
         let font: UIFont

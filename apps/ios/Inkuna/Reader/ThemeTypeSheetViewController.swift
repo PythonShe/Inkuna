@@ -1,12 +1,35 @@
 import UIKit
 
 /// "Theme & type" bottom sheet: the A− / A+ text-size stepper, page
-/// brightness, and the four reading themes as a 2×2 tile grid — presented
-/// as a native detent sheet over the reader.
-final class ThemeTypeSheetViewController: UIViewController {
+/// brightness, the four reading themes as a 2×2 tile grid, and the
+/// gateway to the Customize panel — hosted as the root page of a
+/// `ReaderSheetNavigationController` over the reader.
+final class ThemeTypeSheetViewController: UIViewController, ReaderSheetPage {
     var onThemeChange: ((ReadingTheme) -> Void)?
     var onSizeChange: ((ReadingTextSize) -> Void)?
     var onBrightnessChange: ((Double) -> Void)?
+    var onCustomize: (() -> Void)?
+
+    /// Fit the content: at accessibility text sizes a fixed design height
+    /// would clip the theme grid. Only consulted while this page is on
+    /// top; the Customize page names `.large()` for itself.
+    var sheetDetents: [UISheetPresentationController.Detent] {
+        [
+            .custom(identifier: Self.detentIdentifier) { [weak self] context in
+                guard let self else { return 320 }
+                self.loadViewIfNeeded()
+                guard let stack = self.contentStack else { return 320 }
+                let fitted = stack.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height + 56
+                return min(max(fitted, 320), context.maximumDetentValue)
+            },
+        ]
+    }
+
+    var preferredDetentIdentifier: UISheetPresentationController.Detent.Identifier? {
+        Self.detentIdentifier
+    }
+
+    private static let detentIdentifier = UISheetPresentationController.Detent.Identifier("themeType")
 
     private var tiles: [ThemeTileButton] = []
     private var contentStack: UIStackView?
@@ -17,22 +40,6 @@ final class ThemeTypeSheetViewController: UIViewController {
 
     init() {
         super.init(nibName: nil, bundle: nil)
-        modalPresentationStyle = .pageSheet
-        if let sheet = sheetPresentationController {
-            // Fit the content: at accessibility text sizes a fixed design
-            // height would clip the theme grid.
-            sheet.detents = [
-                .custom { [weak self] context in
-                    guard let self else { return 320 }
-                    self.loadViewIfNeeded()
-                    guard let stack = self.contentStack else { return 320 }
-                    let fitted = stack.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height + 56
-                    return min(max(fitted, 320), context.maximumDetentValue)
-                },
-            ]
-            sheet.prefersGrabberVisible = true
-            sheet.preferredCornerRadius = InkRadius.lg
-        }
     }
 
     @available(*, unavailable)
@@ -103,10 +110,22 @@ final class ThemeTypeSheetViewController: UIViewController {
         grid.axis = .vertical
         grid.spacing = 10
 
-        let stack = UIStackView(arrangedSubviews: [titleRow, stepper, sliderRow, grid])
+        // Customize: the door into the type & layout panel.
+        let customizeButton = InkButton(
+            String(localized: "reader_customize", defaultValue: "Customize"),
+            variant: .recessed,
+            symbol: "slider.horizontal.3"
+        ) { [weak self] in self?.onCustomize?() }
+        customizeButton.accessibilityLabel = String(
+            localized: "a11y_customize",
+            defaultValue: "Customize type and layout"
+        )
+
+        let stack = UIStackView(arrangedSubviews: [titleRow, stepper, sliderRow, grid, customizeButton])
         stack.axis = .vertical
         stack.spacing = 16
         stack.setCustomSpacing(14, after: stepper)
+        stack.setCustomSpacing(14, after: grid)
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
         contentStack = stack
