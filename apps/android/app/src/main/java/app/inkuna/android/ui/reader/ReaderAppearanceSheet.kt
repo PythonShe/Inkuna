@@ -1,6 +1,5 @@
 package app.inkuna.android.ui.reader
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,6 +22,8 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FormatBold
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -97,7 +97,6 @@ internal fun CustomizePanel(
     // The uncommitted draft the preview card and sliders render; committed
     // values land in the store and flow back through the snapshot.
     var draft by remember { mutableStateOf(ReaderTypeDraft.from(snapshot)) }
-    var fontListExpanded by remember { mutableStateOf(false) }
 
     val fallback = stringResource(R.string.reader_preview_fallback)
     val resetLabel = stringResource(R.string.a11y_reset_defaults)
@@ -146,26 +145,12 @@ internal fun CustomizePanel(
             Spacer(Modifier.height(InkSpace.s3))
             GroupCard {
                 FontRow(
-                    selected = draft.font,
-                    expanded = fontListExpanded,
-                    onToggle = { fontListExpanded = !fontListExpanded },
+                    current = draft.font,
+                    onPick = { font ->
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        commit(draft.copy(font = font)) { settings.setReadingFont(font) }
+                    },
                 )
-                AnimatedVisibility(visible = fontListExpanded) {
-                    Column {
-                        GroupHairline()
-                        ReadingFont.entries.forEachIndexed { index, font ->
-                            if (index > 0) GroupHairline()
-                            FontOptionRow(
-                                font = font,
-                                chosen = font == draft.font,
-                                onPick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                    commit(draft.copy(font = font)) { settings.setReadingFont(font) }
-                                },
-                            )
-                        }
-                    }
-                }
                 GroupHairline()
                 AppearanceToggleRow(
                     icon = Icons.Outlined.FormatBold,
@@ -257,7 +242,6 @@ internal fun CustomizePanel(
                 text = stringResource(R.string.reader_reset_defaults),
                 onClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    fontListExpanded = false
                     draft = ReaderTypeDraft(
                         font = ReadingFont.DEFAULT,
                         bold = false,
@@ -364,77 +348,85 @@ private fun AppearancePreviewCard(
     }
 }
 
+/**
+ * The Font selector: a value row that opens a native Material 3 menu
+ * anchored to itself. The menu is the platform's own picker — items are
+ * natively focusable and readable by TalkBack — so the row keeps only
+ * its own "Font: <value>" announcement, and each item still renders in
+ * its own typeface so the roster reads as a specimen sheet.
+ */
 @Composable
-private fun FontRow(selected: ReadingFont, expanded: Boolean, onToggle: () -> Unit) {
+private fun FontRow(current: ReadingFont, onPick: (ReadingFont) -> Unit) {
     val ink = InkTheme.colors
     val title = stringResource(R.string.reader_font)
-    val value = stringResource(selected.nameRes)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .clearAndSetSemantics {
-                contentDescription = "$title: $value"
-                role = Role.Button
-            }
-            .padding(horizontal = InkSpace.s4, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(InkSpace.s4),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Icons.Outlined.TextFields,
-            contentDescription = null,
-            tint = ink.textSecondary,
-            modifier = Modifier.size(20.dp),
-        )
-        Text(title, style = InkType.ui, color = ink.textDisplay, modifier = Modifier.weight(1f))
-        Text(value, style = InkType.caption, color = ink.textTertiary)
-        Icon(
-            if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-            contentDescription = null,
-            tint = ink.textTertiary,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
-@Composable
-private fun FontOptionRow(font: ReadingFont, chosen: Boolean, onPick: () -> Unit) {
-    val ink = InkTheme.colors
-    val name = stringResource(font.nameRes)
-    val optionLabel = stringResource(R.string.a11y_font_option, name)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onPick)
-            .clearAndSetSemantics {
-                contentDescription = optionLabel
-                role = Role.Button
-                selected = chosen
-            }
-            .padding(horizontal = InkSpace.s4, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(InkSpace.s3),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.width(44.dp)) {
-            Text(
-                "Aa",
-                fontFamily = font.composeFamily(),
-                fontWeight = FontWeight.Medium,
-                fontSize = 17.sp,
-                color = ink.textDisplay,
+    val value = stringResource(current.nameRes)
+    var expanded by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true }
+                .clearAndSetSemantics {
+                    contentDescription = "$title: $value"
+                    role = Role.Button
+                }
+                .padding(horizontal = InkSpace.s4, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(InkSpace.s4),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Outlined.TextFields,
+                contentDescription = null,
+                tint = ink.textSecondary,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(title, style = InkType.ui, color = ink.textDisplay, modifier = Modifier.weight(1f))
+            Text(value, style = InkType.caption, color = ink.textTertiary)
+            Icon(
+                if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                contentDescription = null,
+                tint = ink.textTertiary,
+                modifier = Modifier.size(18.dp),
             )
         }
-        Text(name, style = InkType.ui, color = ink.textDisplay, modifier = Modifier.weight(1f))
-        // The checkmark's space is always reserved: selection never shifts
-        // the layout.
-        Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-            if (chosen) {
-                Icon(
-                    Icons.Outlined.Check,
-                    contentDescription = null,
-                    tint = ink.accent,
-                    modifier = Modifier.size(18.dp),
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = ink.bgRaised,
+            shape = InkRadius.mdShape,
+        ) {
+            ReadingFont.entries.forEach { font ->
+                val chosen = font == current
+                val name = stringResource(font.nameRes)
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            name,
+                            fontFamily = font.composeFamily(),
+                            fontWeight = if (chosen) FontWeight.Medium else FontWeight.Normal,
+                            style = InkType.ui,
+                            color = ink.textDisplay,
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        onPick(font)
+                    },
+                    trailingIcon = {
+                        // The checkmark's space is always reserved: selection
+                        // never shifts the item's text.
+                        Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+                            if (chosen) {
+                                Icon(
+                                    Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    tint = ink.accent,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier.semantics { selected = chosen },
                 )
             }
         }
