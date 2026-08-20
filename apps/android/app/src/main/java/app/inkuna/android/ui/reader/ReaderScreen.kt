@@ -85,7 +85,6 @@ import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.navigator.preferences.Color as ReadiumColor
 import org.readium.r2.navigator.preferences.Theme as ReadiumTheme
-import org.readium.r2.navigator.util.DirectionalNavigationAdapter
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
@@ -306,18 +305,33 @@ private fun ReaderContent(
                 }
             }
     }
-    // Lets BoundaryFlingRescue stand down for gestures BoundaryDragFollower
-    // already drove into the pager itself.
-    val boundarySignal = remember(book) { BoundaryGestureSignal() }
+    // The pager layout drives every page turn; held so taps, keys, and
+    // jumps can route through its springs.
+    val pagerLayout = remember { mutableStateOf<ReaderPagerLayout?>(null) }
     ReaderNavigatorHost(
         navigatorFactory = book.navigatorFactory,
         initialLocator = book.initialLocator,
         initialPreferences = initialPreferences,
         listener = navigatorListener,
-        boundarySignal = boundarySignal,
+        onPager = { pagerLayout.value = it },
         onNavigator = { navigator = it },
         modifier = hostModifier,
     )
+
+    // Chrome leaves the moment a page-turn drag is claimed — before the
+    // motion — matching iOS; the locator collect below stays as the
+    // fallback for programmatic turns. Under TalkBack a page gesture is
+    // a scroll, so the chrome must not vanish on it.
+    LaunchedEffect(pagerLayout.value, touchExploration) {
+        pagerLayout.value?.onTurnGesture = if (touchExploration) {
+            null
+        } else {
+            {
+                chromeVisible.value = false
+                menuOpen.value = false
+            }
+        }
+    }
 
     // The design system's reading themes and type scale, routed through
     // Readium's user preferences instead of fighting the navigator. The
@@ -332,40 +346,26 @@ private fun ReaderContent(
         nav.submitPreferences(preferences)
     }
 
-    // Edge taps turn pages (reading-progression aware); everything else
-    // toggles the chrome.
+    // Edge taps and hardware keys turn pages through the pager's springs
+    // (a tapped boundary turn slides the neighbour in, exactly like a
+    // dragged one); everything else toggles the chrome.
     DisposableEffect(navigator) {
         val nav = navigator ?: return@DisposableEffect onDispose {}
-        // animatedTransition deliberately off (Readium's own default): an
-        // animated turn across a resource boundary scrolls the pager while
-        // the next chapter's WebView is still loading, which reads as a
-        // stuttering half-blank slide. Snapping is instant and honest.
-        val pageTurns = DirectionalNavigationAdapter(nav)
+        val pageTurns = ReaderPageTurnListener(nav, pagerLayout::value)
         val chromeTaps = object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 toggleChrome()
                 return true
             }
         }
-        // Fast swipes at chapter boundaries die in the toolkit's fling
-        // gate; the rescue re-drives them. It stands down for gestures the
-        // follower already replayed into the pager. See BoundaryFlingRescue
-        // and BoundaryDragFollower.
-        val flingRescue = BoundaryFlingRescue(
-            nav,
-            context.resources.displayMetrics.density,
-            isSuppressed = boundarySignal::handledRecently,
-        )
         nav.addInputListener(pageTurns)
         nav.addInputListener(chromeTaps)
-        nav.addInputListener(flingRescue)
         onDispose {
             nav.removeInputListener(pageTurns)
             nav.removeInputListener(chromeTaps)
-            nav.removeInputListener(flingRescue)
-            // An armed frame-callback verification would survive the
-            // listener's removal and could still turn a page mid-teardown.
-            flingRescue.cancel()
+            // Backstop for a missed onActionModeFinished: a stuck flag
+            // would otherwise kill every page turn for the process.
+            SelectionModeTracker.reset()
         }
     }
 
@@ -401,6 +401,8 @@ private fun ReaderContent(
     val jumpTo: (Locator) -> Unit = remember {
         { target ->
             navigator?.let { nav ->
+                // A turn mid-flight must not land on top of the jump.
+                pagerLayout.value?.cancelInteraction()
                 jumping = true
                 nav.go(target)
                 chromeVisible.value = true
