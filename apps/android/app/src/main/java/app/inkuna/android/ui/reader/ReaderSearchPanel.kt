@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -29,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -59,6 +61,7 @@ import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
 
 /**
  * A single Han, Kana or Hangul character is a whole word — 月 and 书 are
@@ -131,6 +134,14 @@ fun ReaderSearchPanel(
     }
 
     val focusManager = LocalFocusManager.current
+    // Dragging through the results puts the keyboard away, matching the
+    // interactive dismissal the iOS panel's result list has.
+    val resultsState = rememberLazyListState()
+    LaunchedEffect(resultsState) {
+        snapshotFlow { resultsState.isScrollInProgress }
+            .filter { it }
+            .collect { focusManager.clearFocus() }
+    }
     Box(
         Modifier
             .fillMaxWidth()
@@ -141,7 +152,9 @@ fun ReaderSearchPanel(
             .imePadding()
             // Taps on the panel's quiet areas stop here; without this they
             // reach the scrim behind and dismiss the search mid-typing.
-            .pointerInput(Unit) { detectTapGestures { } }
+            // They still put the keyboard away, so a tap anywhere that
+            // isn't a control drops it without losing the panel.
+            .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
     ) {
         Column(
             Modifier
@@ -226,6 +239,7 @@ fun ReaderSearchPanel(
                     )
                 } else {
                     LazyColumn(
+                        state = resultsState,
                         modifier = Modifier
                             .padding(top = 4.dp)
                             // Grows with results toward the keyboard or

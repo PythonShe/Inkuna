@@ -17,6 +17,13 @@ class ScrollScreenViewController: UIViewController {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
 
+        // A tap on quiet space puts the keyboard away; the delegate keeps
+        // taps on the text field itself from bouncing the keyboard.
+        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+        tap.cancelsTouchesInView = false
+        tap.delegate = self
+        scrollView.addGestureRecognizer(tap)
+
         contentStack.axis = .vertical
         contentStack.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(contentStack)
@@ -32,6 +39,10 @@ class ScrollScreenViewController: UIViewController {
             contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -InkSpacing.space8),
             contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -2 * InkSpacing.pageMargin),
         ])
+    }
+
+    @objc private func dismissKeyboard() {
+        view.endEditing(true)
     }
 
     // MARK: Shared building blocks
@@ -117,5 +128,17 @@ class ScrollScreenViewController: UIViewController {
         let detail = BookDetailViewController(publication: publication)
         detail.hidesBottomBarWhenPushed = true
         navigationController?.pushViewController(detail, animated: true)
+    }
+}
+
+extension ScrollScreenViewController: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // Tapping into a text field must focus it, not fight the dismissal.
+        var view = touch.view
+        while let current = view {
+            if current is UITextField { return false }
+            view = current.superview
+        }
+        return true
     }
 }

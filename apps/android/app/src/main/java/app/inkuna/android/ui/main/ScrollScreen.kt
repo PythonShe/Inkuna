@@ -1,5 +1,6 @@
 package app.inkuna.android.ui.main
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -48,8 +50,8 @@ fun ScrollScreen(
     val scrollState = rememberScrollState()
     // Edge-to-edge means the IME is an inset, not a window resize: without
     // imePadding the last rows sit behind the keyboard and can't be scrolled
-    // into view. Scrolling also puts the keyboard away, as the search screens
-    // on iOS do.
+    // into view. Scrolling — or a tap on quiet space — puts the keyboard
+    // away, as the search screens on iOS do.
     val focusManager = LocalFocusManager.current
     LaunchedEffect(scrollState) {
         snapshotFlow { scrollState.isScrollInProgress }
@@ -61,6 +63,7 @@ fun ScrollScreen(
             .fillMaxSize()
             .padding(innerPadding)
             .imePadding()
+            .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
             .verticalScroll(scrollState)
             .padding(
                 start = InkSpace.pageMargin,

@@ -85,7 +85,9 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         ])
 
         resultsStack.axis = .vertical
-        // Results scroll when the panel is capped by the keyboard.
+        // Results scroll when the panel is capped by the keyboard, and
+        // dragging through them puts the keyboard away interactively.
+        resultsScroll.keyboardDismissMode = .interactive
         resultsStack.translatesAutoresizingMaskIntoConstraints = false
         resultsScroll.addSubview(resultsStack)
         let scrollFit = resultsScroll.heightAnchor.constraint(equalTo: resultsScroll.contentLayoutGuide.heightAnchor)
