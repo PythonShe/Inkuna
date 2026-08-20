@@ -24,7 +24,6 @@
     <string name="reader_preview_fallback">ชั่วโมงอันเงียบสงบเป็นของผู้อ่าน</string>
     <string name="a11y_customize_appearance">ปรับแต่งตัวอักษรและเค้าโครง</string>
     <string name="a11y_back_to_theme_type">กลับไปยังธีมและรูปแบบอักษร</string>
-    <string name="a11y_font_option">ฟอนต์ %1$s</string>
     <string name="a11y_bold_text">ตัวหนา</string>
     <string name="a11y_line_spacing">ระยะห่างบรรทัด</string>
     <string name="a11y_letter_spacing">ระยะห่างตัวอักษร</string>

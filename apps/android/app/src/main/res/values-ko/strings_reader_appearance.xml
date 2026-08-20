@@ -24,7 +24,6 @@
     <string name="reader_preview_fallback">고요한 시간은 읽는 이의 것이다.</string>
     <string name="a11y_customize_appearance">글자와 레이아웃 사용자 지정</string>
     <string name="a11y_back_to_theme_type">테마 및 글꼴로 돌아가기</string>
-    <string name="a11y_font_option">%1$s 글꼴</string>
     <string name="a11y_bold_text">굵은 글씨</string>
     <string name="a11y_line_spacing">줄 간격</string>
     <string name="a11y_letter_spacing">자간</string>

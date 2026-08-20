@@ -26,7 +26,6 @@
     <string name="reader_preview_fallback">The quiet hours belong to the reader.</string>
     <string name="a11y_customize_appearance">Customize type and layout</string>
     <string name="a11y_back_to_theme_type">Back to theme and type</string>
-    <string name="a11y_font_option">%1$s font</string>
     <string name="a11y_bold_text">Bold text</string>
     <string name="a11y_line_spacing">Line spacing</string>
     <string name="a11y_letter_spacing">Letter spacing</string>

@@ -24,7 +24,6 @@
     <string name="reader_preview_fallback">静かな時間は、読む人のものだ。</string>
     <string name="a11y_customize_appearance">文字とレイアウトをカスタマイズ</string>
     <string name="a11y_back_to_theme_type">フォントとテーマに戻る</string>
-    <string name="a11y_font_option">%1$sフォント</string>
     <string name="a11y_bold_text">太字</string>
     <string name="a11y_line_spacing">行間</string>
     <string name="a11y_letter_spacing">字間</string>

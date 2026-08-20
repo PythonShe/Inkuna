@@ -24,7 +24,6 @@
     <string name="reader_preview_fallback">Les heures calmes appartiennent au lecteur.</string>
     <string name="a11y_customize_appearance">Personnaliser la typographie et la mise en page</string>
     <string name="a11y_back_to_theme_type">Retour au thème et à la typographie</string>
-    <string name="a11y_font_option">Police %1$s</string>
     <string name="a11y_bold_text">Texte en gras</string>
     <string name="a11y_line_spacing">Interligne</string>
     <string name="a11y_letter_spacing">Espacement des lettres</string>

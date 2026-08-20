@@ -24,7 +24,6 @@
     <string name="reader_preview_fallback">As horas tranquilas pertencem ao leitor.</string>
     <string name="a11y_customize_appearance">Personalizar tipografia e layout</string>
     <string name="a11y_back_to_theme_type">Voltar para tema e tipografia</string>
-    <string name="a11y_font_option">Fonte %1$s</string>
     <string name="a11y_bold_text">Texto em negrito</string>
     <string name="a11y_line_spacing">Espaçamento entre linhas</string>
     <string name="a11y_letter_spacing">Espaçamento entre letras</string>

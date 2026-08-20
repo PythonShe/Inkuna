@@ -24,7 +24,6 @@
     <string name="reader_preview_fallback">Những giờ yên tĩnh thuộc về người đọc.</string>
     <string name="a11y_customize_appearance">Tùy chỉnh kiểu chữ và bố cục</string>
     <string name="a11y_back_to_theme_type">Quay lại giao diện &amp; kiểu chữ</string>
-    <string name="a11y_font_option">Phông chữ %1$s</string>
     <string name="a11y_bold_text">Chữ đậm</string>
     <string name="a11y_line_spacing">Giãn dòng</string>
     <string name="a11y_letter_spacing">Giãn chữ</string>

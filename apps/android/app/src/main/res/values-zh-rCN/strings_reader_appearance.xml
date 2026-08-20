@@ -24,7 +24,6 @@
     <string name="reader_preview_fallback">静谧的时光属于读书的人。</string>
     <string name="a11y_customize_appearance">自定义文字与版式</string>
     <string name="a11y_back_to_theme_type">返回版式与主题</string>
-    <string name="a11y_font_option">%1$s字体</string>
     <string name="a11y_bold_text">粗体</string>
     <string name="a11y_line_spacing">行距</string>
     <string name="a11y_letter_spacing">字距</string>
