@@ -18,6 +18,25 @@ pub const DEFAULT_REMINDER_MINUTES: u16 = 21 * 60;
 /// Largest accepted `reminder_minutes` (23:59); `set_settings` clamps to
 /// it rather than rejecting.
 pub const MAX_REMINDER_MINUTES: u16 = 23 * 60 + 59;
+/// Reading font a fresh install gets: the publication's own faces. An
+/// opaque identifier like `reading_theme` — the core stores whatever id it
+/// is given so fonts can ship shell-first.
+pub const DEFAULT_READING_FONT: &str = "publisher";
+/// Default reading line-height multiplier (unitless).
+pub const DEFAULT_LINE_SPACING: f64 = 1.65;
+/// `line_spacing` bounds; `set_settings` clamps rather than rejects.
+pub const MIN_LINE_SPACING: f64 = 1.30;
+pub const MAX_LINE_SPACING: f64 = 2.10;
+/// Largest accepted `letter_spacing`, in em.
+pub const MAX_LETTER_SPACING: f64 = 0.06;
+/// Largest accepted `word_spacing`, in em.
+pub const MAX_WORD_SPACING: f64 = 0.30;
+/// Default horizontal reading margins, in CSS px inside the rendering
+/// web view (density-independent on both shells).
+pub const DEFAULT_READING_MARGINS: u16 = 26;
+/// `reading_margins` bounds; `set_settings` clamps rather than rejects.
+pub const MIN_READING_MARGINS: u16 = 16;
+pub const MAX_READING_MARGINS: u16 = 48;
 
 /// The whole app-settings record: one core-owned row, read and written
 /// whole. Values are clamped on write, never rejected, and unknown
@@ -45,6 +64,20 @@ pub struct Settings {
     /// Contact email of the purely local account; empty means "not set".
     /// Stored as-is — there is no server to validate against.
     pub account_email: String,
+    /// Opaque reading-font identifier; shells own the font roster.
+    pub reading_font: String,
+    /// Whether body text is forced to a heavier weight.
+    pub reading_bold: bool,
+    /// Line-height multiplier in
+    /// [`MIN_LINE_SPACING`]..=[`MAX_LINE_SPACING`].
+    pub line_spacing: f64,
+    /// Extra letter spacing in em, 0.0..=[`MAX_LETTER_SPACING`].
+    pub letter_spacing: f64,
+    /// Extra word spacing in em, 0.0..=[`MAX_WORD_SPACING`].
+    pub word_spacing: f64,
+    /// Horizontal page margins in CSS px,
+    /// [`MIN_READING_MARGINS`]..=[`MAX_READING_MARGINS`].
+    pub reading_margins: u16,
 }
 
 impl Default for Settings {
@@ -58,6 +91,12 @@ impl Default for Settings {
             reminder_minutes: DEFAULT_REMINDER_MINUTES,
             account_name: String::new(),
             account_email: String::new(),
+            reading_font: DEFAULT_READING_FONT.to_string(),
+            reading_bold: false,
+            line_spacing: DEFAULT_LINE_SPACING,
+            letter_spacing: 0.0,
+            word_spacing: 0.0,
+            reading_margins: DEFAULT_READING_MARGINS,
         }
     }
 }
