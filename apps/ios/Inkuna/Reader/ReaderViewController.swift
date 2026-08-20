@@ -3,6 +3,7 @@ import ReadiumNavigator
 import ReadiumShared
 import ReadiumStreamer
 import UIKit
+import WebKit
 
 // The UniFFI bindings are compiled into this target, so the core's
 // `Publication` record is the module-local `Publication` type and shadows
@@ -40,8 +41,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
     private var navigator: EPUBNavigatorViewController?
     private var readiumPublication: ReadiumShared.Publication?
-    private var navigationAdapter: DirectionalNavigationAdapter?
-    private var swipeAssist: ReaderSwipeAssist?
+    private var pager: ReaderPager?
 
     /// Reading-order resource lookup: normalized href → reading-order index.
     private var resourceIndexByHref: [String: Int] = [:]
@@ -397,24 +397,22 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         navigator.didMove(toParent: self)
         self.navigator = navigator
 
-        // Edge taps turn pages, Apple Books style; center taps fall through
-        // to `didTapAt` and toggle the chrome.
-        let adapter = DirectionalNavigationAdapter(animatedTransition: true) { [weak self] in
-            self?.setChrome(visible: false)
-        }
-        adapter.bind(to: navigator)
-        navigationAdapter = adapter
-        // Fast swipes at chapter boundaries die in the navigator's nested
-        // scroll views; the assist re-drives them. See ReaderSwipeAssist.
-        swipeAssist = ReaderSwipeAssist(navigator: navigator)
-        // Chrome leaves at swipe recognition, not on arrival: hiding via
+        // The pager owns every horizontal page turn — inner pages and
+        // chapter boundaries alike — on our gestures and physics;
+        // Readium's native paging is suppressed. See ReaderPager.
+        let pager = ReaderPager(
+            surface: ReadiumPagerSurface(navigator: navigator),
+            view: navigator.view
+        )
+        // Chrome leaves at gesture claim, not on arrival: hiding via
         // locationDidChange keeps a live backdrop blur composited over
         // the entire turn (Readium reports the location only after the
         // settle plus its own debounce). locationDidChange stays as the
-        // fallback for slow drags no swipe recognizer ever sees.
-        swipeAssist?.onPageTurnGesture = { [weak self] in
+        // fallback for programmatic moves.
+        pager.onPageTurnGesture = { [weak self] in
             self?.setChrome(visible: false)
         }
+        self.pager = pager
 
         loadingIndicator.stopAnimating()
         updatePageInfo()
@@ -572,6 +570,9 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
         currentLocator = locator
         updatePageInfo()
+        // Every navigation shifts the preload window; new spreads arrive
+        // with their native gestures enabled and must be re-suppressed.
+        pager?.engageIfNeeded()
 
         if expectProgrammaticMove {
             expectProgrammaticMove = false
@@ -659,10 +660,44 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             hideSearch()
         } else if menuVisible {
             setMenu(visible: false)
+        } else if let pager, let zone = edgeTapZone(for: point) {
+            // Edge taps turn pages, Apple Books style — geometric, like
+            // the drags: the right edge always asks for the +x page.
+            zone == .right ? pager.turnRight() : pager.turnLeft()
         } else {
             setChrome(visible: !chromeVisible)
         }
     }
+
+    private enum EdgeTapZone { case left, right }
+
+    /// The side tap bands: 30% of the width, at least 80 pt — shared
+    /// with the Android shell.
+    private func edgeTapZone(for point: CGPoint) -> EdgeTapZone? {
+        let width = view.bounds.width
+        let band = max(width * 0.3, 80)
+        if point.x < band { return .left }
+        if point.x > width - band { return .right }
+        return nil
+    }
+
+    /// Hardware keyboard paging, replacing what Readium's directional
+    /// adapter used to provide: arrows are geometric, space reads on.
+    override var keyCommands: [UIKeyCommand]? {
+        let commands = [
+            UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [], action: #selector(keyTurnLeft)),
+            UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(keyTurnRight)),
+            UIKeyCommand(input: " ", modifierFlags: [], action: #selector(keyTurnForward)),
+        ]
+        for command in commands {
+            command.wantsPriorityOverSystemBehavior = true
+        }
+        return commands
+    }
+
+    @objc private func keyTurnLeft() { pager?.turnLeft() }
+    @objc private func keyTurnRight() { pager?.turnRight() }
+    @objc private func keyTurnForward() { pager?.turnForward() }
 
     private func setMenu(visible: Bool) {
         guard menuVisible != visible else { return }
@@ -856,7 +891,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         guard let navigator else { return }
         // The reload the navigator performs is not a page turn.
         expectProgrammaticMove = true
+        pager?.cancelInteraction()
         navigator.submitPreferences(readerPreferences())
+        // Preferences can flip the presentation (and recreate spreads);
+        // the reload's locationDidChange re-enforces afterwards too.
+        pager?.engageIfNeeded()
     }
 
     private func presentThemeSheet() {
@@ -1038,7 +1077,18 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     override func viewWillTransition(to size: CGSize, with coordinator: any UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         // The navigator re-lays out and re-emits its location on rotation;
-        // that is not a page turn either.
+        // that is not a page turn either. A gesture caught mid-rotation is
+        // abandoned — the re-layout owns the screen now.
         expectProgrammaticMove = true
+        pager?.cancelInteraction()
+    }
+
+    /// Fires while each spread web view is being configured — the
+    /// earliest tick after Readium creates a new one, whose native
+    /// gestures must be suppressed before it can claim a touch.
+    func navigator(_ navigator: EPUBNavigatorViewController, setupUserScripts userContentController: WKUserContentController) {
+        DispatchQueue.main.async { [weak self] in
+            self?.pager?.engageIfNeeded()
+        }
     }
 }
