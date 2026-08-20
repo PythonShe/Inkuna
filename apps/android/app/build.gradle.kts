@@ -117,7 +117,15 @@ dependencies {
     // resource pager across chapter boundaries.
     implementation("androidx.viewpager:viewpager:1.1.0")
     // Document-start JS injection for the reader's own user stylesheet.
-    implementation("androidx.webkit:webkit:1.17.0")
+    // Capped below 1.17.0 on purpose: from 1.17.0 on,
+    // WebViewAssetLoader.AssetsPathHandler builds its WebResourceResponse with
+    // the shared immutable Map.of("Cache-Control", …) header map, and Readium
+    // 3.3.0's WebViewServer.allowCors() puts "Access-Control-Allow-Origin"
+    // into that map in place (WebViewServer.kt:263). Every served asset — our
+    // bundled Noto fonts included — then throws UnsupportedOperationException
+    // on the main thread the moment a book opens. `strictly` so a transitive
+    // bump cannot reintroduce it; lift once Readium copies the headers first.
+    implementation("androidx.webkit:webkit") { version { strictly("1.16.0") } }
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     // The evening reminder: WorkManager survives reboots without a boot
     // receiver, so the daily nudge is one self-chaining worker.
