@@ -304,20 +304,7 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
     /// The spread web view currently covering the reader's center — the
     /// navigator keeps preloaded spreads at alpha 0 until revealed.
     private func visibleInnerScrollView() -> UIScrollView? {
-        guard let navigator else { return nil }
-        let root: UIView = navigator.view
-        if let cached = cachedVisibleWebView, isVisibleSpread(cached, in: root) {
-            return cached.scrollView
-        }
-        var queue: [UIView] = [root]
-        while let view = queue.popLast() {
-            if let webView = view as? WKWebView, isVisibleSpread(webView, in: root) {
-                cachedVisibleWebView = webView
-                return webView.scrollView
-            }
-            queue.append(contentsOf: view.subviews)
-        }
-        return nil
+        visibleWebView()?.scrollView
     }
 
     private func isVisibleSpread(_ webView: WKWebView, in root: UIView) -> Bool {
@@ -360,6 +347,32 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
         while let current = ancestor {
             if let scrollView = current as? UIScrollView { return scrollView }
             ancestor = current.superview
+        }
+        return nil
+    }
+}
+
+// MARK: - ReaderStyleSurface
+
+extension ReadiumPagerSurface: ReaderStyleSurface {
+    func loadedWebViews() -> [WKWebView] {
+        guard let navigator else { return [] }
+        return allWebViews(in: navigator.view)
+    }
+
+    func visibleWebView() -> WKWebView? {
+        guard let navigator else { return nil }
+        let root: UIView = navigator.view
+        if let cached = cachedVisibleWebView, isVisibleSpread(cached, in: root) {
+            return cached
+        }
+        var queue: [UIView] = [root]
+        while let view = queue.popLast() {
+            if let webView = view as? WKWebView, isVisibleSpread(webView, in: root) {
+                cachedVisibleWebView = webView
+                return webView
+            }
+            queue.append(contentsOf: view.subviews)
         }
         return nil
     }

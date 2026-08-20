@@ -40,6 +40,19 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private let initialChapter: Chapter?
 
     private var navigator: EPUBNavigatorViewController?
+
+    /// The Readium-shaped styling surface behind `pager` — the walk that
+    /// finds the loaded spread web views for user-stylesheet pushes.
+    private var pagerSurface: ReadiumPagerSurface?
+
+    /// The live user stylesheet, read by the container transform whenever
+    /// a resource is served. Seeded before the book opens.
+    private let userStyleBox = ReaderUserStyleBox()
+
+    /// True while the Customize panel is previewing an uncommitted style —
+    /// the reflow re-landing fires a locationDidChange per step, and those
+    /// must not each queue a core progress write.
+    private var liveStyleSession = false
     private var readiumPublication: ReadiumShared.Publication?
     private var pager: ReaderPager?
 
@@ -335,10 +348,12 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private func openPublication() async {
         let opened: OpenedBook
         do {
+            userStyleBox.write(ReaderUserStyle.current.css())
             opened = try await Self.openBook(
                 path: publication.filePath,
                 locatorJSON: publication.locator,
-                progression: publication.progression
+                progression: publication.progression,
+                style: userStyleBox
             )
         } catch {
             logger.error("Opening \(self.publication.id, privacy: .public) failed: \(error)")
@@ -405,8 +420,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         // The pager owns every horizontal page turn — inner pages and
         // chapter boundaries alike — on our gestures and physics;
         // Readium's native paging is suppressed. See ReaderPager.
+        let surface = ReadiumPagerSurface(navigator: navigator)
+        pagerSurface = surface
         let pager = ReaderPager(
-            surface: ReadiumPagerSurface(navigator: navigator),
+            surface: surface,
             view: navigator.view
         )
         // Chrome leaves at gesture claim, not on arrival: hiding via
@@ -430,7 +447,8 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private nonisolated static func openBook(
         path: String,
         locatorJSON: String?,
-        progression: Double
+        progression: Double,
+        style: ReaderUserStyleBox
     ) async throws -> OpenedBook {
         guard let file = FileURL(path: path, isDirectory: false) else {
             throw ReaderOpenError.fileNotFound
@@ -441,10 +459,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         }
         // EPUB only, DRM-free: the core rejects other formats at import and
         // DRM circumvention is out of scope by policy. Every XHTML resource
-        // gets the fragmentation fix injected before WebKit ever paginates
-        // it; see fixingFragmentation.
+        // gets the fragmentation fix and the user stylesheet injected
+        // before WebKit ever paginates it; see injectingInkunaStyles.
         let opener = PublicationOpener(parser: EPUBParser()) { _, container, _ in
-            container = fixingFragmentation(container)
+            container = injectingInkunaStyles(container, style: style)
         }
         guard let readiumPublication = await opener.open(
             asset: asset,
@@ -485,15 +503,21 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         "}" +
         "</style>"
 
-    /// Injects `fragmentationFixStyle` at the end of each XHTML resource's
-    /// `<head>`. The splice is done on raw bytes, never through a decoded
-    /// string: the ASCII marker survives any ASCII-compatible encoding
-    /// (including legacy CJK ones) unchanged, and in UTF-16 its interleaved
-    /// NULs mean the marker simply isn't found — the resource passes
-    /// through untouched instead of being blanked by a failed decode.
-    /// NCX and non-XHTML resources are never touched.
-    private nonisolated static func fixingFragmentation(_ container: Container) -> Container {
-        let style = Data(fragmentationFixStyle.utf8)
+    /// Injects `fragmentationFixStyle` plus the live user stylesheet at
+    /// the end of each XHTML resource's `<head>`. The splice is done on
+    /// raw bytes, never through a decoded string: the ASCII markers
+    /// survive any ASCII-compatible encoding (including legacy CJK ones)
+    /// unchanged, and in UTF-16 the marker simply isn't found — the
+    /// resource passes through untouched instead of being blanked by a
+    /// failed decode. NCX and non-XHTML resources are never touched.
+    ///
+    /// The user CSS is read from `style` at *serve* time, not open time:
+    /// a spread preloaded after a settings change must paint with the new
+    /// typography rather than flash and reflow.
+    private nonisolated static func injectingInkunaStyles(
+        _ container: Container,
+        style: ReaderUserStyleBox
+    ) -> Container {
         // XHTML mandates lowercase; the uppercase form covers stray HTML.
         let markers = [Data("</head>".utf8), Data("</HEAD>".utf8)]
         return container.map { href, resource in
@@ -507,12 +531,33 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
                         .compactMap({ data.range(of: $0, options: .backwards) })
                         .first
                     else { return data }
+                    let splice = fragmentationFixStyle
+                        + "<style id=\"\(ReaderUserStyle.styleElementID)\">\(style.read())</style>"
                     var fixed = data
-                    fixed.insert(contentsOf: style, at: head.lowerBound)
+                    fixed.insert(contentsOf: Data(splice.utf8), at: head.lowerBound)
                     return fixed
                 }
             }
         }
+    }
+
+    /// Renders `style` into every loaded spread — visible and preloaded —
+    /// and stores it for spreads not served yet. This is the apply path
+    /// for everything the Customize panel controls; it never touches the
+    /// navigator's preferences.
+    private func applyUserStyle(_ style: ReaderUserStyle, anchor: ReaderUserStyle.AnchorMode) {
+        userStyleBox.write(style.css())
+        guard let pagerSurface else { return }
+        // The reflow moves content under any in-flight gesture; stand the
+        // pager down and let it re-derive its baselines afterwards, the
+        // same contract applyPreferences already follows.
+        expectProgrammaticMove = true
+        pager?.cancelInteraction()
+        let script = style.applyScript(mode: anchor)
+        for webView in pagerSurface.loadedWebViews() {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+        pager?.engageIfNeeded()
     }
 
     /// Builds the resource lookups the contents sheet and jump targets use.
@@ -587,8 +632,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
         }
 
         // One `updateProgress` per page turn: opaque locator, book-wide
-        // totalProgression, and the synthetic position once known.
+        // totalProgression, and the synthetic position once known. A live
+        // style preview reflows per slider step; the single write that
+        // matters lands when the interaction commits.
         guard
+            !liveStyleSession,
             let locatorJSON = try? locator.jsonString(),
             let totalProgression = locator.locations.totalProgression
         else { return }
