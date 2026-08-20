@@ -217,12 +217,15 @@ object ReaderPhraseProbe {
             if (c.length >= min && c.length <= max && !/^[\s\W_]+${'$'}/.test(c)) picks.push(c);
           }
           if (!picks.length) {
-            for (var k = 0; k + min <= text.length; k += max) {
-              var w = text.substr(k, max).trim();
-              if (w.length >= min) picks.push(w);
+            // Slice by character, not UTF-16 code unit: substr would cut a
+            // surrogate pair (emoji, CJK Ext-B) in half and leave U+FFFD.
+            var cp = Array.from(text);
+            for (var k = 0; k + min <= cp.length; k += max) {
+              var w = cp.slice(k, k + max).join('').trim();
+              if (Array.from(w).length >= min) picks.push(w);
             }
+            if (!picks.length) picks = [cp.slice(0, max).join('').trim()];
           }
-          if (!picks.length) picks = [text.substr(0, max).trim()];
           return picks[Math.floor(Math.random() * picks.length)];
         })()
     """.trimIndent()
