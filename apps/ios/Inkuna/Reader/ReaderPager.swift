@@ -172,46 +172,70 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     // MARK: Programmatic turns (edge taps, keys)
 
     /// Turns toward +x — the geometric right, whatever the reading
-    /// progression.
-    func turnRight() {
+    /// progression. Returns whether a turn was actually initiated: every
+    /// entry point below can honestly decline (a busy renderer, a
+    /// commit in flight, the end of the book), and callers that speak for
+    /// the reader — VoiceOver's scroll action — must report that refusal
+    /// rather than claim a page they never turned.
+    @discardableResult
+    func turnRight() -> Bool {
         turn(direction: 1)
     }
 
     /// Turns toward -x.
-    func turnLeft() {
+    @discardableResult
+    func turnLeft() -> Bool {
         turn(direction: -1)
     }
 
     /// Turns toward the next page in reading order.
-    func turnForward() {
+    @discardableResult
+    func turnForward() -> Bool {
         turn(direction: surface.isRightToLeft ? -1 : 1)
     }
 
     /// Turns toward the previous page in reading order.
-    func turnBackward() {
+    @discardableResult
+    func turnBackward() -> Bool {
         turn(direction: surface.isRightToLeft ? 1 : -1)
     }
 
-    private func turn(direction: CGFloat) {
-        guard surface.isEngageable, !committing, !surface.isBusy else { return }
+    private func turn(direction: CGFloat) -> Bool {
+        guard surface.isEngageable, !committing, !surface.isBusy else { return false }
         engageIfNeeded()
         onPageTurnGesture?()
 
         // A turn already in flight: successive taps chain by moving the
         // running spring's goal one page further, staying inside the
-        // resource. A running boundary turn takes the tap as "seen" and
+        // resource. A running boundary commit takes the tap as "seen" and
         // finishes.
         if spring.isRunning {
-            if case .inner = springRole {
+            switch springRole {
+            case .inner:
                 let next = spring.target + direction * pageWidth
                 if next >= innerRange.lowerBound - 2, next <= innerRange.upperBound + 2 {
                     spring.retarget(min(max(next, innerRange.lowerBound), innerRange.upperBound))
                 }
+                return true
+            case .outerReturn:
+                // A return settle is purely cosmetic — it is travelling
+                // back to the page already on screen. Swallowing the tap
+                // would lose a real turn, so land the settle at its base
+                // right now and fall through to perform the turn. Mirrors
+                // the Android shell's F17 fix; commit flights below stay
+                // "seen", because those are turns the reader has already
+                // been shown.
+                spring.cancel()
+                surface.setOuterOffset(outerHome)
+                boundaryDisplacement = 0
+                interactionActive = false
+                updateHoldLoop()
+            case .outerCommit:
+                return true
             }
-            return
         }
-        guard !interactionActive, frozen == nil else { return }
-        guard captureBaselines() else { return }
+        guard !interactionActive, frozen == nil else { return false }
+        guard captureBaselines() else { return false }
 
         let innerTarget = stripRaw + direction * pageWidth
         if innerTarget >= innerRange.lowerBound - 2, innerTarget <= innerRange.upperBound + 2 {
@@ -225,7 +249,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             // drag-release uses, then commit.
             guard neighborExists(direction: direction) else {
                 interactionActive = false
-                return
+                return false
             }
             exitBound = direction > 0 ? innerRange.upperBound : innerRange.lowerBound
             boundaryHaptic.prepare()
@@ -236,6 +260,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
                 role: .outerCommit(toRight: direction > 0)
             )
         }
+        return true
     }
 
     // MARK: Gesture plumbing
