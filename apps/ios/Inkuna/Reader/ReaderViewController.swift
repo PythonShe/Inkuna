@@ -844,7 +844,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             return
         }
         expectProgrammaticMove = true
-        Task {
+        // The jump owns the reader now: a spring, frozen turn, or commit
+        // still in flight would keep writing offsets over the new spread.
+        pager?.cancelInteraction()
+        jumpTask?.cancel()
+        jumpTask = Task {
             _ = await navigator.go(to: target, options: NavigatorGoOptions(animated: false))
         }
     }
@@ -1041,6 +1045,8 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
             locations: Locator.Locations(progression: min(max(hit.progression, 0), 1))
         )
         expectProgrammaticMove = true
+        // The jump owns the reader now — same standdown as a contents jump.
+        pager?.cancelInteraction()
         jumpTask?.cancel()
         jumpTask = Task {
             _ = await navigator.go(to: target, options: NavigatorGoOptions(animated: false))
