@@ -131,6 +131,9 @@ final class InkStepSlider: UIControl {
         lastIndex = snapped(next).index
         slider.setValue(Float(next), animated: false)
         renderValue()
+        // VoiceOver never sends a touch down, so the session has to be
+        // opened here — begin, preview, commit, once per adjustment.
+        onTouchDown?()
         onPreview?(next)
         onCommit?(next)
     }
