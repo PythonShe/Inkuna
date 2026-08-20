@@ -367,10 +367,15 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate {
 
         let navigator: EPUBNavigatorViewController
         do {
+            var config = EPUBNavigatorViewController.Configuration(preferences: readerPreferences())
+            // Serves the bundled Noto files to every spread; which family
+            // the page uses is our stylesheet's decision, never a Readium
+            // preference. See ReadingFontDeclarations.
+            config.fontFamilyDeclarations = ReadingFont.fontFamilyDeclarations
             navigator = try EPUBNavigatorViewController(
                 publication: opened.publication,
                 initialLocation: initialLocation,
-                config: EPUBNavigatorViewController.Configuration(preferences: readerPreferences())
+                config: config
             )
         } catch {
             logger.error("Navigator init for \(self.publication.id, privacy: .public) failed: \(error)")

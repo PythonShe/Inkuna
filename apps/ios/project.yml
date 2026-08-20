@@ -70,6 +70,15 @@ targets:
         # launches don't flash light (the generated plist can't set it).
         UILaunchScreen:
           UIColorName: LaunchBackground
+        # Bundled Noto variable faces, for the native font previews only —
+        # WKWebView never sees app-registered fonts; the reading surface
+        # gets the same files via @font-face through the navigator's font
+        # declarations. Bare filenames: XcodeGen copies resources flat.
+        UIAppFonts:
+          - NotoSerif.ttf
+          - NotoSerif-Italic.ttf
+          - NotoSans.ttf
+          - NotoSans-Italic.ttf
         # App Store validation (90474) rejects a bundle with no declared
         # orientations. iPhone: no upside-down (standard on notched devices).
         # iPad: all four are mandatory for multitasking support.
