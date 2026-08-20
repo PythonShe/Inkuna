@@ -15,8 +15,11 @@ struct ReaderUserStyle: Equatable {
     /// The stored font id verbatim — `font.rawValue` for anything this
     /// build knows, and the untouched original for anything it does not.
     /// Persisting this instead of `font.rawValue` keeps an unknown id
-    /// intact through commits that are not font picks.
-    var fontID: String = ReadingFont.publisher.rawValue
+    /// intact through commits that are not font picks. Deliberately
+    /// without a default: a memberwise construction that forgot it would
+    /// silently persist "publisher" over whatever the reader had chosen,
+    /// so every call site must state the id it means.
+    var fontID: String
     var bold: Bool
     var lineSpacing: Double
     var letterSpacing: Double
