@@ -11,7 +11,7 @@ below; they capture project-specific conventions and override common defaults.
 | Project | XcodeGen | `project.yml` is the source of truth; `Inkuna.xcodeproj` is generated and gitignored |
 | Language | Swift, **Swift 6 language mode** (strict concurrency) | latest Xcode/SDK |
 | Core | `InkunaCore.xcframework` + generated Swift bindings | produced by `../../scripts/build-core-ios.sh`; core methods are `async` |
-| Rendering (planned) | Readium Swift Toolkit | `EPUBNavigatorViewController` is UIKit-native |
+| Rendering | Core engine display lists drawn natively | `PageView` draws per-page glyph runs via Core Text (`CTFontDrawGlyphs`); Readium is being removed (2026-08-21 ADR amendment) |
 | Targets | min iOS 18, built with latest SDK | bundle id `app.inkuna.ios` |
 
 ```bash

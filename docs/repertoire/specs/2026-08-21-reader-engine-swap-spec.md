@@ -484,9 +484,10 @@ same pattern as the search-index reconcile):**
   where it left off (per-book idempotency), and a book that fails reconcile
   still opens — position falls back to the default above at read time.
 
-Shell-side, `ChapterHref.swift` and its Kotlin twin are deleted; their job
-(href impedance) moves into `inkuna-content` normalization behind
-`locate_href`.
+Shell-side, `ChapterHref.swift` is deleted (Android has no equivalent type —
+it threads bare href strings through nav routes, which get replaced, not
+ported); the href-impedance job moves into `inkuna-content` normalization
+behind `locate_href`.
 
 ## 9. Settings mapping
 

@@ -3,9 +3,40 @@
 ## Decision
 
 Rust core (UniFFI) + two fully native shells: UIKit on iOS, Jetpack Compose
-on Android. Rendering via the Readium native toolkits (planned). Framework
-options evaluated: Flutter, React Native, fully-native ×2, KMP core + native
-shells, Rust core + native shells.
+on Android. Framework options evaluated: Flutter, React Native,
+fully-native ×2, KMP core + native shells, Rust core + native shells.
+
+Rendering: originally via the Readium native toolkits — **superseded by the
+2026-08-21 amendment below**.
+
+## Amendment — 2026-08-21: core-owned reader engine
+
+The "Rust core never renders" boundary is retired. Readium (navigator and
+streamer, both shells) is being removed and replaced by our own engine:
+
+- **The core owns layout**: XHTML parse → opinionated style → text shaping
+  (rustybuzz, bundled fonts) → line breaking → fixed-point pagination →
+  per-page glyph-run display lists.
+- **The shells own drawing and interaction**: they rasterize glyph runs
+  natively (Core Text / `Canvas.drawGlyphs`), map semantic color roles
+  through their theme tokens, and keep the custom pager, selection UI, and
+  chrome.
+
+Why: public WebView APIs are out-of-process and asynchronous, so the shells
+could never synchronously know layout state at interaction time (the root of
+the pager's rescue-layer bug class and the open-jank on Android); Android's
+native text stack cannot lay out vertical CJK at all; and identical
+cross-platform pagination plus core-computed positions (search, bookmarks,
+future annotations/TTS) require shaping to happen once, in core, against one
+set of font bytes. Positions are content coordinates
+`(spine_idx, char_offset)` into a canonical text projection.
+
+The `core/` workspace grows to five crates — `inkuna-content` (EPUB
+container), `inkuna-format` (import conversion), `inkuna-engine` (layout),
+`inkuna-core` (services), `inkuna-ffi` (bindings, facade objects) — and the
+reader FFI gains a `ReaderSession` object with a synchronous cache-only
+interaction path. Full design:
+`docs/repertoire/specs/2026-08-21-reader-engine-swap-spec.md`.
 
 ## Why not Flutter / React Native
 
@@ -34,12 +65,13 @@ would be written and maintained twice and drift apart.
   UniFFI generates idiomatic-enough Kotlin, and the FFI plumbing cost is
   borne by tooling/agents, not the owner.
 
-## Near-term vertical writing
+## Near-term vertical writing (superseded 2026-08-21)
 
-Readium renders EPUB in a WebView; WebKit/Chromium support
-`writing-mode: vertical-rl`, and Readium CSS has explicit CJK vertical
-support. So vertical books work from day one; the custom Rust engine is a
-long-term option, not a prerequisite.
+Original position: Readium renders EPUB in a WebView; WebKit/Chromium support
+`writing-mode: vertical-rl`, so vertical books work from day one and the
+custom Rust engine is a long-term option. The amendment above makes the
+engine the plan of record: vertical CJK, ruby, and RTL progression are
+first-class engine features, not WebView behaviors.
 
 ## Version targets
 
@@ -53,9 +85,10 @@ long-term option, not a prerequisite.
 
 | Format | Import path | Rendering path |
 |--------|------------|----------------|
-| EPUB | native | Readium EPUB navigator (WebView) |
-| MOBI / AZW3 | convert to EPUB in core (DRM-free only) | Readium EPUB navigator |
-| TXT | charset detection (GB18030/Big5/Shift-JIS) + CJK chapter splitting → synthesized EPUB | Readium EPUB navigator |
+| EPUB | native | core engine (`inkuna-engine` display lists → native drawing) |
+| MOBI / AZW3 | convert to EPUB in core (DRM-free only) | core engine |
+| TXT | charset detection (GB18030/Big5/Shift-JIS) + CJK chapter splitting → synthesized EPUB | core engine |
+| Fixed-layout EPUB | detected at open | "not yet supported" state (v1) |
 | PDF | metadata only | PDFKit (iOS) / Pdfium (Android) navigator |
 | CBZ / CBR | zip / unrar | image navigator |
 
@@ -75,7 +108,9 @@ for upcoming needs: deadpool-sqlite, notify, rayon, argon2, lofty.
 
 ## Roadmap (next steps)
 
-1. Readium Swift + Kotlin toolkits: shelf → open EPUB → paginated reading.
+1. Readium Swift + Kotlin toolkits: shelf → open EPUB → paginated reading —
+   shipped, now being replaced by the core-owned engine (2026-08-21
+   amendment); Readium is removed entirely at the engine-swap parity gate.
 2. Import UI (document picker on both platforms; copy into app storage).
 3. Reader chrome: themes (ink/moonlight), typography controls, scrubber.
 4. Reflowable formats — shipped (2026-08): MOBI6 + KF8/AZW3 (hand-rolled

@@ -11,7 +11,7 @@ defaults.
 | UI | Jetpack Compose + Material 3, latest BOM | single-activity |
 | Language | Kotlin (built into AGP 9+ — no standalone kotlin.android plugin) | latest stable AGP + Gradle wrapper |
 | Core | UniFFI Kotlin bindings + JNA | generated into `app/src/generated/kotlin` by `../../scripts/build-core-android.sh`; core methods are `suspend` |
-| Rendering (planned) | Readium Kotlin Toolkit | |
+| Rendering | Core engine display lists drawn natively | `PageView` draws per-page glyph runs via `Canvas.drawGlyphs` (API 31+); Readium is being removed (2026-08-21 ADR amendment) |
 | Targets | minSdk 33, compile/target = latest SDK | application id `app.inkuna.android` |
 | ABIs | local: `arm64-v8a` + `x86_64`; CI release: `arm64-v8a` | never armeabi-v7a; overridden by `ANDROID_ABIS` (core script) + `-PinkunaAbis` (Gradle), which must agree |
 

@@ -7,14 +7,18 @@ License: AGPL-3.0. Website: `inkuna.app`.
 
 | Directory | Component | Tech Stack | Description |
 |------|------|--------|------|
-| `core/` | Inkuna Core | Rust workspace + UniFFI | All non-UI logic: library DB, import, formats, metadata, progress; later search/annotations/sync |
+| `core/` | Inkuna Core | Rust workspace + UniFFI | All non-UI logic: library DB, import, formats, metadata, progress, search, and the reader layout engine (parse → style → shape → paginate → display lists); later annotations/sync |
 | `apps/ios/` | Inkuna iOS | UIKit + XcodeGen | Native iOS shell (`app.inkuna.ios`), min iOS 18 |
 | `apps/android/` | Inkuna Android | Kotlin + Jetpack Compose | Native Android shell (`app.inkuna.android`), minSdk 33 |
 | `scripts/` | Build scripts | bash | Core cross-builds + UniFFI bindings generation |
 | `website/` | Inkuna Website | Astro (static output) + pnpm | Marketing site for `inkuna.app`, built with Astro and deployed via Cloudflare Pages |
 
-Rendering will live in the shells on Readium's native toolkits (Swift/Kotlin);
-the Rust core never renders.
+Reader boundary (ADR amendment 2026-08-21, superseding "the core never
+renders"): the Rust core owns layout — XHTML parsing, styling, text shaping
+with bundled fonts, line breaking, pagination — and emits per-page glyph-run
+display lists; the shells own drawing (Core Text / `Canvas.drawGlyphs`) and
+all interaction. Readium is being removed from both shells; see
+`docs/repertoire/specs/2026-08-21-reader-engine-swap-spec.md`.
 
 ## Stack Policy
 

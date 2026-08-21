@@ -13,8 +13,9 @@ common defaults.
 | Async | tokio, at the FFI layer only | core stays sync; `inkuna-ffi` wraps calls in `spawn_blocking` so shells get `await`/`suspend` |
 | Time | chrono | unix-seconds `i64` in the DB |
 | Archives | `zip` (EPUB/CBZ); `unrar` planned for CBR | format detection is magic-byte based (TXT is the documented extension-gated exception) |
-| XML | quick-xml | streaming events, no DOM; entity unescape via `quick_xml::escape::unescape` |
-| FFI | UniFFI proc-macros, latest | Swift + Kotlin bindings from one surface; async methods use `#[uniffi::export(async_runtime = "tokio")]` |
+| XML | quick-xml | streaming events; entity unescape via `quick_xml::escape::unescape`; the reader engine builds a compact arena DOM on top |
+| Layout engine | rustybuzz + unicode-* crates + cssparser (`inkuna-engine`) | core owns parse → style → shape → break → paginate; fixed-point (1/64 pt) math; per-page glyph-run display lists; canonical text projection defines all char offsets |
+| FFI | UniFFI proc-macros, latest | Swift + Kotlin bindings from one surface; async methods use `#[uniffi::export(async_runtime = "tokio")]`; reader interaction path is synchronous cache-only |
 
 Formats: EPUB (full metadata), MOBI/AZW3 (hand-rolled clean-room Palm/KF8
 readers in `formats/mobi` + `formats/azw3`; DRM-free only), TXT
@@ -32,9 +33,22 @@ cargo test                      # full workspace tests — must pass before comm
 
 ## 1. Crate Layering (hard boundary)
 
-- `crates/inkuna-core` — pure Rust domain logic. **No UniFFI types, no FFI
-  concerns.** Free to use borrows, rich enums, `&str` parameters.
-- `crates/inkuna-ffi` — the only UniFFI surface. Mirrors core types as
+Target layout per the 2026-08-21 engine-swap ADR (five crates; the
+restructure from two is in flight — see
+`docs/repertoire/specs/2026-08-21-reader-engine-swap-spec.md`):
+
+- `crates/inkuna-content` — EPUB container layer: bounded archive reads,
+  OPF/spine/manifest, TOC, href normalization. No FFI, no DB.
+- `crates/inkuna-format` — import-side conversion (MOBI/AZW3/TXT→EPUB, the
+  EPUB 3 writer).
+- `crates/inkuna-engine` — the reader layout engine (dom/style/shape/layout/
+  paginate/display/session). Deterministic; no DB access.
+- `crates/inkuna-core` — domain services (library, DB, import orchestration,
+  features). **No UniFFI types, no FFI concerns.** Free to use borrows, rich
+  enums, `&str` parameters.
+- `crates/inkuna-ffi` — the only UniFFI surface (all exports must stay in
+  this one crate — bindgen is `--library`-mode). Root `Bookshelf` object plus
+  per-feature facade objects; mirrors core types as
   `uniffi::Record`/`Enum`/`Object` with `From` conversions; owned values only;
   keep the boundary coarse-grained (no chatty per-field calls).
 - New capability = implement in `inkuna-core` first with tests, then expose a
