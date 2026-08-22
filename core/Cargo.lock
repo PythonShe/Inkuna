@@ -1234,6 +1234,7 @@ version = "0.6.2"
 dependencies = [
  "inkuna-content",
  "log",
+ "quick-xml",
  "tempfile",
  "thiserror",
 ]

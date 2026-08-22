@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 inkuna-content = { path = "../inkuna-content" }
+quick-xml = { version = "0.41", features = ["escape-html"] }
 thiserror = "2"
 log = "0.4"
 
