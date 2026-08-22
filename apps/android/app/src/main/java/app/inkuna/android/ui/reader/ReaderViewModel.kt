@@ -29,6 +29,7 @@ import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.publication.services.locateProgression
 import org.readium.r2.shared.publication.services.positionsByReadingOrder
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.Url
@@ -255,11 +256,13 @@ class ReaderViewModel(
         // back to resuming.
         // plan-02: real coordinates from the engine — the stored position
         // is a content coordinate now, which this Readium navigator cannot
-        // consume; until the engine reader lands, resume opens at the start.
+        // consume; until the engine reader lands, resume locates the stored
+        // book-wide progression.
         val chapterTarget = initialChapterHref
             ?.let { href -> Url(href) }
             ?.let { url -> publication.locatorFromLink(Link(href = url)) }
         val initialLocator = chapterTarget
+            ?: core.progression.takeIf { it > 0 }?.let { publication.locateProgression(it) }
 
         ReaderBook(
             core = core,
