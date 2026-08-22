@@ -103,10 +103,10 @@ class AppSettings private constructor(private val context: Context) {
         if (loaded) return _snapshot.value
         runCatching {
             val bookshelf = LibraryStore.bookshelf(context)
-            val current = bookshelf.settings()
+            val current = bookshelf.settings().settings()
             val migrated = migrateLegacyStore(current)
             if (migrated != null) {
-                bookshelf.setSettings(migrated)
+                bookshelf.settings().setSettings(migrated)
                 // The legacy file is cleared only after the core write
                 // lands — a failed write must leave it in place for the
                 // next launch to migrate.
@@ -240,7 +240,7 @@ class AppSettings private constructor(private val context: Context) {
                             // stored values — writing it whole would erase
                             // them. Rebase instead: read the stored record
                             // and replay every change made since on top of it.
-                            val stored = bookshelf.settings().toSnapshot()
+                            val stored = bookshelf.settings().settings().toSnapshot()
                             synchronized(pendingRebase) {
                                 _snapshot.value = pendingRebase.fold(stored) { acc, pending -> pending(acc) }
                                 pendingRebase.clear()
@@ -248,7 +248,7 @@ class AppSettings private constructor(private val context: Context) {
                             }
                         }
                     }
-                    bookshelf.setSettings(_snapshot.value.toRecord())
+                    bookshelf.settings().setSettings(_snapshot.value.toRecord())
                 }.onFailure { Log.w(TAG, "A settings write failed", it) }
             }
         }

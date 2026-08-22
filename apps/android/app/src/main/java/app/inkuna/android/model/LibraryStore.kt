@@ -3,6 +3,7 @@ package app.inkuna.android.model
 import android.content.Context
 import android.util.Log
 import app.inkuna.core.Bookshelf
+import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +54,13 @@ object LibraryStore {
         val dataDir = context.applicationContext.filesDir
         return openLock.withLock {
             opened ?: withContext(Dispatchers.IO) {
-                Bookshelf.open(dataDir.absolutePath)
+                // fontDir is a placeholder until the reader engine's
+                // bundled fonts land (plan 02 wires the real assets/fonts/
+                // bundle directory).
+                Bookshelf.open(
+                    dataDir.absolutePath,
+                    File(dataDir, "fonts").apply { mkdirs() }.absolutePath,
+                )
             }.also { shelf ->
                 opened = shelf
                 // Covers imported by older cores are full-resolution
@@ -63,7 +70,7 @@ object LibraryStore {
                 // big until the next open.
                 writes.launch {
                     try {
-                        shelf.optimizeCovers()
+                        shelf.importer().optimizeCovers()
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (failure: Throwable) {

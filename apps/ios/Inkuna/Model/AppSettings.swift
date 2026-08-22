@@ -66,13 +66,13 @@ final class AppSettings {
     func load() async {
         do {
             let bookshelf = try await LibraryStore.shared.library()
-            let current = try await bookshelf.settings()
+            let current = try await bookshelf.settings().settings()
             if let migrated = migratedLegacySettings(over: current) {
                 // Settings written by builds that kept them in UserDefaults
                 // move into the core once. The keys are removed only after
                 // the core write lands — a failed write must leave them in
                 // place for the next launch to migrate.
-                try await bookshelf.setSettings(settings: migrated)
+                try await bookshelf.settings().setSettings(settings: migrated)
                 removeLegacySettings()
                 if adoptStored(migrated) { persist() }
             } else {
@@ -178,9 +178,9 @@ final class AppSettings {
                     // writing it whole would erase them. Rebase instead:
                     // read the stored record and replay every change made
                     // since on top of it.
-                    _ = adoptStored(try await bookshelf.settings())
+                    _ = adoptStored(try await bookshelf.settings().settings())
                 }
-                try await bookshelf.setSettings(settings: record)
+                try await bookshelf.settings().setSettings(settings: record)
             } catch {
                 logger.warning("Settings write failed: \(error)")
             }

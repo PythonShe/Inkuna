@@ -199,7 +199,7 @@ class ReaderViewModel(
     private suspend fun doOpen(): ReaderBook = withContext(Dispatchers.Default) {
         val shelf = LibraryStore.bookshelf(app)
         bookshelf = shelf
-        val core = shelf.publication(publicationId)
+        val core = shelf.library().publication(publicationId)
 
         val httpClient = DefaultHttpClient()
         val assetRetriever = AssetRetriever(app.contentResolver, httpClient)
@@ -241,7 +241,7 @@ class ReaderViewModel(
             emptyList()
         }
         runCatching {
-            shelf.reportPositionRanges(core.id, positionRanges)
+            shelf.progress().reportPositionRanges(core.id, positionRanges)
         }.onFailure { error ->
             // The core rejects a breakdown that does not line up with its
             // own spine — it drops duplicate and over-long spine hrefs that
@@ -250,12 +250,12 @@ class ReaderViewModel(
             Log.w(TAG, "reportPositionRanges failed", error)
             if (positionCount > 0) {
                 runCatching {
-                    shelf.reportPositionCount(core.id, positionCount.toUInt())
+                    shelf.progress().reportPositionCount(core.id, positionCount.toUInt())
                 }.onFailure { Log.w(TAG, "reportPositionCount failed", it) }
             }
         }
 
-        val chapters = shelf.chapters(core.id).map { chapter ->
+        val chapters = shelf.library().chapters(core.id).map { chapter ->
             // The chapter-to-resource mapping is href-minus-fragment, per
             // the core spec; the reading-order index it yields is what both
             // the position and the "you are here" highlight are built on.
@@ -374,7 +374,7 @@ class ReaderViewModel(
         val book = (stateFlow.value as? UiState.Ready)?.book ?: return SearchOutcome()
         val shelf = bookshelf ?: return SearchOutcome()
         val results = try {
-            shelf.searchInBook(publicationId, query, SEARCH_LIMIT)
+            shelf.search().searchInBook(publicationId, query, SEARCH_LIMIT)
         } catch (cancellation: kotlinx.coroutines.CancellationException) {
             throw cancellation
         } catch (failure: Throwable) {
@@ -450,7 +450,7 @@ class ReaderViewModel(
                 val progression = locator.locations.totalProgression ?: return@withLock
                 lastPersisted = locator
                 runCatching {
-                    shelf.updateProgress(
+                    shelf.progress().updateProgress(
                         publicationId,
                         locator.toJSON().toString(),
                         progression,
@@ -474,7 +474,7 @@ class ReaderViewModel(
                 writeLock.withLock {
                     if (sessionId != null) return@withLock
                     val shelf = bookshelf ?: return@withLock
-                    sessionId = runCatching { shelf.sessionStart(publicationId) }
+                    sessionId = runCatching { shelf.stats().sessionStart(publicationId) }
                         .onFailure { Log.w(TAG, "sessionStart failed", it) }
                         .getOrNull()
                 }
@@ -508,7 +508,7 @@ class ReaderViewModel(
                 val id = sessionId ?: return@withLock
                 sessionId = null
                 val shelf = bookshelf ?: return@withLock
-                runCatching { shelf.sessionEnd(id) }
+                runCatching { shelf.stats().sessionEnd(id) }
                     .onFailure { Log.w(TAG, "sessionEnd failed", it) }
             }
         }
@@ -549,7 +549,7 @@ class ReaderViewModel(
             // thread availability.
             writeLock.withLock {
                 runCatching {
-                    shelf.addBookmark(
+                    shelf.library().addBookmark(
                         publicationId,
                         locator.toJSON().toString(),
                         locator.locations.totalProgression ?: 0.0,

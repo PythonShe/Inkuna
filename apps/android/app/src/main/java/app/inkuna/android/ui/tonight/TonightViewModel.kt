@@ -55,7 +55,7 @@ class TonightViewModel(application: Application) : AndroidViewModel(application)
                 // Unfinished, not all: a book just finished must not be the
                 // "keep reading" hero merely for being touched last.
                 val bookshelf = LibraryStore.bookshelf(getApplication())
-                val publications = bookshelf.list(Shelf.UNFINISHED, Sort.RECENTLY_OPENED)
+                val publications = bookshelf.library().list(Shelf.UNFINISHED, Sort.RECENTLY_OPENED)
                 val unknownAuthor =
                     getApplication<Application>().getString(R.string.unknown_author)
                 val rows = publications.map { BookRow.from(it, unknownAuthor) }
@@ -96,7 +96,7 @@ class TonightViewModel(application: Application) : AndroidViewModel(application)
             ?.locations?.position
             ?: return null
         val ranges = try {
-            bookshelf.chapterPositionRanges(publication.id)
+            bookshelf.progress().chapterPositionRanges(publication.id)
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Throwable) {

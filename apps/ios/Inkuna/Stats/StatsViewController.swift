@@ -65,13 +65,13 @@ final class StatsViewController: ScrollScreenViewController {
         reloadTask = Task { [weak self] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                let overview = try await bookshelf.statsOverview(
+                let overview = try await bookshelf.stats().statsOverview(
                     timezone: timezone,
                     weekStart: weekStart
                 )
                 // Reading, not unfinished: "in progress" means actually
                 // begun, so a freshly imported book stays off this list.
-                let inProgress = try await bookshelf.list(shelf: .reading, sort: .recentlyOpened)
+                let inProgress = try await bookshelf.library().list(shelf: .reading, sort: .recentlyOpened)
                 guard !Task.isCancelled, let self else { return }
                 self.render(overview: overview, inProgress: inProgress)
             } catch is CancellationError {

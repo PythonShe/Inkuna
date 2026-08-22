@@ -283,7 +283,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
     private func startSession() {
         enqueueCoreWrite("session start") { [session, id = publication.id] bookshelf in
             guard session.id == nil else { return }
-            session.id = try await bookshelf.sessionStart(id: id)
+            session.id = try await bookshelf.stats().sessionStart(id: id)
         }
     }
 
@@ -293,7 +293,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         enqueueCoreWrite("session end") { [session] bookshelf in
             guard let sessionID = session.id else { return }
             session.id = nil
-            try await bookshelf.sessionEnd(sessionId: sessionID)
+            try await bookshelf.stats().sessionEnd(sessionId: sessionID)
         }
     }
 
@@ -621,7 +621,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         let counts = total > 0 ? positionCountByResource.map { UInt32(clamping: $0) } : []
         enqueueCoreWrite("report position ranges") { [id = publication.id, logger] bookshelf in
             do {
-                try await bookshelf.reportPositionRanges(id: id, counts: counts)
+                try await bookshelf.progress().reportPositionRanges(id: id, counts: counts)
             } catch {
                 // The core rejects a breakdown that does not line up with
                 // its own spine — it drops duplicate and over-long spine
@@ -629,7 +629,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
                 // spans are lost, but "page N of M" need not be.
                 logger.warning("Position ranges rejected for \(id, privacy: .public): \(error)")
                 guard total > 0 else { return }
-                try await bookshelf.reportPositionCount(id: id, count: UInt32(clamping: total))
+                try await bookshelf.progress().reportPositionCount(id: id, count: UInt32(clamping: total))
             }
         }
     }
@@ -638,7 +638,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         Task { [weak self, id = publication.id, logger] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                let chapters = try await bookshelf.chapters(id: id)
+                let chapters = try await bookshelf.library().chapters(id: id)
                 self?.coreChapters = chapters
             } catch {
                 logger.warning("Fetching chapters for \(id, privacy: .public) failed: \(error)")
@@ -681,7 +681,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         else { return }
         let position = locator.locations.position.map(UInt32.init)
         enqueueCoreWrite("progress") { [id = publication.id] bookshelf in
-            try await bookshelf.updateProgress(
+            try await bookshelf.progress().updateProgress(
                 id: id,
                 locator: locatorJSON,
                 progression: totalProgression,
@@ -965,7 +965,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         Task { [weak self, id = publication.id, logger] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                _ = try await bookshelf.addBookmark(id: id, locator: locatorJSON, progression: progression)
+                _ = try await bookshelf.library().addBookmark(id: id, locator: locatorJSON, progression: progression)
                 guard let self else { return }
                 InkToastView.show(
                     symbol: "bookmark.fill",
@@ -1312,7 +1312,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
     private func runSearch(_ query: String) async -> BookSearchResults? {
         do {
             let bookshelf = try await LibraryStore.shared.library()
-            return try await bookshelf.searchInBook(
+            return try await bookshelf.search().searchInBook(
                 id: publication.id,
                 query: query,
                 limit: ReaderSearchPanel.hitLimit

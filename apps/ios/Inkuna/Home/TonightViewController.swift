@@ -114,7 +114,7 @@ final class TonightViewController: ScrollScreenViewController {
                 let bookshelf = try await LibraryStore.shared.library()
                 // Unfinished, not all: a book just finished must not be the
                 // "keep reading" hero merely for being touched last.
-                let publications = try await bookshelf.list(shelf: .unfinished, sort: .recentlyOpened)
+                let publications = try await bookshelf.library().list(shelf: .unfinished, sort: .recentlyOpened)
                 // The hero's caption wants the chapter it is parked in;
                 // the ranges come from the core, the position from the
                 // stored locator.
@@ -122,7 +122,7 @@ final class TonightViewController: ScrollScreenViewController {
                 if
                     let hero = publications.first,
                     let position = Self.storedPosition(of: hero),
-                    let ranges = try? await bookshelf.chapterPositionRanges(id: hero.id)
+                    let ranges = try? await bookshelf.progress().chapterPositionRanges(id: hero.id)
                 {
                     pagesLeft = Self.pagesLeft(in: ranges, at: position)
                 }

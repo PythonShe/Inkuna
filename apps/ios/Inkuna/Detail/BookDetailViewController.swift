@@ -152,8 +152,8 @@ final class BookDetailViewController: UIViewController {
         refreshTask = Task { [weak self, id = publication.id, logger] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                let publication = try await bookshelf.publication(id: id)
-                let chapters = try await bookshelf.chapters(id: id)
+                let publication = try await bookshelf.library().publication(id: id)
+                let chapters = try await bookshelf.library().chapters(id: id)
                 guard let self, !Task.isCancelled else { return }
                 self.publication = publication
                 self.chapters = chapters

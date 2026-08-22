@@ -64,8 +64,8 @@ class BookDetailViewModel(
         reload = viewModelScope.launch {
             try {
                 val bookshelf = LibraryStore.bookshelf(app)
-                val core = bookshelf.publication(publicationId)
-                val chapters = bookshelf.chapters(publicationId)
+                val core = bookshelf.library().publication(publicationId)
+                val chapters = bookshelf.library().chapters(publicationId)
 
                 // The locator blob is opaque to the core; only Readium
                 // parses it. An unreadable blob degrades to the book-wide
