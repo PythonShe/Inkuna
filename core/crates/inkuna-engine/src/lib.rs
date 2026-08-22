@@ -2,6 +2,7 @@
 //! display lists. Deterministic fixed-point layout; no DB access; archive
 //! reads via inkuna-content only.
 
+pub mod corpus;
 pub mod display;
 pub mod dom;
 mod error;
@@ -18,6 +19,7 @@ pub mod text;
 #[cfg(test)]
 mod test_support;
 
+pub use corpus::extract_corpus;
 pub use display::{
     build_page, digest_hex, page_digest, A11yBlock, A11yRole, ColorRole, Decoration,
     DecorationKind, DisplayContext, GlyphRun, ImagePlacement, LineGeom, LinkRegion,

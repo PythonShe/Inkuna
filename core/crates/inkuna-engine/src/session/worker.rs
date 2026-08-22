@@ -8,14 +8,14 @@ use std::panic::AssertUnwindSafe;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use inkuna_content::{read_resource, resolve_relative, split_fragment};
+use inkuna_content::read_resource;
 
 use crate::display::{build_page, DisplayContext};
-use crate::dom::{parse, StylesheetSource, MAX_STYLESHEET_BYTES};
+use crate::dom::parse;
 use crate::fixed::Fx;
 use crate::paginate::{paginate, ChapterInput, FxSize};
 use crate::settings::LayoutSettings;
-use crate::style::{cap_sheet_sources, parse_sheet, resolve};
+use crate::style::resolve;
 use crate::text::project;
 
 use super::cache::SlotState;
@@ -110,29 +110,9 @@ fn lay_chapter(shared: &Shared, job: &Job) {
         Err(e) => return publish_failed(shared, job, e.to_string()),
     };
 
-    // Stylesheets in document order: linked sheets read through the
-    // container layer (resolved against the chapter's own path;
-    // unreadable → skipped, logged), inline bodies verbatim. The
-    // cascade list drops whole sheets from the END past the byte cap.
-    let mut css: Vec<String> = Vec::new();
-    for source in &doc.stylesheets {
-        match source {
-            StylesheetSource::Inline(text) => css.push(text.clone()),
-            StylesheetSource::Linked(href) => {
-                let resolved = resolve_relative(&job.href, href);
-                let (path, _) = split_fragment(&resolved);
-                match read_resource(&shared.epub_path, path) {
-                    Ok(bytes) => css.push(String::from_utf8_lossy(&bytes).into_owned()),
-                    Err(e) => log::warn!("stylesheet skipped: {path} ({e})"),
-                }
-            }
-        }
-    }
-    let refs: Vec<&str> = css.iter().map(String::as_str).collect();
-    let sheets: Vec<_> = cap_sheet_sources(&refs, MAX_STYLESHEET_BYTES)
-        .iter()
-        .map(|c| parse_sheet(c))
-        .collect();
+    // THE stylesheet loading rules, shared with corpus extraction so
+    // layout and corpus resolve styles identically by construction.
+    let sheets = crate::corpus::chapter_stylesheets(&shared.epub_path, &job.href, &doc);
 
     let styled = resolve(&doc, &sheets);
     let projection = project(&styled);
