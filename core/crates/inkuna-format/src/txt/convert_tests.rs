@@ -2,7 +2,8 @@ use std::fs::File;
 use std::io::Read;
 
 use super::*;
-use inkuna_content::{extract_spine_text, read_package};
+use crate::test_support::extract_spine_text;
+use inkuna_content::read_package;
 use crate::FormatError;
 
 fn convert(bytes: &[u8], title: &str) -> (tempfile::TempDir, std::path::PathBuf, TxtConversion) {

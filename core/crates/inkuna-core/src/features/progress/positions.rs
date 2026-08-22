@@ -11,6 +11,33 @@ use crate::{CoreError, Library};
 #[path = "positions_tests.rs"]
 mod tests;
 
+/// Chars of canonical projection per synthetic position — the one place
+/// the constant lives; import, the reconcile pass, and position lookups
+/// all divide by it here.
+pub(crate) const CHARS_PER_POSITION: u64 = 1024;
+
+/// Per-resource synthetic position ranges from per-resource projected
+/// char counts: `ceil(char_len / 1024).max(1)` positions each — a
+/// textless resource still occupies one position, so position math never
+/// has spine holes — with cumulative 1-based starts. Returns
+/// `(spine_idx, start_position, position_count)` rows, exactly the shape
+/// `resource_positions` stores. The core invents these page numbers now
+/// (superseding the deleted shell-reporting APIs): they are a pure
+/// function of the canonical projection, identical on every platform.
+pub(crate) fn synthetic_positions(char_counts: &[u64]) -> Vec<(u32, u32, u32)> {
+    let mut start: u32 = 1;
+    char_counts
+        .iter()
+        .enumerate()
+        .map(|(spine_idx, &chars)| {
+            let count = chars.div_ceil(CHARS_PER_POSITION).max(1) as u32;
+            let row = (spine_idx as u32, start, count);
+            start = start.saturating_add(count);
+            row
+        })
+        .collect()
+}
+
 impl Library {
     /// Every TOC entry's position span, in chapter order. Empty until the
     /// book's synthetic positions are computed (or when the book has no

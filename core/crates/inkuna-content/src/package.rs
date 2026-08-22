@@ -16,8 +16,8 @@ use crate::toc::{parse_nav, parse_ncx};
 use crate::ContentError;
 
 /// Parses everything import needs in one pass over the archive: metadata,
-/// spine, TOC, and cover bytes. Text extraction is separate
-/// (`extract_spine_text`) so it can run in parallel.
+/// spine, TOC, and cover bytes. Text extraction is separate (the engine's
+/// `extract_corpus`) and re-opens the archive per resource.
 pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
     let mut archive = zip::ZipArchive::new(File::open(path)?)?;
 

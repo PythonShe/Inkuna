@@ -16,14 +16,13 @@ mod href;
 mod model;
 mod opf;
 mod package;
-mod text;
 mod toc;
 mod xml;
 
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 
-pub use archive::{read_resource, MAX_SPINE_ENTRY_BYTES};
+pub use archive::{read_resource, MAX_SPINE_ENTRY_BYTES, MAX_TOTAL_TEXT_BYTES};
 pub use error::ContentError;
 pub use href::{resolve_href, resolve_relative, split_fragment};
 pub use model::{
@@ -31,5 +30,4 @@ pub use model::{
 };
 pub use opf::{MAX_MANIFEST_ITEMS, MAX_METADATA_VALUE_BYTES, MAX_SPINE_ITEMS};
 pub use package::read_package;
-pub use text::{extract_spine_text, MAX_TOTAL_TEXT_BYTES};
 pub use toc::{MAX_TOC_ENTRIES, MAX_TOC_TOTAL_BYTES};

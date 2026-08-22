@@ -118,7 +118,7 @@ fn decodes_cp1252_and_preserves_metadata() {
     assert_eq!(package.metadata.authors, ["André"]);
     assert_eq!(package.metadata.language.as_deref(), Some("en"));
     assert_eq!(package.toc[0].title, "Entrée");
-    let text = epub::extract_spine_text(&epub_path, &package.spine_hrefs());
+    let text = crate::test_support::extract_spine_text(&epub_path, &package.spine_hrefs());
     assert!(text[0].as_deref().unwrap().contains("It’s ready."));
 }
 
@@ -146,7 +146,7 @@ fn round_trips_cjk_and_uses_zh_fallback_chapter_titles() {
             .collect::<Vec<_>>(),
         ["第1章", "第2章"]
     );
-    let text = epub::extract_spine_text(&epub_path, &package.spine_hrefs());
+    let text = crate::test_support::extract_spine_text(&epub_path, &package.spine_hrefs());
     assert!(text[0].as_deref().unwrap().contains("松风入夜。"));
     assert!(text[1].as_deref().unwrap().contains("月照长街。"));
 }
@@ -188,7 +188,7 @@ fn fallback_utf8_encoding_never_splits_a_cjk_codepoint() {
     convert_to_epub(&mobi, &epub_path, "Fallback").unwrap();
 
     let package = epub::read_package(&epub_path).unwrap();
-    let extracted = epub::extract_spine_text(&epub_path, &package.spine_hrefs())
+    let extracted = crate::test_support::extract_spine_text(&epub_path, &package.spine_hrefs())
         .into_iter()
         .flatten()
         .fold(String::new(), |mut all, text| {
@@ -242,7 +242,7 @@ fn accepted_long_tag_stays_whole_across_the_target_chunk_boundary() {
     convert_to_epub(&mobi, &epub_path, "Tag").unwrap();
 
     let package = epub::read_package(&epub_path).unwrap();
-    let text = epub::extract_spine_text(&epub_path, &package.spine_hrefs());
+    let text = crate::test_support::extract_spine_text(&epub_path, &package.spine_hrefs());
     assert!(text.iter().flatten().any(|body| body.contains("body")));
 }
 
@@ -287,7 +287,7 @@ fn converts_pure_kf8_and_prefers_the_kf8_half_of_a_combo() {
     let pure_epub = dir.path().join("pure.epub");
     convert_to_epub(&pure, &pure_epub, "Pure").unwrap();
     let pure_package = epub::read_package(&pure_epub).unwrap();
-    assert!(epub::extract_spine_text(&pure_epub, &pure_package.spine_hrefs())[0]
+    assert!(crate::test_support::extract_spine_text(&pure_epub, &pure_package.spine_hrefs())[0]
         .as_deref()
         .unwrap()
         .contains("new only"));
@@ -304,7 +304,7 @@ fn converts_pure_kf8_and_prefers_the_kf8_half_of_a_combo() {
     let converted = dir.path().join("combo.epub");
     convert_to_epub(&combo, &converted, "Combo").unwrap();
     let package = epub::read_package(&converted).unwrap();
-    let text = epub::extract_spine_text(&converted, &package.spine_hrefs());
+    let text = crate::test_support::extract_spine_text(&converted, &package.spine_hrefs());
     assert!(text[0].as_deref().unwrap().contains("new markup"));
     assert!(!text[0].as_deref().unwrap().contains("old markup"));
 }

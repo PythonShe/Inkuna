@@ -20,15 +20,25 @@ use crate::ContentError;
 /// `MAX_TOC_ENTRIES`). A big book's OPF or NCX can legitimately run to
 /// megabytes, which is why this byte budget stays generous.
 pub(crate) const MAX_XML_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
-/// Per-entry budget for spine content documents, which are far tighter
-/// than the mandatory parts because they are read *concurrently*: the
-/// transient peak is `rayon threads × this`, so the 64 MiB above would
-/// put a 6-core phone around 384 MB — inside jetsam range — no matter
-/// what aggregate budget the corpus keeps, since many reads are already
-/// in flight when it trips. A whole large novel's text is a few MB, so
-/// 8 MiB for one chapter keeps orders of magnitude of headroom over any
-/// honest content while bounding the peak to ~48 MB.
+/// Per-entry budget for spine content documents, far tighter than the
+/// mandatory parts: several readers (layout worker, corpus extraction)
+/// may hold decompressed chapters at once, and the aggregate corpus
+/// budget only bounds what is *retained*, not the in-flight transient.
+/// A whole large novel's text is a few MB, so 8 MiB for one chapter
+/// keeps orders of magnitude of headroom over any honest content.
 pub const MAX_SPINE_ENTRY_BYTES: u64 = 8 * 1024 * 1024;
+/// Aggregate budget for the text retained for one publication. The
+/// per-entry decompression cap bounds a single resource, never the corpus:
+/// a spine may reference resources without limit, and the sum is what the
+/// device actually pays — every retained byte becomes a persistent
+/// `resource_text` row. A very large real novel's full text is a few MB,
+/// and even omnibus "complete works" editions stay under ~20 MB, so
+/// 32 MiB keeps real headroom over any honest book. The previous 128 MiB
+/// was ~25x a huge novel, and measured, it let an 18 KB crafted archive
+/// import into a 364 MB data directory; a crafted spine now stops at a
+/// quarter of that. Consumed by the import pipeline's corpus extraction
+/// and by the TXT converter's decoded-text caps.
+pub const MAX_TOTAL_TEXT_BYTES: usize = 32 * 1024 * 1024;
 /// Same idea for binary resources — cover art and the engine's images —
 /// which never legitimately approach it.
 const MAX_RESOURCE_BYTES: u64 = 16 * 1024 * 1024;

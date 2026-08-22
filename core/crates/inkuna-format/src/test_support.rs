@@ -542,3 +542,146 @@ fn write_pdb(path: &Path, name: &[u8], records: &[Vec<u8>]) {
     }
     std::fs::write(path, bytes).unwrap();
 }
+
+/// Test-only plain-text extraction over a converted EPUB's spine, in the
+/// legacy whitespace-normalized shape the conversion tests' expectations
+/// were built against (newline per block element, single spaces inside a
+/// line). The production corpus is the engine's canonical projection;
+/// this helper exists solely so format tests can assert on the text
+/// their converters emit without depending on the engine crate.
+pub fn extract_spine_text(path: &Path, spine: &[String]) -> Vec<Option<String>> {
+    spine
+        .iter()
+        .map(|href| {
+            let bytes = inkuna_content::read_resource(path, href).ok()?;
+            let xml = String::from_utf8_lossy(&bytes);
+            extract_text(&xml)
+        })
+        .collect()
+}
+
+/// Elements whose entire content is invisible to a reader.
+const SKIPPED: &[&[u8]] = &[b"head", b"script", b"style", b"template"];
+/// Elements that end a line of text.
+const BLOCK: &[&[u8]] = &[
+    b"p",
+    b"div",
+    b"h1",
+    b"h2",
+    b"h3",
+    b"h4",
+    b"h5",
+    b"h6",
+    b"li",
+    b"blockquote",
+    b"section",
+    b"article",
+    b"tr",
+    b"caption",
+    b"figcaption",
+    b"dt",
+    b"dd",
+    b"pre",
+];
+
+fn extract_text(xml: &str) -> Option<String> {
+    use quick_xml::events::Event;
+    let mut reader = quick_xml::Reader::from_str(xml);
+    reader.config_mut().check_end_names = false;
+    let mut buf = Vec::new();
+
+    let mut out = String::new();
+    let mut line = String::new();
+    let mut skip_depth = 0u32;
+
+    fn push_word(acc: &mut String, text: &str) {
+        let mut needs_sep = text.starts_with(char::is_whitespace);
+        for word in text.split_whitespace() {
+            if needs_sep && !acc.is_empty() && !acc.ends_with(' ') {
+                acc.push(' ');
+            }
+            acc.push_str(word);
+            needs_sep = true;
+        }
+        if text.ends_with(char::is_whitespace) && !acc.is_empty() && !acc.ends_with(' ') {
+            acc.push(' ');
+        }
+    }
+
+    fn resolve_ref(r: &quick_xml::events::BytesRef) -> String {
+        if let Ok(Some(ch)) = r.resolve_char_ref() {
+            return ch.to_string();
+        }
+        if let Ok(name) = r.decode() {
+            if let Some(resolved) = quick_xml::escape::resolve_predefined_entity(&name)
+                .or_else(|| quick_xml::escape::resolve_html5_entity(&name))
+            {
+                return resolved.to_string();
+            }
+            return format!("&{name};");
+        }
+        String::new()
+    }
+
+    fn flush(out: &mut String, line: &mut String) {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            out.push_str(trimmed);
+            out.push('\n');
+        }
+        line.clear();
+    }
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) => {
+                if SKIPPED.contains(&e.local_name().as_ref()) {
+                    skip_depth += 1;
+                }
+            }
+            Ok(Event::Empty(e)) => {
+                if skip_depth == 0 && e.local_name().as_ref() == b"br" {
+                    flush(&mut out, &mut line);
+                }
+            }
+            Ok(Event::Text(t)) => {
+                if skip_depth == 0 {
+                    if let Ok(text) = t.decode() {
+                        push_word(&mut line, &text);
+                    }
+                }
+            }
+            Ok(Event::CData(t)) => {
+                if skip_depth == 0 {
+                    if let Ok(text) = std::str::from_utf8(&t) {
+                        push_word(&mut line, text);
+                    }
+                }
+            }
+            Ok(Event::GeneralRef(r)) => {
+                if skip_depth == 0 {
+                    line.push_str(&resolve_ref(&r));
+                }
+            }
+            Ok(Event::End(e)) => {
+                let name = e.local_name();
+                if SKIPPED.contains(&name.as_ref()) {
+                    skip_depth = skip_depth.saturating_sub(1);
+                } else if skip_depth == 0
+                    && (BLOCK.contains(&name.as_ref()) || name.as_ref() == b"br")
+                {
+                    flush(&mut out, &mut line);
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(_) => return None,
+            _ => {}
+        }
+        buf.clear();
+    }
+    flush(&mut out, &mut line);
+    while out.ends_with('\n') {
+        out.pop();
+    }
+    Some(out)
+}

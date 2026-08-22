@@ -12,7 +12,7 @@ pub(crate) use inkuna_format::test_support::{Kf8FileFixture, MobiTestBuilder};
 // The EPUB fixture builders moved to `inkuna-content` with the parsers;
 // re-exported so existing tests keep compiling unchanged.
 pub(crate) use inkuna_content::test_support::{
-    write_epub, write_epub_parts, write_epub_with, CoverKind, TocKind,
+    write_epub, write_epub_parts, write_epub_with, CoverKind, EpubBuilder, TocKind,
 };
 
 pub(crate) fn write_cbz(path: &Path) {

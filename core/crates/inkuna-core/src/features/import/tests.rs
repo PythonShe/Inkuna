@@ -1,6 +1,6 @@
 use crate::test_support::{
-    imported, write_cbz, write_epub, write_epub_parts, write_epub_with, CoverKind, Kf8FileFixture,
-    MobiTestBuilder, TocKind,
+    imported, write_cbz, write_epub, write_epub_parts, write_epub_with, CoverKind, EpubBuilder,
+    Kf8FileFixture, MobiTestBuilder, TocKind,
 };
 use crate::{CoreError, ImportOutcome, Library, Shelf, Sort};
 
@@ -1265,4 +1265,133 @@ fn written_epub_imports_end_to_end() {
     assert_eq!(publication.authors, ["紫式部"]);
     assert_eq!(publication.language.as_deref(), Some("ja"));
     assert_eq!(library.chapters(&publication.id).unwrap().len(), 1);
+}
+
+#[test]
+fn import_positions_computed() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    // Two small chapters → one synthetic position each, cumulative starts.
+    let rows: Vec<(u32, u32, u32)> = library
+        .readers
+        .with(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT spine_idx, start_position, position_count FROM resource_positions
+                 WHERE publication_id = ?1 ORDER BY spine_idx",
+            )?;
+            let rows = stmt.query_map([&publication.id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(rows, vec![(0, 1, 1), (1, 2, 1)]);
+    assert_eq!(publication.position_count, Some(2));
+    assert_eq!(
+        library.publication(&publication.id).unwrap().position_count,
+        Some(2)
+    );
+
+    // A fresh import is rebaselined by construction; the reconcile pass
+    // skips it. No reading position yet.
+    let (reconciled_at, spine_idx, char_offset): (Option<i64>, Option<i64>, Option<i64>) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT reconciled_at, position_spine_idx, position_char_offset
+                 FROM publications WHERE id = ?1",
+                [&publication.id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert!(reconciled_at.is_some());
+    assert_eq!(spine_idx, None);
+    assert_eq!(char_offset, None);
+}
+
+#[test]
+fn import_corpus_is_projection() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    let stored: Vec<(String, Option<String>)> = library
+        .readers
+        .with(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT r.href, t.body FROM resources r
+                 LEFT JOIN resource_text t ON t.resource_id = r.id
+                 WHERE r.publication_id = ?1 ORDER BY r.spine_idx",
+            )?;
+            let rows = stmt.query_map([&publication.id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })
+        .unwrap();
+
+    let file = library.data_dir().join(&publication.file_path);
+    let hrefs: Vec<String> = stored.iter().map(|(href, _)| href.clone()).collect();
+    let projected =
+        inkuna_engine::extract_corpus(&file, &hrefs, inkuna_content::MAX_TOTAL_TEXT_BYTES);
+    assert_eq!(stored.len(), projected.len());
+    for ((_, body), expected) in stored.iter().zip(&projected) {
+        assert_eq!(body, expected);
+        // The fixture chapters all carry text; the corpus must too.
+        assert!(body.as_deref().is_some_and(|b| !b.is_empty()));
+    }
+}
+
+#[test]
+fn textless_resource_still_positioned() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    EpubBuilder::new()
+        .language("ja")
+        .resource(
+            "ch01.xhtml",
+            "application/xhtml+xml",
+            "<html><body><p>月の光。</p></body></html>".as_bytes(),
+        )
+        .resource("bad.xhtml", "application/xhtml+xml", &[0xFF, 0xFE, 0x00])
+        .spine(&["ch01.xhtml", "bad.xhtml"])
+        .write(&epub);
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    // The garbage resource has no text row…
+    let text_rows = count(
+        &library,
+        "SELECT COUNT(*) FROM resource_text WHERE resource_id IN
+             (SELECT id FROM resources WHERE publication_id = ?1)",
+        &publication.id,
+    );
+    assert_eq!(text_rows, 1);
+
+    // …but still occupies one synthetic position, so position math never
+    // has spine holes.
+    let rows: Vec<(u32, u32, u32)> = library
+        .readers
+        .with(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT spine_idx, start_position, position_count FROM resource_positions
+                 WHERE publication_id = ?1 ORDER BY spine_idx",
+            )?;
+            let rows = stmt.query_map([&publication.id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(rows, vec![(0, 1, 1), (1, 2, 1)]);
+    assert_eq!(publication.position_count, Some(2));
 }

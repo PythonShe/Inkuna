@@ -3,7 +3,8 @@ use std::io::Read;
 
 use super::*;
 use crate::FormatError;
-use inkuna_content::{extract_spine_text, read_package};
+use crate::test_support::extract_spine_text;
+use inkuna_content::read_package;
 
 const COVER_BYTES: &[u8] = b"\x89PNG\r\n\x1a\nwriter cover";
 

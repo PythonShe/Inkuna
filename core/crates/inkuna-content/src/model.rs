@@ -95,9 +95,8 @@ pub struct EpubPackage {
 
 impl EpubPackage {
     /// The spine's hrefs alone, in reading order — a convenience
-    /// accessor in the shape [`crate::extract_spine_text`] takes. Only
-    /// tests consume it today; the import pipeline builds its href list
-    /// inline.
+    /// accessor in the shape corpus extraction takes. Only tests consume
+    /// it today; the import pipeline builds its href list inline.
     pub fn spine_hrefs(&self) -> Vec<String> {
         self.spine.iter().map(|item| item.href.clone()).collect()
     }
