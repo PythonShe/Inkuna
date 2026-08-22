@@ -29,7 +29,12 @@ pub use format::Format;
 pub use import::{FdImport, ImportOutcome, ImportProgressListener, ShelfImport};
 pub use library::{Bookmark, Chapter, Publication, Shelf, ShelfLibrary, Sort};
 pub use progress::{ChapterPositionRange, ShelfProgress};
-pub use reader::Coordinate;
+pub use reader::{
+    A11yBlock, A11yRole, ChapterGeometry, CharRange, ColorRole, Coordinate, Decoration,
+    DecorationKind, FontAxis, FontEntry, GlyphRun, HitResult, ImagePlacement, LayoutListener,
+    LinkRegion, PageDisplayList, PageLocation, ReaderLayoutSettings, ReaderSession, Rect,
+    RunOrientation, SelectionRect, Viewport, WritingMode,
+};
 pub use search::{BookSearchHit, BookSearchResults, LibrarySearchHit, ShelfSearch};
 pub use settings::{Settings, ShelfSettings};
 pub use stats::{ShelfStats, StatsOverview};
