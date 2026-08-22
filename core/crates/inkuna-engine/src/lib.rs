@@ -2,6 +2,7 @@
 //! display lists. Deterministic fixed-point layout; no DB access; archive
 //! reads via inkuna-content only.
 
+pub mod display;
 pub mod dom;
 mod error;
 pub mod fixed;
@@ -16,6 +17,10 @@ pub mod text;
 #[cfg(test)]
 mod test_support;
 
+pub use display::{
+    build_page, A11yBlock, A11yRole, ColorRole, Decoration, DecorationKind, DisplayContext,
+    GlyphRun, ImagePlacement, LineGeom, LinkRegion, PageDisplayList, PageMaps, Rect,
+};
 pub use dom::{parse, Document};
 pub use error::EngineError;
 pub use fixed::Fx;
@@ -25,8 +30,8 @@ pub use layout::{
     ShapedSegment, MAX_LINES_PER_PARAGRAPH,
 };
 pub use paginate::{
-    paginate, ChapterInput, ChapterLayoutResult, DecorationKind, FxRect, FxSize, LaidPage,
-    PlacedDecoration, PlacedImage, PlacedLine, MAX_PAGES_PER_CHAPTER,
+    paginate, ChapterInput, ChapterLayoutResult, DecorationKind as PlacedDecorationKind, FxRect,
+    FxSize, LaidPage, PlacedDecoration, PlacedImage, PlacedLine, MAX_PAGES_PER_CHAPTER,
 };
 pub use settings::{FontFamily, LayoutSettings, Typography};
 pub use shape::{

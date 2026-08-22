@@ -12,6 +12,9 @@ mod shaping;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use blocks::{is_block, nearest_block};
+pub(crate) use shaping::rt_text;
+
 pub use images::PlacedImage;
 pub use pages::{
     paginate, ChapterInput, ChapterLayoutResult, DecorationKind, FxRect, FxSize, LaidPage,

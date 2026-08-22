@@ -218,7 +218,7 @@ fn heading_level(name: &ElementName) -> Option<usize> {
 
 /// The block set that opens/closes projection `\n` boundaries — kept
 /// identical to `is_block` in the projection (`text/projection.rs`).
-pub(super) fn is_block(name: &ElementName) -> bool {
+pub(crate) fn is_block(name: &ElementName) -> bool {
     matches!(
         name,
         ElementName::P
@@ -244,7 +244,7 @@ pub(super) fn is_block(name: &ElementName) -> bool {
 
 /// The nearest block-set ancestor of a text node; the document root
 /// when text sits directly under `body`.
-fn nearest_block(doc: &Document, node: NodeId) -> NodeId {
+pub(crate) fn nearest_block(doc: &Document, node: NodeId) -> NodeId {
     let mut cur = doc.node(node).parent;
     while let Some(id) = cur {
         if doc.element(id).is_some_and(|el| is_block(&el.name)) {

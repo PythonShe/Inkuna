@@ -174,7 +174,7 @@ fn nearest_ruby(doc: &Document, node: NodeId) -> Option<NodeId> {
 
 /// The collapsed annotation text of a ruby element's `rt` subtrees —
 /// gathered from the DOM because the projection excludes `rt`.
-fn rt_text(doc: &Document, ruby: NodeId) -> String {
+pub(crate) fn rt_text(doc: &Document, ruby: NodeId) -> String {
     let mut raw = String::new();
     collect_rt(doc, ruby, false, &mut raw);
     let words: Vec<&str> = raw.split_whitespace().collect();
