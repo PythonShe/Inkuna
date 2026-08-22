@@ -346,3 +346,42 @@ fn fallback_split_output_locked() {
         assert!(run.glyphs.iter().all(|g| g.glyph_id != 0));
     }
 }
+
+#[test]
+fn hebrew_falls_back_to_hebrew_face() {
+    let fonts = registry();
+    let runs = shape_text("שלום", &ctx(fonts));
+    assert!(!runs.is_empty());
+    for run in &runs {
+        assert_eq!(run.font_id, 24, "Serif Hebrew Regular");
+        assert!(
+            run.glyphs.iter().all(|g| g.glyph_id != 0),
+            "Hebrew must not shape to .notdef"
+        );
+    }
+}
+
+#[test]
+fn hebrew_fallback_serif_sans_bold_italic() {
+    let fonts = registry();
+    let mut c = ctx(fonts);
+    c.font_weight = FontWeight::Bold;
+    assert!(shape_text("א", &c).iter().all(|r| r.font_id == 25));
+    c.family = FontFamily::NotoSans;
+    assert!(shape_text("א", &c).iter().all(|r| r.font_id == 27));
+    // No Hebrew italics exist: italic requests map to regular.
+    c.family = FontFamily::NotoSerif;
+    c.font_weight = FontWeight::Normal;
+    c.font_style = FontStyle::Italic;
+    assert!(shape_text("א", &c).iter().all(|r| r.font_id == 24));
+}
+
+#[test]
+fn non_hebrew_misses_skip_hebrew_stage() {
+    // A CJK char missing from the reading face must still fall to the
+    // CJK stage, never the Hebrew face.
+    let fonts = registry();
+    let runs = shape_text("汉", &ctx(fonts));
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].font_id, 8, "Serif CJK SC Regular");
+}

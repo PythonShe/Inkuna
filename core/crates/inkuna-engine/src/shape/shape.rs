@@ -1,12 +1,15 @@
 //! Turns itemized text into positioned glyph runs via rustybuzz, with
-//! the explicit fallback chain: reading face → CJK face → symbols →
-//! the reading face's `.notdef`. Visible text is never dropped — only
+//! the explicit fallback chain: reading face → script fallback (Hebrew
+//! clusters only) → CJK face → symbols → the reading face's `.notdef`.
+//! Visible text is never dropped — only
 //! control/default-ignorable characters emit no glyphs (see
 //! [`shape_text`]). Missing-glyph detection is cluster-granular, so
 //! ligatures never straddle fonts.
 //!
 //! Determinism: rustybuzz is pure Rust over fixed bytes, and no path
 //! that orders output iterates a HashMap.
+
+use unicode_script::{Script, UnicodeScript};
 
 use crate::fixed::Fx;
 use crate::fonts::FontRegistry;
@@ -71,20 +74,28 @@ pub struct ShapeContext<'a> {
     pub base_rtl: bool,
 }
 
-/// The fallback chain, in order. `Notdef` re-shapes with the reading
-/// face and accepts glyph 0 — the terminal stage.
+/// The fallback chain, in order. `Hebrew` is the script-fallback
+/// stage: only clusters whose characters are Hebrew script enter it
+/// (see [`Stage::next`]); everything else falls from `Reading`
+/// straight to `Cjk`. `Notdef` re-shapes with the reading face and
+/// accepts glyph 0 — the terminal stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stage {
     Reading,
+    Hebrew,
     Cjk,
     Symbols,
     Notdef,
 }
 
 impl Stage {
-    fn next(self) -> Option<Stage> {
+    /// The next stage for a missing cluster group; `hebrew` is whether
+    /// the group's characters are Hebrew script (the only script-aware
+    /// fork in the chain today).
+    fn next(self, hebrew: bool) -> Option<Stage> {
         match self {
-            Stage::Reading => Some(Stage::Cjk),
+            Stage::Reading if hebrew => Some(Stage::Hebrew),
+            Stage::Reading | Stage::Hebrew => Some(Stage::Cjk),
             Stage::Cjk => Some(Stage::Symbols),
             Stage::Symbols => Some(Stage::Notdef),
             Stage::Notdef => None,
@@ -97,6 +108,11 @@ impl Stage {
                 ctx.fonts
                     .select(ctx.family, ctx.font_style, ctx.font_weight)
             }
+            // Serif/sans per family, bold per weight; no Hebrew italics
+            // exist — the registry maps italic requests to regular.
+            Stage::Hebrew => ctx
+                .fonts
+                .hebrew(ctx.family == FontFamily::NotoSerif, ctx.font_weight),
             Stage::Cjk => ctx.fonts.cjk(
                 ctx.lang,
                 ctx.family == FontFamily::NotoSerif,
@@ -187,7 +203,7 @@ fn shape_slice(
     clusters.sort_unstable_by_key(|(c, _)| *c);
 
     let end_char = (start_char + slice.chars().count()) as u32;
-    let terminal = stage.next().is_none();
+    let terminal = stage == Stage::Notdef;
     if terminal || clusters.iter().all(|(_, missing)| !missing) {
         push_run(
             runs,
@@ -213,7 +229,10 @@ fn shape_slice(
         if missing {
             let rel_start = char_bytes[(group_start as usize) - start_char];
             let rel_end = char_bytes[(group_end as usize) - start_char];
-            if let Some(next) = stage.next() {
+            let hebrew = chars[group_start as usize..group_end as usize]
+                .iter()
+                .any(|c| c.script() == Script::Hebrew);
+            if let Some(next) = stage.next(hebrew) {
                 shape_slice(
                     &slice[rel_start..rel_end],
                     group_start as usize,

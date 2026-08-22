@@ -25,7 +25,7 @@ fn registry() -> Arc<FontRegistry> {
 fn loads_repo_font_set() {
     let reg = registry();
     let entries = reg.entries();
-    assert_eq!(entries.len(), 25);
+    assert_eq!(entries.len(), 29);
     for entry in &entries {
         let face = reg.face(entry.id);
         assert!(face.upem > 0, "face {} upem", entry.id);
@@ -96,8 +96,20 @@ fn id_order_is_stable() {
         expect(serif_regular + 8, ["Sans", region, "Regular"]);
         expect(serif_regular + 9, ["Sans", region, "Bold"]);
     }
-    assert_eq!(file(24), "NotoSansSymbols2-Regular.ttf");
-    expect(24, ["Noto", "Sans", "Symbols"]);
+    // Hebrew 24..=27: Serif before Sans, Regular before Bold — between
+    // the CJK block and Symbols. Identity proven by name table, like
+    // the CJK faces.
+    assert_eq!(file(24), "NotoSerifHebrew-Regular.ttf");
+    expect(24, ["Serif", "Hebrew", "Regular"]);
+    assert_eq!(file(25), "NotoSerifHebrew-Bold.ttf");
+    expect(25, ["Serif", "Hebrew", "Bold"]);
+    assert_eq!(file(26), "NotoSansHebrew-Regular.ttf");
+    expect(26, ["Sans", "Hebrew", "Regular"]);
+    assert_eq!(file(27), "NotoSansHebrew-Bold.ttf");
+    expect(27, ["Sans", "Hebrew", "Bold"]);
+    // Symbols stays LAST — the fallback chain's terminal face.
+    assert_eq!(file(28), "NotoSansSymbols2-Regular.ttf");
+    expect(28, ["Noto", "Sans", "Symbols"]);
     for (i, entry) in entries.iter().enumerate() {
         assert_eq!(entry.id, i as u32);
     }
@@ -146,7 +158,27 @@ fn select_bold_italic() {
         reg.select(FontFamily::NotoSans, FontStyle::Italic, FontWeight::Bold),
         7
     );
-    assert_eq!(reg.symbols(), 24);
+    assert_eq!(reg.symbols(), 28);
+}
+
+#[test]
+fn hebrew_family_weight() {
+    let reg = registry();
+    assert_eq!(reg.hebrew(true, FontWeight::Normal), 24);
+    assert_eq!(reg.hebrew(true, FontWeight::Bold), 25);
+    assert_eq!(reg.hebrew(false, FontWeight::Normal), 26);
+    assert_eq!(reg.hebrew(false, FontWeight::Bold), 27);
+    // Every Hebrew face actually maps a Hebrew letter (א) — the
+    // fallback stage would be pointless tofu otherwise.
+    for id in 24..=27 {
+        let face = reg.face(id);
+        let parsed = match rustybuzz::ttf_parser::Face::parse(&face.data, face.collection_index) {
+            Ok(f) => f,
+            Err(e) => panic!("face {id} must parse: {e}"),
+        };
+        let gid = parsed.glyph_index('\u{05D0}');
+        assert!(gid.is_some_and(|g| g.0 != 0), "face {id} must cover Hebrew");
+    }
 }
 
 #[test]

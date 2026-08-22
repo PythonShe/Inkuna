@@ -1,5 +1,6 @@
 //! Text shaping: bidi + script itemization, rustybuzz shaping with the
-//! reading→CJK→symbols→`.notdef` fallback chain, vertical-mode
+//! reading→Hebrew (Hebrew-script clusters only)→CJK→symbols→`.notdef`
+//! fallback chain, vertical-mode
 //! orientation, and ruby runs.
 
 mod itemize;

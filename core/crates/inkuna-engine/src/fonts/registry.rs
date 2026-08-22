@@ -10,7 +10,12 @@
 //! | 4–7   | NotoSans: Regular, Italic, Bold, BoldItalic               |
 //! | 8–15  | NotoSerifCJK: SC, TC, JP, KR — Regular before Bold        |
 //! | 16–23 | NotoSansCJK: SC, TC, JP, KR — Regular before Bold         |
-//! | 24    | NotoSansSymbols2-Regular                                  |
+//! | 24–27 | NotoHebrew: Serif Regular, Serif Bold, Sans Regular, Sans Bold |
+//! | 28    | NotoSansSymbols2-Regular                                  |
+//!
+//! Hebrew ids sit between the CJK block and Symbols (Symbols stays the
+//! LAST id — the fallback chain's terminal face). No Hebrew italics
+//! exist upstream; italic requests map to the regular faces.
 //!
 //! The CJK faces live in language-specific OTCs (one file per
 //! family+weight); `collection_index` picks the region face inside the
@@ -82,7 +87,7 @@ const SANS_CJK_REGULAR: &str = "NotoSansCJK-Regular.ttc";
 const SANS_CJK_BOLD: &str = "NotoSansCJK-Bold.ttc";
 
 /// The fixed face set, in id order.
-const MANIFEST: [ManifestRow; 25] = [
+const MANIFEST: [ManifestRow; 29] = [
     row("NotoSerif.ttf", 0),
     row("NotoSerif-Italic.ttf", 0),
     row("NotoSerif-Bold.ttf", 0),
@@ -107,12 +112,18 @@ const MANIFEST: [ManifestRow; 25] = [
     row(SANS_CJK_BOLD, OTC_JP),
     row(SANS_CJK_REGULAR, OTC_KR),
     row(SANS_CJK_BOLD, OTC_KR),
+    row("NotoSerifHebrew-Regular.ttf", 0),
+    row("NotoSerifHebrew-Bold.ttf", 0),
+    row("NotoSansHebrew-Regular.ttf", 0),
+    row("NotoSansHebrew-Bold.ttf", 0),
     row("NotoSansSymbols2-Regular.ttf", 0),
 ];
 
-const SYMBOLS_ID: u32 = 24;
+const SYMBOLS_ID: u32 = 28;
 const CJK_BASE_ID: u32 = 8;
 const CJK_FAMILY_STRIDE: u32 = 8; // serif block → sans block
+const HEBREW_BASE_ID: u32 = 24;
+const HEBREW_FAMILY_STRIDE: u32 = 2; // serif pair → sans pair
 
 /// The loaded, validated bundled font set.
 pub struct FontRegistry {
@@ -210,6 +221,19 @@ impl FontRegistry {
             FontWeight::Bold => 1,
         };
         CJK_BASE_ID + family + region * 2 + bold
+    }
+
+    /// The Hebrew face id for a family + weight. No Hebrew italics
+    /// exist upstream, so callers with an italic request pass their
+    /// family/weight here unchanged — italic maps to regular by
+    /// construction. `style_serif` picks the family.
+    pub fn hebrew(&self, style_serif: bool, weight: FontWeight) -> u32 {
+        let family = if style_serif { 0 } else { HEBREW_FAMILY_STRIDE };
+        let bold = match weight {
+            FontWeight::Normal => 0,
+            FontWeight::Bold => 1,
+        };
+        HEBREW_BASE_ID + family + bold
     }
 
     /// The terminal fallback face before `.notdef`.

@@ -279,14 +279,20 @@ fn cjk_vertical_ruby_fixture() -> EpubBuilder {
 }
 
 fn rtl_fixture() -> EpubBuilder {
-    let ch1 = doc(
-        "",
-        r#" dir="rtl""#,
-        &paras(
-            "<p>בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃</p>",
-            16,
-        ),
-    );
+    // Each paragraph carries a distinct Hebrew-letter verse marker so
+    // consecutive pages hold DIFFERENT content: a fixture whose pages
+    // all hash to one digest would let a page-indexing bug through the
+    // parity gate.
+    let markers = [
+        "א", "ב", "ג", "ד", "ה", "ו", "ז", "ח", "ט", "י", "כ", "ל", "מ", "נ", "ס", "ע",
+    ];
+    let mut body = String::new();
+    for m in markers {
+        body.push_str(&format!(
+            "<p>{m} בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃</p>\n"
+        ));
+    }
+    let ch1 = doc("", r#" dir="rtl""#, &body);
     EpubBuilder::new()
         .language("he")
         .resource("ch01.xhtml", "application/xhtml+xml", ch1.as_bytes())
