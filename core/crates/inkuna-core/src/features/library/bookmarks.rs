@@ -1,4 +1,6 @@
-//! Bookmarks: opaque Readium locators pinned to a point in a publication.
+//! Bookmarks: content coordinates pinned to a point in a publication.
+
+use inkuna_engine::Coordinate;
 
 use super::model::Bookmark;
 use super::Library;
@@ -6,16 +8,16 @@ use crate::core::time::unix_now;
 use crate::CoreError;
 
 impl Library {
-    /// Pins `locator` (opaque Readium locator JSON, stored verbatim and
-    /// never parsed) to a publication. `progression` is the book-wide
+    /// Pins `coordinate` to a publication. `progression` is the book-wide
     /// position the list sorts by: it is clamped to 0.0..=1.0, and a
     /// non-finite value becomes 0.0 rather than failing, because a bad
-    /// number from a navigator must not cost the reader the bookmark.
-    /// Returns `NotFound` if no publication has that id.
+    /// number must not cost the reader the bookmark. The legacy `locator`
+    /// column is NOT NULL, so new rows write it as `''`. Returns
+    /// `NotFound` if no publication has that id.
     pub fn add_bookmark(
         &self,
         publication_id: &str,
-        locator: &str,
+        coordinate: Coordinate,
         progression: f64,
     ) -> Result<Bookmark, CoreError> {
         let progression = if progression.is_finite() {
@@ -26,7 +28,7 @@ impl Library {
         let bookmark = Bookmark {
             id: uuid::Uuid::new_v4().to_string(),
             publication_id: publication_id.to_string(),
-            locator: locator.to_string(),
+            coordinate,
             progression,
             created_at: unix_now(),
         };
@@ -40,12 +42,15 @@ impl Library {
             return Err(CoreError::NotFound(publication_id.to_string()));
         }
         conn.execute(
-            "INSERT INTO bookmarks (id, publication_id, locator, progression, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO bookmarks
+                (id, publication_id, locator, position_spine_idx, position_char_offset,
+                 progression, created_at)
+             VALUES (?1, ?2, '', ?3, ?4, ?5, ?6)",
             rusqlite::params![
                 bookmark.id,
                 bookmark.publication_id,
-                bookmark.locator,
+                bookmark.coordinate.spine_idx,
+                bookmark.coordinate.char_offset as i64,
                 bookmark.progression,
                 bookmark.created_at,
             ],
@@ -53,21 +58,29 @@ impl Library {
         Ok(bookmark)
     }
 
-    /// Bookmarks for a publication, sorted by progression through the book.
+    /// Bookmarks for a publication, sorted by progression through the
+    /// book. A legacy row the V8 rebaseline has not converted yet reads
+    /// as the book-start default `(0, 0)`.
     pub fn bookmarks(&self, publication_id: &str) -> Result<Vec<Bookmark>, CoreError> {
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(
-                "SELECT id, publication_id, locator, progression, created_at
+                "SELECT id, publication_id, position_spine_idx, position_char_offset,
+                        progression, created_at
                  FROM bookmarks WHERE publication_id = ?1
                  ORDER BY progression, created_at, rowid",
             )?;
             let rows = stmt.query_map([publication_id], |row| {
+                let spine_idx: Option<u32> = row.get(2)?;
+                let char_offset: Option<i64> = row.get(3)?;
                 Ok(Bookmark {
                     id: row.get(0)?,
                     publication_id: row.get(1)?,
-                    locator: row.get(2)?,
-                    progression: row.get(3)?,
-                    created_at: row.get(4)?,
+                    coordinate: Coordinate {
+                        spine_idx: spine_idx.unwrap_or(0),
+                        char_offset: char_offset.unwrap_or(0).max(0) as u64,
+                    },
+                    progression: row.get(4)?,
+                    created_at: row.get(5)?,
                 })
             })?;
             rows.collect::<Result<_, _>>().map_err(Into::into)

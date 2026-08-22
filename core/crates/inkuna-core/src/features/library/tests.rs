@@ -29,7 +29,15 @@ fn imports_cjk_epub_and_roundtrips() {
     assert_eq!(library.publication(&publication.id).unwrap(), publication);
 
     library
-        .update_progress(&publication.id, "{}", 0.42, None)
+        .update_progress(
+            &publication.id,
+            inkuna_engine::Coordinate {
+                spine_idx: 0,
+                char_offset: 0,
+            },
+            0.42,
+            None,
+        )
         .unwrap();
     assert_eq!(
         library.list(Shelf::All, Sort::RecentlyAdded).unwrap()[0].progression,
@@ -164,14 +172,20 @@ fn bookmarks_roundtrip_sorted_by_progression() {
     let late = library
         .add_bookmark(
             &publication.id,
-            r#"{"locations":{"totalProgression":0.8}}"#,
+            inkuna_engine::Coordinate {
+                spine_idx: 1,
+                char_offset: 24,
+            },
             0.8,
         )
         .unwrap();
     let early = library
         .add_bookmark(
             &publication.id,
-            r#"{"locations":{"totalProgression":0.2}}"#,
+            inkuna_engine::Coordinate {
+                spine_idx: 0,
+                char_offset: 3,
+            },
             0.2,
         )
         .unwrap();
@@ -186,7 +200,14 @@ fn bookmarks_roundtrip_sorted_by_progression() {
         Err(CoreError::NotFound(_))
     ));
     assert!(matches!(
-        library.add_bookmark("missing", "{}", 0.5),
+        library.add_bookmark(
+            "missing",
+            inkuna_engine::Coordinate {
+                spine_idx: 0,
+                char_offset: 0,
+            },
+            0.5
+        ),
         Err(CoreError::NotFound(_))
     ));
 }

@@ -7,8 +7,8 @@ license.workspace = true
 [dependencies]
 inkuna-content = { path = "../inkuna-content" }
 inkuna-format = { path = "../inkuna-format" }
-# Unused until the reader engine lands (M6); the dependency edge is the
-# point — the crate graph is final from here on.
+# The reader layout engine: corpus extraction at import, coordinates
+# through progress/bookmarks, and the session surface re-exported for FFI.
 inkuna-engine = { path = "../inkuna-engine" }
 rusqlite = { version = "0.40", features = ["bundled"] }
 chrono = "0.4.45"

@@ -3,6 +3,7 @@
 
 use crate::bookshelf::blocking;
 use crate::error::InkunaError;
+use crate::reader::Coordinate;
 
 /// One TOC entry's span of synthetic positions; 1-based, both bounds
 /// inclusive. Sparse per chapter: entries whose href matches no spine
@@ -32,18 +33,42 @@ pub struct ShelfProgress(pub(crate) std::sync::Arc<inkuna_core::Library>);
 
 #[uniffi::export(async_runtime = "tokio")]
 impl ShelfProgress {
-    /// One call per page turn. `locator` is the opaque Readium locator
-    /// JSON; `progression` the book-wide totalProgression; `position` the
-    /// synthetic position, once the navigator knows it.
+    /// One call per page turn. `coordinate` is the content coordinate of
+    /// the page's first character; `progression` the book-wide total.
+    /// Shells may pass `position: None` — the core derives the synthetic
+    /// position from the coordinate.
     pub async fn update_progress(
         &self,
         id: String,
-        locator: String,
+        coordinate: Coordinate,
         progression: f64,
         position: Option<u32>,
     ) -> Result<(), InkunaError> {
         let library = self.0.clone();
-        blocking(move || Ok(library.update_progress(&id, &locator, progression, position)?)).await
+        blocking(move || {
+            Ok(library.update_progress(&id, coordinate.into(), progression, position)?)
+        })
+        .await
+    }
+
+    /// The 1-based synthetic position of `coordinate` — session-free, so
+    /// Home/Detail screens can label "page N of M" without opening a
+    /// reader. A book with no position rows answers `1`; past-end
+    /// coordinates clamp to the last position.
+    pub async fn position_of(
+        &self,
+        id: String,
+        coordinate: Coordinate,
+    ) -> Result<u32, InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.position_of(&id, coordinate.into())?)).await
+    }
+
+    /// The publication's total synthetic position count, session-free. A
+    /// book with no position rows answers `1`.
+    pub async fn position_count(&self, id: String) -> Result<u32, InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.position_count(&id)?)).await
     }
 
     /// Every TOC entry's position span, in chapter order; empty until the

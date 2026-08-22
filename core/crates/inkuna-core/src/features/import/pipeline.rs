@@ -474,7 +474,7 @@ impl Library {
             cover_path: cover_rel.clone(),
             added_at: unix_now(),
             progression: 0.0,
-            locator: None,
+            coordinate: None,
             position_count: (position_total > 0).then_some(position_total),
             finished_at: None,
             last_opened_at: None,

@@ -1,5 +1,7 @@
 //! The library's row types and the shared publication row mapping.
 
+use inkuna_engine::Coordinate;
+
 use crate::Format;
 
 /// Authors are stored joined by the ASCII unit separator: it cannot appear
@@ -23,10 +25,12 @@ pub struct Publication {
     pub added_at: i64,
     /// Book-wide `totalProgression` in [0, 1] — never per-resource.
     pub progression: f64,
-    /// Current position: opaque Readium locator JSON, stored and returned,
-    /// never parsed.
-    pub locator: Option<String>,
-    /// Readium synthetic position count, reported by the shell's navigator.
+    /// Current reading position as a content coordinate; `None` until the
+    /// first progress write (pre-reconcile rows also surface `None` while
+    /// the V8 rebaseline is still converting their legacy locator).
+    pub coordinate: Option<Coordinate>,
+    /// Core-computed synthetic position count over the canonical
+    /// projection.
     pub position_count: Option<u32>,
     /// Non-NULL = on the Finished shelf; powers "books this year".
     pub finished_at: Option<i64>,
@@ -69,23 +73,23 @@ pub enum Sort {
     RecentlyAdded,
 }
 
-/// A reader-placed mark in a publication. The core stores the locator and
-/// the position it sorts by; what the row *shows* comes out of the locator,
-/// which the core never interprets.
+/// A reader-placed mark in a publication: a content coordinate plus the
+/// book-wide progression the list sorts by. A legacy row whose
+/// coordinate the V8 rebaseline has not converted yet reads as the
+/// book-start default `(0, 0)`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bookmark {
     pub id: String,
     pub publication_id: String,
-    /// Opaque Readium locator JSON; carries the `href`/`title`/`text`
-    /// context a bookmark row renders from.
-    pub locator: String,
+    pub coordinate: Coordinate,
     pub progression: f64,
     pub created_at: i64,
 }
 
 pub(crate) const PUB_COLUMNS: &str =
     "id, title, authors, language, text_encoding, format, file_path, \
-     cover_path, added_at, progression, locator, position_count, finished_at, last_opened_at";
+     cover_path, added_at, progression, position_spine_idx, position_char_offset, \
+     position_count, finished_at, last_opened_at";
 
 pub(crate) fn map_publication(row: &rusqlite::Row) -> rusqlite::Result<Publication> {
     let format_str: String = row.get(5)?;
@@ -93,6 +97,18 @@ pub(crate) fn map_publication(row: &rusqlite::Row) -> rusqlite::Result<Publicati
         rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e))
     })?;
     let authors: String = row.get(2)?;
+    // Both coordinate columns non-NULL → a position exists; anything else
+    // (fresh book, or a legacy row the rebaseline has not converted yet)
+    // surfaces `None`.
+    let spine_idx: Option<u32> = row.get(10)?;
+    let char_offset: Option<i64> = row.get(11)?;
+    let coordinate = match (spine_idx, char_offset) {
+        (Some(spine_idx), Some(char_offset)) => Some(Coordinate {
+            spine_idx,
+            char_offset: char_offset.max(0) as u64,
+        }),
+        _ => None,
+    };
     Ok(Publication {
         id: row.get(0)?,
         title: row.get(1)?,
@@ -104,10 +120,10 @@ pub(crate) fn map_publication(row: &rusqlite::Row) -> rusqlite::Result<Publicati
         cover_path: row.get(7)?,
         added_at: row.get(8)?,
         progression: row.get(9)?,
-        locator: row.get(10)?,
-        position_count: row.get(11)?,
-        finished_at: row.get(12)?,
-        last_opened_at: row.get(13)?,
+        coordinate,
+        position_count: row.get(12)?,
+        finished_at: row.get(13)?,
+        last_opened_at: row.get(14)?,
     })
 }
 

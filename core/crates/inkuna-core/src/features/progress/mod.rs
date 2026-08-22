@@ -11,4 +11,5 @@ mod writes;
 mod tests;
 
 pub use model::ChapterPositionRange;
+pub use positions::position_for;
 pub(crate) use positions::synthetic_positions;

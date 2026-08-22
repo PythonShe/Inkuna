@@ -131,14 +131,25 @@ fn href_without_progression_gets_chapter_start() {
 #[test]
 fn bookmarks_converted_with_defaults() {
     let (_dir, library, id) = unreconciled_book(None);
-    library
-        .add_bookmark(
-            &id,
-            r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":1.0}}"#,
-            0.9,
+    // Legacy-shaped rows, as the V8 migration leaves them: locator JSON,
+    // coordinate columns NULL.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "INSERT INTO bookmarks (id, publication_id, locator, progression, created_at)
+             VALUES ('bm-valid', ?1,
+                     '{\"href\":\"OEBPS/text/ch02.xhtml\",\"locations\":{\"progression\":1.0}}',
+                     0.9, 100)",
+            [&id],
         )
         .unwrap();
-    library.add_bookmark(&id, "{broken", 0.1).unwrap();
+        conn.execute(
+            "INSERT INTO bookmarks (id, publication_id, locator, progression, created_at)
+             VALUES ('bm-broken', ?1, '{broken', 0.1, 200)",
+            [&id],
+        )
+        .unwrap();
+    }
     run(&library);
 
     let rows: Vec<(String, i64, i64)> = library

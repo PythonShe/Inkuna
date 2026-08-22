@@ -4,6 +4,8 @@
 //! chapter ranges derived at query time via the same href-minus-fragment
 //! mapping the shells use.
 
+use inkuna_engine::Coordinate;
+
 use super::model::ChapterPositionRange;
 use crate::{CoreError, Library};
 
@@ -38,7 +40,89 @@ pub(crate) fn synthetic_positions(char_counts: &[u64]) -> Vec<(u32, u32, u32)> {
         .collect()
 }
 
+/// A coordinate's 1-based synthetic position within known ranges
+/// (`(spine_idx, start_position, position_count)` rows, spine order) —
+/// `start_position + char_offset / 1024`, clamped into the resource's
+/// range; a coordinate past every known resource clamps to the last
+/// position. `None` only when `ranges` is empty. THE `/1024` derivation:
+/// `position_of`, the FFI reader session's snapshot lookup, and
+/// `update_progress`'s internal derivation all come through here — the
+/// shells never mirror the 1024-char constant.
+pub fn position_for(ranges: &[(u32, u32, u32)], coordinate: Coordinate) -> Option<u32> {
+    let &(last_spine, last_start, last_count) = ranges.last()?;
+    match ranges
+        .iter()
+        .find(|&&(spine_idx, _, _)| spine_idx == coordinate.spine_idx)
+    {
+        Some(&(_, start, count)) => {
+            let within = (coordinate.char_offset / CHARS_PER_POSITION)
+                .min(u64::from(count.saturating_sub(1))) as u32;
+            Some(start.saturating_add(within))
+        }
+        None if coordinate.spine_idx > last_spine => {
+            Some(last_start.saturating_add(last_count.saturating_sub(1)))
+        }
+        // A hole below the last known resource cannot arise from the
+        // writers (they cover every spine index); fall back to the start.
+        None => Some(1),
+    }
+}
+
+/// One publication's `resource_positions` rows in spine order, as
+/// `(spine_idx, start_position, position_count)`.
+pub(crate) fn position_ranges_on(
+    conn: &rusqlite::Connection,
+    id: &str,
+) -> Result<Vec<(u32, u32, u32)>, rusqlite::Error> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT spine_idx, start_position, position_count FROM resource_positions
+         WHERE publication_id = ?1 ORDER BY spine_idx",
+    )?;
+    let rows = stmt.query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+    rows.collect()
+}
+
 impl Library {
+    /// The 1-based synthetic position of `coordinate` — session-free, so
+    /// Home/Detail screens can label "page N of M" without a reader
+    /// session. A book with no position rows answers `1`; past-end
+    /// coordinates clamp to the last position. `NotFound` when the book
+    /// does not exist.
+    pub fn position_of(&self, id: &str, coordinate: Coordinate) -> Result<u32, CoreError> {
+        let ranges = self.position_ranges(id)?;
+        match position_for(&ranges, coordinate) {
+            Some(position) => Ok(position),
+            None => {
+                // Distinguish "no rows yet" from "no such publication".
+                self.publication(id)?;
+                Ok(1)
+            }
+        }
+    }
+
+    /// The publication's total synthetic position count, session-free.
+    /// A book with no position rows answers `1`. `NotFound` when the
+    /// book does not exist.
+    pub fn position_count(&self, id: &str) -> Result<u32, CoreError> {
+        let ranges = self.position_ranges(id)?;
+        match ranges.last() {
+            Some(&(_, start, count)) => Ok(start.saturating_add(count.saturating_sub(1))),
+            None => {
+                self.publication(id)?;
+                Ok(1)
+            }
+        }
+    }
+
+    /// The publication's `resource_positions` ranges in spine order, as
+    /// `(spine_idx, start_position, position_count)` — the snapshot the
+    /// FFI reader session loads once at open so its position lookups
+    /// stay sync-safe with no DB access afterwards. Empty when the book
+    /// has no rows yet (never `NotFound` on its own).
+    pub fn position_ranges(&self, id: &str) -> Result<Vec<(u32, u32, u32)>, CoreError> {
+        self.readers
+            .with(|conn| position_ranges_on(conn, id).map_err(Into::into))
+    }
     /// Every TOC entry's position span, in chapter order. Empty until the
     /// book's synthetic positions are computed (or when the book has no
     /// TOC); sparse for chapters whose href matches no spine resource. A

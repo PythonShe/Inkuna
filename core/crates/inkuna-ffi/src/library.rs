@@ -4,6 +4,7 @@
 use crate::bookshelf::blocking;
 use crate::error::InkunaError;
 use crate::format::Format;
+use crate::reader::Coordinate;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum Shelf {
@@ -59,9 +60,11 @@ pub struct Publication {
     pub added_at: i64,
     /// Book-wide `totalProgression` in [0, 1].
     pub progression: f64,
-    /// Opaque Readium locator JSON for the current position.
-    pub locator: Option<String>,
-    /// Readium synthetic position count, once the shell reported it.
+    /// Current reading position; `None` until the first progress write
+    /// (legacy rows also surface `None` until the rebaseline converts
+    /// them).
+    pub coordinate: Option<Coordinate>,
+    /// Core-computed synthetic position count.
     pub position_count: Option<u32>,
     pub finished_at: Option<i64>,
     pub last_opened_at: Option<i64>,
@@ -93,8 +96,9 @@ impl From<inkuna_core::Chapter> for Chapter {
 pub struct Bookmark {
     pub id: String,
     pub publication_id: String,
-    /// Opaque Readium locator JSON; carries the row's display context.
-    pub locator: String,
+    /// The pinned position; a legacy row the rebaseline has not
+    /// converted yet reads as the book-start default `(0, 0)`.
+    pub coordinate: Coordinate,
     pub progression: f64,
     pub created_at: i64,
 }
@@ -104,7 +108,7 @@ impl From<inkuna_core::Bookmark> for Bookmark {
         Bookmark {
             id: b.id,
             publication_id: b.publication_id,
-            locator: b.locator,
+            coordinate: b.coordinate.into(),
             progression: b.progression,
             created_at: b.created_at,
         }
@@ -131,7 +135,7 @@ pub(crate) fn publication_record(
         format: p.format.into(),
         added_at: p.added_at,
         progression: p.progression,
-        locator: p.locator,
+        coordinate: p.coordinate.map(Into::into),
         position_count: p.position_count,
         finished_at: p.finished_at,
         last_opened_at: p.last_opened_at,
@@ -196,11 +200,16 @@ impl ShelfLibrary {
     pub async fn add_bookmark(
         &self,
         id: String,
-        locator: String,
+        coordinate: Coordinate,
         progression: f64,
     ) -> Result<Bookmark, InkunaError> {
         let library = self.0.clone();
-        blocking(move || Ok(library.add_bookmark(&id, &locator, progression)?.into())).await
+        blocking(move || {
+            Ok(library
+                .add_bookmark(&id, coordinate.into(), progression)?
+                .into())
+        })
+        .await
     }
 
     /// Bookmarks sorted by progression through the book.
