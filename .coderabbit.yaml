@@ -186,6 +186,21 @@ reviews:
     # If reviews start misattributing paths, this is the line to drop first.
     - '!core/**/mod.rs'
 
+    # Configuration and manifest files (.toml, .yaml, .yml). Dependency
+    # specifications and tool configs are mechanically verified by CI gates
+    # and linters; excluding them reduces file count below review limits.
+    - '!**/*.toml'
+    - '!**/*.yaml'
+    - '!**/*.yml'
+
+    # Test files, test fixtures, and test utilities. Test files add substantial
+    # file volume without needing AI review (CI test suites gate regressions).
+    - '!**/*_tests.rs'
+    - '!**/tests.rs'
+    - '!**/test_support.rs'
+    - '!**/tests/**'
+    - '!**/examples/**'
+
   # ---------------------------------------------------------------------------
   # Path instructions — the hard rules from each component's CLAUDE.md that a
   # generic reviewer would not infer from the diff alone.
