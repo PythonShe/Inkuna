@@ -18,8 +18,9 @@ pub mod text;
 mod test_support;
 
 pub use display::{
-    build_page, A11yBlock, A11yRole, ColorRole, Decoration, DecorationKind, DisplayContext,
-    GlyphRun, ImagePlacement, LineGeom, LinkRegion, PageDisplayList, PageMaps, Rect,
+    build_page, digest_hex, page_digest, A11yBlock, A11yRole, ColorRole, Decoration,
+    DecorationKind, DisplayContext, GlyphRun, ImagePlacement, LineGeom, LinkRegion,
+    PageDisplayList, PageMaps, Rect,
 };
 pub use dom::{parse, Document};
 pub use error::EngineError;

@@ -10,7 +10,11 @@ use crate::style::{parse_sheet, resolve};
 use crate::test_support::{CJK_VERTICAL_RUBY_DOC, LATIN_DOC};
 use crate::text::project;
 
-use super::{build_page, A11yRole, ColorRole, DecorationKind, DisplayContext, PageDisplayList, PageMaps};
+use super::{
+    build_page, page_digest, A11yBlock, A11yRole, ColorRole, Decoration, DecorationKind,
+    DisplayContext, GlyphRun, ImagePlacement, LinkRegion, PageDisplayList, PageMaps, Rect,
+};
+use crate::shape::RunOrientation;
 
 fn registry() -> &'static FontRegistry {
     static REG: OnceLock<Arc<FontRegistry>> = OnceLock::new();
@@ -173,4 +177,114 @@ fn maps_cover_page_chars() {
         }
         assert_eq!(covered, maps.char_range.end);
     }
+}
+
+/// A tiny fully-populated list exercising every record kind of the
+/// canonical serialization.
+fn reference_list() -> PageDisplayList {
+    PageDisplayList {
+        generation: 3,
+        glyph_runs: vec![GlyphRun {
+            font_id: 8,
+            size: 17.0,
+            color_role: ColorRole::Text,
+            glyph_ids: vec![120, 121],
+            positions: vec![26.0, 40.5, 43.25, 40.5],
+            orientation: RunOrientation::Upright,
+        }],
+        images: vec![ImagePlacement {
+            href: "OEBPS/plate.png".to_string(),
+            rect: Rect {
+                x: 26.0,
+                y: 60.0,
+                width: 120.0,
+                height: 80.0,
+            },
+        }],
+        decorations: vec![Decoration {
+            kind: DecorationKind::Underline,
+            rect: Rect {
+                x: 26.0,
+                y: 44.0,
+                width: 17.25,
+                height: 1.0,
+            },
+            color_role: ColorRole::Link,
+        }],
+        links: vec![LinkRegion {
+            rect: Rect {
+                x: 26.0,
+                y: 28.0,
+                width: 17.25,
+                height: 16.0,
+            },
+            target: "OEBPS/ch02.xhtml#top".to_string(),
+        }],
+        a11y: vec![A11yBlock {
+            text: "東京（とうきょう）".to_string(),
+            rect: Rect {
+                x: 26.0,
+                y: 28.0,
+                width: 100.0,
+                height: 16.0,
+            },
+            lang: Some("ja".to_string()),
+            is_link: false,
+            role: A11yRole::Body,
+        }],
+    }
+}
+
+#[test]
+fn digest_stable_across_calls() {
+    let list = reference_list();
+    let a = page_digest(&list);
+    let b = page_digest(&list);
+    assert_eq!(a, b);
+    assert_eq!(a.len(), 64);
+    assert!(a.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+}
+
+#[test]
+fn digest_sensitive_to_any_field() {
+    let base = page_digest(&reference_list());
+
+    // One glyph position bit.
+    let mut l = reference_list();
+    l.glyph_runs[0].positions[0] = f32::from_bits(l.glyph_runs[0].positions[0].to_bits() ^ 1);
+    assert_ne!(page_digest(&l), base);
+
+    // One color role.
+    let mut l = reference_list();
+    l.glyph_runs[0].color_role = ColorRole::Secondary;
+    assert_ne!(page_digest(&l), base);
+
+    // Generation, a glyph id, a string, an enum, the lang option.
+    let mut l = reference_list();
+    l.generation = 4;
+    assert_ne!(page_digest(&l), base);
+    let mut l = reference_list();
+    l.glyph_runs[0].glyph_ids[1] = 122;
+    assert_ne!(page_digest(&l), base);
+    let mut l = reference_list();
+    l.links[0].target.push('x');
+    assert_ne!(page_digest(&l), base);
+    let mut l = reference_list();
+    l.a11y[0].role = A11yRole::Heading;
+    assert_ne!(page_digest(&l), base);
+    let mut l = reference_list();
+    l.a11y[0].lang = None;
+    assert_ne!(page_digest(&l), base);
+}
+
+/// Guards the serialization spec itself: the exact hex of the tiny
+/// hand-built list, committed. A refactor that changes the canonical
+/// byte layout MUST fail here — that layout is the cross-platform
+/// parity contract.
+#[test]
+fn digest_reference_vector() {
+    assert_eq!(
+        page_digest(&reference_list()),
+        "5e2d603234b9bc4e3ef1b16f3fb8e35f29930ecee7ca246bdb8044d6a98f64cf"
+    );
 }

@@ -9,12 +9,14 @@
 //! collection orders anything in this module.
 
 mod a11y;
+mod digest;
 mod list;
 mod maps;
 
 #[cfg(test)]
 mod tests;
 
+pub use digest::{digest_hex, page_digest};
 pub use list::{
     build_page, A11yBlock, A11yRole, ColorRole, Decoration, DecorationKind, DisplayContext,
     GlyphRun, ImagePlacement, LinkRegion, PageDisplayList, Rect,
