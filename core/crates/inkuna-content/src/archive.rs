@@ -20,12 +20,16 @@ use crate::ContentError;
 /// `MAX_TOC_ENTRIES`). A big book's OPF or NCX can legitimately run to
 /// megabytes, which is why this byte budget stays generous.
 pub(crate) const MAX_XML_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
-/// Per-entry budget for spine content documents, far tighter than the
-/// mandatory parts: several readers (layout worker, corpus extraction)
-/// may hold decompressed chapters at once, and the aggregate corpus
-/// budget only bounds what is *retained*, not the in-flight transient.
-/// A whole large novel's text is a few MB, so 8 MiB for one chapter
-/// keeps orders of magnitude of headroom over any honest content.
+/// Per-chapter budget on the *write* side: the EPUB writer in
+/// `inkuna-format` rejects any converted chapter body over this size, so
+/// the EPUBs import produces stay bounded. It is no longer the live
+/// bound on production chapter *reads* — since the corpus moved to the
+/// engine's projection, those go through [`read_resource`] under the
+/// 16 MiB `MAX_RESOURCE_BYTES` — and on the read side it survives only
+/// in the test-only `read_spine_entry`, which the archive tests use to
+/// pin the capped readers' CJK-safe cap-vs-UTF-8 behavior. A whole
+/// large novel's text is a few MB, so 8 MiB for one chapter keeps
+/// orders of magnitude of headroom over any honest content.
 pub const MAX_SPINE_ENTRY_BYTES: u64 = 8 * 1024 * 1024;
 /// Aggregate budget for the text retained for one publication. The
 /// per-entry decompression cap bounds a single resource, never the corpus:
