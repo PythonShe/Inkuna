@@ -63,19 +63,17 @@ pub struct LoadedFace {
     pub collection_index: u32,
 }
 
-/// The manifest row: file name, index into a collection (0 for single
-/// faces), and role. Order here IS the id order.
+/// The manifest row: file name and index into a collection (0 for
+/// single faces). Order here IS the id order.
 struct ManifestRow {
     file: &'static str,
     collection_index: u32,
-    role: FaceRole,
 }
 
-const fn row(file: &'static str, collection_index: u32, role: FaceRole) -> ManifestRow {
+const fn row(file: &'static str, collection_index: u32) -> ManifestRow {
     ManifestRow {
         file,
         collection_index,
-        role,
     }
 }
 
@@ -93,31 +91,31 @@ const SANS_CJK_BOLD: &str = "NotoSansCJK-Bold.ttc";
 
 /// The fixed face set, in id order.
 const MANIFEST: [ManifestRow; 25] = [
-    row("NotoSerif.ttf", 0, FaceRole::Reading),
-    row("NotoSerif-Italic.ttf", 0, FaceRole::Reading),
-    row("NotoSerif-Bold.ttf", 0, FaceRole::Reading),
-    row("NotoSerif-BoldItalic.ttf", 0, FaceRole::Reading),
-    row("NotoSans.ttf", 0, FaceRole::Reading),
-    row("NotoSans-Italic.ttf", 0, FaceRole::Reading),
-    row("NotoSans-Bold.ttf", 0, FaceRole::Reading),
-    row("NotoSans-BoldItalic.ttf", 0, FaceRole::Reading),
-    row(SERIF_CJK_REGULAR, OTC_SC, FaceRole::Cjk),
-    row(SERIF_CJK_BOLD, OTC_SC, FaceRole::Cjk),
-    row(SERIF_CJK_REGULAR, OTC_TC, FaceRole::Cjk),
-    row(SERIF_CJK_BOLD, OTC_TC, FaceRole::Cjk),
-    row(SERIF_CJK_REGULAR, OTC_JP, FaceRole::Cjk),
-    row(SERIF_CJK_BOLD, OTC_JP, FaceRole::Cjk),
-    row(SERIF_CJK_REGULAR, OTC_KR, FaceRole::Cjk),
-    row(SERIF_CJK_BOLD, OTC_KR, FaceRole::Cjk),
-    row(SANS_CJK_REGULAR, OTC_SC, FaceRole::Cjk),
-    row(SANS_CJK_BOLD, OTC_SC, FaceRole::Cjk),
-    row(SANS_CJK_REGULAR, OTC_TC, FaceRole::Cjk),
-    row(SANS_CJK_BOLD, OTC_TC, FaceRole::Cjk),
-    row(SANS_CJK_REGULAR, OTC_JP, FaceRole::Cjk),
-    row(SANS_CJK_BOLD, OTC_JP, FaceRole::Cjk),
-    row(SANS_CJK_REGULAR, OTC_KR, FaceRole::Cjk),
-    row(SANS_CJK_BOLD, OTC_KR, FaceRole::Cjk),
-    row("NotoSansSymbols2-Regular.ttf", 0, FaceRole::Symbols),
+    row("NotoSerif.ttf", 0),
+    row("NotoSerif-Italic.ttf", 0),
+    row("NotoSerif-Bold.ttf", 0),
+    row("NotoSerif-BoldItalic.ttf", 0),
+    row("NotoSans.ttf", 0),
+    row("NotoSans-Italic.ttf", 0),
+    row("NotoSans-Bold.ttf", 0),
+    row("NotoSans-BoldItalic.ttf", 0),
+    row(SERIF_CJK_REGULAR, OTC_SC),
+    row(SERIF_CJK_BOLD, OTC_SC),
+    row(SERIF_CJK_REGULAR, OTC_TC),
+    row(SERIF_CJK_BOLD, OTC_TC),
+    row(SERIF_CJK_REGULAR, OTC_JP),
+    row(SERIF_CJK_BOLD, OTC_JP),
+    row(SERIF_CJK_REGULAR, OTC_KR),
+    row(SERIF_CJK_BOLD, OTC_KR),
+    row(SANS_CJK_REGULAR, OTC_SC),
+    row(SANS_CJK_BOLD, OTC_SC),
+    row(SANS_CJK_REGULAR, OTC_TC),
+    row(SANS_CJK_BOLD, OTC_TC),
+    row(SANS_CJK_REGULAR, OTC_JP),
+    row(SANS_CJK_BOLD, OTC_JP),
+    row(SANS_CJK_REGULAR, OTC_KR),
+    row(SANS_CJK_BOLD, OTC_KR),
+    row("NotoSansSymbols2-Regular.ttf", 0),
 ];
 
 const SYMBOLS_ID: u32 = 24;
