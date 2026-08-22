@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import app.inkuna.android.model.LibraryStore
 import app.inkuna.core.Bookshelf
 import app.inkuna.core.Chapter
+import app.inkuna.core.Coordinate
 import app.inkuna.core.Publication as CorePublication
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
@@ -24,7 +25,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
@@ -229,31 +229,10 @@ class ReaderViewModel(
         openPublication.set(publication)
 
         // Synthetic positions are the honest substitute for page numbers.
-        // Reported once so the core can answer "p. N of M" everywhere.
+        // plan-02: the core now derives positions from its own canonical
+        // projection at import; the shell no longer reports Readium's.
         val positionsByResource = publication.positionsByReadingOrder()
         val positionCount = positionsByResource.sumOf { it.size }
-        // Per-resource counts, not just the total: the core derives each
-        // chapter's position range from them, which is what "pages left
-        // in this chapter" and a search hit's "p. N" are built on.
-        val positionRanges = if (positionCount > 0) {
-            positionsByResource.map { it.size.toUInt() }
-        } else {
-            emptyList()
-        }
-        runCatching {
-            shelf.progress().reportPositionRanges(core.id, positionRanges)
-        }.onFailure { error ->
-            // The core rejects a breakdown that does not line up with its
-            // own spine — it drops duplicate and over-long spine hrefs that
-            // Readium's reading order keeps. The per-chapter spans are
-            // lost, but "p. N of M" need not be.
-            Log.w(TAG, "reportPositionRanges failed", error)
-            if (positionCount > 0) {
-                runCatching {
-                    shelf.progress().reportPositionCount(core.id, positionCount.toUInt())
-                }.onFailure { Log.w(TAG, "reportPositionCount failed", it) }
-            }
-        }
 
         val chapters = shelf.library().chapters(core.id).map { chapter ->
             // The chapter-to-resource mapping is href-minus-fragment, per
@@ -273,16 +252,14 @@ class ReaderViewModel(
 
         // A requested start chapter wins over the saved position, resolved
         // the same way a contents-sheet jump is; an unresolvable href falls
-        // back to resuming. The locator blob is opaque to the core; only
-        // Readium parses it. A blob this navigator cannot read (corrupt, or
-        // from a future format) degrades to opening at the start, never to
-        // a crash.
+        // back to resuming.
+        // plan-02: real coordinates from the engine — the stored position
+        // is a content coordinate now, which this Readium navigator cannot
+        // consume; until the engine reader lands, resume opens at the start.
         val chapterTarget = initialChapterHref
             ?.let { href -> Url(href) }
             ?.let { url -> publication.locatorFromLink(Link(href = url)) }
-        val initialLocator = chapterTarget ?: core.locator?.let { raw ->
-            runCatching { Locator.fromJSON(JSONObject(raw)) }.getOrNull()
-        }
+        val initialLocator = chapterTarget
 
         ReaderBook(
             core = core,
@@ -450,11 +427,12 @@ class ReaderViewModel(
                 val progression = locator.locations.totalProgression ?: return@withLock
                 lastPersisted = locator
                 runCatching {
+                    // plan-02: real coordinates from the engine
                     shelf.progress().updateProgress(
                         publicationId,
-                        locator.toJSON().toString(),
+                        Coordinate(spineIdx = 0u, charOffset = 0uL),
                         progression,
-                        locator.locations.position?.toUInt(),
+                        null,
                     )
                 }.onFailure { Log.w(TAG, "updateProgress failed", it) }
             }
@@ -549,9 +527,10 @@ class ReaderViewModel(
             // thread availability.
             writeLock.withLock {
                 runCatching {
+                    // plan-02: real coordinates from the engine
                     shelf.library().addBookmark(
                         publicationId,
-                        locator.toJSON().toString(),
+                        Coordinate(spineIdx = 0u, charOffset = 0uL),
                         locator.locations.totalProgression ?: 0.0,
                     )
                 }

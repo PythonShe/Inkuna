@@ -171,21 +171,13 @@ final class BookDetailViewController: UIViewController {
 
     // MARK: Position line
 
-    /// The honest position line, mirroring the reader: "p. N of M" only
-    /// when the stored locator carries a synthetic position and the core
-    /// knows the count — book-wide percentage alone otherwise. Never a
+    /// The honest position line, mirroring the reader.
+    /// plan-02: real coordinates from the engine — "p. N of M" comes back
+    /// via the core's session-free `positionOf` once the engine reader
+    /// lands; until then the book-wide percentage alone. Never a
     /// fictional page number.
     private func positionText() -> String {
         let percent = Int((publication.progression * 100).rounded())
-        if
-            let locatorJSON = publication.locator,
-            let locator = try? Locator(jsonString: locatorJSON),
-            let position = locator.locations.position,
-            let positionCount = publication.positionCount, positionCount > 0
-        {
-            let format = NSLocalizedString("reader_page_info", comment: "")
-            return String.localizedStringWithFormat(format, Int64(position), Int64(positionCount), Int64(percent))
-        }
         let format = NSLocalizedString("reader_percent", comment: "")
         return String.localizedStringWithFormat(format, Int64(percent))
     }
@@ -223,12 +215,11 @@ final class BookDetailViewController: UIViewController {
     /// be attributed to the preceding chapter — those books show no
     /// highlight rather than a guessed one.
     private func currentChapterIndex() -> Int? {
-        guard
-            let locatorJSON = publication.locator,
-            let locator = try? Locator(jsonString: locatorJSON)
-        else { return nil }
-        let resource = ChapterHref.normalized(locator.href.string)
-        return chapters.firstIndex { ChapterHref.normalized($0.href) == resource }
+        // plan-02: real coordinates from the engine — the stored
+        // coordinate's spine_idx maps to a chapter via the core's TOC once
+        // the engine reader lands; until then no highlight rather than a
+        // guessed one.
+        nil
     }
 
     private func chapterRow(_ chapter: Chapter, isCurrent: Bool) -> UIView {

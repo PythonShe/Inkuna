@@ -52,12 +52,16 @@ enum ImportFailureReason: Error, Sendable, Equatable {
         case .FileTooLarge: self = .tooLarge
         case .Io: self = .storage
         case .Database: self = .database
-        case .InvalidPositionRanges: self = .libraryUnavailable
         case .NotFound: self = .notFound
-        // The search index is derived data and no part of import; if one of
-        // its failures ever surfaces here it is a bug worth reporting with
-        // the core's own words rather than a wrong explanation.
+        // The search index is derived data and no part of import — as the
+        // reader engine's own errors are no part of it either; if one of
+        // their failures ever surfaces here it is a bug worth reporting
+        // with the core's own words rather than a wrong explanation.
         case .Search(let detail): self = .unknown(detail)
+        case .NotReady(let detail): self = .unknown(detail)
+        case .UnsupportedContent(let detail): self = .unknown(detail)
+        case .LayoutBudgetExceeded(let detail): self = .unknown(detail)
+        case .AnchorNotFound(let detail): self = .unknown(detail)
         }
     }
 }

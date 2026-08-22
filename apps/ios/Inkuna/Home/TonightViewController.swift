@@ -152,18 +152,13 @@ final class TonightViewController: ScrollScreenViewController {
         }
     }
 
-    /// The synthetic position the book is parked at, read out of the
-    /// stored Readium locator — the same shell-side decode the detail
-    /// screen does. Nil for a book never opened in a build that reports
-    /// positions.
+    /// The synthetic position the book is parked at.
+    /// plan-02: real coordinates from the engine — the stored position is
+    /// a content coordinate now; deriving its synthetic position is core
+    /// math (`positionOf`), wired up when the engine reader lands. Until
+    /// then the caption degrades to the percentage line.
     private static func storedPosition(of publication: Publication) -> UInt32? {
-        guard
-            let locatorJSON = publication.locator,
-            let locator = try? Locator(jsonString: locatorJSON),
-            let position = locator.locations.position, position > 0,
-            let position = UInt32(exactly: position)
-        else { return nil }
-        return position
+        nil
     }
 
     /// Pages left in the chapter holding `position`. Chapter ranges are
