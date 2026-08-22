@@ -7,6 +7,7 @@ mod blocks;
 mod flow;
 mod images;
 mod pages;
+mod shaping;
 
 #[cfg(test)]
 mod tests;

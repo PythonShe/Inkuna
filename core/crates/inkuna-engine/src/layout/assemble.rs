@@ -60,7 +60,10 @@ pub(super) fn build_line(
         }
     }
 
-    // Flatten in visual order, accumulating inline offsets.
+    // Flatten in visual order, accumulating inline offsets. Offsets are
+    // non-decreasing, not strictly ascending: an item whose glyphs all
+    // have zero advance contributes no extent, so the next item repeats
+    // its offset.
     let mut runs = Vec::new();
     let mut cursor = Fx::ZERO;
     for item in &items {

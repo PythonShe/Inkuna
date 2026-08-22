@@ -5,7 +5,7 @@ use std::sync::{Arc, OnceLock};
 use crate::dom::{parse, StylesheetSource};
 use crate::fixed::Fx;
 use crate::fonts::FontRegistry;
-use crate::settings::LayoutSettings;
+use crate::settings::{LayoutSettings, Typography};
 use crate::style::{parse_sheet, resolve};
 use crate::test_support::tiny_png;
 use crate::text::project;
@@ -36,6 +36,18 @@ fn run_with(
     resource_path: &str,
     resources: &dyn Fn(&str) -> Option<Vec<u8>>,
 ) -> (Vec<LaidPage>, ChapterLayoutResult, String) {
+    run_typo(doc_src, viewport, resource_path, resources, &|_| {})
+}
+
+/// Like [`run_with`] but lets the test tweak the resolved `Typography`
+/// (e.g. a nonzero `paragraph_indent`, which no setting produces).
+fn run_typo(
+    doc_src: &str,
+    viewport: FxSize,
+    resource_path: &str,
+    resources: &dyn Fn(&str) -> Option<Vec<u8>>,
+    tweak: &dyn Fn(&mut Typography),
+) -> (Vec<LaidPage>, ChapterLayoutResult, String) {
     let doc = parse(doc_src.as_bytes()).expect("fixture parses");
     let css: Vec<&str> = doc
         .stylesheets
@@ -49,7 +61,8 @@ fn run_with(
     let styled = resolve(&doc, &sheets);
     let projection = project(&styled);
     let settings = LayoutSettings::default();
-    let typography = settings.typography();
+    let mut typography = settings.typography();
+    tweak(&mut typography);
     let input = ChapterInput {
         styled: &styled,
         projection: &projection,
@@ -138,6 +151,31 @@ fn para_lines_on(page: &LaidPage, range: &Range<u64>) -> usize {
         .iter()
         .filter(|pl| pl.line.char_range.start >= range.start && pl.line.char_range.end <= range.end)
         .count()
+}
+
+/// The paragraph range whose text (separator trimmed) equals `wanted`.
+fn para_range_of(text: &str, paras: &[Range<u64>], wanted: &str) -> Range<u64> {
+    let chars: Vec<char> = text.chars().collect();
+    paras
+        .iter()
+        .find(|r| {
+            chars[r.start as usize..r.end as usize]
+                .iter()
+                .collect::<String>()
+                .trim_end_matches('\n')
+                == wanted
+        })
+        .expect("paragraph found")
+        .clone()
+}
+
+/// The placed first line of the paragraph starting at `range.start`.
+fn first_line<'a>(pages: &'a [LaidPage], range: &Range<u64>) -> &'a super::PlacedLine {
+    pages
+        .iter()
+        .flat_map(|p| p.lines.iter())
+        .find(|pl| pl.line.char_range.start == range.start)
+        .expect("paragraph first line")
 }
 
 #[test]
@@ -242,6 +280,214 @@ fn heading_keeps_two_lines() {
         );
     }
     assert!(moved, "some filler height pushed the heading to a later page");
+}
+
+#[test]
+fn heading_never_stranded_before_three_line_paragraph() {
+    // A <=3-line paragraph never splits (min 2 lines on BOTH sides), so
+    // keeping the heading demands heading + ALL THREE follower lines —
+    // a keep of only 2 would let the follower flush itself to the next
+    // page and strand the heading at the page bottom. Sweep the filler
+    // height so the pair lands at every position near the bottom.
+    let heading = "見出しの題";
+    let sentence = "月光洒在窗台上屋里一片寂静。";
+    let follower = sentence.repeat(3);
+    let mut moved = false;
+    for fillers in 0..12 {
+        let mut body = String::new();
+        for _ in 0..fillers {
+            body.push_str(&format!("<p>{sentence}</p>\n"));
+        }
+        body.push_str(&format!("<h2>{heading}</h2>\n"));
+        body.push_str(&format!("<p>{follower}</p>\n"));
+        let (pages, result, text) = run(&wrap_body(&body, ""), viewport(300.0, 400.0));
+        assert_partition(&pages, &result);
+        let paras = paragraph_ranges(&text);
+        let heading_range = para_range_of(&text, &paras, heading);
+        let follow_range = para_range_of(&text, &paras, &follower);
+        let total: usize = pages.iter().map(|p| para_lines_on(p, &follow_range)).sum();
+        assert_eq!(total, 3, "fixture: the follower breaks into exactly 3 lines");
+        let heading_page = pages
+            .iter()
+            .position(|p| para_lines_on(p, &heading_range) > 0)
+            .expect("heading placed");
+        if heading_page > 0 {
+            moved = true;
+        }
+        assert_eq!(
+            para_lines_on(&pages[heading_page], &follow_range),
+            3,
+            "heading moves with its whole unsplittable follower (fillers={fillers})"
+        );
+    }
+    assert!(moved, "some filler height pushed the heading to a later page");
+}
+
+#[test]
+fn heading_keep_extends_to_image() {
+    // A heading followed by an image (not a paragraph) gets the same
+    // keep: the image's fitted extent is the follower's minimum
+    // placeable unit, so the heading is never stranded above a page
+    // break the image falls over.
+    let heading = "見出しの題";
+    let sentence = "月光洒在窗台上屋里一片寂静。";
+    let resources = |_: &str| Some(tiny_png(200, 200));
+    let mut moved = false;
+    for fillers in 0..12 {
+        let mut body = String::new();
+        for _ in 0..fillers {
+            body.push_str(&format!("<p>{sentence}</p>\n"));
+        }
+        body.push_str(&format!("<h2>{heading}</h2>\n<img src=\"plate.png\"/>"));
+        let (pages, result, text) = run_with(
+            &wrap_body(&body, ""),
+            viewport(300.0, 400.0),
+            "OEBPS/ch01.xhtml",
+            &resources,
+        );
+        assert_partition(&pages, &result);
+        let paras = paragraph_ranges(&text);
+        let heading_range = para_range_of(&text, &paras, heading);
+        let heading_page = pages
+            .iter()
+            .position(|p| para_lines_on(p, &heading_range) > 0)
+            .expect("heading placed");
+        if heading_page > 0 {
+            moved = true;
+        }
+        assert_eq!(
+            pages[heading_page].images.len(),
+            1,
+            "the image stays with its heading (fillers={fillers})"
+        );
+    }
+    assert!(moved, "some filler height pushed the heading to a later page");
+}
+
+#[test]
+fn indented_first_line_stays_in_content_box() {
+    // The transcribed paragraph_indent is 0.0; force a nonzero one. The
+    // first line must be broken AND justified against measure - indent,
+    // so the indent shift never pushes it past the content box.
+    let indent = 24.0;
+    let sentence = "月光洒在窗台上屋里一片寂静。";
+    let body = format!("<p>{}</p>\n", sentence.repeat(8));
+    let (pages, result, _) = run_typo(
+        &wrap_body(&body, ""),
+        viewport(300.0, 400.0),
+        "OEBPS/ch01.xhtml",
+        &|_| None,
+        &|t| t.paragraph_indent = indent,
+    );
+    assert_partition(&pages, &result);
+    let content_x = Fx::from_pt(26.0);
+    let content_right = Fx::from_pt(300.0 - 26.0);
+    let content_w = content_right - content_x;
+    let lines = &pages[0].lines;
+    assert!(lines.len() >= 3, "got {} lines", lines.len());
+    let first = &lines[0];
+    assert_eq!(first.x, content_x + Fx::from_pt(indent), "first line shifted by the indent");
+    assert_eq!(
+        first.line.inline_extent,
+        content_w - Fx::from_pt(indent),
+        "first line justified to measure - indent"
+    );
+    let second = &lines[1];
+    assert_eq!(second.x, content_x, "later lines carry no indent");
+    assert_eq!(second.line.inline_extent, content_w, "later lines justify to the full measure");
+    for page in &pages {
+        for pl in &page.lines {
+            assert!(
+                pl.x + pl.line.inline_extent <= content_right,
+                "no line exceeds the content box"
+            );
+        }
+    }
+}
+
+#[test]
+fn indent_applies_to_body_paragraphs_only() {
+    let prose = "正文段落首行缩进正文段落。";
+    let heading = "見出しの題";
+    let quoted = "引用段落不加首行缩进引用。";
+    let listed = "列表项目不加首行缩进列表。";
+    let body = format!(
+        "<p>{prose}</p>\n<h2>{heading}</h2>\n<blockquote>{quoted}</blockquote>\n<ul><li>{listed}</li></ul>\n"
+    );
+    let (pages, result, text) = run_typo(
+        &wrap_body(&body, ""),
+        viewport(300.0, 400.0),
+        "OEBPS/ch01.xhtml",
+        &|_| None,
+        &|t| t.paragraph_indent = 24.0,
+    );
+    assert_partition(&pages, &result);
+    let paras = paragraph_ranges(&text);
+    let margin = Fx::from_pt(26.0);
+    let indent = Fx::from_pt(24.0);
+    let quote_inset = Fx::from_pt(17.0 * 1.5);
+    let line_of = |wanted: &str| first_line(&pages, &para_range_of(&text, &paras, wanted));
+    assert_eq!(line_of(prose).x, margin + indent, "body paragraph indents");
+    assert_eq!(line_of(heading).x, margin, "heading gets no indent");
+    assert_eq!(
+        line_of(quoted).x,
+        margin + quote_inset,
+        "blockquote text gets its inset but no indent"
+    );
+    assert_eq!(line_of(listed).x, margin, "list item gets no indent");
+}
+
+#[test]
+fn image_sniffed_once_per_href() {
+    use std::cell::Cell;
+    let calls = Cell::new(0usize);
+    let resources = |href: &str| -> Option<Vec<u8>> {
+        assert_eq!(href, "OEBPS/plate.png");
+        calls.set(calls.get() + 1);
+        Some(tiny_png(120, 80))
+    };
+    // The heading-keep lookahead measures the image, placement measures
+    // it again, and the href repeats — still one fetch+sniff per pass.
+    let body = "<h2>見出しの題</h2><img src=\"plate.png\"/><img src=\"plate.png\"/>";
+    let (pages, _, _) = run_with(
+        &wrap_body(body, ""),
+        viewport(452.0, 600.0),
+        "OEBPS/ch01.xhtml",
+        &resources,
+    );
+    assert_eq!(calls.get(), 1, "one fetch+sniff per unique href per pagination pass");
+    assert_eq!(pages.iter().map(|p| p.images.len()).sum::<usize>(), 2);
+}
+
+#[test]
+fn code_block_forces_start_alignment() {
+    let sentence = "月光洒在窗台上屋里一片寂静。";
+    let prose = sentence.repeat(4);
+    let code = "代码段落不做两端对齐处理。".repeat(4);
+    let mixed_body = sentence.repeat(4);
+    let body = format!(
+        "<p>{prose}</p>\n<div><code>{code}</code></div>\n<p><code>行内</code>{mixed_body}</p>\n"
+    );
+    let (pages, result, text) = run(&wrap_body(&body, ""), viewport(300.0, 480.0));
+    assert_partition(&pages, &result);
+    let paras = paragraph_ranges(&text);
+    let content_w = Fx::from_pt(300.0 - 2.0 * 26.0);
+    let line_of = |wanted: &str| first_line(&pages, &para_range_of(&text, &paras, wanted));
+    // The plain paragraph justifies, proving the fixture would justify.
+    assert_eq!(line_of(&prose).line.inline_extent, content_w, "prose justifies");
+    // A <code> holding the whole paragraph is a code block: Start
+    // align, never justified — same as <pre>.
+    assert!(
+        line_of(&code).line.inline_extent < content_w,
+        "code-block paragraph stays ragged"
+    );
+    // Inline code inside a prose paragraph does not kill justification.
+    let mixed_text = format!("行内{mixed_body}");
+    assert_eq!(
+        line_of(&mixed_text).line.inline_extent,
+        content_w,
+        "inline code keeps the paragraph justified"
+    );
 }
 
 #[test]

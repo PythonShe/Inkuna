@@ -61,7 +61,7 @@ fn paragraph<'a>(
 fn opts(justify: TextAlign) -> LineOptions {
     LineOptions {
         justify,
-        last_line_ragged: true,
+        first_line_indent: Fx::ZERO,
         max_lines: super::MAX_LINES_PER_PARAGRAPH,
     }
 }
@@ -220,6 +220,31 @@ fn bidi_visual_reorder() {
     let first = line.runs.first().expect("runs");
     let last = line.runs.last().expect("runs");
     assert!(first.char_range.start > last.char_range.start);
+}
+
+#[test]
+fn first_line_indent_shortens_measure() {
+    let fonts = registry();
+    let text = "春眠不覚暁処処聞啼鳥夜来風雨声天地玄黄宇宙洪荒";
+    let w = one_char_advance("春", fonts);
+    let width = w.mul_ratio(17, 2); // 8.5 chars
+    let indent = w; // one full-width char of indent
+    let p = paragraph(text, false, 0, fonts);
+    let lines = break_paragraph(&p, width, &LineOptions {
+        justify: TextAlign::Justify,
+        first_line_indent: indent,
+        max_lines: super::MAX_LINES_PER_PARAGRAPH,
+    });
+    assert!(lines.len() >= 3, "got {} lines", lines.len());
+    // The first line breaks and justifies against the reduced measure,
+    // so the caller's `indent` shift never overflows the full measure.
+    assert_eq!(lines[0].inline_extent, width - indent, "first line justified to width - indent");
+    assert!(lines[0].char_range.end - lines[0].char_range.start <= 8);
+    // Subsequent (non-final) lines use the full measure.
+    assert_eq!(lines[1].inline_extent, width, "later lines justified to the full width");
+    for line in &lines {
+        assert!(line.inline_extent <= width);
+    }
 }
 
 #[test]

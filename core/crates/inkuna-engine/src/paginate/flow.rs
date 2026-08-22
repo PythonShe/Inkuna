@@ -253,6 +253,18 @@ impl Pager {
         self.used += adv;
     }
 
+    /// The block-axis extent a measured image will occupy once fitted
+    /// to this content box — the heading-keep lookahead's measure of an
+    /// image follower's minimum placeable unit.
+    pub fn image_block_extent(&self, intrinsic: Option<(u32, u32)>) -> Fx {
+        let (w, h) = images::fit(intrinsic, self.content_w, self.content_h);
+        if self.vertical {
+            w
+        } else {
+            h
+        }
+    }
+
     /// Places one measured image in the block flow between lines. It
     /// contributes no chars — its position in `char_range` is the
     /// boundary offset between the surrounding text. An image taller

@@ -7,9 +7,17 @@
 //! dropped block — still carrying the href so the shell can show its
 //! broken-image treatment.
 
+use std::collections::HashMap;
+
 use crate::fixed::Fx;
 
 use super::pages::FxRect;
+
+/// Memo of sniffed intrinsic dimensions, keyed by resolved href — one
+/// per `paginate` call, so each unique href is fetched and sniffed at
+/// most once per pagination pass (the heading-keep lookahead would
+/// otherwise sniff the same image twice). Never outlives the pass.
+pub(super) type DimensionCache = HashMap<String, Option<(u32, u32)>>;
 
 /// One image placed on a page.
 pub struct PlacedImage {
@@ -34,17 +42,30 @@ pub(super) struct MeasuredImage {
     pub intrinsic: Option<(u32, u32)>,
 }
 
-/// Resolves and header-sniffs one image. Deterministic: the outcome
-/// depends only on the src, the resource path, and the bytes returned.
+/// Resolves and header-sniffs one image, memoized per pagination pass
+/// via `cache`. Deterministic: the outcome depends only on the src, the
+/// resource path, and the bytes returned.
 pub(super) fn measure_image(
     src: &str,
     resource_path: &str,
     resources: &dyn Fn(&str) -> Option<Vec<u8>>,
+    cache: &mut DimensionCache,
 ) -> MeasuredImage {
     let resolved = inkuna_content::resolve_relative(resource_path, src);
     let (path, _) = inkuna_content::split_fragment(&resolved);
     let href = path.to_string();
-    let intrinsic = match resources(&href) {
+    if let Some(&intrinsic) = cache.get(&href) {
+        return MeasuredImage { href, intrinsic };
+    }
+    let intrinsic = sniff(&href, resources);
+    cache.insert(href.clone(), intrinsic);
+    MeasuredImage { href, intrinsic }
+}
+
+/// One resource fetch + header sniff; every failure degrades to `None`
+/// (the placeholder box).
+fn sniff(href: &str, resources: &dyn Fn(&str) -> Option<Vec<u8>>) -> Option<(u32, u32)> {
+    match resources(href) {
         None => {
             log::debug!("image resource missing: {href}");
             None
@@ -68,8 +89,7 @@ pub(super) fn measure_image(
                 None
             }
         },
-    };
-    MeasuredImage { href, intrinsic }
+    }
 }
 
 /// The drawn size: intrinsic px as layout points at 1×, fitted within

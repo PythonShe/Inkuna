@@ -57,20 +57,28 @@ pub enum SegmentKind {
 }
 
 /// How [`break_paragraph`] aligns and caps the paragraph's lines.
+/// The final line (and lines ending in a forced break) is never
+/// justified — unconditionally.
 pub struct LineOptions {
     /// The paragraph's resolved alignment; `Justify` stretches every
     /// line but the last (and lines ending in a forced break).
     pub justify: TextAlign,
-    /// Always true: the final line is never justified.
-    pub last_line_ragged: bool,
+    /// First-line indent: the paragraph's first line is broken and
+    /// justified against `width - first_line_indent`, so the caller's
+    /// inline shift of that line never overflows the measure. Zero for
+    /// non-indented paragraphs.
+    pub first_line_indent: Fx,
     /// Line cap, clamped to [`MAX_LINES_PER_PARAGRAPH`].
     pub max_lines: u32,
 }
 
 /// One run placed on a line, in visual order. Glyph clusters have been
-/// rebased to canonical projection char offsets. Ruby annotation runs
+/// rebased to canonical projection char offsets. Offsets are
+/// non-decreasing in visual order — a run whose glyphs all carry zero
+/// advance (e.g. only trailing spaces) repeats the previous offset
+/// rather than strictly exceeding it. Ruby annotation runs
 /// (`run.style.is_ruby`) are centered over their base and exempt from
-/// the ascending-offset rule; they carry the base's char range.
+/// the ordering; they carry the base's char range.
 pub struct PositionedRun {
     pub run: ShapedRun,
     /// Inline-axis offset from the line's start (alignment included).
@@ -131,6 +139,13 @@ pub fn break_paragraph(p: &ShapedParagraph<'_>, width: Fx, opts: &LineOptions) -
     let mut start = 0usize;
     let mut ci = 0usize;
     while start < atoms.len() && lines.len() < cap {
+        // The first line is measured against the indent-reduced width;
+        // the guard keeps a degenerate indent from collapsing it.
+        let line_width = if lines.is_empty() {
+            (width - opts.first_line_indent).max(Fx(64))
+        } else {
+            width
+        };
         while ci < cands.len() && cands[ci].0 <= start {
             ci += 1;
         }
@@ -139,7 +154,7 @@ pub fn break_paragraph(p: &ShapedParagraph<'_>, width: Fx, opts: &LineOptions) -
         // it anyway (overflow — the page box clips).
         let mut chosen: Option<(usize, bool)> = None;
         for &(c, mandatory) in &cands[ci..] {
-            if measure(&atoms, &prefix, start, c) <= width {
+            if measure(&atoms, &prefix, start, c) <= line_width {
                 chosen = Some((c, mandatory));
                 if mandatory {
                     break;
@@ -163,7 +178,7 @@ pub fn break_paragraph(p: &ShapedParagraph<'_>, width: Fx, opts: &LineOptions) -
             &chars,
             lo..hi,
             trailing,
-            width,
+            line_width,
             opts.justify,
             is_last || forced,
             &mut cache,

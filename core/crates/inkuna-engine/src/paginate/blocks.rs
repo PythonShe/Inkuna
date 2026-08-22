@@ -1,6 +1,7 @@
 //! Block extraction: the styled DOM + canonical projection → a flat
-//! block sequence in document order, and per-block shaping into the
-//! `ShapedParagraph` glue the line breaker consumes.
+//! block sequence in document order, with each paragraph block's
+//! resolved style facts. Shaping the blocks lives in
+//! [`super::shaping`].
 //!
 //! Paragraph boundaries are derived from the projection: consecutive
 //! spans sharing a nearest block ancestor form one paragraph, exactly
@@ -13,12 +14,10 @@
 use std::ops::Range;
 
 use crate::dom::{Document, ElementName, NodeId, NodeKind};
-use crate::layout::{SegmentKind, ShapedParagraph, ShapedSegment};
-use crate::shape::{shape_ruby, shape_text, ShapeContext};
-use crate::style::{Direction, FontStyle, FontWeight, StyledDocument, TextAlign, WritingMode};
+use crate::style::{Direction, StyledDocument, TextAlign};
 use crate::text::Projection;
 
-use super::pages::{ChapterInput, Metrics};
+use super::pages::ChapterInput;
 
 /// One block of the chapter's flow, in document order.
 pub(super) enum BlockKind {
@@ -47,6 +46,11 @@ pub(super) struct ParagraphMeta {
     pub quote_depth: u32,
     /// Nearest ancestor `lang`/`xml:lang`.
     pub lang: Option<String>,
+    /// First-line paragraph indent applies: body paragraphs only
+    /// (p/div-derived text, including bare section/article/body text) —
+    /// never headings, pre/code, or blockquote/li/dt/dd/tr/caption
+    /// blocks.
+    pub indent: bool,
 }
 
 /// Walks the chapter into its block sequence.
@@ -93,6 +97,7 @@ pub(super) fn collect_blocks(input: &ChapterInput<'_>) -> Vec<BlockKind> {
             .map_or(proj.char_len, |(_, r)| proj.spans[r.start].char_range.start);
         blocks.push(BlockKind::Paragraph(meta(
             styled,
+            proj,
             *key,
             start..end,
             span_range.clone(),
@@ -108,6 +113,7 @@ pub(super) fn collect_blocks(input: &ChapterInput<'_>) -> Vec<BlockKind> {
 /// style and ancestor chain.
 fn meta(
     styled: &StyledDocument<'_>,
+    proj: &Projection,
     key: NodeId,
     char_range: Range<u64>,
     span_range: Range<usize>,
@@ -126,7 +132,7 @@ fn meta(
             }
             match el.name {
                 ElementName::Blockquote => quote_depth += 1,
-                ElementName::Pre => pre = true,
+                ElementName::Pre | ElementName::Code => pre = true,
                 _ => {}
             }
             if lang.is_none() {
@@ -135,6 +141,28 @@ fn meta(
         }
         cur = doc.node(id).parent;
     }
+    // A `code` element functioning as a block: `code` is not in the
+    // block set, so it never keys a paragraph — but when every span of
+    // the paragraph sits inside one, the paragraph is code content.
+    let pre = pre || spans_all_in_code(doc, proj, &span_range);
+    // First-line indent: body paragraphs only. Headings and pre/code
+    // are excluded above; the remaining non-body block kinds are
+    // excluded by name (blockquote text, list items, definition terms/
+    // descriptions, degraded table rows, captions).
+    let indent = heading.is_none()
+        && !pre
+        && !matches!(
+            doc.element(key).map(|el| &el.name),
+            Some(
+                ElementName::Blockquote
+                    | ElementName::Li
+                    | ElementName::Dt
+                    | ElementName::Dd
+                    | ElementName::Tr
+                    | ElementName::Caption
+                    | ElementName::Figcaption
+            )
+        );
     ParagraphMeta {
         node: key,
         char_range,
@@ -147,7 +175,33 @@ fn meta(
         heading,
         quote_depth,
         lang,
+        indent,
     }
+}
+
+/// True when every span of the paragraph has a `code` ancestor below
+/// its block — the whole paragraph is code even though `code` itself
+/// never keys a block.
+fn spans_all_in_code(doc: &Document, proj: &Projection, span_range: &Range<usize>) -> bool {
+    let spans = &proj.spans[span_range.clone()];
+    !spans.is_empty() && spans.iter().all(|s| in_code(doc, s.node))
+}
+
+/// Whether a text node has a `code` ancestor before its nearest block.
+fn in_code(doc: &Document, node: NodeId) -> bool {
+    let mut cur = doc.node(node).parent;
+    while let Some(id) = cur {
+        if let Some(el) = doc.element(id) {
+            if el.name == ElementName::Code {
+                return true;
+            }
+            if is_block(&el.name) {
+                return false;
+            }
+        }
+        cur = doc.node(id).parent;
+    }
+    false
 }
 
 fn heading_level(name: &ElementName) -> Option<usize> {
@@ -164,7 +218,7 @@ fn heading_level(name: &ElementName) -> Option<usize> {
 
 /// The block set that opens/closes projection `\n` boundaries — kept
 /// identical to `is_block` in the projection (`text/projection.rs`).
-fn is_block(name: &ElementName) -> bool {
+pub(super) fn is_block(name: &ElementName) -> bool {
     matches!(
         name,
         ElementName::P
@@ -243,189 +297,4 @@ fn walk_specials(
 
 fn offset(proj: &Projection, ptr: usize) -> u64 {
     proj.spans.get(ptr).map_or(proj.char_len, |s| s.char_range.start)
-}
-
-/// Assembles the paragraph's `ShapedParagraph`: style-uniform groups
-/// over its char range (separator chars borrow the previous group's
-/// attributes so they merge instead of splitting runs; ruby elements
-/// form one atomic segment regardless of interior style changes),
-/// each shaped with the resolved style and `Typography` sizes.
-pub(super) fn shape_paragraph<'a>(
-    input: &ChapterInput<'a>,
-    meta: &ParagraphMeta,
-    m: &Metrics,
-    byte_of_char: &[usize],
-) -> ShapedParagraph<'a> {
-    let styled = input.styled;
-    let proj = input.projection;
-    let start_byte = byte_of_char[meta.char_range.start as usize];
-    let end_byte = byte_of_char[meta.char_range.end as usize];
-    let text = proj.text[start_byte..end_byte].to_string();
-    let para_start = meta.char_range.start;
-    let para_len = meta.char_range.end - para_start;
-    let block_style = styled.styles[meta.node.0 as usize];
-
-    struct Group {
-        range: Range<u64>,
-        font_style: FontStyle,
-        weight: FontWeight,
-        ruby: Option<NodeId>,
-    }
-    let mut groups: Vec<Group> = Vec::new();
-    let push = |groups: &mut Vec<Group>, g: Group| {
-        if g.range.is_empty() {
-            return;
-        }
-        match groups.last_mut() {
-            Some(last)
-                if last.range.end == g.range.start
-                    && ((last.ruby.is_some() && last.ruby == g.ruby)
-                        || (last.font_style == g.font_style
-                            && last.weight == g.weight
-                            && last.ruby == g.ruby)) =>
-            {
-                last.range.end = g.range.end;
-            }
-            _ => groups.push(g),
-        }
-    };
-    let mut cursor = 0u64;
-    for span in &proj.spans[meta.span_range.clone()] {
-        let s = span.char_range.start - para_start;
-        let e = span.char_range.end - para_start;
-        if s > cursor {
-            let (fs, w) = groups
-                .last()
-                .map(|g| (g.font_style, g.weight))
-                .unwrap_or((block_style.font_style, block_style.font_weight));
-            push(&mut groups, Group {
-                range: cursor..s,
-                font_style: fs,
-                weight: w,
-                ruby: None,
-            });
-        }
-        let st = styled.styles[span.node.0 as usize];
-        push(&mut groups, Group {
-            range: s..e,
-            font_style: st.font_style,
-            weight: st.font_weight,
-            ruby: nearest_ruby(styled.doc, span.node),
-        });
-        cursor = e;
-    }
-    if cursor < para_len {
-        let (fs, w) = groups
-            .last()
-            .map(|g| (g.font_style, g.weight))
-            .unwrap_or((block_style.font_style, block_style.font_weight));
-        push(&mut groups, Group {
-            range: cursor..para_len,
-            font_style: fs,
-            weight: w,
-            ruby: None,
-        });
-    }
-
-    // Paragraph-local byte offsets, for slicing group text.
-    let mut local_bytes: Vec<usize> = text.char_indices().map(|(b, _)| b).collect();
-    local_bytes.push(text.len());
-
-    let vertical = styled.writing_mode == WritingMode::VerticalRl;
-    let (size, letter, word) = match meta.heading {
-        Some(l) => (m.heading_size[l], m.letter_heading[l], m.word_heading[l]),
-        None => (m.body_size, m.letter_body, m.word_body),
-    };
-    let family = input.settings.font_family();
-    let mut segments = Vec::new();
-    for g in groups {
-        let slice = &text[local_bytes[g.range.start as usize]..local_bytes[g.range.end as usize]];
-        // The reader's bold toggle renders all body text bold; the
-        // engine's two-weight model folds publisher emphasis into it.
-        let weight = if input.typography.bold_base {
-            FontWeight::Bold
-        } else {
-            g.weight
-        };
-        let ctx = ShapeContext {
-            fonts: input.fonts,
-            family,
-            font_style: g.font_style,
-            font_weight: weight,
-            size,
-            letter_spacing: letter,
-            word_spacing: word,
-            lang: meta.lang.as_deref().or(input.lang),
-            vertical,
-            base_rtl: meta.base_rtl,
-        };
-        let kind = match g.ruby {
-            None => SegmentKind::Text(shape_text(slice, &ctx)),
-            Some(ruby_node) => {
-                let rt = rt_text(styled.doc, ruby_node);
-                let position = styled.styles[ruby_node.0 as usize].ruby_position;
-                SegmentKind::Ruby(shape_ruby(
-                    slice,
-                    &rt,
-                    &ctx,
-                    input.typography.ruby_scale,
-                    position,
-                ))
-            }
-        };
-        segments.push(ShapedSegment {
-            char_start: g.range.start,
-            char_len: g.range.end - g.range.start,
-            kind,
-        });
-    }
-    ShapedParagraph {
-        text,
-        char_range: meta.char_range.clone(),
-        segments,
-        base_rtl: meta.base_rtl,
-        fonts: input.fonts,
-    }
-}
-
-/// The nearest `ruby` ancestor of a text node, if any.
-fn nearest_ruby(doc: &Document, node: NodeId) -> Option<NodeId> {
-    let mut cur = doc.node(node).parent;
-    while let Some(id) = cur {
-        if let Some(el) = doc.element(id) {
-            if el.name == ElementName::Ruby {
-                return Some(id);
-            }
-            if is_block(&el.name) {
-                return None;
-            }
-        }
-        cur = doc.node(id).parent;
-    }
-    None
-}
-
-/// The collapsed annotation text of a ruby element's `rt` subtrees —
-/// gathered from the DOM because the projection excludes `rt`.
-fn rt_text(doc: &Document, ruby: NodeId) -> String {
-    let mut raw = String::new();
-    collect_rt(doc, ruby, false, &mut raw);
-    let words: Vec<&str> = raw.split_whitespace().collect();
-    words.join(" ")
-}
-
-fn collect_rt(doc: &Document, id: NodeId, in_rt: bool, out: &mut String) {
-    match &doc.node(id).kind {
-        NodeKind::Text(t) => {
-            if in_rt {
-                out.push_str(t);
-            }
-        }
-        NodeKind::Element(data) => {
-            let in_rt = in_rt || data.name == ElementName::Rt;
-            for &child in &doc.node(id).children {
-                collect_rt(doc, child, in_rt, out);
-            }
-        }
-    }
 }

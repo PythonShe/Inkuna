@@ -14,7 +14,8 @@ use crate::text::Projection;
 
 use super::blocks::{self, BlockKind};
 use super::flow::Pager;
-use super::images::{self, PlacedImage};
+use super::images::{self, DimensionCache, PlacedImage};
+use super::shaping;
 
 /// Page budget per chapter: layout stops here and the result is a
 /// truncated prefix (`char_range`s cover exactly the emitted pages).
@@ -93,7 +94,10 @@ pub struct ChapterInput<'a> {
     /// Pure lookup from a normalized package-root-relative href to the
     /// resource's bytes. M5's session worker backs this with its
     /// archive reads; `None` degrades to the placeholder box. Must be
-    /// deterministic for the layout to be.
+    /// deterministic for the layout to be. Called at most once per
+    /// unique href per `paginate` call (dimensions are memoized within
+    /// the pass), but every pass asks again — callers that paginate
+    /// repeatedly should serve cached bytes.
     pub resources: &'a dyn Fn(&str) -> Option<Vec<u8>>,
 }
 
@@ -149,7 +153,9 @@ impl Metrics {
 /// Lays the chapter out, calling `emit` the moment each page is full —
 /// long before the chapter finishes. Page breaks happen only at line
 /// boundaries; widow/orphan (min 2 lines on both sides of a paragraph
-/// split) and heading keep (heading + 2 lines of the next block) are
+/// split) and heading keep (heading + the next block's minimum
+/// placeable unit: 2 lines of a splittable paragraph, a whole <=3-line
+/// paragraph, a rule's advance, or an image's fitted extent) are
 /// honored by pushing breaks earlier. Truncation — the projection's
 /// own flag, a paragraph tripping the line cap, or the page cap — is
 /// the degradation path; `paginate` itself never fails on content.
@@ -170,6 +176,7 @@ pub fn paginate(
     // Broken lines per block, computed lazily (one-block lookahead for
     // heading keep) so emission stays progressive.
     let mut cache: Vec<Option<Vec<Line>>> = (0..blocks.len()).map(|_| None).collect();
+    let mut dims = DimensionCache::new();
     let mut truncated = input.projection.truncated;
 
     for i in 0..blocks.len() {
@@ -181,14 +188,32 @@ pub fn paginate(
                 ensure_lines(&mut cache, i, &blocks, input, &m, &byte_of_char, &pager);
                 if meta.heading.is_some() {
                     let heading_extent = block_extent(&m, &blocks, i, &cache, usize::MAX);
-                    let next_two = match blocks.get(i + 1) {
+                    // The following block's minimum placeable unit: for
+                    // a paragraph, 2 lines — except a <=3-line paragraph
+                    // never splits (min 2 on BOTH sides), so its minimum
+                    // is the whole paragraph; a rule or image places
+                    // whole. Reserving less would let the follower push
+                    // itself to the next page and strand the heading.
+                    let follower = match blocks.get(i + 1) {
                         Some(BlockKind::Paragraph(_)) => {
                             ensure_lines(&mut cache, i + 1, &blocks, input, &m, &byte_of_char, &pager);
-                            m.para_spacing + block_extent(&m, &blocks, i + 1, &cache, 2)
+                            let n = cache[i + 1].as_ref().map_or(0, Vec::len);
+                            let keep = if n <= 3 { n } else { 2 };
+                            m.para_spacing + block_extent(&m, &blocks, i + 1, &cache, keep)
                         }
-                        _ => Fx::ZERO,
+                        Some(BlockKind::Rule) => m.para_spacing + m.line_advance,
+                        Some(BlockKind::Image { src }) => {
+                            let measured = images::measure_image(
+                                src,
+                                input.resource_path,
+                                input.resources,
+                                &mut dims,
+                            );
+                            m.para_spacing + pager.image_block_extent(measured.intrinsic)
+                        }
+                        None => Fx::ZERO,
                     };
-                    pager.require(m.para_spacing + heading_extent + next_two, emit);
+                    pager.require(m.para_spacing + heading_extent + follower, emit);
                 }
                 let lines = cache[i].take().unwrap_or_default();
                 let para_truncated = lines
@@ -199,7 +224,8 @@ pub fn paginate(
                     None => m.line_advance,
                 };
                 let inset = m.quote_inset.mul_ratio(meta.quote_depth as i32, 1);
-                pager.place_paragraph(lines, adv, inset, m.para_spacing, m.indent, emit);
+                let indent = if meta.indent { m.indent } else { Fx::ZERO };
+                pager.place_paragraph(lines, adv, inset, m.para_spacing, indent, emit);
                 if para_truncated {
                     // Prefix semantics: a line-capped paragraph ends
                     // the laid-out prefix.
@@ -210,7 +236,7 @@ pub fn paginate(
             BlockKind::Rule => pager.place_rule(&m, emit),
             BlockKind::Image { src } => {
                 let measured =
-                    images::measure_image(src, input.resource_path, input.resources);
+                    images::measure_image(src, input.resource_path, input.resources, &mut dims);
                 pager.place_image(measured, &m, emit);
             }
         }
@@ -242,10 +268,13 @@ fn ensure_lines(
     };
     let inset = m.quote_inset.mul_ratio(meta.quote_depth as i32, 1);
     let width = (pager.inline_total() - inset - inset).max(Fx(64));
-    let shaped = blocks::shape_paragraph(input, meta, m, byte_of_char);
+    let shaped = shaping::shape_paragraph(input, meta, m, byte_of_char);
     let opts = LineOptions {
         justify: meta.align,
-        last_line_ragged: true,
+        // The first line is broken and justified against the
+        // indent-reduced measure, so the placement shift never
+        // overflows the content box.
+        first_line_indent: if meta.indent { m.indent } else { Fx::ZERO },
         max_lines: MAX_LINES_PER_PARAGRAPH,
     };
     cache[i] = Some(break_paragraph(&shaped, width, &opts));
