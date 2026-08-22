@@ -112,6 +112,55 @@ pub enum ElementName {
     Other(Box<str>),
 }
 
+impl ElementName {
+    /// Interns a lowercased tag name; `i` → `Em`, `b` → `Strong`. The one
+    /// mapping both the parser and selector matching share, so a CSS
+    /// `i {}` rule matches the `Em` the parser interned.
+    pub fn from_tag(tag: &str) -> Self {
+        match tag.as_bytes() {
+            b"html" => Self::Html,
+            b"body" => Self::Body,
+            b"h1" => Self::H1,
+            b"h2" => Self::H2,
+            b"h3" => Self::H3,
+            b"h4" => Self::H4,
+            b"h5" => Self::H5,
+            b"h6" => Self::H6,
+            b"p" => Self::P,
+            b"div" => Self::Div,
+            b"span" => Self::Span,
+            b"em" | b"i" => Self::Em,
+            b"strong" | b"b" => Self::Strong,
+            b"blockquote" => Self::Blockquote,
+            b"pre" => Self::Pre,
+            b"code" => Self::Code,
+            b"ol" => Self::Ol,
+            b"ul" => Self::Ul,
+            b"li" => Self::Li,
+            b"ruby" => Self::Ruby,
+            b"rt" => Self::Rt,
+            b"rb" => Self::Rb,
+            b"img" => Self::Img,
+            b"image" => Self::Image,
+            b"table" => Self::Table,
+            b"tr" => Self::Tr,
+            b"td" => Self::Td,
+            b"th" => Self::Th,
+            b"caption" => Self::Caption,
+            b"br" => Self::Br,
+            b"hr" => Self::Hr,
+            b"a" => Self::A,
+            b"section" => Self::Section,
+            b"article" => Self::Article,
+            b"figure" => Self::Figure,
+            b"figcaption" => Self::Figcaption,
+            b"dt" => Self::Dt,
+            b"dd" => Self::Dd,
+            _ => Self::Other(tag.into()),
+        }
+    }
+}
+
 impl Document {
     /// The element data of `id`, `None` for text nodes.
     pub fn element(&self, id: NodeId) -> Option<&ElementData> {

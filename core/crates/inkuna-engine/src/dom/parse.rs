@@ -381,49 +381,9 @@ fn truncate_boundary(text: &str, max: usize) -> &str {
     &text[..end]
 }
 
-/// Interns an element's lowercased local name; `i` → `Em`, `b` → `Strong`.
+/// Interns an element's lowercased local name via the shared mapping.
 fn element_name(local: &[u8]) -> ElementName {
-    match local {
-        b"html" => ElementName::Html,
-        b"body" => ElementName::Body,
-        b"h1" => ElementName::H1,
-        b"h2" => ElementName::H2,
-        b"h3" => ElementName::H3,
-        b"h4" => ElementName::H4,
-        b"h5" => ElementName::H5,
-        b"h6" => ElementName::H6,
-        b"p" => ElementName::P,
-        b"div" => ElementName::Div,
-        b"span" => ElementName::Span,
-        b"em" | b"i" => ElementName::Em,
-        b"strong" | b"b" => ElementName::Strong,
-        b"blockquote" => ElementName::Blockquote,
-        b"pre" => ElementName::Pre,
-        b"code" => ElementName::Code,
-        b"ol" => ElementName::Ol,
-        b"ul" => ElementName::Ul,
-        b"li" => ElementName::Li,
-        b"ruby" => ElementName::Ruby,
-        b"rt" => ElementName::Rt,
-        b"rb" => ElementName::Rb,
-        b"img" => ElementName::Img,
-        b"image" => ElementName::Image,
-        b"table" => ElementName::Table,
-        b"tr" => ElementName::Tr,
-        b"td" => ElementName::Td,
-        b"th" => ElementName::Th,
-        b"caption" => ElementName::Caption,
-        b"br" => ElementName::Br,
-        b"hr" => ElementName::Hr,
-        b"a" => ElementName::A,
-        b"section" => ElementName::Section,
-        b"article" => ElementName::Article,
-        b"figure" => ElementName::Figure,
-        b"figcaption" => ElementName::Figcaption,
-        b"dt" => ElementName::Dt,
-        b"dd" => ElementName::Dd,
-        other => ElementName::Other(String::from_utf8_lossy(other).into()),
-    }
+    ElementName::from_tag(&String::from_utf8_lossy(local))
 }
 
 /// Resolves an entity-reference event: character references, the XML

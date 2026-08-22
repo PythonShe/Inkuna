@@ -5,6 +5,7 @@
 pub mod dom;
 mod error;
 pub mod settings;
+pub mod style;
 
 #[cfg(test)]
 mod test_support;
@@ -12,3 +13,4 @@ mod test_support;
 pub use dom::{parse, Document};
 pub use error::EngineError;
 pub use settings::{FontFamily, LayoutSettings, Typography};
+pub use style::{parse_sheet, resolve, ComputedStyle, StyledDocument, WritingMode};
