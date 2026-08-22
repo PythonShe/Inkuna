@@ -4,9 +4,11 @@
 
 pub mod dom;
 mod error;
+pub mod settings;
 
 #[cfg(test)]
 mod test_support;
 
 pub use dom::{parse, Document};
 pub use error::EngineError;
+pub use settings::{FontFamily, LayoutSettings, Typography};

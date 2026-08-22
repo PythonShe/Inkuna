@@ -1232,6 +1232,7 @@ dependencies = [
 name = "inkuna-engine"
 version = "0.6.2"
 dependencies = [
+ "blake3",
  "inkuna-content",
  "log",
  "quick-xml",

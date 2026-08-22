@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+blake3 = "1.8"
 inkuna-content = { path = "../inkuna-content" }
 quick-xml = { version = "0.41", features = ["escape-html"] }
 thiserror = "2"
