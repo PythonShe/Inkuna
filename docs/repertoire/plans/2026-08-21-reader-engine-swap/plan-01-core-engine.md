@@ -1759,6 +1759,9 @@ shells compile at the end (6.8).
     `accessibility_blocks(spine_idx: u32, page_idx: u32) ->
     Result<Vec<A11yBlock>, InkunaError>`, `font_registry() ->
     Vec<FontEntry>`, `spine_count() -> u32` (wraps `spine_len`),
+    `is_rtl() -> bool` (publication-level progression from OPF metadata),
+    `published_page_count(spine_idx: u32) -> u32` (sync cache query of
+    emitted pages),
     `page_char_range(spine_idx: u32, page_idx: u32) -> Result<CharRange,
     InkunaError>`, `position_of(coordinate: Coordinate) -> u32` and
     `position_count() -> u32` (1-based synthetic position lookup over a

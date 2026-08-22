@@ -57,6 +57,8 @@ Movement 6 is the full parity gate.
 - `ReaderSession` sync/cache-only (throws `InkunaError.NotReady`, never
   blocks; `chapter`/`page` on an un-laid-out chapter schedules layout):
   `chapter(spine_idx)`, `page(spine_idx, page_idx)`, `is_ready(spine_idx)`,
+  `is_rtl() -> bool` (publication-level progression known at open from OPF),
+  `published_page_count(spine_idx: u32) -> u32` (sync cache count of emitted pages),
   `locate(coordinate) -> PageLocation`, `locate_href(href, fragment) ->
   Coordinate` (throws `AnchorNotFound`), `hit_test(spine_idx, page_idx, x, y)
   -> HitResult`, `selection_rects(spine_idx, range) -> [SelectionRect]`,
@@ -68,8 +70,9 @@ Movement 6 is the full parity gate.
   Vec<u8>`.
   - **Progressive readiness semantics**: `page(spine_idx, page_idx)` succeeds as
     soon as that individual page is published (page 0 ready upon
-    `on_first_page_ready`); `chapter(spine_idx)` and `is_ready(spine_idx)`
-    require the complete chapter layout to finish.
+    `on_first_page_ready`); `published_page_count(spine_idx)` queries emitted
+    count synchronously without per-page callbacks; `chapter(spine_idx)` and
+    `is_ready(spine_idx)` require complete chapter layout.
   - **Selection geometry semantics**: `selection_rects` returns rects in
     page-local layout coordinates. In v1, selection is bounded to the visible
     page and the queried range is constrained to the active page's char range,
@@ -584,15 +587,17 @@ end of this movement the iOS reader reads real books on the core engine
         `chapterBecameReady` arrives for the current chapter at the new
         generation (the only busy window left; no renderer to wait on).
       - `hasActiveSelection` — `selectionActive`.
-      - `isRightToLeft` — current geometry's `rtlProgression` (or false if
-        still `Partial` with default LTR until geometry caches).
+      - `isRightToLeft` — `session.isRtl()` (publication-level progression
+        known at open time from OPF metadata; immediately accurate on page 0
+        without waiting for `ChapterGeometry`).
       - `innerMetrics()` — strip metrics based on progressive readiness:
         - `Complete(geometry)`: `ReaderPagerStrip(offset: innerOffset,
           range: 0…(geometry.pageCount − 1)·w, pageWidth: w)`.
-        - `Partial(publishedPages)`: `ReaderPagerStrip(offset: innerOffset,
-          range: 0…max(innerOffset, CGFloat(publishedPages − 1) * w),
+        - `Partial`: queries `session.publishedPageCount(spineIdx:)`
+          (synchronous cache query): `ReaderPagerStrip(offset: innerOffset,
+          range: 0…max(innerOffset, CGFloat(max(1, session.publishedPageCount(spineIdx: spineIdx)) − 1) * w),
           pageWidth: w)` (allows swipe across published pages, dynamically
-          extends as layout finishes).
+          extends as layout emits without requiring noisy per-page callbacks).
         - `Empty`: nil.
       - `setInnerOffset` — clamp, store, `canvas.setScene`.
       - `outerMetrics()` — synthetic 3-slot chapter strip: `pageWidth = w`,
@@ -1049,10 +1054,13 @@ shape being mirrored is final).
       canvas laid out ∧ !isBusy. **Does NOT require full `ChapterGeometry`** —
       the reader is engageable the moment page 0 is mounted (~30ms), without
       waiting for the whole chapter to finish layout (~400ms).
+    - `isRightToLeft`: `session.isRtl()` (publication-level progression known
+      at open time from OPF metadata; immediately accurate on page 0).
     - `innerMetrics()`: returns `ReaderPagerStrip` with range
       `0f..(geometry.pageCount - 1) * w` when `Complete`, dynamic range
-      `0f..maxOf(innerOffset, (publishedPages - 1).toFloat() * w)` when
-      `Partial`, or null when `Empty`.
+      `0f..maxOf(innerOffset, (maxOf(1u, session.publishedPageCount(spineIdx)) - 1u).toFloat() * w)`
+      when `Partial` (queries synchronous cache count without per-page
+      callbacks), or null when `Empty`.
     - `neighborIsReady(toRight)`: asymmetric check — next chapter in progression
       needs only `Partial` / `Complete` (page 0 ready); previous chapter needs
       `Complete`.
@@ -1526,16 +1534,16 @@ lets `dev/core` merge.
   returns one row per spine resource in spine order (spineCount source);
   `hit_test` at the reading-start corner returns the first character shown
   on a page (backed by the spec's `locate(hit_test(x)) = x` round-trip
-  property); the 1024-char synthetic block size (spec §8) is stable enough
-  to mirror in the two `ReaderPositions` helpers — if plan 01 shipped a
-  core-side position lookup instead, prefer it and delete the helpers.
-- **`Decoration` carries no color role** (overview shape `{ kind, rect }`);
-  the link-region intersection rule in Tasks 1.4/4.2 is this plan's local
-  decision — revisit only if plan 01 extended the record.
-- **Parity corpus sourcing** (Task 6.3): prefer plan-01 fixture exports if
-  its test tooling exposes them; otherwise the owner's benchmark library.
-  Either way the evidence file pins names + hashes so the run is
-  reproducible.
+  property); synthetic positions are always core-looked-up via
+  `session.position_of()` / `ShelfProgress` (shells never mirror the 1024-char
+  constant).
+- **`Decoration` colors are core-assigned:** `Decoration` records carry
+  `colorRole` (`Text`, `Secondary`, `Link`) assigned by core; shells never
+  infer decoration colors and simply resolve the role through their
+  `ReadingTheme` palette tokens.
+- **Parity corpus sourcing (Task 6.3):** Exclusively uses Plan 1's exported
+  fixture corpus with `manifest.json` (`export-parity-fixtures`), ensuring
+  reproducible, deterministic digest verification across platforms.
 - **Owner-interactive steps:** on-device iOS performance numbers,
   Instruments hitch comparison, and the on-device checklist rows — prepare
   builds and exact commands; the owner executes and reports, per this
