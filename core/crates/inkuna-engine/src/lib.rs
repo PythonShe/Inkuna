@@ -4,6 +4,7 @@
 
 pub mod dom;
 mod error;
+pub mod fixed;
 pub mod settings;
 pub mod style;
 pub mod text;
@@ -13,6 +14,7 @@ mod test_support;
 
 pub use dom::{parse, Document};
 pub use error::EngineError;
+pub use fixed::Fx;
 pub use settings::{FontFamily, LayoutSettings, Typography};
 pub use style::{
     cap_sheet_sources, parse_sheet, resolve, ComputedStyle, StyledDocument, WritingMode,
