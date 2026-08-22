@@ -104,20 +104,23 @@ impl LayoutSettings {
         }
     }
 
-    /// A 64-bit digest of the settings — equal settings hash equal, any
-    /// field change rehashes. First 8 bytes (LE) of blake3 over a
-    /// canonical encoding: fields in declaration order, strings as
+    /// A 64-bit digest of the settings as layout consumes them: the
+    /// CLAMPED values are hashed, so two settings that clamp identically
+    /// fingerprint identically (they lay out identically), and any
+    /// effective field change rehashes. First 8 bytes (LE) of blake3 over
+    /// a canonical encoding: fields in declaration order, strings as
     /// `len (u64 LE) + bytes`, `f64` as `to_bits()` LE.
     pub fn fingerprint(&self) -> u64 {
+        let clamped = self.clone().clamped();
         let mut hasher = blake3::Hasher::new();
-        hasher.update(&(self.reading_font.len() as u64).to_le_bytes());
-        hasher.update(self.reading_font.as_bytes());
-        hasher.update(&[u8::from(self.reading_bold)]);
-        hasher.update(&[self.text_size_step]);
-        hasher.update(&self.line_spacing.to_bits().to_le_bytes());
-        hasher.update(&self.letter_spacing.to_bits().to_le_bytes());
-        hasher.update(&self.word_spacing.to_bits().to_le_bytes());
-        hasher.update(&self.reading_margins.to_le_bytes());
+        hasher.update(&(clamped.reading_font.len() as u64).to_le_bytes());
+        hasher.update(clamped.reading_font.as_bytes());
+        hasher.update(&[u8::from(clamped.reading_bold)]);
+        hasher.update(&[clamped.text_size_step]);
+        hasher.update(&clamped.line_spacing.to_bits().to_le_bytes());
+        hasher.update(&clamped.letter_spacing.to_bits().to_le_bytes());
+        hasher.update(&clamped.word_spacing.to_bits().to_le_bytes());
+        hasher.update(&clamped.reading_margins.to_le_bytes());
         let digest = hasher.finalize();
         let mut first = [0u8; 8];
         first.copy_from_slice(&digest.as_bytes()[..8]);

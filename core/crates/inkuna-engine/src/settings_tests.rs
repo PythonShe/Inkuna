@@ -45,6 +45,33 @@ fn fingerprint_is_stable_and_sensitive() {
 }
 
 #[test]
+fn fingerprint_hashes_clamped_values() {
+    // 5.0 clamps to the 2.10 ceiling: both settings lay out identically,
+    // so they must fingerprint identically (no spurious cache
+    // invalidation).
+    let ceiling = LayoutSettings {
+        line_spacing: 2.10,
+        ..LayoutSettings::default()
+    };
+    let over = LayoutSettings {
+        line_spacing: 5.0,
+        ..LayoutSettings::default()
+    };
+    assert_eq!(over.fingerprint(), ceiling.fingerprint());
+
+    // Distinct in-range values still fingerprint apart.
+    let a = LayoutSettings {
+        line_spacing: 1.80,
+        ..LayoutSettings::default()
+    };
+    let b = LayoutSettings {
+        line_spacing: 1.90,
+        ..LayoutSettings::default()
+    };
+    assert_ne!(a.fingerprint(), b.fingerprint());
+}
+
+#[test]
 fn clamps_out_of_range() {
     let clamped = LayoutSettings {
         text_size_step: 9,
