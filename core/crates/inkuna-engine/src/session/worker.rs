@@ -8,6 +8,8 @@ use std::panic::AssertUnwindSafe;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
+use icu_segmenter::options::WordBreakInvariantOptions;
+use icu_segmenter::{WordSegmenter, WordSegmenterBorrowed};
 use inkuna_content::read_resource;
 
 use crate::display::{build_page, DisplayContext};
@@ -18,7 +20,7 @@ use crate::settings::LayoutSettings;
 use crate::style::resolve;
 use crate::text::project;
 
-use super::cache::SlotState;
+use super::cache::{SlotState, TextIndex};
 use super::model::Viewport;
 use super::session::{Inner, Shared};
 
@@ -30,10 +32,15 @@ struct Job {
     settings: LayoutSettings,
 }
 
-/// The worker loop: runs until the session closes.
+/// The worker loop: runs until the session closes. The ICU word
+/// segmenter lives here: chapter text indexes (word bounds, the
+/// char→byte stride table) are computed on this thread at publish
+/// time, so queries answer from the cache without O(chapter) work.
 pub(super) fn run(shared: Arc<Shared>) {
+    let segmenter = WordSegmenter::new_auto(WordBreakInvariantOptions::default());
     while let Some(job) = next_job(&shared) {
-        let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| lay_chapter(&shared, &job)));
+        let outcome =
+            std::panic::catch_unwind(AssertUnwindSafe(|| lay_chapter(&shared, &job, &segmenter)));
         if outcome.is_err() {
             log::error!("layout panicked for spine {}", job.spine_idx);
             publish_failed(&shared, &job, "layout panicked".to_string());
@@ -100,7 +107,7 @@ fn stale(shared: &Shared, job: &Job) -> bool {
 }
 
 /// Lays one chapter out, publishing progressively.
-fn lay_chapter(shared: &Shared, job: &Job) {
+fn lay_chapter(shared: &Shared, job: &Job, segmenter: &WordSegmenterBorrowed<'static>) {
     let bytes = match read_resource(&shared.epub_path, &job.href) {
         Ok(bytes) => bytes,
         Err(e) => return publish_failed(shared, job, e.to_string()),
@@ -116,6 +123,11 @@ fn lay_chapter(shared: &Shared, job: &Job) {
 
     let styled = resolve(&doc, &sheets);
     let projection = project(&styled);
+
+    // Text indexes derive off the lock, once per chapter — `word_at` /
+    // `text_range` then answer from the cache slot without O(chapter)
+    // work under the session mutex.
+    let index = TextIndex::build(segmenter, &projection.text);
 
     // Projection facts publish before pagination: anchors, text, and
     // writing mode are queryable as soon as they exist.
@@ -133,6 +145,7 @@ fn lay_chapter(shared: &Shared, job: &Job) {
         data.anchors = projection.anchors.clone();
         data.writing_mode = styled.writing_mode;
         data.truncated = projection.truncated;
+        data.index = index;
     }
 
     let settings = job.settings.clone().clamped();
@@ -182,7 +195,12 @@ fn lay_chapter(shared: &Shared, job: &Job) {
                 _ => false,
             }
         };
-        if published && first {
+        // Re-check `closed` immediately before firing: the pre-publish
+        // `stale()` check leaves a window where `close()` lands between
+        // publish and emit, and a post-close callback must not fire
+        // (the window shrinks to the one load; it cannot close fully
+        // without an abort path inside pagination).
+        if published && first && !shared.closed.load(Ordering::Acquire) {
             shared.events.first_page_ready(job.generation, job.spine_idx);
         }
     });
@@ -220,10 +238,13 @@ fn lay_chapter(shared: &Shared, job: &Job) {
                     None => None,
                 }
             };
+            // Same closed re-check as the first-page emit above.
             if let Some(page_count) = published {
-                shared
-                    .events
-                    .chapter_ready(job.generation, job.spine_idx, page_count);
+                if !shared.closed.load(Ordering::Acquire) {
+                    shared
+                        .events
+                        .chapter_ready(job.generation, job.spine_idx, page_count);
+                }
             }
         }
         Err(e) => publish_failed(shared, job, e.to_string()),
@@ -231,6 +252,12 @@ fn lay_chapter(shared: &Shared, job: &Job) {
 }
 
 /// Caches the chapter as failed-closed, scoped to the resource.
+///
+/// Deliberately fires NO [`LayoutEvents`](super::model::LayoutEvents)
+/// callback: the listener trait is a frozen two-method cross-plan
+/// contract. The shell's signal is the query path — once the failure is
+/// cached here, any query on the chapter returns the error immediately
+/// (never `NotReady`).
 fn publish_failed(shared: &Shared, job: &Job, detail: String) {
     log::error!("chapter {} failed closed: {detail}", job.spine_idx);
     let mut inner = shared.lock();

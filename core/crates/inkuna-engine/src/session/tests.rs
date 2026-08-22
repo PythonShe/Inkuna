@@ -484,3 +484,110 @@ fn coordinates_survive_update_layout() {
         .expect("char after relayout");
     assert_eq!(char_at, char_after);
 }
+
+#[test]
+fn word_index_cached_at_publish() {
+    use std::sync::atomic::Ordering;
+
+    let dir = TempDir::new().expect("tempdir");
+    let path = book(&dir, &[LATIN_DOC]);
+    let (session, rx) = open(
+        &path,
+        Viewport {
+            width: 390.0,
+            height: 664.0,
+        },
+        0,
+    );
+    wait_chapter_ready(&rx, 0, 0);
+
+    // Structure: the worker published the chapter's text index with the
+    // chapter itself — `word_at` answers from these cached boundaries
+    // and never re-segments per call.
+    {
+        let generation = session.shared.generation.load(Ordering::Acquire);
+        let mut inner = session.shared.lock();
+        match inner.cache.get(0, generation) {
+            Some(super::cache::SlotState::Ready(data)) => {
+                assert!(data.index.chars > 0, "index published with the chapter");
+                assert!(data.index.word_bounds.len() >= 2);
+                assert_eq!(data.index.word_bounds.first(), Some(&0));
+                assert_eq!(data.index.word_bounds.last(), Some(&data.index.chars));
+                assert!(!data.index.stride_bytes.is_empty());
+            }
+            _ => panic!("chapter 0 must be Ready"),
+        }
+    }
+
+    // Correctness stays identical across repeated calls.
+    let c = Coordinate {
+        spine_idx: 0,
+        char_offset: 4,
+    };
+    let first = session.word_at(c).expect("word at offset");
+    assert!(first.start <= 4 && first.end > first.start);
+    for _ in 0..3 {
+        assert_eq!(session.word_at(c).expect("repeated word_at"), first);
+    }
+}
+
+/// Drops the LAST `Arc<EngineSession>` inside a [`LayoutEvents`]
+/// callback: `Drop` → `close()` runs ON the worker thread, which must
+/// skip the self-join instead of deadlocking (std panics on a thread
+/// joining itself).
+struct DropInWorker {
+    slot: std::sync::Mutex<Option<Arc<EngineSession>>>,
+    gate: std::sync::Mutex<Option<Receiver<()>>>,
+    done: std::sync::atomic::AtomicBool,
+}
+
+impl LayoutEvents for DropInWorker {
+    fn first_page_ready(&self, _: u64, _: u32) {}
+    fn chapter_ready(&self, _: u64, _: u32, _: u32) {
+        let gate = self.gate.lock().expect("gate lock").take();
+        let Some(gate) = gate else { return };
+        // Wait until the test thread has parked its only Arc in `slot`.
+        gate.recv_timeout(TIMEOUT).expect("armed within timeout");
+        let arc = self.slot.lock().expect("slot lock").take();
+        drop(arc); // the last Arc: close() runs on this worker thread
+        self.done.store(true, std::sync::atomic::Ordering::Release);
+    }
+}
+
+#[test]
+fn drop_inside_callback_does_not_deadlock() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::Instant;
+
+    let dir = TempDir::new().expect("tempdir");
+    let doc = cjk_doc(1);
+    let path = book(&dir, &[&doc]);
+    let (gate_tx, gate_rx) = channel();
+    let events = Arc::new(DropInWorker {
+        slot: std::sync::Mutex::new(None),
+        gate: std::sync::Mutex::new(Some(gate_rx)),
+        done: AtomicBool::new(false),
+    });
+    let session = EngineSession::open(
+        &path,
+        registry(),
+        viewport(),
+        LayoutSettings::default(),
+        None,
+        0,
+        Arc::clone(&events) as Arc<dyn LayoutEvents>,
+    )
+    .expect("session opens");
+    // Park the ONLY Arc inside the events object, then arm the callback.
+    *events.slot.lock().expect("slot lock") = Some(session);
+    gate_tx.send(()).expect("gate send");
+
+    let deadline = Instant::now() + TIMEOUT;
+    while !events.done.load(Ordering::Acquire) {
+        assert!(
+            Instant::now() < deadline,
+            "close() from the worker thread must not deadlock or panic"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}

@@ -60,8 +60,16 @@ pub struct SelectionRect {
 }
 
 /// Layout progress callbacks, fired from the worker thread (never under
-/// the session's lock — callbacks may query the session, but must not
-/// call `close`).
+/// the session's lock — callbacks may query the session; calling
+/// `close` from a callback is tolerated but skips the worker join).
+///
+/// This trait is a FROZEN cross-plan contract: exactly these two
+/// methods, mirrored 1:1 by the FFI. In particular, a chapter that
+/// FAILS layout emits no event at all — shells never wait on an event
+/// for failure. The failure signal is the query path: once the worker
+/// caches the failure, any query on that chapter returns the error
+/// immediately (never `NotReady`), so a shell that saw `NotReady`
+/// re-queries on its own cadence and gets the terminal error.
 pub trait LayoutEvents: Send + Sync + 'static {
     /// Page 0 of `spine_idx` is available — the first-paint moment.
     fn first_page_ready(&self, generation: u64, spine_idx: u32);

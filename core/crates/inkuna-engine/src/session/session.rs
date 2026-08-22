@@ -8,9 +8,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 
-use icu_segmenter::options::WordBreakInvariantOptions;
-use icu_segmenter::{WordSegmenter, WordSegmenterBorrowed};
-
 use inkuna_content::{read_package, read_resource, RenditionLayout};
 
 use crate::error::EngineError;
@@ -67,8 +64,6 @@ impl Shared {
 pub struct EngineSession {
     pub(super) shared: Arc<Shared>,
     worker: Mutex<Option<JoinHandle<()>>>,
-    /// Built once per session, reused by every `word_at`.
-    pub(super) segmenter: WordSegmenterBorrowed<'static>,
 }
 
 impl EngineSession {
@@ -122,14 +117,24 @@ impl EngineSession {
         Ok(Arc::new(EngineSession {
             shared,
             worker: Mutex::new(Some(handle)),
-            segmenter: WordSegmenter::new_auto(WordBreakInvariantOptions::default()),
         }))
     }
 
     /// Closes the session: drains the queue, joins the worker. Every
     /// sync method on a closed session returns `NotReady`. Idempotent;
-    /// also called by `Drop`. Must not be called from a
-    /// [`LayoutEvents`] callback (the worker cannot join itself).
+    /// also called by `Drop`.
+    ///
+    /// Pagination has no mid-chapter abort path, so `close()` may block
+    /// for up to one chapter's layout while the worker finishes its
+    /// current job (it publishes nothing and emits no events once the
+    /// closed flag is set).
+    ///
+    /// Called ON the worker thread itself — e.g. the last
+    /// `Arc<EngineSession>` dropped inside a [`LayoutEvents`] callback —
+    /// it sets the closed flag and drains the queue but SKIPS the join:
+    /// a thread joining itself deadlocks (std panics on it), and the
+    /// worker loop already exits on the closed flag, detaching cleanly
+    /// when the un-joined handle drops.
     pub fn close(&self) {
         {
             let mut inner = self.shared.lock();
@@ -137,11 +142,15 @@ impl EngineSession {
             inner.queue.clear();
         }
         self.shared.work.notify_all();
-        let handle = self
-            .worker
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
+        let mut guard = self.worker.lock().unwrap_or_else(PoisonError::into_inner);
+        if guard
+            .as_ref()
+            .is_some_and(|h| h.thread().id() == std::thread::current().id())
+        {
+            return;
+        }
+        let handle = guard.take();
+        drop(guard);
         if let Some(handle) = handle {
             if handle.join().is_err() {
                 // Per-chapter panics are caught in the worker; this is

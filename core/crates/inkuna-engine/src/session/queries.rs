@@ -236,6 +236,15 @@ impl EngineSession {
     /// The selection rects covering a char range: one rect per line the
     /// range touches, cells-tight on the inline axis, line-band-tall on
     /// the block axis. Requires the complete chapter.
+    ///
+    /// PAGE-LOCAL COORDINATES: every rect is in its own page's
+    /// coordinate space, with no page attribution in the record (the
+    /// FFI record shape is a frozen cross-plan contract). Callers pass
+    /// ranges within a single page — obtain the page's range via
+    /// [`Self::page_char_range`]. A range spanning pages returns the
+    /// union of page-local rects, which is not meaningfully renderable;
+    /// plan-02 shells must clamp selection ranges to the current page
+    /// (cross-page drag selection is out of scope).
     pub fn selection_rects(
         &self,
         spine_idx: u32,
@@ -288,7 +297,10 @@ impl EngineSession {
     }
 
     /// The rects of one search match — exactly
-    /// `selection_rects(spine, off..off+len)`.
+    /// `selection_rects(spine, off..off+len)`, including its PAGE-LOCAL
+    /// coordinate contract: rects carry no page attribution, so callers
+    /// clamp the match range to one page (via
+    /// [`Self::page_char_range`]) before rendering.
     pub fn match_rects(
         &self,
         spine_idx: u32,
@@ -304,49 +316,38 @@ impl EngineSession {
         )
     }
 
-    /// The word containing a coordinate, per the session's ICU word
-    /// segmenter (CJK-aware). Requires the complete chapter.
+    /// The word containing a coordinate, per the worker's ICU word
+    /// segmenter (CJK-aware). Answered from the chapter's cached
+    /// [`TextIndex`](super::cache::TextIndex) — the word boundaries are
+    /// computed once, at layout publish time, never per call. Requires
+    /// the complete chapter.
     pub fn word_at(&self, c: Coordinate) -> Result<CharRange, EngineError> {
         self.with_chapter(c.spine_idx, true, |data, _| {
-            let byte_of_char: Vec<usize> =
-                data.text.char_indices().map(|(b, _)| b).collect();
-            let total = byte_of_char.len() as u64;
+            let total = data.index.chars;
             if total == 0 {
                 return Ok(CharRange { start: 0, end: 0 });
             }
             let off = c.char_offset.min(total - 1);
-            let target = byte_of_char[off as usize];
-            let mut prev = 0usize;
-            for edge in self.segmenter.segment_str(&data.text) {
-                if edge == 0 {
-                    continue;
-                }
-                if target < edge {
-                    return Ok(CharRange {
-                        start: char_of_byte(&byte_of_char, prev),
-                        end: char_of_byte(&byte_of_char, edge),
-                    });
-                }
-                prev = edge;
-            }
-            Ok(CharRange {
-                start: char_of_byte(&byte_of_char, prev),
-                end: total,
-            })
+            // `word_bounds` starts at 0 and ends at `total`, so the
+            // first edge past `off` always has a predecessor.
+            let bounds = &data.index.word_bounds;
+            let i = bounds.partition_point(|&e| e <= off);
+            let start = if i == 0 { 0 } else { bounds[i - 1] };
+            let end = bounds.get(i).copied().unwrap_or(total);
+            Ok(CharRange { start, end })
         })
     }
 
     /// A char range as text, sliced from the canonical projection.
-    /// Requires the complete chapter.
+    /// Char→byte resolution goes through the chapter's cached stride
+    /// table (bounded scan, no per-call allocation). Requires the
+    /// complete chapter.
     pub fn text_range(&self, spine_idx: u32, range: CharRange) -> Result<String, EngineError> {
         self.with_chapter(spine_idx, true, |data, _| {
-            let mut byte_of_char: Vec<usize> =
-                data.text.char_indices().map(|(b, _)| b).collect();
-            byte_of_char.push(data.text.len());
-            let total = (byte_of_char.len() - 1) as u64;
+            let total = data.index.chars;
             let start = range.start.min(total);
             let end = range.end.clamp(start, total);
-            Ok(data.text[byte_of_char[start as usize]..byte_of_char[end as usize]].to_string())
+            Ok(data.text[data.byte_of_char(start)..data.byte_of_char(end)].to_string())
         })
     }
 }
@@ -432,9 +433,4 @@ fn to_rect(r: FxRect) -> Rect {
         width: f64::from(r.w.to_f32()),
         height: f64::from(r.h.to_f32()),
     }
-}
-
-/// The char index of a byte offset known to lie on a char boundary.
-fn char_of_byte(byte_of_char: &[usize], byte: usize) -> u64 {
-    byte_of_char.partition_point(|&b| b < byte) as u64
 }
