@@ -149,10 +149,18 @@ pub fn build_page(page: &LaidPage, ctx: &DisplayContext<'_>) -> (PageDisplayList
         ));
     }
     for d in &page.decorations {
+        // Exhaustive on the paginate-side kind: adding a
+        // `PlacedDecorationKind` variant must fail compilation here,
+        // never silently mislabel as a rule.
+        let (kind, color_role) = match d.kind {
+            crate::paginate::DecorationKind::Rule => {
+                (DecorationKind::Rule, ColorRole::Secondary)
+            }
+        };
         decorations.push(Decoration {
-            kind: DecorationKind::Rule,
+            kind,
             rect: rect(d.rect),
-            color_role: ColorRole::Secondary,
+            color_role,
         });
     }
     let images = page
