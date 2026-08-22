@@ -1,0 +1,10 @@
+chapter 0: pages=6 chars=3377 truncated=false writing_mode=HorizontalTb rtl=false
+  page 0: e5a5d68385f3d050e38d2d97762d81645ac5ff48a910dd88744b4fa404614095
+  page 1: 812dae04f571ca26aaf39bd932bd6f3acd887b93133f8aa87fe24a51ea453b55
+  page 2: 0eb2a74acabf4dd49a03aa5f325338656a6c1bf9d86e7457b1415122dcd93e79
+  page 3: 812dae04f571ca26aaf39bd932bd6f3acd887b93133f8aa87fe24a51ea453b55
+  page 4: 0eb2a74acabf4dd49a03aa5f325338656a6c1bf9d86e7457b1415122dcd93e79
+  page 5: 055ac8dd05a83e7254930ff984b5f99d822c227cb07d0aff5e0a60678486dad8
+chapter 1: pages=2 chars=679 truncated=false writing_mode=HorizontalTb rtl=false
+  page 0: f963f05b5e6c0890ea1feaa7e3ff53c900a2bb63b304aff15b9428859e0af8e2
+  page 1: 96c96941e05852b415042e811a2bf087ff37a11621b78c4ce5dbf8f4e0b29c35

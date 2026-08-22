@@ -17,8 +17,10 @@ import WebKit
 /// started always gets ended — a session captured `[weak self]` would
 /// guard-return on a deallocated reader and leave the row open until the
 /// book is next opened, losing every trailing idle minute.
+// Named to stay clear of the core FFI's `ReaderSession` object, which is
+// compiled into this target.
 @MainActor
-private final class ReaderSession {
+private final class ReadingSessionBox {
     var id: String?
 }
 
@@ -81,7 +83,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
 
     /// The open reading session, captured strongly by the session closures
     /// so it survives this controller.
-    private let session = ReaderSession()
+    private let session = ReadingSessionBox()
     /// Tail of the serialized core-write chain: progress heartbeats and
     /// session transitions must reach the core in the order they happened.
     private var coreWriteChain: Task<Void, Never>?
@@ -283,7 +285,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
     private func startSession() {
         enqueueCoreWrite("session start") { [session, id = publication.id] bookshelf in
             guard session.id == nil else { return }
-            session.id = try await bookshelf.sessionStart(id: id)
+            session.id = try await bookshelf.stats().sessionStart(id: id)
         }
     }
 
@@ -293,7 +295,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         enqueueCoreWrite("session end") { [session] bookshelf in
             guard let sessionID = session.id else { return }
             session.id = nil
-            try await bookshelf.sessionEnd(sessionId: sessionID)
+            try await bookshelf.stats().sessionEnd(sessionId: sessionID)
         }
     }
 
@@ -375,9 +377,13 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         let opened: OpenedBook
         do {
             userStyleBox.write(ReaderUserStyle.current.css())
+            // plan-02: real coordinates from the engine. The stored
+            // position is a content coordinate now, not a Readium locator;
+            // until the engine reader lands, restore falls back to locating
+            // the stored book-wide progression.
             opened = try await Self.openBook(
                 path: publication.filePath,
-                locatorJSON: publication.locator,
+                locatorJSON: nil,
                 progression: publication.progression,
                 style: userStyleBox
             )
@@ -469,7 +475,6 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
 
         loadingIndicator.stopAnimating()
         updatePageInfo()
-        reportPositionCountIfNeeded()
         fetchChapters()
     }
 
@@ -607,38 +612,11 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         positionCount = count > 0 ? count : nil
     }
 
-    /// Reports the per-resource position ranges to the core on every open.
-    /// The ranges carry the position count with them and are what the core
-    /// turns into per-chapter spans ("pages left in this chapter").
-    private func reportPositionCountIfNeeded() {
-        // Always re-report: a matching total can still mean missing
-        // per-resource ranges (a library whose books were opened before
-        // ranges existed), and the write is one small transaction. An
-        // empty report is deliberate — it clears ranges a previous layout
-        // left behind so the shells fall back to the percentage caption
-        // instead of showing a stale chapter page count.
-        let total = positionCount ?? 0
-        let counts = total > 0 ? positionCountByResource.map { UInt32(clamping: $0) } : []
-        enqueueCoreWrite("report position ranges") { [id = publication.id, logger] bookshelf in
-            do {
-                try await bookshelf.reportPositionRanges(id: id, counts: counts)
-            } catch {
-                // The core rejects a breakdown that does not line up with
-                // its own spine — it drops duplicate and over-long spine
-                // hrefs that Readium's reading order keeps. The per-chapter
-                // spans are lost, but "page N of M" need not be.
-                logger.warning("Position ranges rejected for \(id, privacy: .public): \(error)")
-                guard total > 0 else { return }
-                try await bookshelf.reportPositionCount(id: id, count: UInt32(clamping: total))
-            }
-        }
-    }
-
     private func fetchChapters() {
         Task { [weak self, id = publication.id, logger] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                let chapters = try await bookshelf.chapters(id: id)
+                let chapters = try await bookshelf.library().chapters(id: id)
                 self?.coreChapters = chapters
             } catch {
                 logger.warning("Fetching chapters for \(id, privacy: .public) failed: \(error)")
@@ -676,16 +654,18 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         // matters lands when the interaction commits.
         guard
             !liveStyleSession,
-            let locatorJSON = try? locator.jsonString(),
             let totalProgression = locator.locations.totalProgression
         else { return }
-        let position = locator.locations.position.map(UInt32.init)
         enqueueCoreWrite("progress") { [id = publication.id] bookshelf in
-            try await bookshelf.updateProgress(
+            // plan-02: real coordinates from the engine. The Readium
+            // reader cannot produce content coordinates, so the write
+            // carries the book-start stub; the real progression keeps
+            // Keep Reading and the shelves correct.
+            try await bookshelf.progress().updateProgress(
                 id: id,
-                locator: locatorJSON,
+                coordinate: Coordinate(spineIdx: 0, charOffset: 0),
                 progression: totalProgression,
-                position: position
+                position: nil
             )
         }
     }
@@ -949,8 +929,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
 
     private func placeBookmark() {
         guard
-            let locator = navigator?.currentLocation,
-            let locatorJSON = try? locator.jsonString()
+            let locator = navigator?.currentLocation
         else {
             InkToastView.show(
                 symbol: "bookmark.slash",
@@ -965,7 +944,12 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         Task { [weak self, id = publication.id, logger] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                _ = try await bookshelf.addBookmark(id: id, locator: locatorJSON, progression: progression)
+                // plan-02: real coordinates from the engine.
+                _ = try await bookshelf.library().addBookmark(
+                    id: id,
+                    coordinate: Coordinate(spineIdx: 0, charOffset: 0),
+                    progression: progression
+                )
                 guard let self else { return }
                 InkToastView.show(
                     symbol: "bookmark.fill",
@@ -1312,7 +1296,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
     private func runSearch(_ query: String) async -> BookSearchResults? {
         do {
             let bookshelf = try await LibraryStore.shared.library()
-            return try await bookshelf.searchInBook(
+            return try await bookshelf.search().searchInBook(
                 id: publication.id,
                 query: query,
                 limit: ReaderSearchPanel.hitLimit

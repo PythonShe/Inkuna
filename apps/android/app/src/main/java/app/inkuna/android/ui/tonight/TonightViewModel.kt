@@ -18,8 +18,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONObject
-import org.readium.r2.shared.publication.Locator
 
 /**
  * The Tonight screen's core-backed state: the hero to continue and the
@@ -55,7 +53,7 @@ class TonightViewModel(application: Application) : AndroidViewModel(application)
                 // Unfinished, not all: a book just finished must not be the
                 // "keep reading" hero merely for being touched last.
                 val bookshelf = LibraryStore.bookshelf(getApplication())
-                val publications = bookshelf.list(Shelf.UNFINISHED, Sort.RECENTLY_OPENED)
+                val publications = bookshelf.library().list(Shelf.UNFINISHED, Sort.RECENTLY_OPENED)
                 val unknownAuthor =
                     getApplication<Application>().getString(R.string.unknown_author)
                 val rows = publications.map { BookRow.from(it, unknownAuthor) }
@@ -79,35 +77,17 @@ class TonightViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * How many Readium synthetic positions the hero has left in the chapter
-     * it is stopped in.
+     * How many synthetic positions the hero has left in the chapter it is
+     * stopped in.
      *
-     * The chapter ranges are reported by the reader the last time the book
-     * was open, so they are absent until then — and the stored locator is
-     * opaque to the core, so only Readium parses it. Either missing makes
-     * this null and the card falls back to the honest percentage. Several
-     * ranges can contain one position (a chapter with sub-entries in the
-     * same resource); the innermost — the greatest start — is the chapter
-     * the reader is actually in.
+     * plan-02: real coordinates from the engine — the stored position is a
+     * content coordinate now; deriving its synthetic position is core math
+     * (`positionOf`), wired up with `chapterPositionRanges` when the
+     * engine reader lands. Until then the card falls back to the honest
+     * percentage.
      */
-    private suspend fun pagesLeftInChapter(bookshelf: Bookshelf, publication: Publication): Int? {
-        val position = publication.locator
-            ?.let { raw -> runCatching { Locator.fromJSON(JSONObject(raw)) }.getOrNull() }
-            ?.locations?.position
-            ?: return null
-        val ranges = try {
-            bookshelf.chapterPositionRanges(publication.id)
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (failure: Throwable) {
-            Log.w(TAG, "Chapter position ranges would not load", failure)
-            return null
-        }
-        val here = ranges
-            .filter { position.toUInt() in it.startPosition..it.endPosition }
-            .maxByOrNull { it.startPosition }
-            ?: return null
-        return (here.endPosition.toLong() - position).toInt().takeIf { it > 0 }
+    private fun pagesLeftInChapter(bookshelf: Bookshelf, publication: Publication): Int? {
+        return null
     }
 
     private companion object {

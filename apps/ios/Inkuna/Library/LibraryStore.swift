@@ -46,7 +46,9 @@ actor LibraryStore {
         // The core owns everything under this directory: inkuna.db,
         // books/, and covers/. A pre-existing inkuna.db from the old
         // dbPath constructor is adopted by the core's v2 migration.
-        let bookshelf = try Bookshelf.open(dataDir: directory.path)
+        // fontDir is a placeholder until the reader engine's bundled fonts
+        // land (plan 02 wires the real assets/fonts/ bundle directory).
+        let bookshelf = try Bookshelf.open(dataDir: directory.path, fontDir: Bundle.main.bundlePath)
         opened = bookshelf
         // Covers imported by older cores are full-resolution originals;
         // normalize them into the core's bounded WebP form off the
@@ -55,7 +57,7 @@ actor LibraryStore {
         // but a failure is still worth a trace in the log.
         coverOptimization = Task(priority: .utility) { [logger] in
             do {
-                _ = try await bookshelf.optimizeCovers()
+                _ = try await bookshelf.importer().optimizeCovers()
             } catch {
                 logger.warning("Cover optimization failed: \(error)")
             }

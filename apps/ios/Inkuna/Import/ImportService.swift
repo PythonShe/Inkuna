@@ -115,7 +115,7 @@ enum ImportService {
             // throwing rather than by a `.failed` item; either way the
             // error is the same typed `InkunaError`.
             do {
-                outcomes = [.success(try await shelf.import(path: path))]
+                outcomes = [.success(try await shelf.importer().import(path: path))]
             } catch let error as InkunaError {
                 outcomes = [.failure(ImportFailureReason(error))]
             } catch {
@@ -147,7 +147,7 @@ enum ImportService {
             do {
                 // Per-item failures come back as `.failed` items in input
                 // order; only a wholesale failure throws.
-                outcomes = try await shelf.importBatch(paths: paths, listener: listener).map { .success($0) }
+                outcomes = try await shelf.importer().importBatch(paths: paths, listener: listener).map { .success($0) }
             } catch let error as InkunaError {
                 let reason = ImportFailureReason(error)
                 outcomes = readable.map { _ in .failure(reason) }

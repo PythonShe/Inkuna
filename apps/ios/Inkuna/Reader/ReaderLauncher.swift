@@ -27,7 +27,7 @@ enum ReaderLauncher {
         Task {
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                let publications = try await bookshelf.list(shelf: .unfinished, sort: .recentlyOpened)
+                let publications = try await bookshelf.library().list(shelf: .unfinished, sort: .recentlyOpened)
                 guard let publication = publications.first else {
                     // Covers both an empty library and one whose every book
                     // is finished — the query is the unfinished shelf.

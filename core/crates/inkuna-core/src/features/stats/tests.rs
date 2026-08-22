@@ -74,7 +74,17 @@ fn session_lifecycle_snapshots_and_crash_recovery() {
     let (_dir, library, id) = library_with_book();
 
     let first = library.session_start(&id).unwrap();
-    library.update_progress(&id, "{}", 0.1, Some(12)).unwrap();
+    library
+        .update_progress(
+            &id,
+            inkuna_engine::Coordinate {
+                spine_idx: 0,
+                char_offset: 0,
+            },
+            0.1,
+            Some(12),
+        )
+        .unwrap();
 
     // A second start (say, after a crash — session_end never came)
     // retroactively closes the first at its updated_at heartbeat and

@@ -114,7 +114,7 @@ final class TonightViewController: ScrollScreenViewController {
                 let bookshelf = try await LibraryStore.shared.library()
                 // Unfinished, not all: a book just finished must not be the
                 // "keep reading" hero merely for being touched last.
-                let publications = try await bookshelf.list(shelf: .unfinished, sort: .recentlyOpened)
+                let publications = try await bookshelf.library().list(shelf: .unfinished, sort: .recentlyOpened)
                 // The hero's caption wants the chapter it is parked in;
                 // the ranges come from the core, the position from the
                 // stored locator.
@@ -122,7 +122,7 @@ final class TonightViewController: ScrollScreenViewController {
                 if
                     let hero = publications.first,
                     let position = Self.storedPosition(of: hero),
-                    let ranges = try? await bookshelf.chapterPositionRanges(id: hero.id)
+                    let ranges = try? await bookshelf.progress().chapterPositionRanges(id: hero.id)
                 {
                     pagesLeft = Self.pagesLeft(in: ranges, at: position)
                 }
@@ -152,18 +152,13 @@ final class TonightViewController: ScrollScreenViewController {
         }
     }
 
-    /// The synthetic position the book is parked at, read out of the
-    /// stored Readium locator — the same shell-side decode the detail
-    /// screen does. Nil for a book never opened in a build that reports
-    /// positions.
+    /// The synthetic position the book is parked at.
+    /// plan-02: real coordinates from the engine — the stored position is
+    /// a content coordinate now; deriving its synthetic position is core
+    /// math (`positionOf`), wired up when the engine reader lands. Until
+    /// then the caption degrades to the percentage line.
     private static func storedPosition(of publication: Publication) -> UInt32? {
-        guard
-            let locatorJSON = publication.locator,
-            let locator = try? Locator(jsonString: locatorJSON),
-            let position = locator.locations.position, position > 0,
-            let position = UInt32(exactly: position)
-        else { return nil }
-        return position
+        nil
     }
 
     /// Pages left in the chapter holding `position`. Chapter ranges are

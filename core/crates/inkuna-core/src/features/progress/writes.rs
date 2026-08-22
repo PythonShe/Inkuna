@@ -1,18 +1,31 @@
-//! The three progress writes a reader session produces.
+//! The progress writes a reader session produces.
 
+use inkuna_engine::Coordinate;
+use rusqlite::TransactionBehavior;
+
+use super::positions::{position_for, position_ranges_on};
 use crate::core::time::unix_now;
 use crate::{CoreError, Library};
 
-/// Readium's end-of-book `totalProgression` is not guaranteed to land on
-/// exactly 1.0, so "finished" begins slightly early.
+/// An end-of-book progression is not guaranteed to land on exactly 1.0,
+/// so "finished" begins slightly early.
 const FINISH_THRESHOLD: f64 = 0.995;
 
 impl Library {
-    /// One call per page turn: updates the publication's locator,
-    /// progression, and `last_opened_at`, plus — when this publication has
-    /// an open session — the session's end-state and `updated_at`
-    /// heartbeat, all in a single writer transaction. With no open session
-    /// it updates the publication only; never an error.
+    /// One call per page turn: updates the publication's content
+    /// coordinate, progression, and `last_opened_at`, plus — when this
+    /// publication has an open session — the session's end-state and
+    /// `updated_at` heartbeat, all in a single writer transaction. With
+    /// no open session it updates the publication only; never an error.
+    ///
+    /// Shells may pass `position: None`: the core then derives the
+    /// synthetic position from the coordinate against
+    /// `resource_positions` (best-effort — a book with no rows leaves the
+    /// session position untouched), so session stats keep flowing without
+    /// a shell-side position model. During plan-01, a `(0, 0)` placeholder
+    /// coordinate instead derives from progression and the total position
+    /// count, preserving useful session history until shells send engine
+    /// coordinates.
     ///
     /// Auto-finish is transition-triggered: `finished_at` is set only when
     /// this update crosses `FINISH_THRESHOLD` upward, so an explicit
@@ -20,12 +33,15 @@ impl Library {
     pub fn update_progress(
         &self,
         id: &str,
-        locator: &str,
+        coordinate: Coordinate,
         progression: f64,
         position: Option<u32>,
     ) -> Result<(), CoreError> {
         let mut conn = self.writer.lock().unwrap();
-        let tx = conn.transaction()?;
+        // This reads a publication before writing it. Acquire the writer
+        // lock now so a rebaseline commit on its own connection cannot turn
+        // this transaction's read snapshot into SQLITE_BUSY_SNAPSHOT.
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
         let previous: Option<(f64, Option<i64>)> = tx
             .query_row(
@@ -58,10 +74,33 @@ impl Library {
 
         tx.execute(
             "UPDATE publications
-             SET locator = ?1, progression = ?2, last_opened_at = ?3, finished_at = ?4
-             WHERE id = ?5",
-            rusqlite::params![locator, progression, now, finished_at, id],
+             SET position_spine_idx = ?1, position_char_offset = ?2, progression = ?3,
+                 last_opened_at = ?4, finished_at = ?5
+             WHERE id = ?6",
+            rusqlite::params![
+                coordinate.spine_idx,
+                coordinate.char_offset as i64,
+                progression,
+                now,
+                finished_at,
+                id
+            ],
         )?;
+        // Derive the synthetic position from the coordinate when the shell
+        // did not pass one; the plan-01 `(0, 0)` stub has no meaningful
+        // coordinate, so use book-wide progression instead. No position
+        // rows still leave it None.
+        let ranges = position_ranges_on(&tx, id)?;
+        let position = match position {
+            Some(position) => Some(position),
+            None if coordinate.spine_idx == 0 && coordinate.char_offset == 0 => {
+                ranges.last().map(|&(_, start, count)| {
+                    let total = start.saturating_add(count.saturating_sub(1));
+                    ((progression * f64::from(total)) as u32).clamp(1, total)
+                })
+            }
+            None => position_for(&ranges, coordinate),
+        };
         // Session heartbeat: the first position-bearing update of a session
         // also backfills its start_position, so pages-read deltas measure
         // the whole sitting.
@@ -76,20 +115,6 @@ impl Library {
         )?;
 
         tx.commit()?;
-        Ok(())
-    }
-
-    /// Records the navigator's synthetic position count, once known; from
-    /// then on "page N of M" is real.
-    pub fn report_position_count(&self, id: &str, count: u32) -> Result<(), CoreError> {
-        let conn = self.writer.lock().unwrap();
-        let changed = conn.execute(
-            "UPDATE publications SET position_count = ?1 WHERE id = ?2",
-            rusqlite::params![count, id],
-        )?;
-        if changed == 0 {
-            return Err(CoreError::NotFound(id.to_string()));
-        }
         Ok(())
     }
 

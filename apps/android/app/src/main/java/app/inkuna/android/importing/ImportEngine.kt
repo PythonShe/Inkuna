@@ -209,7 +209,7 @@ object ImportEngine {
                     val outcomes = try {
                         // Descriptor ownership transfers with this call;
                         // the core closes every one, success or failure.
-                        shelf.importBatchFds(opened.map { it.detachForCore() }, listener)
+                        shelf.importer().importBatchFds(opened.map { it.detachForCore() }, listener)
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Throwable) {

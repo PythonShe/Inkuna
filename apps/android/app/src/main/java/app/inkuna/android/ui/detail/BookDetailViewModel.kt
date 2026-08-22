@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.Url
 
@@ -64,15 +63,14 @@ class BookDetailViewModel(
         reload = viewModelScope.launch {
             try {
                 val bookshelf = LibraryStore.bookshelf(app)
-                val core = bookshelf.publication(publicationId)
-                val chapters = bookshelf.chapters(publicationId)
+                val core = bookshelf.library().publication(publicationId)
+                val chapters = bookshelf.library().chapters(publicationId)
 
-                // The locator blob is opaque to the core; only Readium
-                // parses it. An unreadable blob degrades to the book-wide
-                // percentage, never to a crash.
-                val locator = core.locator?.let { raw ->
-                    runCatching { Locator.fromJSON(JSONObject(raw)) }.getOrNull()
-                }
+                // plan-02: real coordinates from the engine — the stored
+                // position is a content coordinate now; until the engine
+                // reader lands this screen degrades to the book-wide
+                // percentage with no chapter highlight.
+                val locator: Locator? = null
                 _state.value = UiState(
                     book = BookRow.from(core, app.getString(R.string.unknown_author)),
                     position = locator?.locations?.position,

@@ -25,5 +25,5 @@ mod tokenize;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use index::SearchIndex;
+pub(crate) use index::{IndexWriteHandle, SearchIndex};
 pub use model::{BookSearchHit, BookSearchResults, LibrarySearchHit};

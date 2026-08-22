@@ -1,0 +1,25 @@
+[package]
+name = "inkuna-format"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+# Exposes the MOBI/KF8 fixture builders to dependents' test suites.
+test-support = []
+
+[dependencies]
+inkuna-content = { path = "../inkuna-content" }
+zip = { version = "8", default-features = false, features = ["deflate"] }
+quick-xml = { version = "0.41", features = ["escape-html"] }
+chardetng = "1"
+encoding_rs = "0.8"
+regex = "1"
+uuid = { version = "1", features = ["v4"] }
+blake3 = "1"
+icu_normalizer = "2"
+thiserror = "2"
+log = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

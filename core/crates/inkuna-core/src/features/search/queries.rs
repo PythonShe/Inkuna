@@ -1,9 +1,9 @@
 //! The two search entry points on `Library`.
 
+use tantivy::Term;
 use tantivy::collector::TopDocs;
 use tantivy::query::{BooleanQuery, Occur, PhraseQuery, Query, TermQuery};
 use tantivy::schema::IndexRecordOption;
-use tantivy::Term;
 
 use super::fold::{fold_query, fold_text};
 use super::index::doc_fields;
@@ -19,7 +19,11 @@ const LIBRARY_DOC_PAGE_SIZE: usize = 256;
 impl Library {
     /// Every occurrence of `query` in one book, in reading order —
     /// an exact, case-folded (NFKC + full Unicode fold) substring scan
-    /// over the book's extracted text. Matches partial words ("cat" in
+    /// over the book's stored `resource_text` body. Once a book's
+    /// `reconciled_at` is set, that body is the canonical projection:
+    /// imports stamp new books and the background pass converges legacy
+    /// books most-recently-read first. Plan-02 consumers must not give an
+    /// unreconciled legacy-body offset to the engine. Matches partial words ("cat" in
     /// "category") and single CJK chars by construction; any length
     /// floor is a shell UI policy, not the core's. Returns up to `limit`
     /// hits and the true total; an empty or whitespace query returns no

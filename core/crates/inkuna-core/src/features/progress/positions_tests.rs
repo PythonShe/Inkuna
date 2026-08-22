@@ -13,28 +13,52 @@ fn library_with_book() -> (tempfile::TempDir, Library, String) {
     (dir, library, id)
 }
 
-#[test]
-fn ranges_empty_until_reported_and_missing_id_is_not_found() {
-    let (_dir, library, id) = library_with_book();
+/// Seeds `resource_positions` (and the matching `position_count`)
+/// directly — the shape the import pipeline and reconcile pass write —
+/// since the shell-reporting APIs are gone.
+fn seed_positions(library: &Library, id: &str, counts: &[u32]) {
+    let conn = library.writer.lock().unwrap();
+    conn.execute(
+        "DELETE FROM resource_positions WHERE publication_id = ?1",
+        [id],
+    )
+    .unwrap();
+    let mut start: i64 = 1;
+    for (spine_idx, &count) in counts.iter().enumerate() {
+        conn.execute(
+            "INSERT INTO resource_positions
+                (publication_id, spine_idx, start_position, position_count)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![id, spine_idx as i64, start, count],
+        )
+        .unwrap();
+        start += i64::from(count);
+    }
+    if !counts.is_empty() {
+        conn.execute(
+            "UPDATE publications SET position_count = ?1 WHERE id = ?2",
+            rusqlite::params![start - 1, id],
+        )
+        .unwrap();
+    }
+}
 
-    assert!(library.chapter_position_ranges(&id).unwrap().is_empty());
+#[test]
+fn missing_id_is_not_found() {
+    let (_dir, library, _id) = library_with_book();
     assert!(matches!(
         library.chapter_position_ranges("missing"),
-        Err(CoreError::NotFound(_))
-    ));
-    assert!(matches!(
-        library.report_position_ranges("missing", &[3]),
         Err(CoreError::NotFound(_))
     ));
 }
 
 #[test]
-fn report_derives_cumulative_starts_and_chapter_spans() {
+fn seeded_ranges_derive_chapter_spans() {
     let (_dir, library, id) = library_with_book();
 
     // Fixture spine: ch01, ch02. Nav TOC: 第一章→ch01, 第一節→ch01#s1
     // (fragment sibling), 第二章→ch02.
-    library.report_position_ranges(&id, &[10, 5]).unwrap();
+    seed_positions(&library, &id, &[10, 5]);
 
     assert_eq!(
         library.chapter_position_ranges(&id).unwrap(),
@@ -64,34 +88,9 @@ fn report_derives_cumulative_starts_and_chapter_spans() {
 }
 
 #[test]
-fn report_rejects_mismatched_and_zero_resource_counts() {
-    let (_dir, library, id) = library_with_book();
-    library.report_position_ranges(&id, &[10, 5]).unwrap();
-
-    assert!(matches!(
-        library.report_position_ranges(&id, &[10]),
-        Err(CoreError::InvalidPositionRanges {
-            expected: 2,
-            actual: 1,
-            has_zero: false,
-        })
-    ));
-    assert!(matches!(
-        library.report_position_ranges(&id, &[10, 0]),
-        Err(CoreError::InvalidPositionRanges {
-            expected: 2,
-            actual: 2,
-            has_zero: true,
-        })
-    ));
-    assert_eq!(library.publication(&id).unwrap().position_count, Some(15));
-    assert_eq!(library.chapter_position_ranges(&id).unwrap().len(), 3);
-}
-
-#[test]
 fn chapter_ranges_follow_spine_order_when_toc_is_shuffled() {
     let (_dir, library, id) = library_with_book();
-    library.report_position_ranges(&id, &[10, 5]).unwrap();
+    seed_positions(&library, &id, &[10, 5]);
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
@@ -125,27 +124,4 @@ fn chapter_ranges_follow_spine_order_when_toc_is_shuffled() {
             },
         ]
     );
-}
-
-#[test]
-fn re_report_replaces_and_empty_report_clears() {
-    let (_dir, library, id) = library_with_book();
-
-    library.report_position_ranges(&id, &[10, 5]).unwrap();
-    library.report_position_ranges(&id, &[4, 4]).unwrap();
-    assert_eq!(
-        library
-            .chapter_position_ranges(&id)
-            .unwrap()
-            .last()
-            .unwrap()
-            .end_position,
-        8
-    );
-    assert_eq!(library.publication(&id).unwrap().position_count, Some(8));
-
-    // An empty report clears the ranges but keeps the last known total.
-    library.report_position_ranges(&id, &[]).unwrap();
-    assert!(library.chapter_position_ranges(&id).unwrap().is_empty());
-    assert_eq!(library.publication(&id).unwrap().position_count, Some(8));
 }

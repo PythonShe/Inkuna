@@ -44,7 +44,16 @@ impl Library {
         let search = SearchIndex::open(&data_dir)?;
         // Heal the index against the database off the open path; a fresh
         // install and an unchanged library both make this a cheap no-op.
-        search.spawn_reconcile(db_path);
+        // The V8 rebaseline chains FIRST on the same thread, so the
+        // reconcile body never indexes a corpus the rebaseline is about
+        // to replace; reads meanwhile see NULL coordinate columns and
+        // fall back to the read-time default, so nothing waits on it.
+        let index_handle = search.write_handle();
+        let rebaseline_data_dir = data_dir.clone();
+        let rebaseline_db_path = db_path.clone();
+        search.spawn_reconcile(db_path, move |cancel| {
+            super::rebaseline::run(&rebaseline_data_dir, &rebaseline_db_path, &index_handle, cancel);
+        });
 
         let library = Library {
             data_dir,

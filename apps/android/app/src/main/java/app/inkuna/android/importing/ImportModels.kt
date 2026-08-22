@@ -91,11 +91,16 @@ data class ImportFailure(
                 failure(name, ImportFailureKind.Unreadable, describe(error))
             // The search index is derived data the core writes alongside
             // the book; a failure there is the library in trouble, not the
-            // file — the same thing the reader needs to hear.
+            // file — the same thing the reader needs to hear. The reader
+            // engine's own errors are no part of import; if one ever
+            // surfaces here it is a core bug, reported as such.
             is InkunaException.Database,
             is InkunaException.NotFound,
             is InkunaException.Search,
-            is InkunaException.InvalidPositionRanges,
+            is InkunaException.NotReady,
+            is InkunaException.UnsupportedContent,
+            is InkunaException.LayoutBudgetExceeded,
+            is InkunaException.AnchorNotFound,
             ->
                 failure(name, ImportFailureKind.LibraryError, describe(error))
         }

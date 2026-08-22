@@ -3,13 +3,16 @@
 use std::ffi::OsStr;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+
+use inkuna_content::MAX_TOTAL_TEXT_BYTES;
+use inkuna_engine::extract_corpus;
 
 use super::budget::PersistBudget;
 use super::model::{BatchImportOutcome, ImportOutcome};
 use crate::core::files::{copy_and_hash, stream_and_hash, sync_dir};
 use crate::core::time::unix_now;
-use crate::features::library::{join_authors, map_publication, Library, PUB_COLUMNS};
+use crate::features::library::{Library, PUB_COLUMNS, join_authors, map_publication};
+use crate::features::progress::synthetic_positions;
 use crate::formats::{epub, mobi, txt};
 use crate::{CoreError, Format, Publication};
 
@@ -25,10 +28,10 @@ pub(crate) struct PreparedImport {
     authors: Vec<String>,
     language: Option<String>,
     text_encoding: Option<String>,
-    /// Spine hrefs in reading order, paired with each resource's extracted
-    /// plain text (`None` = malformed or budget-skipped resource, its text
-    /// row is skipped). Repeated spine entries share one extraction.
-    spine: Vec<(String, Option<Arc<str>>)>,
+    /// Spine hrefs in reading order, paired with each resource's canonical
+    /// projection text (`None` = malformed or budget-skipped resource, its
+    /// text row is skipped). Repeated spine entries share one extraction.
+    spine: Vec<(String, Option<String>)>,
     toc: Vec<epub::TocEntry>,
     cover: Option<epub::Cover>,
 }
@@ -267,11 +270,14 @@ impl Library {
         let conversion: Result<Option<String>, CoreError> = match format {
             Format::Txt => title
                 .ok_or_else(|| CoreError::InvalidPublication("untitled".into()))
-                .and_then(|title| txt::convert_to_epub(tmp_path, &conv_path, &title))
+                .and_then(|title| {
+                    txt::convert_to_epub(tmp_path, &conv_path, &title).map_err(CoreError::from)
+                })
                 .map(|conversion| Some(conversion.encoding)),
             Format::Mobi | Format::Azw3 => {
                 mobi::convert_to_epub(tmp_path, &conv_path, title.as_deref().unwrap_or(""))
                     .map(|()| None)
+                    .map_err(CoreError::from)
             }
             _ => unreachable!(),
         };
@@ -344,10 +350,13 @@ impl Library {
                 CoreError::InvalidPublication("untitled".into())
             })?;
 
-        // Rayon across resources: the corpus keys off the spine, so it is
-        // complete even for books with no TOC.
-        let texts = epub::extract_spine_text(&tmp_path, &parsed.spine);
-        let spine = parsed.spine.into_iter().zip(texts).collect();
+        // The corpus is THE canonical projection: `resource_text` rows are
+        // exactly `extract_corpus` output, so search offsets and layout
+        // offsets index the same stream by construction. Keyed off the
+        // spine, so it is complete even for books with no TOC.
+        let hrefs: Vec<String> = parsed.spine.into_iter().map(|item| item.href).collect();
+        let texts = extract_corpus(&tmp_path, &hrefs, MAX_TOTAL_TEXT_BYTES);
+        let spine = hrefs.into_iter().zip(texts).collect();
 
         Ok(Prepared::Fresh(Box::new(PreparedImport {
             id,
@@ -438,6 +447,22 @@ impl Library {
             return Err(e);
         }
 
+        // Synthetic positions are a pure function of the canonical
+        // projection (a textless resource counts 0 chars but still gets a
+        // count-1 row — position math never has spine holes).
+        let char_counts: Vec<u64> = prepared
+            .spine
+            .iter()
+            .map(|(_, text)| {
+                text.as_deref()
+                    .map_or(0, |body| body.chars().count() as u64)
+            })
+            .collect();
+        let position_rows = synthetic_positions(&char_counts);
+        let position_total: u32 = position_rows
+            .iter()
+            .fold(0u32, |sum, &(_, _, count)| sum.saturating_add(count));
+
         let publication = Publication {
             id: prepared.id,
             title: prepared.title,
@@ -449,8 +474,8 @@ impl Library {
             cover_path: cover_rel.clone(),
             added_at: unix_now(),
             progression: 0.0,
-            locator: None,
-            position_count: None,
+            coordinate: None,
+            position_count: Some(position_total),
             finished_at: None,
             last_opened_at: None,
         };
@@ -468,11 +493,16 @@ impl Library {
                         + publication.language.as_deref().map_or(0, str::len)
                         + publication.text_encoding.as_deref().map_or(0, str::len),
                 )?;
+                // A fresh import is rebaselined by construction: its corpus
+                // IS the canonical projection and its positions are computed
+                // below, so `reconciled_at` is stamped now and the V8
+                // reconcile pass skips the book. The coordinate columns stay
+                // NULL — a fresh book has no reading position.
                 tx.execute(
                     "INSERT INTO publications
                     (id, title, authors, language, text_encoding, format, file_path,
-                     cover_path, content_hash, added_at, progression)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                     cover_path, content_hash, added_at, progression, reconciled_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                     rusqlite::params![
                         publication.id,
                         publication.title,
@@ -485,6 +515,7 @@ impl Library {
                         prepared.content_hash,
                         publication.added_at,
                         publication.progression,
+                        unix_now(),
                     ],
                 )?;
                 for (spine_idx, (href, text)) in prepared.spine.iter().enumerate() {
@@ -499,10 +530,24 @@ impl Library {
                         budget.charge(body.len())?;
                         tx.execute(
                             "INSERT INTO resource_text (resource_id, body) VALUES (?1, ?2)",
-                            rusqlite::params![resource_id, body.as_ref()],
+                            rusqlite::params![resource_id, body.as_str()],
                         )?;
                     }
                 }
+                // Positions land in the same transaction as the corpus, so
+                // "page N of M" is real from the first open.
+                for &(spine_idx, start, count) in &position_rows {
+                    tx.execute(
+                        "INSERT INTO resource_positions
+                            (publication_id, spine_idx, start_position, position_count)
+                         VALUES (?1, ?2, ?3, ?4)",
+                        rusqlite::params![publication.id, spine_idx, start, count],
+                    )?;
+                }
+                tx.execute(
+                    "UPDATE publications SET position_count = ?1 WHERE id = ?2",
+                    rusqlite::params![position_total, publication.id],
+                )?;
                 for (idx, entry) in prepared.toc.iter().enumerate() {
                     budget.charge(entry.title.len() + entry.href.len())?;
                     tx.execute(
@@ -565,7 +610,7 @@ impl Library {
                     .spine
                     .iter()
                     .enumerate()
-                    .filter_map(|(idx, (_, text))| text.as_ref().map(|t| (idx as u32, t.as_ref()))),
+                    .filter_map(|(idx, (_, text))| text.as_deref().map(|body| (idx as u32, body))),
             ) {
                 log::warn!("search indexing failed for {}: {e}", publication.id);
             }

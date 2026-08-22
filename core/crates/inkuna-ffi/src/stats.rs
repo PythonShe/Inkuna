@@ -1,6 +1,6 @@
 //! Reading sessions and the stats screen's numbers.
 
-use crate::bookshelf::{blocking, Bookshelf};
+use crate::bookshelf::blocking;
 use crate::error::InkunaError;
 
 /// Numbers only — shells own formatting and localization.
@@ -52,8 +52,14 @@ impl From<inkuna_core::StatsOverview> for StatsOverview {
     }
 }
 
+/// The stats facade: reading sessions and the stats overview.
+/// Constructed once by [`Bookshelf::open`], handed out by
+/// `Bookshelf::stats()` as a cheap `Arc` clone.
+#[derive(uniffi::Object)]
+pub struct ShelfStats(pub(crate) std::sync::Arc<inkuna_core::Library>);
+
 #[uniffi::export(async_runtime = "tokio")]
-impl Bookshelf {
+impl ShelfStats {
     /// Starts a reading session at reader open; returns the session id.
     /// Also closes any crashed session for this publication retroactively.
     pub async fn session_start(&self, id: String) -> Result<String, InkunaError> {

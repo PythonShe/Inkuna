@@ -1,7 +1,7 @@
 //! Full-text search: exact in-book occurrence scan and ranked
 //! library-wide queries over the tantivy index.
 
-use crate::bookshelf::{blocking, Bookshelf};
+use crate::bookshelf::blocking;
 use crate::error::InkunaError;
 use crate::library::{publication_record, Publication};
 
@@ -58,8 +58,14 @@ pub struct LibrarySearchHit {
     pub excerpt_post: String,
 }
 
+/// The search facade: in-book scan and library-wide ranked search.
+/// Constructed once by [`Bookshelf::open`], handed out by
+/// `Bookshelf::search()` as a cheap `Arc` clone.
+#[derive(uniffi::Object)]
+pub struct ShelfSearch(pub(crate) std::sync::Arc<inkuna_core::Library>);
+
 #[uniffi::export(async_runtime = "tokio")]
-impl Bookshelf {
+impl ShelfSearch {
     /// Every occurrence of `query` in one book, in reading order: an
     /// exact case-folded substring scan — partial words and single CJK
     /// chars match by construction. Any minimum-length floor is shell UI
