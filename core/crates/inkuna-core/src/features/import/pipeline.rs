@@ -11,7 +11,7 @@ use super::budget::PersistBudget;
 use super::model::{BatchImportOutcome, ImportOutcome};
 use crate::core::files::{copy_and_hash, stream_and_hash, sync_dir};
 use crate::core::time::unix_now;
-use crate::features::library::{join_authors, map_publication, Library, PUB_COLUMNS};
+use crate::features::library::{Library, PUB_COLUMNS, join_authors, map_publication};
 use crate::features::progress::synthetic_positions;
 use crate::formats::{epub, mobi, txt};
 use crate::{CoreError, Format, Publication};
@@ -475,7 +475,7 @@ impl Library {
             added_at: unix_now(),
             progression: 0.0,
             coordinate: None,
-            position_count: (position_total > 0).then_some(position_total),
+            position_count: Some(position_total),
             finished_at: None,
             last_opened_at: None,
         };
@@ -544,12 +544,10 @@ impl Library {
                         rusqlite::params![publication.id, spine_idx, start, count],
                     )?;
                 }
-                if let Some(total) = publication.position_count {
-                    tx.execute(
-                        "UPDATE publications SET position_count = ?1 WHERE id = ?2",
-                        rusqlite::params![total, publication.id],
-                    )?;
-                }
+                tx.execute(
+                    "UPDATE publications SET position_count = ?1 WHERE id = ?2",
+                    rusqlite::params![position_total, publication.id],
+                )?;
                 for (idx, entry) in prepared.toc.iter().enumerate() {
                     budget.charge(entry.title.len() + entry.href.len())?;
                     tx.execute(

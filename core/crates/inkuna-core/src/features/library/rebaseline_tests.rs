@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use inkuna_content::MAX_TOTAL_TEXT_BYTES;
 use inkuna_engine::extract_corpus;
@@ -328,6 +328,121 @@ fn missing_file_still_stamps_with_defaults() {
         })
         .unwrap();
     assert_eq!(texts_after, texts_before);
+}
+
+#[test]
+fn unreadable_file_keeps_existing_corpus_and_stamps_defaults() {
+    let (_dir, library, id) = unreconciled_book(Some(
+        r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":0.5}}"#,
+    ));
+    let publication = library.publication(&id).unwrap();
+    std::fs::write(
+        library.data_dir().join(&publication.file_path),
+        b"not an epub",
+    )
+    .unwrap();
+    let texts_before: Vec<(String, String)> = library
+        .readers
+        .with(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT r.id, t.body FROM resources r JOIN resource_text t ON t.resource_id = r.id
+                 WHERE r.publication_id = ?1 ORDER BY r.spine_idx",
+            )?;
+            let rows = stmt.query_map([&id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })
+        .unwrap();
+
+    run(&library);
+
+    let (spine_idx, char_offset, locator, reconciled_at) = publication_row(&library, &id);
+    assert_eq!((spine_idx, char_offset), (Some(1), Some(0)));
+    assert_eq!(locator, None);
+    assert!(reconciled_at.is_some());
+    let texts_after: Vec<(String, String)> = library
+        .readers
+        .with(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT r.id, t.body FROM resources r JOIN resource_text t ON t.resource_id = r.id
+                 WHERE r.publication_id = ?1 ORDER BY r.spine_idx",
+            )?;
+            let rows = stmt.query_map([&id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(texts_after, texts_before);
+}
+
+#[test]
+fn stub_publication_and_bookmark_coordinates_yield_to_legacy_locators() {
+    let (_dir, library, id) = unreconciled_book(Some(
+        r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":0.5}}"#,
+    ));
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications SET position_spine_idx = 0, position_char_offset = 0 WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO bookmarks
+                 (id, publication_id, locator, position_spine_idx, position_char_offset,
+                  progression, created_at)
+             VALUES ('bm-stub', ?1,
+                     '{\"href\":\"OEBPS/text/ch02.xhtml\",\"locations\":{\"progression\":0.5}}',
+                     0, 0, 0.5, 100)",
+            [&id],
+        )
+        .unwrap();
+    }
+
+    run(&library);
+
+    let (_, publication_offset, locator, _) = publication_row(&library, &id);
+    let expected = ((0.5 * projection_len(&library, &id, 1) as f64) as u64)
+        .min(projection_len(&library, &id, 1) - 1) as i64;
+    assert_eq!(publication_offset, Some(expected));
+    assert_eq!(locator, None);
+    let bookmark: (String, i64, i64) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT locator, position_spine_idx, position_char_offset FROM bookmarks WHERE id = 'bm-stub'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(bookmark, (String::new(), 1, expected));
+}
+
+#[test]
+fn positions_keep_database_spine_indices() {
+    let (_dir, library, id) = unreconciled_book(None);
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE resources SET spine_idx = spine_idx * 10 + 3 WHERE publication_id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+
+    run(&library);
+
+    let spine_indices: Vec<i64> = library
+        .readers
+        .with(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT spine_idx FROM resource_positions WHERE publication_id = ?1 ORDER BY spine_idx",
+            )?;
+            let rows = stmt.query_map([&id], |row| row.get(0))?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(spine_indices, vec![3, 13]);
 }
 
 #[test]

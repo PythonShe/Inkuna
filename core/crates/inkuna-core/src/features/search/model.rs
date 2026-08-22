@@ -7,10 +7,11 @@ use crate::Publication;
 /// `snippet_post` already carry a leading/trailing `…` when the window
 /// truncated the surrounding text.
 ///
-/// A hit is a content coordinate with no conversion step:
+/// A hit's offset indexes its stored `resource_text` body. Once a book is
+/// reconciled, that body is the canonical projection and
 /// `Coordinate { spine_idx, char_offset }` feeds the reader session's
-/// `locate` / `match_rects` directly, because the corpus these offsets
-/// index IS the canonical projection layout indexes.
+/// `locate` / `match_rects` directly. Plan-02 consumers must not feed an
+/// unreconciled legacy-body offset to the engine.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BookSearchHit {
     /// Reading-order index of the resource the hit is in.

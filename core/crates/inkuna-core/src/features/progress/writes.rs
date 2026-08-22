@@ -1,6 +1,7 @@
 //! The progress writes a reader session produces.
 
 use inkuna_engine::Coordinate;
+use rusqlite::TransactionBehavior;
 
 use super::positions::{position_for, position_ranges_on};
 use crate::core::time::unix_now;
@@ -21,7 +22,10 @@ impl Library {
     /// synthetic position from the coordinate against
     /// `resource_positions` (best-effort — a book with no rows leaves the
     /// session position untouched), so session stats keep flowing without
-    /// a shell-side position model.
+    /// a shell-side position model. During plan-01, a `(0, 0)` placeholder
+    /// coordinate instead derives from progression and the total position
+    /// count, preserving useful session history until shells send engine
+    /// coordinates.
     ///
     /// Auto-finish is transition-triggered: `finished_at` is set only when
     /// this update crosses `FINISH_THRESHOLD` upward, so an explicit
@@ -34,7 +38,10 @@ impl Library {
         position: Option<u32>,
     ) -> Result<(), CoreError> {
         let mut conn = self.writer.lock().unwrap();
-        let tx = conn.transaction()?;
+        // This reads a publication before writing it. Acquire the writer
+        // lock now so a rebaseline commit on its own connection cannot turn
+        // this transaction's read snapshot into SQLITE_BUSY_SNAPSHOT.
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
         let previous: Option<(f64, Option<i64>)> = tx
             .query_row(
@@ -80,10 +87,19 @@ impl Library {
             ],
         )?;
         // Derive the synthetic position from the coordinate when the shell
-        // did not pass one; best-effort — no position rows leaves it None.
+        // did not pass one; the plan-01 `(0, 0)` stub has no meaningful
+        // coordinate, so use book-wide progression instead. No position
+        // rows still leave it None.
+        let ranges = position_ranges_on(&tx, id)?;
         let position = match position {
             Some(position) => Some(position),
-            None => position_for(&position_ranges_on(&tx, id)?, coordinate),
+            None if coordinate.spine_idx == 0 && coordinate.char_offset == 0 => {
+                ranges.last().map(|&(_, start, count)| {
+                    let total = start.saturating_add(count.saturating_sub(1));
+                    ((progression * f64::from(total)) as u32).clamp(1, total)
+                })
+            }
+            None => position_for(&ranges, coordinate),
         };
         // Session heartbeat: the first position-bearing update of a session
         // also backfills its start_position, so pages-read deltas measure

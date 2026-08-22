@@ -14,15 +14,15 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use inkuna_content::{resolve_href, split_fragment, MAX_TOTAL_TEXT_BYTES};
+use inkuna_content::{MAX_TOTAL_TEXT_BYTES, resolve_href, split_fragment};
 use inkuna_engine::extract_corpus;
 use rusqlite::{Connection, TransactionBehavior};
 
+use crate::CoreError;
 use crate::core::db::open_connection;
 use crate::core::time::unix_now;
 use crate::features::progress::synthetic_positions;
 use crate::features::search::IndexWriteHandle;
-use crate::CoreError;
 
 #[cfg(test)]
 #[path = "rebaseline_tests.rs"]
@@ -128,7 +128,22 @@ fn rebaseline_book(
     let file = data_dir.join(file_path);
     let corpus: Option<Vec<Option<String>>> = if file.is_file() {
         let hrefs: Vec<String> = resources.iter().map(|(_, _, href)| href.clone()).collect();
-        Some(extract_corpus(&file, &hrefs, MAX_TOTAL_TEXT_BYTES))
+        let corpus = extract_corpus(&file, &hrefs, MAX_TOTAL_TEXT_BYTES);
+        // `extract_corpus` reports a bad/truncated archive as one failed
+        // resource per requested spine item. That is unlike a partial
+        // extraction: keep the proven database corpus, but still reconcile
+        // locators with chapter-start defaults and stamp this run. Retrying
+        // would only repeat the same unreadable file and otherwise makes the
+        // background pass block the book forever.
+        if !resources.is_empty() && corpus.iter().all(Option::is_none) {
+            log::warn!(
+                "rebaseline of {id}: book file unreadable at {}; keeping existing corpus and converting locators with defaults",
+                file.display()
+            );
+            None
+        } else {
+            Some(corpus)
+        }
     } else {
         log::warn!(
             "rebaseline of {id}: book file missing at {}; converting locators with defaults",
@@ -180,8 +195,8 @@ fn rebaseline_book(
                     (publication_id, spine_idx, start_position, position_count)
                  VALUES (?1, ?2, ?3, ?4)",
             )?;
-            for &(spine_idx, start, count) in &rows {
-                insert.execute(rusqlite::params![id, spine_idx, start, count])?;
+            for ((_, db_spine_idx, _), (_, start, count)) in resources.iter().zip(&rows) {
+                insert.execute(rusqlite::params![id, db_spine_idx, start, count])?;
             }
         }
         // Unconditionally, zero included: a book with no `resources`
@@ -198,8 +213,9 @@ fn rebaseline_book(
     };
 
     // 3. The publication's Readium locator becomes a content coordinate
-    // — but only while the coordinate columns are still NULL. A book
-    // read while this pass was pending already has a fresh coordinate
+    // — but only while the coordinate columns are still NULL or contain
+    // the plan-01 `(0, 0)` placeholder. A book read while this pass was
+    // pending already has a fresh non-zero coordinate
     // from `update_progress`, and the stale legacy locator must never
     // overwrite it: then the conversion is skipped and only the consumed
     // locator is NULLed.
@@ -213,7 +229,8 @@ fn rebaseline_book(
         let converted = tx.execute(
             "UPDATE publications
              SET position_spine_idx = ?1, position_char_offset = ?2, locator = NULL
-             WHERE id = ?3 AND position_spine_idx IS NULL",
+             WHERE id = ?3 AND (position_spine_idx IS NULL
+                                OR (position_spine_idx = 0 AND position_char_offset = 0))",
             rusqlite::params![spine_idx, char_offset as i64, id],
         )?;
         if converted == 0 {
@@ -224,13 +241,16 @@ fn rebaseline_book(
     // 4. Every legacy bookmark, same conversion; the column is NOT NULL,
     // so a consumed locator becomes ''. A row already carrying a
     // coordinate is a post-migration bookmark (written with `locator`
-    // '') and is skipped — re-converting it would "parse-fail" its empty
-    // locator into (0, 0) — and an empty locator is nothing to convert
-    // either way, never a parse-failure default.
+    // '') and is skipped — except `(0, 0)`, the plan-01 shell placeholder,
+    // which yields to a non-empty legacy locator. Re-converting an empty
+    // locator would "parse-fail" it into (0, 0), so empty locators are
+    // never converted.
     let bookmarks: Vec<(String, String)> = {
         let mut stmt = tx.prepare_cached(
             "SELECT id, locator FROM bookmarks
-             WHERE publication_id = ?1 AND position_spine_idx IS NULL AND locator <> ''",
+             WHERE publication_id = ?1 AND locator <> ''
+               AND (position_spine_idx IS NULL
+                    OR (position_spine_idx = 0 AND position_char_offset = 0))",
         )?;
         let rows = stmt.query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))?;
         rows.collect::<Result<_, _>>()?
@@ -294,9 +314,10 @@ fn convert_locator(
 }
 
 /// Re-indexes one just-committed book so library-wide search stays
-/// consistent with its new corpus while the pass runs. Derived data: a
-/// failure only logs — the trailing search reconcile or the next open
-/// heals it.
+/// consistent with its new corpus while the pass runs. If this derived-data
+/// write fails after the SQL commit, clear `reconciled_at` so the next open
+/// retries the whole idempotent book; a presence-only trailing reconcile
+/// cannot otherwise detect a stale legacy document set.
 fn reindex_book(conn: &Connection, index: &IndexWriteHandle, id: &str) {
     let rows: Result<Vec<(u32, String)>, CoreError> = (|| {
         let mut stmt = conn.prepare_cached(
@@ -312,5 +333,13 @@ fn reindex_book(conn: &Connection, index: &IndexWriteHandle, id: &str) {
     });
     if let Err(e) = outcome {
         log::warn!("post-rebaseline reindex of {id} failed: {e}");
+        if let Err(clear_error) = conn.execute(
+            "UPDATE publications SET reconciled_at = NULL WHERE id = ?1",
+            [id],
+        ) {
+            log::warn!(
+                "could not mark {id} for rebaseline retry after reindex failure: {clear_error}"
+            );
+        }
     }
 }

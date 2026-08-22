@@ -113,6 +113,31 @@ fn position_derived_from_coordinate() {
 }
 
 #[test]
+fn stub_coordinate_uses_progression_for_session_position() {
+    let (_dir, library, id) = library_with_book();
+    seed_positions(&library, &id, &[10, 5]);
+    let session_id = library.session_start(&id).unwrap();
+
+    // Plan-01 shells report this placeholder coordinate until the reader
+    // engine is wired through. It must not make a 90%-through sitting look
+    // like it never left synthetic position one.
+    library.update_progress(&id, at(0, 0), 0.9, None).unwrap();
+
+    let end_position: Option<i64> = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT end_position FROM sessions WHERE id = ?1",
+                [&session_id],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(end_position, Some(13));
+}
+
+#[test]
 fn bookmark_defaults_before_reconcile() {
     let (_dir, library, id) = library_with_book();
     // A legacy row the rebaseline has not converted: coordinate columns
