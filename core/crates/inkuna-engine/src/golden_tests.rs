@@ -222,6 +222,40 @@ fn digests_match_golden_mixed_script() {
     run_golden("mixed_script");
 }
 
+/// The RTL fixture must actually validate Hebrew shaping: before the
+/// Hebrew fallback stage existed, 464/576 of page 0's glyphs were
+/// `.notdef` and the golden locked in tofu — validating nothing.
+#[test]
+fn rtl_golden_shapes_hebrew_not_tofu() {
+    let fixture = golden_roster()
+        .into_iter()
+        .find(|f| f.name == "rtl")
+        .expect("rtl in roster");
+    let dir = TempDir::new().expect("tempdir");
+    let path = build_epub(&dir, (fixture.build)());
+    let session = open_session(&path);
+    wait_all(&session, Duration::from_secs(120));
+
+    let list = session.page(0, 0).expect("page 0");
+    let total: usize = list.glyph_runs.iter().map(|r| r.glyph_ids.len()).sum();
+    let notdef: usize = list
+        .glyph_runs
+        .iter()
+        .flat_map(|r| r.glyph_ids.iter())
+        .filter(|&&g| g == 0)
+        .count();
+    assert!(total > 0, "page 0 must carry glyphs");
+    assert!(
+        notdef * 20 < total,
+        "notdef must stay under 5% of page 0's glyphs: {notdef}/{total}"
+    );
+    // Distinct pages must hash distinctly — all-tofu (or all-identical)
+    // pages collapsing to one digest would gut the parity gate.
+    let d0 = session.page_digest(0, 0).expect("digest page 0");
+    let d1 = session.page_digest(0, 1).expect("digest page 1");
+    assert_ne!(d0, d1, "pages 0 and 1 must not share a digest");
+}
+
 #[test]
 fn digests_match_golden_image_heavy() {
     run_golden("image_heavy");
@@ -300,28 +334,52 @@ fn budget_bomb_attr() {
 
 #[test]
 fn stylesheet_bomb() {
-    // 2 MB of linked CSS: whole sheets drop from the END of the
-    // cascade; layout succeeds regardless.
-    let mut css = String::with_capacity(2 * 1024 * 1024 + 64);
-    while css.len() < 2 * 1024 * 1024 {
-        css.push_str(".c { text-align: center; } ");
+    // Linked CSS totalling past the 1 MiB budget: whole sheets drop
+    // from the END of the cascade, earlier sheets stay intact. The
+    // early small sheet hides one marker (its effect must survive);
+    // the late huge sheet would hide another (its effect must NOT
+    // apply, because the whole late sheet drops); layout succeeds
+    // regardless.
+    let early_css = ".early-gone { display: none; }";
+    let mut late_css = String::with_capacity(2 * 1024 * 1024 + 64);
+    late_css.push_str(".late-gone { display: none; } ");
+    while late_css.len() < 2 * 1024 * 1024 {
+        late_css.push_str(".c { text-align: center; } ");
     }
-    let chapter = format!(
-        r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title>
-<link rel="stylesheet" href="big.css"/></head><body><p>styled text survives</p></body></html>"#
-    );
+    let chapter = r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title>
+<link rel="stylesheet" href="early.css"/>
+<link rel="stylesheet" href="big.css"/></head>
+<body><p class="early-gone">EARLYMARKER</p><p class="late-gone">LATEMARKER</p><p>styled text survives</p></body></html>"#;
     let dir = TempDir::new().expect("tempdir");
     let path = build_epub(
         &dir,
         EpubBuilder::new()
             .resource("ch01.xhtml", "application/xhtml+xml", chapter.as_bytes())
-            .resource("big.css", "text/css", css.as_bytes())
+            .resource("early.css", "text/css", early_css.as_bytes())
+            .resource("big.css", "text/css", late_css.as_bytes())
             .spine(&["ch01.xhtml"]),
     );
     let session = open_session(&path);
     wait_all(&session, Duration::from_secs(120));
     let g = session.chapter(0).expect("stylesheet bomb chapter lays out");
     assert!(g.char_range.end > 0);
+    let text = session
+        .text_range(
+            0,
+            crate::session::CharRange {
+                start: 0,
+                end: g.char_range.end,
+            },
+        )
+        .expect("chapter text");
+    assert!(
+        !text.contains("EARLYMARKER"),
+        "the early small sheet must survive the cap: {text:?}"
+    );
+    assert!(
+        text.contains("LATEMARKER"),
+        "the late huge sheet must drop whole: {text:?}"
+    );
     let page = session.page(0, 0).expect("page 0");
     assert!(!page.glyph_runs.is_empty());
     assert_budgets(&session, 0);
