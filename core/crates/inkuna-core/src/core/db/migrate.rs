@@ -15,7 +15,7 @@ use rusqlite::{Connection, Transaction};
 use crate::core::files::copy_and_hash_unbounded;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 7;
+pub(crate) const SCHEMA_VERSION: i64 = 8;
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -156,10 +156,44 @@ ALTER TABLE settings ADD COLUMN word_spacing    REAL    NOT NULL DEFAULT 0;
 ALTER TABLE settings ADD COLUMN reading_margins INTEGER NOT NULL DEFAULT 26;
 ";
 
+// 0008: content coordinates (engine swap). position_spine_idx /
+// position_char_offset are the canonical-projection coordinate
+// replacing Readium locator JSON; `locator` columns are retained
+// as-is until the per-book reconcile pass consumes them (publications
+// NULLed / bookmarks set to '' after conversion). reconciled_at
+// stamps a book whose corpus, synthetic positions, and locators have
+// been rebaselined. Settings-units note (V7 precedent):
+// reading_margins is reinterpreted from CSS px inside the rendering
+// web view to engine layout points — numerically identical at 1x,
+// so stored values carry over unchanged.
+const V8_SQL: &str = "
+ALTER TABLE publications ADD COLUMN position_spine_idx   INTEGER;
+ALTER TABLE publications ADD COLUMN position_char_offset INTEGER;
+ALTER TABLE publications ADD COLUMN reconciled_at        INTEGER;
+ALTER TABLE bookmarks    ADD COLUMN position_spine_idx   INTEGER;
+ALTER TABLE bookmarks    ADD COLUMN position_char_offset INTEGER;
+";
+
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
+    migrate_upto(conn, data_dir, SCHEMA_VERSION)
+}
+
+/// Test-only: runs the real migration chain but stops at `target`, so a
+/// test can seed a database at an intermediate shipped version without
+/// duplicating shipped SQL.
+#[cfg(test)]
+pub(super) fn migrate_to(
+    conn: &mut Connection,
+    data_dir: &Path,
+    target: i64,
+) -> Result<(), CoreError> {
+    migrate_upto(conn, data_dir, target)
+}
+
+fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(), CoreError> {
     loop {
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version >= SCHEMA_VERSION {
+        if version >= target {
             return Ok(());
         }
         let tx = conn.transaction()?;
@@ -175,6 +209,7 @@ pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), Core
             4 => tx.execute_batch(V5_SQL)?,
             5 => tx.execute_batch(V6_SQL)?,
             6 => tx.execute_batch(V7_SQL)?,
+            7 => tx.execute_batch(V8_SQL)?,
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }
