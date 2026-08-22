@@ -1,4 +1,7 @@
-use super::{parse, Document, ElementName, NodeId, NodeKind, StylesheetSource, MAX_DOM_NODES};
+use super::{
+    parse, Document, ElementName, NodeId, NodeKind, StylesheetSource, MAX_DEPTH, MAX_DOM_NODES,
+    MAX_STYLESHEET_BYTES, MAX_TEXT_BYTES,
+};
 use crate::test_support::{CJK_HORIZONTAL_DOC, MALFORMED_DOC};
 use crate::EngineError;
 
@@ -174,6 +177,75 @@ fn unclosed_style_flushes_at_eof() {
         doc.stylesheets,
         vec![StylesheetSource::Inline("p { color: red }".to_string())]
     );
+}
+
+#[test]
+fn depth_budget_flattens_and_relocates_ids() {
+    const NESTED: usize = MAX_DEPTH + 40;
+    let mut xhtml = String::from("<html><body>");
+    for _ in 0..NESTED {
+        xhtml.push_str("<div>");
+    }
+    xhtml.push_str(r#"<span id="deep">bottom</span>"#);
+    for _ in 0..NESTED {
+        xhtml.push_str("</div>");
+    }
+    xhtml.push_str("</body></html>");
+
+    let doc = parse(xhtml.as_bytes()).unwrap();
+    // Flattening is silent recovery, not truncation.
+    assert!(!doc.truncated);
+    // Elements at MAX_DEPTH and beyond produced no arena nodes…
+    assert!(doc.nodes.len() <= MAX_DEPTH + 2);
+    // …but the flattened text still attaches to the retained ancestor.
+    assert!(subtree_text(&doc, doc.root).contains("bottom"));
+    assert!(find_all(&doc, &ElementName::Span).is_empty());
+
+    // The flattened span's id relocated onto that ancestor (a div), so
+    // the projection's anchor map still resolves it.
+    let (id, node) = doc
+        .anchors
+        .iter()
+        .find(|(id, _)| id == "deep")
+        .expect("flattened id lost");
+    assert_eq!(id, "deep");
+    assert_eq!(doc.element(*node).unwrap().name, ElementName::Div);
+    assert!(subtree_text(&doc, *node).contains("bottom"));
+}
+
+#[test]
+fn text_budget_truncates_not_errors() {
+    let body = "a".repeat(MAX_TEXT_BYTES + 16);
+    let xhtml = format!("<html><body><p>{body}</p><p>never reached</p></body></html>");
+
+    let doc = parse(xhtml.as_bytes()).unwrap();
+    assert!(doc.truncated);
+    let total: usize = doc
+        .nodes
+        .iter()
+        .filter_map(|node| match &node.kind {
+            NodeKind::Text(text) => Some(text.len()),
+            NodeKind::Element(_) => None,
+        })
+        .sum();
+    assert!(total <= MAX_TEXT_BYTES);
+    // The kept prefix is intact.
+    assert!(subtree_text(&doc, doc.root).starts_with("aaaa"));
+}
+
+#[test]
+fn stylesheet_budget_truncates_css_keeps_body() {
+    let css = "x".repeat(MAX_STYLESHEET_BYTES + 64);
+    let xhtml =
+        format!("<html><head><style>{css}</style></head><body><p>still here</p></body></html>");
+
+    let doc = parse(xhtml.as_bytes()).unwrap();
+    let [StylesheetSource::Inline(kept)] = doc.stylesheets.as_slice() else {
+        panic!("expected one inline sheet, got {:?}", doc.stylesheets.len());
+    };
+    assert_eq!(kept.len(), MAX_STYLESHEET_BYTES);
+    // A capped stylesheet never costs the chapter its text.
+    assert!(subtree_text(&doc, doc.root).contains("still here"));
 }
 
 #[test]
