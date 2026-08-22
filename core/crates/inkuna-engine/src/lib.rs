@@ -6,6 +6,7 @@ pub mod dom;
 mod error;
 pub mod fixed;
 pub mod fonts;
+pub mod layout;
 pub mod settings;
 pub mod shape;
 pub mod style;
@@ -18,6 +19,10 @@ pub use dom::{parse, Document};
 pub use error::EngineError;
 pub use fixed::Fx;
 pub use fonts::{FontAxis, FontEntry, FontRegistry, LoadedFace};
+pub use layout::{
+    break_paragraph, Line, LineOptions, PositionedRun, SegmentKind, ShapedParagraph,
+    ShapedSegment, MAX_LINES_PER_PARAGRAPH,
+};
 pub use settings::{FontFamily, LayoutSettings, Typography};
 pub use shape::{
     itemize, shape_ruby, shape_text, Glyph, Item, RubyRun, RunOrientation, RunStyle, ShapeContext,
