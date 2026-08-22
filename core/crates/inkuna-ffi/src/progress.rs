@@ -1,7 +1,7 @@
 //! Reading-progress writes: position, position count, per-resource
 //! position ranges, and finished state.
 
-use crate::bookshelf::{blocking, Bookshelf};
+use crate::bookshelf::blocking;
 use crate::error::InkunaError;
 
 /// One TOC entry's span of Readium synthetic positions; 1-based, both
@@ -24,8 +24,14 @@ impl From<inkuna_core::ChapterPositionRange> for ChapterPositionRange {
     }
 }
 
+/// The progress facade: per-page-turn position writes and range reports.
+/// Constructed once by [`Bookshelf::open`], handed out by
+/// `Bookshelf::progress()` as a cheap `Arc` clone.
+#[derive(uniffi::Object)]
+pub struct ShelfProgress(pub(crate) std::sync::Arc<inkuna_core::Library>);
+
 #[uniffi::export(async_runtime = "tokio")]
-impl Bookshelf {
+impl ShelfProgress {
     /// One call per page turn. `locator` is the opaque Readium locator
     /// JSON; `progression` the book-wide totalProgression; `position` the
     /// synthetic position, once the navigator knows it.

@@ -6,9 +6,9 @@
 //! relative in the DB and absolutized here on read, because iOS container
 //! paths change across installs.
 //!
-//! Modules mirror the core's feature slices; each contributes its own
-//! `impl Bookshelf` block, the way core features contribute `impl Library`
-//! blocks.
+//! Modules mirror the core's feature slices; each exports its own facade
+//! object (`ShelfLibrary`, `ShelfImport`, …) wrapping the shared core
+//! library, handed out by the root `Bookshelf`'s accessors.
 
 uniffi::setup_scaffolding!("inkuna");
 
@@ -25,9 +25,9 @@ mod stats;
 pub use bookshelf::{core_version, Bookshelf};
 pub use error::InkunaError;
 pub use format::Format;
-pub use import::{FdImport, ImportOutcome, ImportProgressListener};
-pub use library::{Bookmark, Chapter, Publication, Shelf, Sort};
-pub use progress::ChapterPositionRange;
-pub use search::{BookSearchHit, BookSearchResults, LibrarySearchHit};
-pub use settings::Settings;
-pub use stats::StatsOverview;
+pub use import::{FdImport, ImportOutcome, ImportProgressListener, ShelfImport};
+pub use library::{Bookmark, Chapter, Publication, Shelf, ShelfLibrary, Sort};
+pub use progress::{ChapterPositionRange, ShelfProgress};
+pub use search::{BookSearchHit, BookSearchResults, LibrarySearchHit, ShelfSearch};
+pub use settings::{Settings, ShelfSettings};
+pub use stats::{ShelfStats, StatsOverview};

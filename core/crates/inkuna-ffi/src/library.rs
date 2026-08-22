@@ -1,7 +1,7 @@
 //! Library records — publications, chapters, bookmarks — and the shelf
 //! queries over them.
 
-use crate::bookshelf::{blocking, Bookshelf};
+use crate::bookshelf::blocking;
 use crate::error::InkunaError;
 use crate::format::Format;
 
@@ -138,8 +138,14 @@ pub(crate) fn publication_record(
     }
 }
 
+/// The library facade: publication records, chapters, and bookmarks.
+/// Constructed once by [`Bookshelf::open`], handed out by
+/// `Bookshelf::library()` as a cheap `Arc` clone.
+#[derive(uniffi::Object)]
+pub struct ShelfLibrary(pub(crate) std::sync::Arc<inkuna_core::Library>);
+
 #[uniffi::export(async_runtime = "tokio")]
-impl Bookshelf {
+impl ShelfLibrary {
     pub async fn list(&self, shelf: Shelf, sort: Sort) -> Result<Vec<Publication>, InkunaError> {
         let library = self.0.clone();
         blocking(move || {
