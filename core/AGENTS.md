@@ -17,10 +17,11 @@ common defaults.
 | Layout engine | rustybuzz + unicode-* crates + cssparser (`inkuna-engine`) | core owns parse → style → shape → break → paginate; fixed-point (1/64 pt) math; per-page glyph-run display lists; canonical text projection defines all char offsets |
 | FFI | UniFFI proc-macros, latest | Swift + Kotlin bindings from one surface; async methods use `#[uniffi::export(async_runtime = "tokio")]`; reader interaction path is synchronous cache-only |
 
-Formats: EPUB (full metadata), MOBI/AZW3 (hand-rolled clean-room Palm/KF8
-readers in `formats/mobi` + `formats/azw3`; DRM-free only), TXT
-(chardetng/encoding_rs charset detection, CJK chapter auto-detection) — all
-reflowables normalize to EPUB at import through `formats/epub/write.rs`.
+Formats: EPUB (full metadata; parsing in `crates/inkuna-content`), MOBI/AZW3
+(hand-rolled clean-room Palm/KF8 readers in `crates/inkuna-format/src/mobi` +
+`src/azw3`; DRM-free only), TXT (chardetng/encoding_rs charset detection, CJK
+chapter auto-detection; `crates/inkuna-format/src/txt`) — all reflowables
+normalize to EPUB at import through `crates/inkuna-format/src/epub_write.rs`.
 PDF and CBZ/CBR are detected but not yet importable; see root CLAUDE.md.
 
 ```bash
@@ -62,10 +63,9 @@ restructure from two is in flight — see
 |------|------|
 | `src/lib.rs` | crate root: module declarations plus the public `pub use` re-exports — keep it thin |
 | `src/core/` | infrastructure leaves: `error`, `db/` (connection setup, reader pool, migrations), `files`, `time`. No business logic |
-| `src/formats/` | detection (`format.rs`) and one module per format (`epub/`, `mobi/`, `azw3/`, `txt/`; CBZ/CBR land beside them) |
+| `src/formats/` | detection (`format.rs`) plus thin re-export modules keeping the import pipeline's `epub::` / `mobi::` / `txt::` call shape — parsing lives in `inkuna-content`, conversion in `inkuna-format` (CBZ/CBR land beside them) |
 | `src/features/` | vertical slices — `library/`, `import/`, `progress/`, `stats/`, `settings/` — each owning its types, reads, and writes |
-| `src/test_support.rs` | shared `#[cfg(test)]` fixtures (the `write_epub` / `write_cbz` / `write_mobi` builders) |
-| `src/mobi_test_support.rs` | shared `#[cfg(test)]` MOBI/KF8 fixtures (`MobiTestBuilder`, INDX/KF8 fixture builders, `palmdoc_compress`) |
+| `src/test_support.rs` | shared `#[cfg(test)]` fixtures: the `write_cbz` / `write_mobi` builders, plus re-exports of the EPUB builders (`write_epub`, from `inkuna-content/src/test_support.rs`) and the MOBI/KF8 kit (`MobiTestBuilder` etc., from `inkuna-format/src/test_support.rs`) |
 
 - **`mod.rs` is declarations only**: module doc comments, `mod`/`pub mod`,
   `use`/`pub use`, and module-level constants. Never a `fn`, `struct`, `enum`,
@@ -127,6 +127,9 @@ restructure from two is in flight — see
   `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`; a folder module gets
   `tests.rs` inside it, declared from `mod.rs` as `#[cfg(test)] mod tests;`.
 - Tests build their own fixtures in `tempfile` dirs; shared builders live in
-  `src/test_support.rs` (the `write_epub` helper) and
-  `src/mobi_test_support.rs` (MOBI/KF8) — no binary fixtures in git.
+  each crate's `src/test_support.rs` — the EPUB builders (`write_epub`) in
+  `inkuna-content`, the MOBI/KF8 kit (`MobiTestBuilder`, INDX/KF8 fixtures,
+  `palmdoc_compress`) in `inkuna-format`, both re-exported from
+  `inkuna-core/src/test_support.rs` alongside its own `write_cbz` /
+  `write_mobi` — no binary fixtures in git.
 - Format detection, metadata parsing, and DB roundtrips must stay covered.
