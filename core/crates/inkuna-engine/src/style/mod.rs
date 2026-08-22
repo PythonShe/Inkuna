@@ -16,4 +16,4 @@ pub use model::{
     ComputedStyle, Direction, FontStyle, FontWeight, RubyPosition, StyledDocument, TextAlign,
     WritingMode,
 };
-pub use sheet::{parse_sheet, Stylesheet};
+pub use sheet::{cap_sheet_sources, parse_sheet, Stylesheet};

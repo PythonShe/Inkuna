@@ -1,5 +1,6 @@
 use super::{
-    parse_sheet, resolve, Direction, FontStyle, FontWeight, StyledDocument, TextAlign, WritingMode,
+    cap_sheet_sources, parse_sheet, resolve, Direction, FontStyle, FontWeight, StyledDocument,
+    TextAlign, WritingMode,
 };
 use crate::dom::{parse, Document, ElementName, NodeId, StylesheetSource};
 use crate::test_support::{CJK_HORIZONTAL_DOC, RTL_DOC};
@@ -175,6 +176,21 @@ fn unsupported_writing_mode_values_never_override_vertical() {
     // vertical-rl anywhere, the resource is horizontal.
     let styled_plain = styled(&doc, &["body { writing-mode: horizontal-tb }"]);
     assert_eq!(styled_plain.writing_mode, WritingMode::HorizontalTb);
+}
+
+#[test]
+fn cap_sheet_sources_drops_whole_sheets_from_end() {
+    let sheets = ["aaaa", "bbb", "cc"];
+
+    // The budget cuts between sheets, never inside one.
+    assert_eq!(cap_sheet_sources(&sheets, 9), ["aaaa", "bbb", "cc"]);
+    assert_eq!(cap_sheet_sources(&sheets, 8), ["aaaa", "bbb"]);
+    assert_eq!(cap_sheet_sources(&sheets, 7), ["aaaa", "bbb"]);
+    assert_eq!(cap_sheet_sources(&sheets, 6), ["aaaa"]);
+    assert_eq!(cap_sheet_sources(&sheets, 4), ["aaaa"]);
+    // Even the first sheet drops when it alone exceeds the budget.
+    assert!(cap_sheet_sources(&sheets, 3).is_empty());
+    assert!(cap_sheet_sources(&[], 100).is_empty());
 }
 
 #[test]

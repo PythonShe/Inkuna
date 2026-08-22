@@ -157,6 +157,22 @@ pub fn parse_sheet(css: &str) -> Stylesheet {
     sheet
 }
 
+/// Applies the per-resource total-CSS budget documented on
+/// [`parse_sheet`]: the longest prefix of `css_texts` whose byte sum fits
+/// `max_total` (the DOM module's `MAX_STYLESHEET_BYTES`). Whole sheets
+/// drop from the END of the cascade list; a kept sheet is never cut
+/// mid-text. Callers use this instead of re-implementing the cap.
+pub fn cap_sheet_sources<'s, 'a>(css_texts: &'s [&'a str], max_total: usize) -> &'s [&'a str] {
+    let mut total = 0usize;
+    for (kept, css) in css_texts.iter().enumerate() {
+        total = total.saturating_add(css.len());
+        if total > max_total {
+            return &css_texts[..kept];
+        }
+    }
+    css_texts
+}
+
 /// Parses a declaration list (an inline `style` attribute body).
 pub(crate) fn parse_declarations(css: &str) -> Vec<Declaration> {
     let mut input = ParserInput::new(css);

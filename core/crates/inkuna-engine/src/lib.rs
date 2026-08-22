@@ -14,5 +14,7 @@ mod test_support;
 pub use dom::{parse, Document};
 pub use error::EngineError;
 pub use settings::{FontFamily, LayoutSettings, Typography};
-pub use style::{parse_sheet, resolve, ComputedStyle, StyledDocument, WritingMode};
+pub use style::{
+    cap_sheet_sources, parse_sheet, resolve, ComputedStyle, StyledDocument, WritingMode,
+};
 pub use text::{project, Coordinate, Projection, TextSpan};
