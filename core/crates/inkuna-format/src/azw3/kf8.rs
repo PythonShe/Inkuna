@@ -1,8 +1,8 @@
 //! KF8 FDST flow splitting and SKEL/FRAG reassembly.
 
 use super::indx::{self, Index, IndexEntry};
-use crate::formats::mobi::{MobiBook, MAX_TOTAL_TEXT_BYTES};
-use crate::CoreError;
+use crate::mobi::{MobiBook, MAX_TOTAL_TEXT_BYTES};
+use crate::FormatError;
 
 const MAX_FLOWS: usize = 65_536;
 const MAX_INDEX_RECORDS: usize = 65_536;
@@ -58,7 +58,7 @@ pub(super) struct Fragment {
     pub(super) length: usize,
 }
 
-pub(super) fn read(book: &MobiBook) -> Result<Kf8Content, CoreError> {
+pub(super) fn read(book: &MobiBook) -> Result<Kf8Content, FormatError> {
     let pointers = book.kf8_pointers()?;
     let raw = book.text()?;
     let fdst = book.relative_record(pointers.fdst)?;
@@ -102,7 +102,7 @@ pub(super) fn read(book: &MobiBook) -> Result<Kf8Content, CoreError> {
 pub(super) fn parse_fdst(
     record: &[u8],
     raw_length: usize,
-) -> Result<Vec<(usize, usize)>, CoreError> {
+) -> Result<Vec<(usize, usize)>, FormatError> {
     if record.get(..4) != Some(b"FDST") {
         return Err(invalid("KF8 FDST record has the wrong signature"));
     }
@@ -133,7 +133,7 @@ pub(super) fn parse_fdst(
     Ok(pairs)
 }
 
-fn load_index(book: &MobiBook, first: u32) -> Result<Index, CoreError> {
+fn load_index(book: &MobiBook, first: u32) -> Result<Index, FormatError> {
     let meta = book.relative_record(first)?;
     let record_count = read_u32(meta, 24)? as usize;
     if record_count == 0 || record_count > MAX_INDEX_RECORDS {
@@ -205,7 +205,7 @@ fn cncx_string(book: &MobiBook, cncx: &[Vec<u8>], offset: u32) -> Option<String>
     (!title.is_empty()).then_some(title)
 }
 
-fn parse_skeletons(index: &Index) -> Result<Vec<Skeleton>, CoreError> {
+fn parse_skeletons(index: &Index) -> Result<Vec<Skeleton>, FormatError> {
     index
         .entries
         .iter()
@@ -221,7 +221,7 @@ fn parse_skeletons(index: &Index) -> Result<Vec<Skeleton>, CoreError> {
         .collect()
 }
 
-fn parse_fragments(index: &Index) -> Result<Vec<Fragment>, CoreError> {
+fn parse_fragments(index: &Index) -> Result<Vec<Fragment>, FormatError> {
     index
         .entries
         .iter()
@@ -249,7 +249,7 @@ pub(super) fn assemble_files(
     flow0: &[u8],
     skeletons: &[Skeleton],
     fragments: &[Fragment],
-) -> Result<Vec<AssembledFile>, CoreError> {
+) -> Result<Vec<AssembledFile>, FormatError> {
     let declared_fragments = skeletons.iter().try_fold(0usize, |total, skeleton| {
         total
             .checked_add(skeleton.fragment_count)
@@ -321,7 +321,7 @@ fn parse_toc(
     record: u32,
     skeletons: &[Skeleton],
     fragments: &[Fragment],
-) -> Result<Vec<Kf8TocEntry>, CoreError> {
+) -> Result<Vec<Kf8TocEntry>, FormatError> {
     let index = load_index(book, record)?;
     let cncx = load_cncx(book, record);
     index
@@ -374,7 +374,7 @@ fn in_range(target: usize, start: usize, length: usize) -> bool {
         .is_some_and(|end| target >= start && target < end)
 }
 
-fn one(entry: &IndexEntry, tag: u8, name: &str) -> Result<u32, CoreError> {
+fn one(entry: &IndexEntry, tag: u8, name: &str) -> Result<u32, FormatError> {
     let values = entry
         .values(tag)
         .ok_or_else(|| invalid(&format!("missing {name}")))?;
@@ -384,7 +384,7 @@ fn one(entry: &IndexEntry, tag: u8, name: &str) -> Result<u32, CoreError> {
     }
 }
 
-fn pair(entry: &IndexEntry, tag: u8, name: &str) -> Result<(u32, u32), CoreError> {
+fn pair(entry: &IndexEntry, tag: u8, name: &str) -> Result<(u32, u32), FormatError> {
     let values = entry
         .values(tag)
         .ok_or_else(|| invalid(&format!("missing {name}")))?;
@@ -399,7 +399,7 @@ fn slice<'a>(
     start: usize,
     length: usize,
     name: &str,
-) -> Result<&'a [u8], CoreError> {
+) -> Result<&'a [u8], FormatError> {
     let end = start
         .checked_add(length)
         .ok_or_else(|| invalid(&format!("{name} byte range overflow")))?;
@@ -408,15 +408,15 @@ fn slice<'a>(
         .ok_or_else(|| invalid(&format!("{name} byte range is outside flow 0")))
 }
 
-fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, CoreError> {
+fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, FormatError> {
     let value = bytes
         .get(offset..offset + 4)
         .ok_or_else(|| invalid("truncated KF8 field"))?;
     Ok(u32::from_be_bytes([value[0], value[1], value[2], value[3]]))
 }
 
-fn invalid(message: &str) -> CoreError {
-    CoreError::InvalidPublication(message.into())
+fn invalid(message: &str) -> FormatError {
+    FormatError::InvalidPublication(message.into())
 }
 
 #[cfg(test)]

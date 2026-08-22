@@ -2,15 +2,14 @@ use std::fs::File;
 use std::io::Read;
 
 use super::*;
-use crate::formats::epub::{extract_spine_text, read_package};
-use crate::test_support::imported;
-use crate::{CoreError, Library};
+use crate::FormatError;
+use inkuna_content::{extract_spine_text, read_package};
 
 const COVER_BYTES: &[u8] = b"\x89PNG\r\n\x1a\nwriter cover";
 
-fn invalid_message(error: CoreError) -> String {
+fn invalid_message(error: FormatError) -> String {
     match error {
-        CoreError::InvalidPublication(message) => message,
+        FormatError::InvalidPublication(message) => message,
         other => panic!("expected invalid publication, got {other}"),
     }
 }
@@ -46,22 +45,22 @@ fn writer_round_trips_cjk_metadata_nested_toc_text_and_cover() {
     assert_eq!(
         package.toc,
         [
-            crate::formats::epub::TocEntry {
+            inkuna_content::TocEntry {
                 title: "序章".into(),
                 href: "OEBPS/text/ch00001.xhtml".into(),
                 depth: 0,
             },
-            crate::formats::epub::TocEntry {
+            inkuna_content::TocEntry {
                 title: "上巻".into(),
                 href: "OEBPS/text/ch00002.xhtml".into(),
                 depth: 0,
             },
-            crate::formats::epub::TocEntry {
+            inkuna_content::TocEntry {
                 title: "第一章".into(),
                 href: "OEBPS/text/ch00002.xhtml".into(),
                 depth: 1,
             },
-            crate::formats::epub::TocEntry {
+            inkuna_content::TocEntry {
                 title: "第二章".into(),
                 href: "OEBPS/text/ch00003.xhtml".into(),
                 depth: 1,
@@ -93,7 +92,7 @@ fn writer_emits_empty_volume_as_a_spine_title_page() {
     assert_eq!(package.spine_hrefs(), ["OEBPS/text/ch00001.xhtml"]);
     assert_eq!(
         package.toc,
-        [crate::formats::epub::TocEntry {
+        [inkuna_content::TocEntry {
             title: "空巻".into(),
             href: "OEBPS/text/ch00001.xhtml".into(),
             depth: 0,
@@ -304,16 +303,5 @@ fn writer_is_byte_deterministic() {
     );
 }
 
-#[test]
-fn written_epub_imports_end_to_end() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("importable.epub");
-    basic_writer("書き出した本").finish(&path).unwrap();
-
-    let library = Library::open(dir.path().join("library")).unwrap();
-    let publication = imported(library.import(path.to_str().unwrap()).unwrap());
-    assert_eq!(publication.title, "書き出した本");
-    assert_eq!(publication.authors, ["紫式部"]);
-    assert_eq!(publication.language.as_deref(), Some("ja"));
-    assert_eq!(library.chapters(&publication.id).unwrap().len(), 1);
-}
+// `written_epub_imports_end_to_end` lives in inkuna-core's import tests:
+// it exercises `Library::import`, which this crate cannot depend on.

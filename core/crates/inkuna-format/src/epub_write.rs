@@ -10,7 +10,7 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, DateTime, ZipWriter};
 
 use inkuna_content::{MAX_SPINE_ENTRY_BYTES, MAX_SPINE_ITEMS, MAX_TOC_ENTRIES};
-use crate::CoreError;
+use crate::FormatError;
 
 const DEFAULT_STYLESHEET: &str = "p { text-indent: 2em; margin: 0.2em 0; }\n\
 hr.scene { border: none; text-align: center; margin: 1.5em 0; }\n\
@@ -53,7 +53,7 @@ struct CoverImage {
 /// returns it. This keeps the converter-facing builder API simple while
 /// preventing any further content from being retained after a cap trips.
 #[allow(dead_code)]
-pub(crate) struct EpubWriter {
+pub struct EpubWriter {
     title: String,
     authors: Vec<String>,
     language: String,
@@ -63,12 +63,12 @@ pub(crate) struct EpubWriter {
     sections: Vec<Section>,
     chapter_count: usize,
     toc_count: usize,
-    error: Option<CoreError>,
+    error: Option<FormatError>,
 }
 
 #[allow(dead_code)]
 impl EpubWriter {
-    pub(crate) fn new(title: &str) -> Self {
+    pub fn new(title: &str) -> Self {
         Self {
             title: title.into(),
             authors: Vec::new(),
@@ -83,16 +83,16 @@ impl EpubWriter {
         }
     }
 
-    pub(crate) fn author(&mut self, name: &str) {
+    pub fn author(&mut self, name: &str) {
         self.authors.push(name.into());
     }
 
-    pub(crate) fn language(&mut self, tag: &str) {
+    pub fn language(&mut self, tag: &str) {
         self.language = tag.into();
     }
 
     /// Appends converter-specific rules after the default book stylesheet.
-    pub(crate) fn stylesheet(&mut self, css: &str) {
+    pub fn stylesheet(&mut self, css: &str) {
         if !self.extra_stylesheet.is_empty() {
             self.extra_stylesheet.push('\n');
         }
@@ -100,7 +100,7 @@ impl EpubWriter {
         self.extra_stylesheet.push('\n');
     }
 
-    pub(crate) fn set_cover(&mut self, bytes: Vec<u8>, mime: &str) {
+    pub fn set_cover(&mut self, bytes: Vec<u8>, mime: &str) {
         self.cover = Some(CoverImage {
             bytes,
             mime: mime.into(),
@@ -108,7 +108,7 @@ impl EpubWriter {
     }
 
     /// Adds an image and returns its href relative to a chapter document.
-    pub(crate) fn add_image(&mut self, name: &str, bytes: Vec<u8>, mime: &str) -> String {
+    pub fn add_image(&mut self, name: &str, bytes: Vec<u8>, mime: &str) -> String {
         let href = format!("../images/{name}");
         self.images.push(Image {
             name: name.into(),
@@ -120,12 +120,12 @@ impl EpubWriter {
 
     /// Opens a volume group. Chapters added afterwards belong to it until
     /// another volume starts.
-    pub(crate) fn begin_volume(&mut self, title: &str) {
+    pub fn begin_volume(&mut self, title: &str) {
         if self.error.is_some() {
             return;
         }
         if self.toc_count == MAX_TOC_ENTRIES {
-            self.error = Some(CoreError::InvalidPublication(format!(
+            self.error = Some(FormatError::InvalidPublication(format!(
                 "EPUB writer TOC exceeds {MAX_TOC_ENTRIES} entries"
             )));
             return;
@@ -138,24 +138,24 @@ impl EpubWriter {
     }
 
     /// Adds trusted, pre-escaped XHTML block content as one spine item.
-    pub(crate) fn add_chapter(&mut self, title: &str, body_xhtml: &str) {
+    pub fn add_chapter(&mut self, title: &str, body_xhtml: &str) {
         if self.error.is_some() {
             return;
         }
         if body_xhtml.len() as u64 > MAX_SPINE_ENTRY_BYTES {
-            self.error = Some(CoreError::InvalidPublication(format!(
+            self.error = Some(FormatError::InvalidPublication(format!(
                 "EPUB writer chapter body exceeds {MAX_SPINE_ENTRY_BYTES} bytes"
             )));
             return;
         }
         if self.chapter_count == MAX_SPINE_ITEMS {
-            self.error = Some(CoreError::InvalidPublication(format!(
+            self.error = Some(FormatError::InvalidPublication(format!(
                 "EPUB writer spine exceeds {MAX_SPINE_ITEMS} items"
             )));
             return;
         }
         if self.toc_count == MAX_TOC_ENTRIES {
-            self.error = Some(CoreError::InvalidPublication(format!(
+            self.error = Some(FormatError::InvalidPublication(format!(
                 "EPUB writer TOC exceeds {MAX_TOC_ENTRIES} entries"
             )));
             return;
@@ -173,7 +173,7 @@ impl EpubWriter {
         }
     }
 
-    pub(crate) fn finish(self, dst: &Path) -> Result<(), CoreError> {
+    pub fn finish(self, dst: &Path) -> Result<(), FormatError> {
         if let Some(error) = self.error {
             return Err(error);
         }
@@ -185,7 +185,7 @@ impl EpubWriter {
             )
             .count();
         if self.chapter_count + empty_volumes > MAX_SPINE_ITEMS {
-            return Err(CoreError::InvalidPublication(format!(
+            return Err(FormatError::InvalidPublication(format!(
                 "EPUB writer spine exceeds {MAX_SPINE_ITEMS} items"
             )));
         }
@@ -193,7 +193,7 @@ impl EpubWriter {
         let identifier = deterministic_identifier(&self);
         let documents = documents(&self.sections);
         if documents.is_empty() {
-            return Err(CoreError::InvalidPublication(
+            return Err(FormatError::InvalidPublication(
                 "EPUB writer requires at least one spine item".into(),
             ));
         }
@@ -201,7 +201,7 @@ impl EpubWriter {
             .iter()
             .any(|document| chapter_xhtml_len(document) > MAX_SPINE_ENTRY_BYTES as usize)
         {
-            return Err(CoreError::InvalidPublication(format!(
+            return Err(FormatError::InvalidPublication(format!(
                 "EPUB writer spine resource exceeds {MAX_SPINE_ENTRY_BYTES} bytes after XHTML wrapping"
             )));
         }
@@ -475,7 +475,7 @@ fn write_entry(
     name: &str,
     bytes: &[u8],
     compression: CompressionMethod,
-) -> Result<(), CoreError> {
+) -> Result<(), FormatError> {
     let options = SimpleFileOptions::default()
         .compression_method(compression)
         .last_modified_time(DateTime::default())
@@ -486,5 +486,5 @@ fn write_entry(
 }
 
 #[cfg(test)]
-#[path = "write_tests.rs"]
+#[path = "epub_write_tests.rs"]
 mod tests;

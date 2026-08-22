@@ -1,6 +1,6 @@
 //! Bounded parsing of MOBI `INDX`, `TAGX`, and `IDXT` records.
 
-use crate::CoreError;
+use crate::FormatError;
 
 const MIN_INDX_HEADER_BYTES: usize = 28;
 const MIN_META_HEADER_BYTES: usize = 56;
@@ -39,12 +39,12 @@ struct Tagx {
 }
 
 #[cfg(test)]
-pub(super) fn parse_records(records: &[Vec<u8>]) -> Result<Index, CoreError> {
+pub(super) fn parse_records(records: &[Vec<u8>]) -> Result<Index, FormatError> {
     let borrowed = records.iter().map(Vec::as_slice).collect::<Vec<_>>();
     parse(&borrowed)
 }
 
-pub(super) fn parse(records: &[&[u8]]) -> Result<Index, CoreError> {
+pub(super) fn parse(records: &[&[u8]]) -> Result<Index, FormatError> {
     let meta = records
         .first()
         .copied()
@@ -80,7 +80,7 @@ pub(super) fn parse(records: &[&[u8]]) -> Result<Index, CoreError> {
     Ok(Index { entries })
 }
 
-fn parse_tagx(bytes: &[u8]) -> Result<Tagx, CoreError> {
+fn parse_tagx(bytes: &[u8]) -> Result<Tagx, FormatError> {
     check_magic(bytes, b"TAGX", "TAGX section")?;
     let length = read_u32(bytes, 4)? as usize;
     if length < 12 || length > bytes.len() || !(length - 12).is_multiple_of(4) {
@@ -130,7 +130,7 @@ fn parse_data_record(
     record: &[u8],
     tagx: &Tagx,
     output: &mut Vec<IndexEntry>,
-) -> Result<(), CoreError> {
+) -> Result<(), FormatError> {
     check_magic(record, b"INDX", "INDX data record")?;
     let header_length = read_u32(record, 4)? as usize;
     let idxt_start = read_u32(record, 20)? as usize;
@@ -175,7 +175,7 @@ fn parse_data_record(
     Ok(())
 }
 
-fn parse_entry(bytes: &[u8], tagx: &Tagx) -> Result<IndexEntry, CoreError> {
+fn parse_entry(bytes: &[u8], tagx: &Tagx) -> Result<IndexEntry, FormatError> {
     let label_length = usize::from(
         *bytes
             .first()
@@ -255,7 +255,7 @@ fn parse_entry(bytes: &[u8], tagx: &Tagx) -> Result<IndexEntry, CoreError> {
     Ok(IndexEntry { label, tags })
 }
 
-pub(super) fn read_varuint(bytes: &[u8], cursor: &mut usize) -> Result<u32, CoreError> {
+pub(super) fn read_varuint(bytes: &[u8], cursor: &mut usize) -> Result<u32, FormatError> {
     let mut value = 0u32;
     for _ in 0..5 {
         let byte = *bytes
@@ -273,29 +273,29 @@ pub(super) fn read_varuint(bytes: &[u8], cursor: &mut usize) -> Result<u32, Core
     Err(invalid("unterminated INDX variable-width integer"))
 }
 
-fn check_magic(bytes: &[u8], magic: &[u8; 4], name: &str) -> Result<(), CoreError> {
+fn check_magic(bytes: &[u8], magic: &[u8; 4], name: &str) -> Result<(), FormatError> {
     if bytes.get(..4) != Some(magic.as_slice()) {
         return Err(invalid(&format!("{name} has the wrong signature")));
     }
     Ok(())
 }
 
-fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, CoreError> {
+fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, FormatError> {
     let value = bytes
         .get(offset..offset + 2)
         .ok_or_else(|| invalid("truncated INDX field"))?;
     Ok(u16::from_be_bytes([value[0], value[1]]))
 }
 
-fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, CoreError> {
+fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, FormatError> {
     let value = bytes
         .get(offset..offset + 4)
         .ok_or_else(|| invalid("truncated INDX field"))?;
     Ok(u32::from_be_bytes([value[0], value[1], value[2], value[3]]))
 }
 
-fn invalid(message: &str) -> CoreError {
-    CoreError::InvalidPublication(message.into())
+fn invalid(message: &str) -> FormatError {
+    FormatError::InvalidPublication(message.into())
 }
 
 #[cfg(test)]

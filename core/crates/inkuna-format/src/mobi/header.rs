@@ -1,6 +1,6 @@
 //! PalmDOC, MOBI, and EXTH header parsing.
 
-use crate::CoreError;
+use crate::FormatError;
 
 const PALMDOC_LEN: usize = 16;
 const MIN_MOBI_LEN: usize = 96;
@@ -42,7 +42,7 @@ pub(super) struct Headers {
     pub(super) exth: Vec<ExthRecord>,
 }
 
-pub(super) fn parse_headers(record: &[u8]) -> Result<Headers, CoreError> {
+pub(super) fn parse_headers(record: &[u8]) -> Result<Headers, FormatError> {
     let palmdoc = parse_palmdoc(record)?;
     let mobi_length = read_u32(record, 20)? as usize;
     if record.get(16..20) != Some(b"MOBI".as_slice()) {
@@ -120,7 +120,7 @@ fn optional_index(
     mobi_length: usize,
     minimum_length: usize,
     offset: usize,
-) -> Result<Option<u32>, CoreError> {
+) -> Result<Option<u32>, FormatError> {
     if mobi_length < minimum_length {
         return Ok(None);
     }
@@ -128,7 +128,7 @@ fn optional_index(
     Ok((value != u32::MAX).then_some(value))
 }
 
-fn parse_palmdoc(record: &[u8]) -> Result<PalmDocHeader, CoreError> {
+fn parse_palmdoc(record: &[u8]) -> Result<PalmDocHeader, FormatError> {
     if record.len() < PALMDOC_LEN {
         return Err(invalid("truncated PalmDOC header"));
     }
@@ -146,7 +146,7 @@ fn parse_palmdoc(record: &[u8]) -> Result<PalmDocHeader, CoreError> {
     })
 }
 
-fn parse_exth(record: &[u8], offset: usize) -> Result<Vec<ExthRecord>, CoreError> {
+fn parse_exth(record: &[u8], offset: usize) -> Result<Vec<ExthRecord>, FormatError> {
     if record.get(offset..offset + 4) != Some(b"EXTH".as_slice()) {
         return Err(invalid("MOBI header flags announce a missing EXTH header"));
     }
@@ -188,22 +188,22 @@ fn parse_exth(record: &[u8], offset: usize) -> Result<Vec<ExthRecord>, CoreError
     Ok(records)
 }
 
-fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, CoreError> {
+fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, FormatError> {
     let value = bytes
         .get(offset..offset + 2)
         .ok_or_else(|| invalid("truncated MOBI header field"))?;
     Ok(u16::from_be_bytes([value[0], value[1]]))
 }
 
-fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, CoreError> {
+fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, FormatError> {
     let value = bytes
         .get(offset..offset + 4)
         .ok_or_else(|| invalid("truncated MOBI header field"))?;
     Ok(u32::from_be_bytes([value[0], value[1], value[2], value[3]]))
 }
 
-fn invalid(message: &str) -> CoreError {
-    CoreError::InvalidPublication(message.to_string())
+fn invalid(message: &str) -> FormatError {
+    FormatError::InvalidPublication(message.to_string())
 }
 
 #[cfg(test)]

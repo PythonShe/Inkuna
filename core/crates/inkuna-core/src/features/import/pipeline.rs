@@ -267,11 +267,14 @@ impl Library {
         let conversion: Result<Option<String>, CoreError> = match format {
             Format::Txt => title
                 .ok_or_else(|| CoreError::InvalidPublication("untitled".into()))
-                .and_then(|title| txt::convert_to_epub(tmp_path, &conv_path, &title))
+                .and_then(|title| {
+                    txt::convert_to_epub(tmp_path, &conv_path, &title).map_err(CoreError::from)
+                })
                 .map(|conversion| Some(conversion.encoding)),
             Format::Mobi | Format::Azw3 => {
                 mobi::convert_to_epub(tmp_path, &conv_path, title.as_deref().unwrap_or(""))
                     .map(|()| None)
+                    .map_err(CoreError::from)
             }
             _ => unreachable!(),
         };

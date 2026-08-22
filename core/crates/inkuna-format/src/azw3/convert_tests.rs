@@ -2,8 +2,8 @@ use std::io::Read;
 use std::path::Path;
 
 use super::{parse_position, sanitize_css, ImageBudget, MAX_TOTAL_IMAGE_BYTES};
-use crate::formats::epub;
-use crate::formats::mobi::convert_to_epub;
+use inkuna_content as epub;
+use crate::mobi::convert_to_epub;
 use crate::test_support::{Kf8FileFixture, Kf8NcxFixture, MobiTestBuilder};
 
 fn chapter(path: &Path, index: usize) -> String {

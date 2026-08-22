@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use super::kf8::{self, FragmentAnchor, Kf8Content};
-use crate::formats::epub::EpubWriter;
-use crate::formats::mobi::{image_type, markup, sanitize, MobiBook};
-use crate::CoreError;
+use crate::EpubWriter;
+use crate::mobi::{image_type, markup, sanitize, MobiBook};
+use crate::FormatError;
 
 const BASE32: &[u8; 32] = b"0123456789ABCDEFGHIJKLMNOPQRSTUV";
 const TARGET_RAW_BYTES: usize = 512 * 1024;
@@ -38,11 +38,11 @@ impl ImageBudget {
     }
 }
 
-pub(crate) fn convert_to_epub(
+pub fn convert_to_epub(
     book: &MobiBook,
     dst: &Path,
     fallback_title: &str,
-) -> Result<(), CoreError> {
+) -> Result<(), FormatError> {
     let content = kf8::read(book)?;
     if content.files.is_empty() {
         return Err(invalid("KF8 publication has no skeleton files"));
@@ -474,8 +474,8 @@ fn strip_prefix_ascii_case<'a>(value: &'a str, prefix: &str) -> Option<&'a str> 
         .then(|| &value[prefix.len()..])
 }
 
-fn invalid(message: &str) -> CoreError {
-    CoreError::InvalidPublication(message.into())
+fn invalid(message: &str) -> FormatError {
+    FormatError::InvalidPublication(message.into())
 }
 
 #[cfg(test)]

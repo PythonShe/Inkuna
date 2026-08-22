@@ -8,8 +8,9 @@ use super::charset::decode_text;
 use super::paragraphs::{
     floor_char_boundary, paragraph_blocks, render_chapter, render_volume_break, split_blocks,
 };
-use crate::formats::epub::{EpubWriter, MAX_TOTAL_TEXT_BYTES};
-use crate::CoreError;
+use crate::EpubWriter;
+use inkuna_content::MAX_TOTAL_TEXT_BYTES;
+use crate::FormatError;
 
 const FALLBACK_CHUNK_BYTES: usize = 10 * 1024;
 const MAX_TXT_CHAPTERS: usize = 9_990;
@@ -18,12 +19,12 @@ const MAX_TXT_SOURCE_BYTES: usize = MAX_TOTAL_TEXT_BYTES * 2 + 3;
 
 /// What [`convert_to_epub`] reports back about a finished conversion.
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct TxtConversion {
+pub struct TxtConversion {
     /// The `encoding_rs` canonical name of the detected source charset
     /// (e.g. `UTF-8`, `GBK`, `UTF-16LE`). Persisted verbatim in the
     /// `publications.text_encoding` column, so it is a stored schema
     /// value — never rename or re-case these strings.
-    pub(crate) encoding: String,
+    pub encoding: String,
 }
 
 enum OutputSection {
@@ -42,28 +43,28 @@ struct PendingChapter {
 /// charset, chapters, and paragraph shape. The returned
 /// [`TxtConversion::encoding`] is the `encoding_rs` canonical name the
 /// importer persists in `publications.text_encoding`.
-pub(crate) fn convert_to_epub(
+pub fn convert_to_epub(
     src: &Path,
     dst: &Path,
     fallback_title: &str,
-) -> Result<TxtConversion, CoreError> {
+) -> Result<TxtConversion, FormatError> {
     let mut bytes = Vec::new();
     std::fs::File::open(src)?
         .take(MAX_TXT_SOURCE_BYTES as u64 + 1)
         .read_to_end(&mut bytes)?;
     if bytes.len() > MAX_TXT_SOURCE_BYTES {
-        return Err(CoreError::InvalidPublication(format!(
+        return Err(FormatError::InvalidPublication(format!(
             "plain-text source exceeds {MAX_TXT_SOURCE_BYTES} bytes"
         )));
     }
     let decoded = decode_text(&bytes);
     if decoded.text.len() > MAX_TOTAL_TEXT_BYTES {
-        return Err(CoreError::InvalidPublication(format!(
+        return Err(FormatError::InvalidPublication(format!(
             "decoded plain text exceeds {MAX_TOTAL_TEXT_BYTES} bytes"
         )));
     }
     if decoded.text.trim().is_empty() {
-        return Err(CoreError::InvalidPublication(
+        return Err(FormatError::InvalidPublication(
             "plain-text publication is empty".into(),
         ));
     }
@@ -83,7 +84,7 @@ pub(crate) fn convert_to_epub(
         })
         .sum();
     if output_text_budget > MAX_TOTAL_TEXT_BYTES {
-        return Err(CoreError::InvalidPublication(format!(
+        return Err(FormatError::InvalidPublication(format!(
             "converted plain text exceeds {MAX_TOTAL_TEXT_BYTES} bytes"
         )));
     }

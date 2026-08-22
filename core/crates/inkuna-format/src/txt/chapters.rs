@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use regex::{Captures, Regex};
 
-use crate::CoreError;
+use crate::FormatError;
 
 const SAMPLE_BYTES: usize = 1024 * 1024;
 const NUMERAL: &str = r"[\d０-９〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]";
@@ -40,7 +40,7 @@ struct ChapterRules {
 }
 
 impl ChapterRules {
-    fn compile() -> Result<Self, CoreError> {
+    fn compile() -> Result<Self, FormatError> {
         Ok(Self {
             bracketed: compile_regex(&format!(
                 r"(?m)^[ \t　]{{0,4}}[【〔〖「『〈［\[](?:第|[Cc]hapter)\s{{0,4}}{NUMERAL}{{1,10}}\s{{0,4}}[章节回话].{{0,20}}$"
@@ -66,7 +66,7 @@ impl ChapterRules {
 /// and the caller falls back to size-based parts. Text before the first
 /// heading becomes a "前言"/"Preface" chapter; volume headings and
 /// body-less headings become volume entries.
-pub(super) fn detect_sections(text: &str) -> Result<Vec<DetectedSection>, CoreError> {
+pub(super) fn detect_sections(text: &str) -> Result<Vec<DetectedSection>, FormatError> {
     let rules = ChapterRules::compile()?;
     let sample = prefix_at_char_boundary(text, SAMPLE_BYTES);
     let mut winner = None;
@@ -224,9 +224,9 @@ fn prefix_at_char_boundary(text: &str, max_bytes: usize) -> &str {
     &text[..end]
 }
 
-fn compile_regex(pattern: &str) -> Result<Regex, CoreError> {
+fn compile_regex(pattern: &str) -> Result<Regex, FormatError> {
     Regex::new(pattern).map_err(|error| {
-        CoreError::InvalidPublication(format!("invalid TXT chapter rule: {error}"))
+        FormatError::InvalidPublication(format!("invalid TXT chapter rule: {error}"))
     })
 }
 

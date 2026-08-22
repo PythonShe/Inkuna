@@ -1,30 +1,30 @@
 use std::path::Path;
 
-pub(crate) struct IndxEntryFixture {
+pub struct IndxEntryFixture {
     label: Vec<u8>,
     tags: Vec<(u8, Vec<u32>)>,
 }
 
-pub(crate) struct Kf8FileFixture {
+pub struct Kf8FileFixture {
     skeleton: Vec<u8>,
     fragments: Vec<(usize, Vec<u8>)>,
 }
 
 impl Kf8FileFixture {
-    pub(crate) fn new(skeleton: &[u8]) -> Self {
+    pub fn new(skeleton: &[u8]) -> Self {
         Self {
             skeleton: skeleton.to_vec(),
             fragments: Vec::new(),
         }
     }
 
-    pub(crate) fn fragment(mut self, insert: usize, bytes: &[u8]) -> Self {
+    pub fn fragment(mut self, insert: usize, bytes: &[u8]) -> Self {
         self.fragments.push((insert, bytes.to_vec()));
         self
     }
 }
 
-pub(crate) struct Kf8NcxFixture {
+pub struct Kf8NcxFixture {
     label: String,
     file: usize,
     depth: u32,
@@ -34,7 +34,7 @@ impl Kf8NcxFixture {
     /// `file` must be a valid index into the `kf8_files` list passed to the
     /// builder: `build_kf8_bundle` resolves it via `skeleton_starts[entry.file]`
     /// and panics on an out-of-range value.
-    pub(crate) fn new(label: &str, file: usize, depth: u32) -> Self {
+    pub fn new(label: &str, file: usize, depth: u32) -> Self {
         Self {
             label: label.into(),
             file,
@@ -54,20 +54,20 @@ struct Kf8Bundle {
 }
 
 impl IndxEntryFixture {
-    pub(crate) fn new(label: &[u8]) -> Self {
+    pub fn new(label: &[u8]) -> Self {
         Self {
             label: label.to_vec(),
             tags: Vec::new(),
         }
     }
 
-    pub(crate) fn tag(mut self, tag: u8, values: &[u32]) -> Self {
+    pub fn tag(mut self, tag: u8, values: &[u32]) -> Self {
         self.tags.push((tag, values.to_vec()));
         self
     }
 }
 
-pub(crate) fn build_indx_records(
+pub fn build_indx_records(
     tag_table: &[(u8, u8, u8, u8)],
     entries: &[IndxEntryFixture],
 ) -> Vec<Vec<u8>> {
@@ -174,7 +174,7 @@ fn push_varuint(output: &mut Vec<u8>, mut value: u32) {
     output.extend_from_slice(&encoded[cursor..]);
 }
 
-pub(crate) struct MobiTestBuilder {
+pub struct MobiTestBuilder {
     version: u32,
     compression: u16,
     encryption: u16,
@@ -196,7 +196,7 @@ pub(crate) struct MobiTestBuilder {
 }
 
 impl MobiTestBuilder {
-    pub(crate) fn new(version: u32) -> Self {
+    pub fn new(version: u32) -> Self {
         Self {
             version,
             compression: 1,
@@ -219,93 +219,93 @@ impl MobiTestBuilder {
         }
     }
 
-    pub(crate) fn name(&mut self, name: &[u8]) -> &mut Self {
+    pub fn name(&mut self, name: &[u8]) -> &mut Self {
         self.name = name.to_vec();
         self
     }
 
-    pub(crate) fn compression(&mut self, compression: u16) -> &mut Self {
+    pub fn compression(&mut self, compression: u16) -> &mut Self {
         self.compression = compression;
         self
     }
 
-    pub(crate) fn encryption(&mut self, encryption: u16) -> &mut Self {
+    pub fn encryption(&mut self, encryption: u16) -> &mut Self {
         self.encryption = encryption;
         self
     }
 
-    pub(crate) fn encoding(&mut self, encoding: u32) -> &mut Self {
+    pub fn encoding(&mut self, encoding: u32) -> &mut Self {
         self.encoding = encoding;
         self
     }
 
-    pub(crate) fn locale(&mut self, locale: u32) -> &mut Self {
+    pub fn locale(&mut self, locale: u32) -> &mut Self {
         self.locale = locale;
         self
     }
 
-    pub(crate) fn fullname(&mut self, fullname: &[u8]) -> &mut Self {
+    pub fn fullname(&mut self, fullname: &[u8]) -> &mut Self {
         self.fullname = Some(fullname.to_vec());
         self
     }
 
-    pub(crate) fn text_records(&mut self, records: Vec<Vec<u8>>) -> &mut Self {
+    pub fn text_records(&mut self, records: Vec<Vec<u8>>) -> &mut Self {
         self.text_records = records;
         self
     }
 
-    pub(crate) fn html(&mut self, html: &[u8]) -> &mut Self {
+    pub fn html(&mut self, html: &[u8]) -> &mut Self {
         self.text_records = vec![html.to_vec()];
         self
     }
 
-    pub(crate) fn text_length(&mut self, length: u32) -> &mut Self {
+    pub fn text_length(&mut self, length: u32) -> &mut Self {
         self.text_length = Some(length);
         self
     }
 
-    pub(crate) fn exth(&mut self, kind: u32, data: &[u8]) -> &mut Self {
+    pub fn exth(&mut self, kind: u32, data: &[u8]) -> &mut Self {
         self.exth.push((kind, data.to_vec()));
         self
     }
 
-    pub(crate) fn huff_records(&mut self, records: Vec<Vec<u8>>) -> &mut Self {
+    pub fn huff_records(&mut self, records: Vec<Vec<u8>>) -> &mut Self {
         self.huff_records = records;
         self
     }
 
-    pub(crate) fn image(&mut self, bytes: &[u8]) -> &mut Self {
+    pub fn image(&mut self, bytes: &[u8]) -> &mut Self {
         self.images.push(bytes.to_vec());
         self
     }
 
-    pub(crate) fn trailing_data(&mut self, flags: u16, trailers: Vec<Vec<u8>>) -> &mut Self {
+    pub fn trailing_data(&mut self, flags: u16, trailers: Vec<Vec<u8>>) -> &mut Self {
         self.extra_data_flags = flags;
         self.trailers = trailers;
         self
     }
 
-    pub(crate) fn kf8(&mut self, book: MobiTestBuilder) -> &mut Self {
+    pub fn kf8(&mut self, book: MobiTestBuilder) -> &mut Self {
         self.kf8 = Some(Box::new(book));
         self
     }
 
-    pub(crate) fn kf8_files(&mut self, files: Vec<Kf8FileFixture>) -> &mut Self {
+    pub fn kf8_files(&mut self, files: Vec<Kf8FileFixture>) -> &mut Self {
         self.kf8_files = Some(files);
         self
     }
 
-    pub(crate) fn css_flow(&mut self, css: &[u8]) -> &mut Self {
+    pub fn css_flow(&mut self, css: &[u8]) -> &mut Self {
         self.css_flows.push(css.to_vec());
         self
     }
 
-    pub(crate) fn ncx(&mut self, entries: Vec<Kf8NcxFixture>) -> &mut Self {
+    pub fn ncx(&mut self, entries: Vec<Kf8NcxFixture>) -> &mut Self {
         self.ncx = Some(entries);
         self
     }
 
-    pub(crate) fn write(&self, path: &Path) {
+    pub fn write(&self, path: &Path) {
         let mut exth = self.exth.clone();
         let mut primary = self.build_records(&exth);
         if let Some(kf8) = &self.kf8 {
@@ -514,7 +514,7 @@ impl MobiTestBuilder {
     }
 }
 
-pub(crate) fn palmdoc_compress(input: &[u8]) -> Vec<u8> {
+pub fn palmdoc_compress(input: &[u8]) -> Vec<u8> {
     let mut compressed = Vec::with_capacity(input.len() + input.len().div_ceil(8));
     for chunk in input.chunks(8) {
         compressed.push(chunk.len() as u8);

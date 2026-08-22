@@ -8,8 +8,8 @@ use encoding_rs::WINDOWS_1252;
 use super::markup;
 use super::scan::{scan_markup, Scan};
 use super::MobiBook;
-use crate::formats::epub::EpubWriter;
-use crate::CoreError;
+use crate::EpubWriter;
+use crate::FormatError;
 
 const TARGET_CHUNK_BYTES: usize = 256 * 1024;
 // XML escaping can expand one source byte sixfold. Keeping merged raw
@@ -55,14 +55,14 @@ impl ImageBudget {
     }
 }
 
-pub(crate) fn convert_to_epub(
+pub fn convert_to_epub(
     src: &Path,
     dst: &Path,
     fallback_title: &str,
-) -> Result<(), CoreError> {
+) -> Result<(), FormatError> {
     let book = MobiBook::open(src)?;
     if book.is_kf8() {
-        return crate::formats::azw3::convert_to_epub(&book, dst, fallback_title);
+        return crate::azw3::convert_to_epub(&book, dst, fallback_title);
     }
     let text = book.text()?;
     if text.is_empty() {
@@ -365,8 +365,8 @@ fn edited_chunk(
     output
 }
 
-fn invalid(message: &str) -> CoreError {
-    CoreError::InvalidPublication(message.into())
+fn invalid(message: &str) -> FormatError {
+    FormatError::InvalidPublication(message.into())
 }
 
 #[cfg(test)]

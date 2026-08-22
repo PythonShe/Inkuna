@@ -6,4 +6,4 @@ mod convert;
 mod indx;
 mod kf8;
 
-pub(crate) use convert::convert_to_epub;
+pub use convert::convert_to_epub;

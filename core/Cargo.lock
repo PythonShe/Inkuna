@@ -1207,7 +1207,6 @@ name = "inkuna-core"
 version = "0.6.2"
 dependencies = [
  "blake3",
- "chardetng",
  "chrono",
  "chrono-tz",
  "encoding_rs",
@@ -1215,11 +1214,10 @@ dependencies = [
  "icu_normalizer",
  "image",
  "inkuna-content",
+ "inkuna-format",
  "jieba-rs",
  "log",
- "quick-xml",
  "rayon",
- "regex",
  "rusqlite",
  "tantivy",
  "tempfile",
@@ -1237,6 +1235,24 @@ dependencies = [
  "thiserror",
  "tokio",
  "uniffi",
+]
+
+[[package]]
+name = "inkuna-format"
+version = "0.6.2"
+dependencies = [
+ "blake3",
+ "chardetng",
+ "encoding_rs",
+ "icu_normalizer",
+ "inkuna-content",
+ "log",
+ "quick-xml",
+ "regex",
+ "tempfile",
+ "thiserror",
+ "uuid",
+ "zip",
 ]
 
 [[package]]

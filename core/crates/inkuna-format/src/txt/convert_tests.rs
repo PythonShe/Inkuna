@@ -2,8 +2,8 @@ use std::fs::File;
 use std::io::Read;
 
 use super::*;
-use crate::formats::epub::{extract_spine_text, read_package};
-use crate::CoreError;
+use inkuna_content::{extract_spine_text, read_package};
+use crate::FormatError;
 
 fn convert(bytes: &[u8], title: &str) -> (tempfile::TempDir, std::path::PathBuf, TxtConversion) {
     let dir = tempfile::tempdir().unwrap();
@@ -140,7 +140,7 @@ fn rejects_empty_or_whitespace_only_text() {
     let dst = dir.path().join("empty.epub");
     std::fs::write(&src, " \t\r\n　").unwrap();
     let error = convert_to_epub(&src, &dst, "空").unwrap_err();
-    assert!(matches!(error, CoreError::InvalidPublication(_)));
+    assert!(matches!(error, FormatError::InvalidPublication(_)));
     assert!(!dst.exists());
 }
 
@@ -152,7 +152,7 @@ fn rejects_decoded_text_past_the_aggregate_parser_budget() {
     std::fs::write(&src, vec![b'a'; MAX_TOTAL_TEXT_BYTES + 1]).unwrap();
     let error = convert_to_epub(&src, &dst, "Oversized").unwrap_err();
     assert!(
-        matches!(error, CoreError::InvalidPublication(message) if message.contains("decoded plain text"))
+        matches!(error, FormatError::InvalidPublication(message) if message.contains("decoded plain text"))
     );
     assert!(!dst.exists());
 }

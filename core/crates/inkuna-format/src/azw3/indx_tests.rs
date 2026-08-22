@@ -1,6 +1,6 @@
 use super::parse_records;
 use crate::test_support::{build_indx_records, IndxEntryFixture};
-use crate::CoreError;
+use crate::FormatError;
 
 fn fixture() -> Vec<Vec<u8>> {
     build_indx_records(
@@ -119,7 +119,7 @@ fn rejects_hostile_counts_offsets_and_tag_expansion() {
     excessive_total[0][36..40].copy_from_slice(&65_537u32.to_be_bytes());
     assert!(matches!(
         parse_records(&excessive_total),
-        Err(CoreError::InvalidPublication(_))
+        Err(FormatError::InvalidPublication(_))
     ));
 
     let mut bad_idxt = fixture();

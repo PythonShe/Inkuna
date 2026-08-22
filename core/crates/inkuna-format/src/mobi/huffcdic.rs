@@ -1,6 +1,6 @@
 //! Bounded HUFF/CDIC table parsing and dictionary expansion.
 
-use crate::CoreError;
+use crate::FormatError;
 
 const MAX_DICTIONARY_ENTRIES: usize = 1024 * 1024;
 const MAX_EXPANSION_DEPTH: usize = 64;
@@ -25,7 +25,7 @@ pub(super) struct HuffCdic {
 }
 
 impl HuffCdic {
-    pub(super) fn parse(huff: &[u8], cdic_records: &[&[u8]]) -> Result<Self, CoreError> {
+    pub(super) fn parse(huff: &[u8], cdic_records: &[&[u8]]) -> Result<Self, FormatError> {
         if huff.get(..4) != Some(b"HUFF".as_slice()) || read_u32(huff, 4)? != 24 {
             return Err(invalid("invalid HUFF record header"));
         }
@@ -88,7 +88,7 @@ impl HuffCdic {
         &'a self,
         compressed: &'a [u8],
         output_cap: usize,
-    ) -> Result<Vec<u8>, CoreError> {
+    ) -> Result<Vec<u8>, FormatError> {
         enum Work<'a> {
             Compressed(&'a [u8], usize),
             Literal(&'a [u8]),
@@ -131,7 +131,7 @@ impl HuffCdic {
         Ok(output)
     }
 
-    fn decode_indices(&self, bytes: &[u8], symbol_cap: usize) -> Result<Vec<usize>, CoreError> {
+    fn decode_indices(&self, bytes: &[u8], symbol_cap: usize) -> Result<Vec<usize>, FormatError> {
         let total_bits = bytes
             .len()
             .checked_mul(8)
@@ -172,7 +172,7 @@ impl HuffCdic {
     }
 }
 
-fn parse_cdics(records: &[&[u8]]) -> Result<Vec<Phrase>, CoreError> {
+fn parse_cdics(records: &[&[u8]]) -> Result<Vec<Phrase>, FormatError> {
     let mut phrases = Vec::new();
     let mut expected_total = None;
     for record in records {
@@ -222,7 +222,7 @@ fn parse_cdics(records: &[&[u8]]) -> Result<Vec<Phrase>, CoreError> {
     Ok(phrases)
 }
 
-fn expanded_max_code(raw: u64, code_length: usize) -> Result<u64, CoreError> {
+fn expanded_max_code(raw: u64, code_length: usize) -> Result<u64, FormatError> {
     (raw + 1)
         .checked_shl((32 - code_length) as u32)
         .and_then(|value| value.checked_sub(1))
@@ -239,7 +239,7 @@ fn peek_u32(bytes: &[u8], bit_offset: usize) -> u32 {
     ((window >> (8 - skipped)) & u64::from(u32::MAX)) as u32
 }
 
-fn ensure_output(current: usize, additional: usize, cap: usize) -> Result<(), CoreError> {
+fn ensure_output(current: usize, additional: usize, cap: usize) -> Result<(), FormatError> {
     if current
         .checked_add(additional)
         .is_none_or(|length| length > cap)
@@ -254,7 +254,7 @@ fn require_range(
     start: usize,
     length: usize,
     message: &str,
-) -> Result<(), CoreError> {
+) -> Result<(), FormatError> {
     if start
         .checked_add(length)
         .is_none_or(|end| end > bytes.len())
@@ -264,22 +264,22 @@ fn require_range(
     Ok(())
 }
 
-fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, CoreError> {
+fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, FormatError> {
     let value = bytes
         .get(offset..offset + 2)
         .ok_or_else(|| invalid("truncated HUFF/CDIC field"))?;
     Ok(u16::from_be_bytes([value[0], value[1]]))
 }
 
-fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, CoreError> {
+fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, FormatError> {
     let value = bytes
         .get(offset..offset + 4)
         .ok_or_else(|| invalid("truncated HUFF/CDIC field"))?;
     Ok(u32::from_be_bytes([value[0], value[1], value[2], value[3]]))
 }
 
-fn invalid(message: &str) -> CoreError {
-    CoreError::InvalidPublication(message.to_string())
+fn invalid(message: &str) -> FormatError {
+    FormatError::InvalidPublication(message.to_string())
 }
 
 #[cfg(test)]

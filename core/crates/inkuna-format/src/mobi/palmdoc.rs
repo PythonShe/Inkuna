@@ -1,8 +1,8 @@
 //! PalmDOC's block-local LZ77/byte-pair decompressor.
 
-use crate::CoreError;
+use crate::FormatError;
 
-pub(super) fn decompress(input: &[u8], output_cap: usize) -> Result<Vec<u8>, CoreError> {
+pub(super) fn decompress(input: &[u8], output_cap: usize) -> Result<Vec<u8>, FormatError> {
     let mut output = Vec::with_capacity(input.len().min(output_cap));
     let mut cursor = 0;
 
@@ -25,7 +25,7 @@ pub(super) fn decompress(input: &[u8], output_cap: usize) -> Result<Vec<u8>, Cor
                 let distance = usize::from((pair >> 3) & 0x07ff);
                 let length = usize::from((pair & 0x0007) + 3);
                 if distance == 0 || distance > output.len() {
-                    return Err(CoreError::InvalidPublication(
+                    return Err(FormatError::InvalidPublication(
                         "invalid PalmDOC backreference".to_string(),
                     ));
                 }
@@ -46,32 +46,32 @@ pub(super) fn decompress(input: &[u8], output_cap: usize) -> Result<Vec<u8>, Cor
     Ok(output)
 }
 
-fn push(output: &mut Vec<u8>, byte: u8, cap: usize) -> Result<(), CoreError> {
+fn push(output: &mut Vec<u8>, byte: u8, cap: usize) -> Result<(), FormatError> {
     ensure_capacity(output.len(), 1, cap)?;
     output.push(byte);
     Ok(())
 }
 
-fn extend(output: &mut Vec<u8>, bytes: &[u8], cap: usize) -> Result<(), CoreError> {
+fn extend(output: &mut Vec<u8>, bytes: &[u8], cap: usize) -> Result<(), FormatError> {
     ensure_capacity(output.len(), bytes.len(), cap)?;
     output.extend_from_slice(bytes);
     Ok(())
 }
 
-fn ensure_capacity(current: usize, additional: usize, cap: usize) -> Result<(), CoreError> {
+fn ensure_capacity(current: usize, additional: usize, cap: usize) -> Result<(), FormatError> {
     if current
         .checked_add(additional)
         .is_none_or(|length| length > cap)
     {
-        return Err(CoreError::InvalidPublication(format!(
+        return Err(FormatError::InvalidPublication(format!(
             "PalmDOC record exceeds the {cap}-byte decompression limit"
         )));
     }
     Ok(())
 }
 
-fn truncated() -> CoreError {
-    CoreError::InvalidPublication("truncated PalmDOC compressed record".to_string())
+fn truncated() -> FormatError {
+    FormatError::InvalidPublication("truncated PalmDOC compressed record".to_string())
 }
 
 #[cfg(test)]

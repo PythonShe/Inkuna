@@ -2,9 +2,9 @@ use std::io::Read;
 use std::path::Path;
 
 use super::{coalesce, convert_to_epub, Chunk, ImageBudget};
-use crate::formats::epub;
+use inkuna_content as epub;
 use crate::test_support::MobiTestBuilder;
-use crate::CoreError;
+use crate::FormatError;
 
 fn chapter(path: &Path, index: usize) -> String {
     let file = std::fs::File::open(path).unwrap();
@@ -219,7 +219,7 @@ fn oversized_tag_is_rejected_without_panicking_at_a_chunk_boundary() {
     assert!(result.is_ok(), "oversized tag panicked");
     let result = result.unwrap();
     assert!(
-        matches!(result, Err(CoreError::InvalidPublication(_))),
+        matches!(result, Err(FormatError::InvalidPublication(_))),
         "unexpected result: {result:?}"
     );
 }

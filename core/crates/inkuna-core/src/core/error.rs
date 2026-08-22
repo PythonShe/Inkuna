@@ -73,6 +73,23 @@ impl From<zip::result::ZipError> for CoreError {
     }
 }
 
+/// Maps the conversion layer's errors one-for-one onto the existing
+/// variants, so the FFI mirror stays unchanged. Deliberately exhaustive —
+/// no catch-all — so a future `FormatError` variant is a compile error
+/// here rather than a silently misrouted failure.
+impl From<inkuna_format::FormatError> for CoreError {
+    fn from(e: inkuna_format::FormatError) -> Self {
+        use inkuna_format::FormatError;
+        match e {
+            FormatError::Io(e) => CoreError::Io(e),
+            FormatError::Archive(detail) => CoreError::Archive(detail),
+            FormatError::InvalidPublication(detail) => CoreError::InvalidPublication(detail),
+            FormatError::UnsupportedFormat(format) => CoreError::UnsupportedFormat(format),
+            FormatError::FileTooLarge(bytes) => CoreError::FileTooLarge(bytes),
+        }
+    }
+}
+
 /// Maps the container layer's errors one-for-one onto the existing
 /// variants, so the FFI mirror stays unchanged. Deliberately exhaustive —
 /// no catch-all — so a future `ContentError` variant is a compile error

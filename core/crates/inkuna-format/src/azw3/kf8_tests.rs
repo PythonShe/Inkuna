@@ -1,7 +1,7 @@
 use super::{assemble_files, parse_fdst, read, Fragment, Skeleton};
-use crate::formats::mobi::MobiBook;
+use crate::mobi::MobiBook;
 use crate::test_support::{Kf8FileFixture, Kf8NcxFixture, MobiTestBuilder};
-use crate::CoreError;
+use crate::FormatError;
 
 #[test]
 fn parses_fdst_and_reassembles_skeletons_with_nontrivial_fragments() {
@@ -145,7 +145,7 @@ fn reassembly_meters_total_assembled_bytes_against_the_text_limit() {
 
     assert!(matches!(
         assemble_files(&flow0, &skeletons, &fragments),
-        Err(CoreError::InvalidPublication(_))
+        Err(FormatError::InvalidPublication(_))
     ));
 }
 
@@ -167,6 +167,6 @@ fn reassembly_rejects_fragment_count_and_offset_mismatches() {
 
     assert!(matches!(
         assemble_files(b"abc", &skeletons, &fragments),
-        Err(CoreError::InvalidPublication(_))
+        Err(FormatError::InvalidPublication(_))
     ));
 }

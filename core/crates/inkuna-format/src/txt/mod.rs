@@ -5,5 +5,5 @@ mod charset;
 mod convert;
 mod paragraphs;
 
-pub(crate) use charset::bomless_utf16;
-pub(crate) use convert::convert_to_epub;
+pub use charset::bomless_utf16;
+pub use convert::convert_to_epub;

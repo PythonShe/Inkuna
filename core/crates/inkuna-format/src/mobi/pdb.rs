@@ -5,7 +5,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
-use crate::CoreError;
+use crate::FormatError;
 
 const HEADER_LEN: usize = 78;
 const RECORD_ENTRY_LEN: usize = 8;
@@ -50,7 +50,7 @@ pub(super) struct PalmDatabase {
 }
 
 impl PalmDatabase {
-    pub(super) fn open(path: &Path) -> Result<Self, CoreError> {
+    pub(super) fn open(path: &Path) -> Result<Self, FormatError> {
         let mut file = File::open(path)?;
         let file_length = file.metadata()?.len();
         check_container_size(file_length)?;
@@ -79,7 +79,7 @@ impl PalmDatabase {
     }
 
     #[cfg(test)]
-    pub(super) fn parse(bytes: Vec<u8>) -> Result<Self, CoreError> {
+    pub(super) fn parse(bytes: Vec<u8>) -> Result<Self, FormatError> {
         let header = bytes
             .get(..HEADER_LEN)
             .ok_or_else(|| invalid("truncated PDB header"))?;
@@ -110,12 +110,12 @@ impl PalmDatabase {
         self.records.len()
     }
 
-    pub(super) fn record_len(&self, index: usize) -> Result<usize, CoreError> {
+    pub(super) fn record_len(&self, index: usize) -> Result<usize, FormatError> {
         let (start, end) = self.record_range(index)?;
         Ok(end - start)
     }
 
-    pub(super) fn record(&self, index: usize) -> Result<&[u8], CoreError> {
+    pub(super) fn record(&self, index: usize) -> Result<&[u8], FormatError> {
         let (start, end) = self.record_range(index)?;
         match &self.storage {
             #[cfg(test)]
@@ -136,7 +136,7 @@ impl PalmDatabase {
                 });
                 match loaded {
                     Ok(bytes) => Ok(bytes),
-                    Err(error) => Err(CoreError::Io(std::io::Error::new(
+                    Err(error) => Err(FormatError::Io(std::io::Error::new(
                         error.kind,
                         error.message.clone(),
                     ))),
@@ -150,7 +150,7 @@ impl PalmDatabase {
     /// records, image bytes); headers and record 0 stay on [`record`]
     /// (Self::record) so repeated lookups hit the cache. An already
     /// cached record is cloned rather than reread from disk.
-    pub(super) fn take_record(&self, index: usize) -> Result<Box<[u8]>, CoreError> {
+    pub(super) fn take_record(&self, index: usize) -> Result<Box<[u8]>, FormatError> {
         let (start, end) = self.record_range(index)?;
         match &self.storage {
             #[cfg(test)]
@@ -168,7 +168,7 @@ impl PalmDatabase {
         }
     }
 
-    pub(super) fn record_prefix(&self, index: usize, length: usize) -> Result<Vec<u8>, CoreError> {
+    pub(super) fn record_prefix(&self, index: usize, length: usize) -> Result<Vec<u8>, FormatError> {
         let (start, end) = self.record_range(index)?;
         let length = length.min(end - start);
         match &self.storage {
@@ -184,7 +184,7 @@ impl PalmDatabase {
         }
     }
 
-    fn record_range(&self, index: usize) -> Result<(usize, usize), CoreError> {
+    fn record_range(&self, index: usize) -> Result<(usize, usize), FormatError> {
         self.records
             .get(index)
             .copied()
@@ -192,7 +192,7 @@ impl PalmDatabase {
     }
 }
 
-fn record_count(header: &[u8]) -> Result<usize, CoreError> {
+fn record_count(header: &[u8]) -> Result<usize, FormatError> {
     let count_bytes = header
         .get(76..78)
         .ok_or_else(|| invalid("truncated PDB header"))?;
@@ -203,7 +203,7 @@ fn record_count(header: &[u8]) -> Result<usize, CoreError> {
     Ok(count)
 }
 
-fn table_length(record_count: usize) -> Result<usize, CoreError> {
+fn table_length(record_count: usize) -> Result<usize, FormatError> {
     record_count
         .checked_mul(RECORD_ENTRY_LEN)
         .and_then(|length| HEADER_LEN.checked_add(length))
@@ -213,7 +213,7 @@ fn table_length(record_count: usize) -> Result<usize, CoreError> {
 fn parse_layout(
     table: &[u8],
     file_length: usize,
-) -> Result<(Vec<u8>, Vec<(usize, usize)>, bool), CoreError> {
+) -> Result<(Vec<u8>, Vec<(usize, usize)>, bool), FormatError> {
     let header = table
         .get(..HEADER_LEN)
         .ok_or_else(|| invalid("truncated PDB header"))?;
@@ -257,22 +257,22 @@ fn parse_layout(
     ))
 }
 
-fn check_container_size(length: u64) -> Result<(), CoreError> {
+fn check_container_size(length: u64) -> Result<(), FormatError> {
     if length > MAX_CONTAINER_BYTES {
         return Err(invalid("MOBI container exceeds the 1 GiB limit"));
     }
     Ok(())
 }
 
-fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, CoreError> {
+fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, FormatError> {
     let value = bytes
         .get(offset..offset + 4)
         .ok_or_else(|| invalid("truncated PDB record entry"))?;
     Ok(u32::from_be_bytes([value[0], value[1], value[2], value[3]]))
 }
 
-fn invalid(message: &str) -> CoreError {
-    CoreError::InvalidPublication(message.to_string())
+fn invalid(message: &str) -> FormatError {
+    FormatError::InvalidPublication(message.to_string())
 }
 
 #[cfg(test)]

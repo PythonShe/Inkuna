@@ -6,13 +6,9 @@ use std::path::Path;
 
 use crate::{ImportOutcome, Publication};
 
-#[path = "mobi_test_support.rs"]
-mod mobi;
-
-pub(crate) use mobi::{
-    build_indx_records, palmdoc_compress, IndxEntryFixture, Kf8FileFixture, Kf8NcxFixture,
-    MobiTestBuilder,
-};
+// The MOBI/KF8 fixture kit moved to `inkuna-format` with the converters;
+// re-exported so existing tests keep compiling unchanged.
+pub(crate) use inkuna_format::test_support::{Kf8FileFixture, MobiTestBuilder};
 // The EPUB fixture builders moved to `inkuna-content` with the parsers;
 // re-exported so existing tests keep compiling unchanged.
 pub(crate) use inkuna_content::test_support::{

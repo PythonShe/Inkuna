@@ -8,10 +8,10 @@ use super::header::{parse_headers, ExthRecord, Headers};
 use super::huffcdic::HuffCdic;
 use super::palmdoc;
 use super::pdb::PalmDatabase;
-use crate::CoreError;
+use crate::FormatError;
 
 const MAX_RECORD_TEXT_BYTES: usize = 64 * 1024 * 8;
-pub(in crate::formats) const MAX_TOTAL_TEXT_BYTES: usize = 96 * 1024 * 1024;
+pub(crate) const MAX_TOTAL_TEXT_BYTES: usize = 96 * 1024 * 1024;
 const MAX_HEADER_RECORD_BYTES: usize = 64 * 1024 * 1024;
 const MAX_HUFF_TABLE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_IMAGE_BYTES: usize = 64 * 1024 * 1024;
@@ -43,7 +43,7 @@ pub(crate) struct MobiBook {
 
 #[allow(dead_code)]
 impl MobiBook {
-    pub(crate) fn open(path: &Path) -> Result<Self, CoreError> {
+    pub(crate) fn open(path: &Path) -> Result<Self, FormatError> {
         let database = PalmDatabase::open(path)?;
         if !database.is_mobipocket() {
             return Err(invalid("Palm database is not a BOOKMOBI publication"));
@@ -91,7 +91,7 @@ impl MobiBook {
         }
     }
 
-    pub(crate) fn kf8_pointers(&self) -> Result<Kf8Pointers, CoreError> {
+    pub(crate) fn kf8_pointers(&self) -> Result<Kf8Pointers, FormatError> {
         if !self.is_kf8() {
             return Err(invalid("selected MOBI view is not KF8"));
         }
@@ -113,30 +113,30 @@ impl MobiBook {
         })
     }
 
-    pub(crate) fn relative_record(&self, relative: u32) -> Result<&[u8], CoreError> {
+    pub(crate) fn relative_record(&self, relative: u32) -> Result<&[u8], FormatError> {
         self.database.record(self.relative_index(relative)?)
     }
 
     /// Stored length of a KF8-relative record, so callers can budget a read
     /// before paying for it.
-    pub(crate) fn relative_record_len(&self, relative: u32) -> Result<usize, CoreError> {
+    pub(crate) fn relative_record_len(&self, relative: u32) -> Result<usize, FormatError> {
         self.database.record_len(self.relative_index(relative)?)
     }
 
     /// Reads a KF8-relative record without retaining it in the record cache;
     /// for one-shot reads whose bytes are consumed immediately.
-    pub(crate) fn take_relative_record(&self, relative: u32) -> Result<Box<[u8]>, CoreError> {
+    pub(crate) fn take_relative_record(&self, relative: u32) -> Result<Box<[u8]>, FormatError> {
         self.database.take_record(self.relative_index(relative)?)
     }
 
-    fn relative_index(&self, relative: u32) -> Result<usize, CoreError> {
+    fn relative_index(&self, relative: u32) -> Result<usize, FormatError> {
         self.view
             .header_index
             .checked_add(relative as usize)
             .ok_or_else(|| invalid("KF8 record index overflow"))
     }
 
-    pub(crate) fn text(&self) -> Result<Vec<u8>, CoreError> {
+    pub(crate) fn text(&self) -> Result<Vec<u8>, FormatError> {
         let palmdoc_header = &self.view.headers.palmdoc;
         let text_count = usize::from(palmdoc_header.record_count);
         // `text_length` is an untrusted header field: reserve only what the
@@ -281,7 +281,7 @@ impl MobiBook {
         self.image_len(self.cover_recindex()?)
     }
 
-    fn huff_decoder(&self) -> Result<HuffCdic, CoreError> {
+    fn huff_decoder(&self) -> Result<HuffCdic, FormatError> {
         let (raw_offset, count) = self
             .view
             .headers
@@ -385,7 +385,7 @@ impl MobiBook {
     }
 }
 
-fn parse_view(database: &PalmDatabase, header_index: usize) -> Result<View, CoreError> {
+fn parse_view(database: &PalmDatabase, header_index: usize) -> Result<View, FormatError> {
     if database.record_len(header_index)? > MAX_HEADER_RECORD_BYTES {
         return Err(invalid("MOBI header record exceeds the 64 MiB limit"));
     }
@@ -395,7 +395,7 @@ fn parse_view(database: &PalmDatabase, header_index: usize) -> Result<View, Core
     })
 }
 
-fn refuse_drm(headers: &Headers) -> Result<(), CoreError> {
+fn refuse_drm(headers: &Headers) -> Result<(), FormatError> {
     if headers.palmdoc.encryption_type != 0 {
         return Err(invalid(
             "DRM-protected MOBI/AZW3 publications are not supported",
@@ -404,7 +404,7 @@ fn refuse_drm(headers: &Headers) -> Result<(), CoreError> {
     Ok(())
 }
 
-fn boundary(records: &[ExthRecord]) -> Result<Option<u32>, CoreError> {
+fn boundary(records: &[ExthRecord]) -> Result<Option<u32>, FormatError> {
     let Some(record) = records.iter().find(|record| record.kind == 121) else {
         return Ok(None);
     };
@@ -417,7 +417,7 @@ fn boundary(records: &[ExthRecord]) -> Result<Option<u32>, CoreError> {
     Ok((boundary != u32::MAX).then_some(boundary))
 }
 
-fn strip_trailing(record: &[u8], flags: u32) -> Result<&[u8], CoreError> {
+fn strip_trailing(record: &[u8], flags: u32) -> Result<&[u8], FormatError> {
     let mut end = record.len();
     for bit in (1..32).rev() {
         if flags & (1u32 << bit) != 0 {
@@ -441,7 +441,7 @@ fn strip_trailing(record: &[u8], flags: u32) -> Result<&[u8], CoreError> {
     Ok(&record[..end])
 }
 
-fn backward_varint(bytes: &[u8]) -> Result<usize, CoreError> {
+fn backward_varint(bytes: &[u8]) -> Result<usize, FormatError> {
     let mut value = 0usize;
     for (shift, byte) in bytes.iter().rev().take(5).enumerate() {
         value |= usize::from(byte & 0x7f) << (shift * 7);
@@ -460,8 +460,8 @@ fn is_image(bytes: &[u8]) -> bool {
         || bytes.starts_with(b"BM")
 }
 
-fn invalid(message: &str) -> CoreError {
-    CoreError::InvalidPublication(message.to_string())
+fn invalid(message: &str) -> FormatError {
+    FormatError::InvalidPublication(message.to_string())
 }
 
 #[cfg(test)]

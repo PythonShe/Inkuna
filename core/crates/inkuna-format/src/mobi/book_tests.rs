@@ -1,6 +1,6 @@
 use super::MobiBook;
 use crate::test_support::MobiTestBuilder;
-use crate::CoreError;
+use crate::FormatError;
 
 fn tiny_huff_records() -> Vec<Vec<u8>> {
     tiny_huff_records_with(b"HELLO", b'Y')
@@ -174,7 +174,7 @@ fn refuses_drm_with_an_explicit_error() {
         let path = dir.path().join(format!("drm-{encryption}.azw"));
         MobiTestBuilder::new(6).encryption(encryption).write(&path);
         let error = MobiBook::open(&path).err().unwrap();
-        assert!(matches!(error, CoreError::InvalidPublication(_)));
+        assert!(matches!(error, FormatError::InvalidPublication(_)));
         assert!(error.to_string().contains("DRM"));
     }
 }

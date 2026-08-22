@@ -1242,3 +1242,27 @@ fn batch_import_reports_per_item_outcomes_in_order() {
         1
     );
 }
+
+/// A book produced by `inkuna-format`'s EPUB writer imports end-to-end —
+/// the round-trip contract between the normalization target and this
+/// pipeline. (It lives here rather than beside the writer because
+/// `inkuna-format` cannot depend on `Library`.)
+#[test]
+fn written_epub_imports_end_to_end() {
+    use crate::formats::epub::EpubWriter;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("importable.epub");
+    let mut writer = EpubWriter::new("書き出した本");
+    writer.author("紫式部");
+    writer.language("ja");
+    writer.add_chapter("第一章", "<h1>第一章</h1><p>月の光が窓辺に落ちていた。</p>");
+    writer.finish(&path).unwrap();
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let publication = imported(library.import(path.to_str().unwrap()).unwrap());
+    assert_eq!(publication.title, "書き出した本");
+    assert_eq!(publication.authors, ["紫式部"]);
+    assert_eq!(publication.language.as_deref(), Some("ja"));
+    assert_eq!(library.chapters(&publication.id).unwrap().len(), 1);
+}

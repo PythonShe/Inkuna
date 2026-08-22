@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::CoreError;
+use crate::FormatError;
 
 const MAX_SCANNED_TAGS: usize = 1_000_000;
 const MAX_FILEPOS_TARGETS: usize = 100_000;
@@ -23,7 +23,7 @@ pub(super) struct FileposLink {
     pub(super) id: Option<String>,
 }
 
-pub(super) fn scan_markup(bytes: &[u8]) -> Result<Scan, CoreError> {
+pub(super) fn scan_markup(bytes: &[u8]) -> Result<Scan, FormatError> {
     let mut scan = Scan {
         tag_starts: Vec::new(),
         block_starts: Vec::new(),
@@ -181,8 +181,8 @@ fn text_attr_bytes<'a>(raw: &'a [u8], wanted: &[u8]) -> Option<&'a [u8]> {
     None
 }
 
-fn invalid(message: &str) -> CoreError {
-    CoreError::InvalidPublication(message.into())
+fn invalid(message: &str) -> FormatError {
+    FormatError::InvalidPublication(message.into())
 }
 
 #[cfg(test)]
