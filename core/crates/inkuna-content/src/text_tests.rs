@@ -199,12 +199,10 @@ fn repeated_spine_entries_are_extracted_once() {
     let package = read_package(&path).unwrap();
     // The 10k+ repeats of ch01 collapse to its first occurrence, after
     // ch02 — reading order survives.
+    let spine_hrefs: Vec<&str> = package.spine.iter().map(|item| item.href.as_str()).collect();
     assert_eq!(
-        package.spine,
-        vec![
-            "OEBPS/text/ch02.xhtml".to_string(),
-            "OEBPS/text/ch01.xhtml".to_string()
-        ]
+        spine_hrefs,
+        ["OEBPS/text/ch02.xhtml", "OEBPS/text/ch01.xhtml"]
     );
 
     // Defense in depth below the package: hand the extractor a spine that

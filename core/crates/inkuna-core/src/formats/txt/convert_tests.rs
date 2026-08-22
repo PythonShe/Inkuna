@@ -16,7 +16,7 @@ fn convert(bytes: &[u8], title: &str) -> (tempfile::TempDir, std::path::PathBuf,
 
 fn all_text(path: &std::path::Path) -> String {
     let package = read_package(path).unwrap();
-    extract_spine_text(path, &package.spine)
+    extract_spine_text(path, &package.spine_hrefs())
         .into_iter()
         .flatten()
         .collect::<Vec<_>>()

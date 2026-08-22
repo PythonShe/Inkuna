@@ -68,7 +68,7 @@ fn writer_round_trips_cjk_metadata_nested_toc_text_and_cover() {
             },
         ]
     );
-    let texts = extract_spine_text(&path, &package.spine);
+    let texts = extract_spine_text(&path, &package.spine_hrefs());
     assert_eq!(texts.len(), 3);
     assert!(texts[1]
         .as_deref()
@@ -90,7 +90,7 @@ fn writer_emits_empty_volume_as_a_spine_title_page() {
 
     let package = read_package(&path).unwrap();
     assert_eq!(package.metadata.language.as_deref(), Some("und"));
-    assert_eq!(package.spine, ["OEBPS/text/ch00001.xhtml"]);
+    assert_eq!(package.spine_hrefs(), ["OEBPS/text/ch00001.xhtml"]);
     assert_eq!(
         package.toc,
         [crate::formats::epub::TocEntry {
@@ -99,7 +99,7 @@ fn writer_emits_empty_volume_as_a_spine_title_page() {
             depth: 0,
         }]
     );
-    let texts = extract_spine_text(&path, &package.spine);
+    let texts = extract_spine_text(&path, &package.spine_hrefs());
     assert!(texts[0].as_deref().unwrap().contains("空巻"));
 }
 

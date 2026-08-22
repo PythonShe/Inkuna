@@ -114,7 +114,7 @@ fn missing_ncx_falls_back_to_headings_and_cjk_default_titles() {
             .collect::<Vec<_>>(),
         ["序章", "第2章"]
     );
-    let text = epub::extract_spine_text(&epub_path, &package.spine);
+    let text = epub::extract_spine_text(&epub_path, &package.spine_hrefs());
     assert!(text[0].as_deref().unwrap().contains("松风。"));
     assert!(text[1].as_deref().unwrap().contains("月影。"));
 }

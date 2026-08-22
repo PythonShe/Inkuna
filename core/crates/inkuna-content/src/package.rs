@@ -8,9 +8,9 @@ use crate::archive::{read_entry, read_resource};
 use crate::container::rootfile_path;
 use crate::cover::image_extension;
 use crate::href::{parent_dir, resolve_href};
-use crate::model::{Cover, EpubPackage};
+use crate::model::{Cover, EpubPackage, ManifestItem, SpineItem};
 use crate::opf::{
-    parse_opf, ManifestItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_METADATA_VALUE_BYTES, MAX_SPINE_ITEMS,
+    parse_opf, OpfItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_METADATA_VALUE_BYTES, MAX_SPINE_ITEMS,
 };
 use crate::toc::{parse_nav, parse_ncx};
 use crate::ContentError;
@@ -58,7 +58,7 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
     // A map, not a per-idref linear scan: a crafted OPF can carry millions
     // of manifest items alongside millions of itemrefs, and the scan made
     // the pairing quadratic — a CPU hang out of a ~100 KB file.
-    let mut items_by_id: HashMap<&str, &ManifestItem> = HashMap::with_capacity(opf.items.len());
+    let mut items_by_id: HashMap<&str, &OpfItem> = HashMap::with_capacity(opf.items.len());
     for item in &opf.items {
         // First occurrence wins, matching the `find` this replaces.
         items_by_id.entry(item.id.as_str()).or_insert(item);
@@ -91,7 +91,7 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
     // preserving reading order.
     let mut duplicate_spine_hrefs = 0usize;
     let mut seen_hrefs: HashSet<String> = HashSet::new();
-    let spine: Vec<String> = opf
+    let spine: Vec<SpineItem> = opf
         .spine_idrefs
         .iter()
         .filter_map(|idref| item_by_id(idref))
@@ -107,7 +107,10 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
                 duplicate_spine_hrefs += 1;
                 return None;
             }
-            Some(resolved)
+            Some(SpineItem {
+                href: resolved,
+                media_type: declared_media_type(&item.media_type),
+            })
         })
         .collect();
     if oversized_spine_hrefs > 0 {
@@ -174,10 +177,35 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
         Some(Cover { bytes, extension })
     });
 
+    // Every manifest entry, normalized the same way the spine is — the
+    // engine resolves non-spine assets (images, styles) through this.
+    let manifest: Vec<ManifestItem> = opf
+        .items
+        .iter()
+        .map(|item| ManifestItem {
+            href: resolve(&item.href),
+            media_type: declared_media_type(&item.media_type),
+        })
+        .collect();
+
     Ok(EpubPackage {
         metadata: opf.metadata,
         spine,
+        manifest,
+        rendition_layout: opf.rendition_layout,
+        page_progression_rtl: opf.page_progression_rtl,
         toc,
         cover,
     })
+}
+
+/// A manifest item's `media-type` as declared: `None` when the attribute
+/// was absent (parsed as an empty string), the as-written value
+/// otherwise.
+fn declared_media_type(media_type: &str) -> Option<String> {
+    if media_type.is_empty() {
+        None
+    } else {
+        Some(media_type.to_string())
+    }
 }

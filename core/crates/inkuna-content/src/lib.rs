@@ -26,7 +26,9 @@ pub mod test_support;
 pub use archive::{read_resource, MAX_SPINE_ENTRY_BYTES};
 pub use error::ContentError;
 pub use href::{resolve_href, resolve_relative, split_fragment};
-pub use model::{Cover, EpubMetadata, EpubPackage, TocEntry};
+pub use model::{
+    Cover, EpubMetadata, EpubPackage, ManifestItem, RenditionLayout, SpineItem, TocEntry,
+};
 pub use opf::{MAX_MANIFEST_ITEMS, MAX_METADATA_VALUE_BYTES, MAX_SPINE_ITEMS};
 pub use package::read_package;
 pub use text::{extract_spine_text, MAX_TOTAL_TEXT_BYTES};

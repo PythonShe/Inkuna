@@ -3,7 +3,7 @@
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
-use crate::model::EpubMetadata;
+use crate::model::{EpubMetadata, RenditionLayout};
 use crate::xml::{attr_value, clean_text, push_word, resolve_ref};
 use crate::ContentError;
 
@@ -51,14 +51,14 @@ pub(crate) const MAX_AUTHORS: usize = 1_000;
 pub const MAX_METADATA_VALUE_BYTES: usize = 2048;
 
 #[derive(Debug)]
-pub(crate) struct ManifestItem {
+pub(crate) struct OpfItem {
     pub(crate) id: String,
     pub(crate) href: String,
     pub(crate) media_type: String,
     properties: String,
 }
 
-impl ManifestItem {
+impl OpfItem {
     pub(crate) fn has_property(&self, name: &str) -> bool {
         self.properties.split_ascii_whitespace().any(|p| p == name)
     }
@@ -67,12 +67,19 @@ impl ManifestItem {
 #[derive(Debug, Default)]
 pub(crate) struct Opf {
     pub(crate) metadata: EpubMetadata,
-    pub(crate) items: Vec<ManifestItem>,
+    pub(crate) items: Vec<OpfItem>,
     pub(crate) spine_idrefs: Vec<String>,
     /// The spine's `toc` attribute (NCX manifest id), EPUB 2 style.
     pub(crate) spine_toc: Option<String>,
     /// `<meta name="cover" content="…">`, EPUB 2 style.
     pub(crate) cover_meta: Option<String>,
+    /// `<meta property="rendition:layout">`; stays [`RenditionLayout::Reflowable`]
+    /// unless the first such meta reads exactly `pre-paginated` — a
+    /// malformed value is never an error, it takes the default.
+    pub(crate) rendition_layout: RenditionLayout,
+    /// The spine's `page-progression-direction="rtl"`; absent or any
+    /// other value is `false`.
+    pub(crate) page_progression_rtl: bool,
     /// Total `<itemref>`s the spine listed, including any dropped at
     /// [`MAX_SPINE_ITEMS`] — lets the caller log the truncation with the
     /// archive path for context.
@@ -139,6 +146,8 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
     // Whether the value being accumulated was cut at the cap; committed
     // into the counter with the value, so one oversized value logs once.
     let mut acc_truncated = false;
+    // Only the first `rendition:layout` meta decides the layout.
+    let mut rendition_seen = false;
     loop {
         let event = reader.read_event_into(&mut buf);
         match &event {
@@ -158,7 +167,7 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
                         if href.len() > MAX_HREF_BYTES {
                             opf.oversized_href_items += 1;
                         } else {
-                            opf.items.push(ManifestItem {
+                            opf.items.push(OpfItem {
                                 id: attr_value(e, b"id").unwrap_or_default(),
                                 href,
                                 media_type: attr_value(e, b"media-type").unwrap_or_default(),
@@ -174,10 +183,18 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
                             }
                         }
                     }
-                    b"spine" => opf.spine_toc = attr_value(e, b"toc"),
+                    b"spine" => {
+                        opf.spine_toc = attr_value(e, b"toc");
+                        opf.page_progression_rtl =
+                            attr_value(e, b"page-progression-direction").as_deref() == Some("rtl");
+                    }
                     b"meta" => {
                         if attr_value(e, b"name").as_deref() == Some("cover") {
                             opf.cover_meta = attr_value(e, b"content");
+                        } else if !is_empty
+                            && attr_value(e, b"property").as_deref() == Some("rendition:layout")
+                        {
+                            current = Some("rendition:layout");
                         }
                     }
                     _ if !is_empty => current = None,
@@ -222,6 +239,12 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
                             }
                             "language" if opf.metadata.language.is_none() => {
                                 opf.metadata.language = Some(text)
+                            }
+                            "rendition:layout" if !rendition_seen => {
+                                rendition_seen = true;
+                                if text == "pre-paginated" {
+                                    opf.rendition_layout = RenditionLayout::PrePaginated;
+                                }
                             }
                             _ => {}
                         }

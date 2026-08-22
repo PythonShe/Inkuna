@@ -38,20 +38,64 @@ pub struct Cover {
     pub extension: String,
 }
 
+/// One spine entry in reading order: the resolved href of the resource
+/// its `itemref` points at, plus the media type the manifest declares
+/// for it (`None` when the manifest item carries no `media-type`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpineItem {
+    pub href: String,
+    pub media_type: Option<String>,
+}
+
+/// One manifest entry: the resolved href and declared media type of any
+/// asset the package names (content documents, images, fonts, styles).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ManifestItem {
+    pub href: String,
+    pub media_type: Option<String>,
+}
+
+/// The OPF `rendition:layout` property. Anything other than an explicit
+/// `pre-paginated` — including the absent or malformed case — is
+/// reflowable, the format's default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RenditionLayout {
+    #[default]
+    Reflowable,
+    PrePaginated,
+}
+
 /// Everything one pass over the archive yields for import. Each part
 /// degrades independently: a book with no TOC, no cover, or no readable
 /// spine still produces a package, because only the container, the OPF,
 /// and a title are mandatory.
 pub struct EpubPackage {
     pub metadata: EpubMetadata,
-    /// Spine hrefs in reading order, resolved against the OPF's directory
-    /// and deduplicated; entries whose resolved href exceeds
+    /// Spine items in reading order, hrefs resolved against the OPF's
+    /// directory and deduplicated; entries whose resolved href exceeds
     /// `MAX_HREF_BYTES` are dropped rather than persisted.
-    pub spine: Vec<String>,
+    pub spine: Vec<SpineItem>,
+    /// Every manifest entry, hrefs normalized the same way, capped by
+    /// `MAX_MANIFEST_ITEMS` at the parse.
+    pub manifest: Vec<ManifestItem>,
+    /// `<meta property="rendition:layout">`; [`RenditionLayout::Reflowable`]
+    /// unless the OPF explicitly declares `pre-paginated`.
+    pub rendition_layout: RenditionLayout,
+    /// The spine's `page-progression-direction="rtl"` attribute; absent
+    /// or any other value is `false`.
+    pub page_progression_rtl: bool,
     /// The flattened TOC, empty when the book has none or its nav/NCX
     /// could not be parsed.
     pub toc: Vec<TocEntry>,
     /// `None` when the book declares no cover, or its declared one is not
     /// a usable image.
     pub cover: Option<Cover>,
+}
+
+impl EpubPackage {
+    /// The spine's hrefs alone, in reading order — the shape
+    /// [`crate::extract_spine_text`] and the import pipeline consume.
+    pub fn spine_hrefs(&self) -> Vec<String> {
+        self.spine.iter().map(|item| item.href.clone()).collect()
+    }
 }

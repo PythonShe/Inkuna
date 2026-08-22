@@ -346,8 +346,9 @@ impl Library {
 
         // Rayon across resources: the corpus keys off the spine, so it is
         // complete even for books with no TOC.
-        let texts = epub::extract_spine_text(&tmp_path, &parsed.spine);
-        let spine = parsed.spine.into_iter().zip(texts).collect();
+        let hrefs: Vec<String> = parsed.spine.into_iter().map(|item| item.href).collect();
+        let texts = epub::extract_spine_text(&tmp_path, &hrefs);
+        let spine = hrefs.into_iter().zip(texts).collect();
 
         Ok(Prepared::Fresh(Box::new(PreparedImport {
             id,
