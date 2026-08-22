@@ -8,7 +8,10 @@ use crate::style::{FontStyle, FontWeight};
 /// The real shipped bytes: assets are product files, not fixtures, so
 /// loading them honors the no-binary-fixtures rule.
 fn repo_font_dir() -> &'static Path {
-    Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"))
+    Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../assets/fonts"
+    ))
 }
 
 fn registry() -> Arc<FontRegistry> {

@@ -19,7 +19,9 @@ pub use error::EngineError;
 pub use fixed::Fx;
 pub use fonts::{FaceRole, FontAxis, FontEntry, FontRegistry, LoadedFace};
 pub use settings::{FontFamily, LayoutSettings, Typography};
-pub use shape::{shape_text, Glyph, RunOrientation, RunStyle, ShapeContext, ShapedRun};
+pub use shape::{
+    shape_ruby, shape_text, Glyph, RubyRun, RunOrientation, RunStyle, ShapeContext, ShapedRun,
+};
 pub use style::{
     cap_sheet_sources, parse_sheet, resolve, ComputedStyle, StyledDocument, WritingMode,
 };

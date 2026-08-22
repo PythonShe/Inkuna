@@ -55,6 +55,7 @@ pub struct ShapedRun {
 
 /// Everything shaping needs; spacing values are already resolved to
 /// `Fx` by the caller (em values against `size` at call time).
+#[derive(Clone, Copy)]
 pub struct ShapeContext<'a> {
     pub fonts: &'a FontRegistry,
     pub family: FontFamily,
@@ -91,7 +92,8 @@ impl Stage {
     fn font_id(self, ctx: &ShapeContext) -> u32 {
         match self {
             Stage::Reading | Stage::Notdef => {
-                ctx.fonts.select(ctx.family, ctx.font_style, ctx.font_weight)
+                ctx.fonts
+                    .select(ctx.family, ctx.font_style, ctx.font_weight)
             }
             Stage::Cjk => ctx.fonts.cjk(
                 ctx.lang,
@@ -122,7 +124,15 @@ pub fn shape_text(text: &str, ctx: &ShapeContext) -> Vec<ShapedRun> {
     for item in itemize(text, ctx.base_rtl) {
         let slice = &text[item.range.clone()];
         let n_chars = slice.chars().count();
-        shape_slice(slice, start_char, &item, Stage::Reading, ctx, &chars, &mut runs);
+        shape_slice(
+            slice,
+            start_char,
+            &item,
+            Stage::Reading,
+            ctx,
+            &chars,
+            &mut runs,
+        );
         start_char += n_chars;
     }
     runs
@@ -144,7 +154,7 @@ fn shape_slice(
         return;
     }
     let font_id = stage.font_id(ctx);
-    let (raw, orientation) = shape_once(slice, start_char, font_id, item, ctx);
+    let (raw, orientation) = super::vertical::shape_once(slice, start_char, font_id, item, ctx);
     if raw.is_empty() {
         return;
     }
@@ -205,59 +215,6 @@ fn shape_slice(
         }
         idx = end_idx + 1;
     }
-}
-
-/// One rustybuzz pass over one slice with one face. Horizontal for
-/// now; the vertical module (3.5) owns orientation and features.
-fn shape_once(
-    slice: &str,
-    start_char: usize,
-    font_id: u32,
-    item: &Item,
-    ctx: &ShapeContext,
-) -> (Vec<RawGlyph>, RunOrientation) {
-    let loaded = ctx.fonts.face(font_id);
-    let Some(face) = rustybuzz::Face::from_slice(&loaded.data, loaded.collection_index) else {
-        // Impossible past registry load; never drop text silently at
-        // shape time either.
-        return (Vec::new(), RunOrientation::Upright);
-    };
-    let mut buf = rustybuzz::UnicodeBuffer::new();
-    for (k, ch) in slice.chars().enumerate() {
-        buf.add(ch, (start_char + k) as u32);
-    }
-    buf.set_direction(if item.bidi_level % 2 == 1 {
-        rustybuzz::Direction::RightToLeft
-    } else {
-        rustybuzz::Direction::LeftToRight
-    });
-    if let Some(script) = rb_script(item.script) {
-        buf.set_script(script);
-    }
-    if let Some(lang) = ctx.lang.and_then(|l| l.parse::<rustybuzz::Language>().ok()) {
-        buf.set_language(lang);
-    }
-    let out = rustybuzz::shape(&face, &[], buf);
-    let raw = out
-        .glyph_infos()
-        .iter()
-        .zip(out.glyph_positions())
-        .map(|(info, pos)| RawGlyph {
-            glyph_id: info.glyph_id,
-            cluster: info.cluster,
-            x_advance: pos.x_advance,
-            y_advance: pos.y_advance,
-            x_offset: pos.x_offset,
-            y_offset: pos.y_offset,
-        })
-        .collect();
-    (raw, RunOrientation::Upright)
-}
-
-/// The rustybuzz script for a unicode-script value, via ISO 15924.
-fn rb_script(script: unicode_script::Script) -> Option<rustybuzz::Script> {
-    let bytes: [u8; 4] = script.short_name().as_bytes().try_into().ok()?;
-    rustybuzz::Script::from_iso15924_tag(rustybuzz::ttf_parser::Tag::from_bytes(&bytes))
 }
 
 /// Scale raw glyphs to `Fx` and apply spacing: letter spacing adds to

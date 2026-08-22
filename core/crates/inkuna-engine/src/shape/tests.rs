@@ -6,14 +6,17 @@ use crate::fonts::FontRegistry;
 use crate::settings::FontFamily;
 use crate::style::{FontStyle, FontWeight};
 
-use super::{shape_text, RunOrientation, ShapeContext, ShapedRun};
+use super::{shape_ruby, shape_text, RunOrientation, ShapeContext, ShapedRun};
 
 /// The real shipped bytes (product files, not fixtures), loaded once
 /// for the whole test binary.
 fn registry() -> &'static FontRegistry {
     static REG: OnceLock<Arc<FontRegistry>> = OnceLock::new();
     REG.get_or_init(|| {
-        let dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"));
+        let dir = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../assets/fonts"
+        ));
         FontRegistry::load(dir).expect("repo font set must load")
     })
 }
@@ -180,4 +183,87 @@ fn bold_selects_bold_face() {
 fn empty_input_yields_no_runs() {
     let fonts = registry();
     assert!(shape_text("", &ctx(fonts)).is_empty());
+}
+
+#[test]
+fn vertical_cjk_uses_vert_feature() {
+    let fonts = registry();
+    let horizontal = shape_text("「漢」", &ctx(fonts));
+    let vertical_ctx = ShapeContext {
+        vertical: true,
+        ..ctx(fonts)
+    };
+    let vertical = shape_text("「漢」", &vertical_ctx);
+    assert_eq!(vertical.len(), 1);
+    let run = &vertical[0];
+    assert_eq!(run.orientation, RunOrientation::Upright);
+    for g in &run.glyphs {
+        assert_ne!(g.glyph_id, 0);
+        assert!(g.advance > Fx::ZERO, "vertical advance magnitude");
+    }
+    // The vertical presentation form of 「 (cluster 0) is a different
+    // glyph than its horizontal shape.
+    let glyph_at = |runs: &[ShapedRun], cluster: u32| {
+        runs.iter()
+            .flat_map(|r| r.glyphs.iter())
+            .find(|g| g.cluster == cluster)
+            .map(|g| g.glyph_id)
+            .expect("cluster present")
+    };
+    assert_ne!(glyph_at(&vertical, 0), glyph_at(&horizontal, 0));
+    assert_ne!(glyph_at(&vertical, 2), glyph_at(&horizontal, 2));
+    // The ideograph itself keeps its glyph.
+    assert_eq!(glyph_at(&vertical, 1), glyph_at(&horizontal, 1));
+}
+
+#[test]
+fn latin_in_vertical_is_sideways() {
+    let fonts = registry();
+    let vertical_ctx = ShapeContext {
+        vertical: true,
+        ..ctx(fonts)
+    };
+    let runs = shape_text("abc漢", &vertical_ctx);
+    assert!(runs.len() >= 2);
+    let latin = runs
+        .iter()
+        .find(|r| r.glyphs.iter().any(|g| g.cluster == 0))
+        .expect("latin run");
+    let cjk = runs
+        .iter()
+        .find(|r| r.glyphs.iter().any(|g| g.cluster == 3))
+        .expect("cjk run");
+    assert_eq!(latin.orientation, RunOrientation::SidewaysRotated);
+    assert_eq!(cjk.orientation, RunOrientation::Upright);
+    for g in latin.glyphs.iter().chain(&cjk.glyphs) {
+        assert!(g.advance > Fx::ZERO);
+    }
+}
+
+#[test]
+fn ruby_annotation_scaled_and_mapped() {
+    let fonts = registry();
+    let base_ctx = ctx(fonts);
+    let ruby = shape_ruby("漢字", "かんじ", &base_ctx, (1, 2));
+    assert!(!ruby.base.is_empty());
+    assert!(!ruby.annotation.is_empty());
+    let expected_size = base_ctx.size.mul_ratio(1, 2);
+    for run in &ruby.annotation {
+        assert_eq!(run.size, expected_size, "base size × ruby scale");
+        assert!(run.style.is_ruby);
+        for g in &run.glyphs {
+            assert_eq!(g.cluster, 0, "annotation clusters point at the base start");
+        }
+    }
+    for run in &ruby.base {
+        assert!(!run.style.is_ruby);
+    }
+}
+
+#[test]
+fn ruby_empty_annotation_is_plain_base() {
+    let fonts = registry();
+    let ruby = shape_ruby("漢字", "", &ctx(fonts), (1, 2));
+    assert!(!ruby.base.is_empty());
+    assert!(ruby.annotation.is_empty());
 }

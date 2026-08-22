@@ -3,10 +3,13 @@
 //! orientation, and ruby runs.
 
 mod itemize;
+mod ruby;
 mod shape;
+mod vertical;
 
 #[cfg(test)]
 mod tests;
 
 pub use itemize::{itemize, Item};
-pub use shape::{Glyph, RunOrientation, RunStyle, ShapeContext, ShapedRun, shape_text};
+pub use ruby::{shape_ruby, RubyRun};
+pub use shape::{shape_text, Glyph, RunOrientation, RunStyle, ShapeContext, ShapedRun};
