@@ -96,6 +96,9 @@ reviews:
     base_branches:
       - '^main$'
       - '^feat/.*'
+      # Engine-swap staging: plan PRs land on `dev/core` before it merges to
+      # main at the parity gate.
+      - '^dev/.*'
 
   # ---------------------------------------------------------------------------
   # Path filters
@@ -141,6 +144,8 @@ reviews:
     - '!**/*.woff2'
     - '!**/*.ttf'
     - '!**/*.otf'
+    # OpenType collections (Noto CJK bundles under `assets/fonts/`).
+    - '!**/*.ttc'
     # Icon Composer bundle — structured, but authored in Xcode's editor and
     # regenerated wholesale by `scripts/gen-icons.sh`.
     - '!apps/ios/AppIcon.icon/**'
@@ -161,6 +166,12 @@ reviews:
     # the architecture ADR (`docs/dev/`) stay reviewable on purpose — the ADR
     # is the document structural changes are supposed to be checked against.
     - '!docs/repertoire/plans/**'
+
+    # Machine-regenerated golden snapshots (page counts, digests, projection
+    # dumps rewritten wholesale by `INKUNA_UPDATE_GOLDEN=1 cargo test`).
+    # Committed as the cross-platform parity contract, but the diff is
+    # hash churn no reviewer can judge — the engine tests are the gate.
+    - '!core/crates/inkuna-engine/golden/**'
 
     # Rust module roots. Per `core/CLAUDE.md` §2 a `mod.rs` may contain only a
     # doc comment, `mod`/`pub mod` declarations, `pub use` re-exports, and
