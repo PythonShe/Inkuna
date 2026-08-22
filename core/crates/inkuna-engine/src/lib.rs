@@ -7,6 +7,7 @@ mod error;
 pub mod fixed;
 pub mod fonts;
 pub mod layout;
+pub mod paginate;
 pub mod settings;
 pub mod shape;
 pub mod style;
@@ -22,6 +23,10 @@ pub use fonts::{FontAxis, FontEntry, FontRegistry, LoadedFace};
 pub use layout::{
     break_paragraph, Line, LineOptions, PositionedRun, SegmentKind, ShapedParagraph,
     ShapedSegment, MAX_LINES_PER_PARAGRAPH,
+};
+pub use paginate::{
+    paginate, ChapterInput, ChapterLayoutResult, DecorationKind, FxRect, FxSize, LaidPage,
+    PlacedDecoration, PlacedLine, MAX_PAGES_PER_CHAPTER,
 };
 pub use settings::{FontFamily, LayoutSettings, Typography};
 pub use shape::{
