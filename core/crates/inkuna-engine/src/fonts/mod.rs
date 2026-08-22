@@ -4,4 +4,4 @@
 
 mod registry;
 
-pub use registry::{FaceRole, FontAxis, FontEntry, FontRegistry, LoadedFace};
+pub use registry::{FontAxis, FontEntry, FontRegistry, LoadedFace};

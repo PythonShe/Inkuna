@@ -44,14 +44,6 @@ pub struct FontEntry {
     pub axes: Vec<FontAxis>,
 }
 
-/// What a face is for, mirroring the fallback chain's stages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FaceRole {
-    Reading,
-    Cjk,
-    Symbols,
-}
-
 /// A parsed, memory-resident face. rustybuzz's `Face` borrows the
 /// bytes, so shaping call sites rebuild it from `data` +
 /// `collection_index` per shape (cheap; revisit with `self_cell` only
