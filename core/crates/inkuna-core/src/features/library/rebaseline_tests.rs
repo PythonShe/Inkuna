@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use inkuna_content::MAX_TOTAL_TEXT_BYTES;
 use inkuna_engine::extract_corpus;
 
@@ -35,6 +38,7 @@ fn run(library: &Library) {
         &library.data_dir,
         &library.data_dir.join("inkuna.db"),
         &library.search.write_handle(),
+        &AtomicBool::new(false),
     );
 }
 
@@ -182,8 +186,9 @@ fn idempotent_second_run_noop() {
     assert_eq!(publication_row(&library, &id), first);
 }
 
-#[test]
-fn crash_resume() {
+/// Two unreconciled books, `first` most recently opened so the pass
+/// visits it first. Returns `(dir, library, first, second)`.
+fn two_unreconciled_books() -> (tempfile::TempDir, Library, String, String) {
     let dir = tempfile::tempdir().unwrap();
     let library = Library::open(dir.path().join("library")).unwrap();
     library.search.wait_for_reconcile();
@@ -204,7 +209,14 @@ fn crash_resume() {
         .unwrap();
         ids.push(id);
     }
-    let (first, second) = (ids[0].clone(), ids[1].clone());
+    let second = ids.pop().unwrap();
+    let first = ids.pop().unwrap();
+    (dir, library, first, second)
+}
+
+#[test]
+fn crash_resume() {
+    let (_dir, library, first, second) = two_unreconciled_books();
 
     // The hook errors inside book two's transaction: book one commits and
     // is stamped, book two rolls back whole.
@@ -213,6 +225,7 @@ fn crash_resume() {
         &library.data_dir,
         &library.data_dir.join("inkuna.db"),
         &library.search.write_handle(),
+        &AtomicBool::new(false),
         move |id| {
             if id == failing {
                 Err(CoreError::NotFound("injected".into()))
@@ -315,4 +328,163 @@ fn missing_file_still_stamps_with_defaults() {
         })
         .unwrap();
     assert_eq!(texts_after, texts_before);
+}
+
+#[test]
+fn fresh_coordinate_survives_stale_locator() {
+    let (_dir, library, id) = unreconciled_book(Some(
+        r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":0.5}}"#,
+    ));
+    // A read while the pass was pending: `update_progress` already wrote
+    // a fresh coordinate the stale locator's conversion must not clobber.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications SET position_spine_idx = 0, position_char_offset = 7
+             WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+    run(&library);
+
+    let (spine_idx, char_offset, locator, reconciled_at) = publication_row(&library, &id);
+    assert_eq!((spine_idx, char_offset), (Some(0), Some(7)));
+    assert_eq!(locator, None);
+    assert!(reconciled_at.is_some());
+}
+
+#[test]
+fn post_migration_bookmarks_survive_unchanged() {
+    let (_dir, library, id) = unreconciled_book(None);
+    {
+        let conn = library.writer.lock().unwrap();
+        // Post-migration shape: empty locator, real coordinate columns.
+        conn.execute(
+            "INSERT INTO bookmarks
+                 (id, publication_id, locator, position_spine_idx, position_char_offset,
+                  progression, created_at)
+             VALUES ('bm-new', ?1, '', 1, 42, 0.5, 100)",
+            [&id],
+        )
+        .unwrap();
+        // Degenerate shape: empty locator, no coordinate — nothing to
+        // convert, never a (0, 0) parse-failure default.
+        conn.execute(
+            "INSERT INTO bookmarks (id, publication_id, locator, progression, created_at)
+             VALUES ('bm-empty', ?1, '', 0.1, 200)",
+            [&id],
+        )
+        .unwrap();
+    }
+    run(&library);
+
+    let rows: Vec<(String, String, Option<i64>, Option<i64>)> = library
+        .readers
+        .with(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, locator, position_spine_idx, position_char_offset
+                 FROM bookmarks WHERE publication_id = ?1 ORDER BY id",
+            )?;
+            let rows = stmt.query_map([&id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(
+        rows,
+        vec![
+            ("bm-empty".into(), String::new(), None, None),
+            ("bm-new".into(), String::new(), Some(1), Some(42)),
+        ]
+    );
+    assert!(publication_row(&library, &id).3.is_some());
+}
+
+#[test]
+fn position_count_recomputed_even_to_zero() {
+    let (_dir, library, id) = unreconciled_book(None);
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute("DELETE FROM resources WHERE publication_id = ?1", [&id])
+            .unwrap();
+        conn.execute(
+            "UPDATE publications SET position_count = 999 WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+    run(&library);
+
+    // No `resources` rows → the recomputed total is 0 and must replace
+    // the stale shell-reported count; read-time fallbacks own 0.
+    let count: Option<i64> = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT position_count FROM publications WHERE id = ?1",
+                [&id],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(count, Some(0));
+    assert!(publication_row(&library, &id).3.is_some());
+}
+
+#[test]
+fn cancelled_before_start_stamps_nothing() {
+    let (_dir, library, first, second) = two_unreconciled_books();
+    super::run_with_hook(
+        &library.data_dir,
+        &library.data_dir.join("inkuna.db"),
+        &library.search.write_handle(),
+        &AtomicBool::new(true),
+        |_| Ok(()),
+    )
+    .unwrap();
+    assert!(publication_row(&library, &first).3.is_none());
+    assert!(publication_row(&library, &second).3.is_none());
+}
+
+#[test]
+fn cancelled_mid_pass_bails_between_books() {
+    let (_dir, library, first, second) = two_unreconciled_books();
+    // The hook cancels from inside book one's transaction: book one
+    // still commits, the between-books check stops book two.
+    let cancel = Arc::new(AtomicBool::new(false));
+    let from_hook = Arc::clone(&cancel);
+    super::run_with_hook(
+        &library.data_dir,
+        &library.data_dir.join("inkuna.db"),
+        &library.search.write_handle(),
+        &cancel,
+        move |_| {
+            from_hook.store(true, Ordering::Relaxed);
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert!(publication_row(&library, &first).3.is_some());
+    assert!(publication_row(&library, &second).3.is_none());
+
+    // The next run (flag clear, as at a fresh open) finishes book two.
+    run(&library);
+    assert!(publication_row(&library, &second).3.is_some());
+}
+
+#[test]
+fn drop_mid_pass_terminates_and_resumes() {
+    let (dir, library, id) = unreconciled_book(None);
+    drop(library);
+    // Reopen spawns the pass and drop joins it immediately: the cancel
+    // flag makes the join prompt whether or not the book was reached.
+    let reopened = Library::open(dir.path().join("library")).unwrap();
+    drop(reopened);
+    // A further open completes whatever the cancelled pass left behind.
+    let library = Library::open(dir.path().join("library")).unwrap();
+    library.search.wait_for_reconcile();
+    assert!(publication_row(&library, &id).3.is_some());
 }

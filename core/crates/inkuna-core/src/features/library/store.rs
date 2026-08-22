@@ -51,8 +51,8 @@ impl Library {
         let index_handle = search.write_handle();
         let rebaseline_data_dir = data_dir.clone();
         let rebaseline_db_path = db_path.clone();
-        search.spawn_reconcile(db_path, move || {
-            super::rebaseline::run(&rebaseline_data_dir, &rebaseline_db_path, &index_handle);
+        search.spawn_reconcile(db_path, move |cancel| {
+            super::rebaseline::run(&rebaseline_data_dir, &rebaseline_db_path, &index_handle, cancel);
         });
 
         let library = Library {

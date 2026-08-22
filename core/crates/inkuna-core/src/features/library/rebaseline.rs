@@ -12,6 +12,7 @@
 //! search consistent book-by-book while the pass runs.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use inkuna_content::{resolve_href, split_fragment, MAX_TOTAL_TEXT_BYTES};
 use inkuna_engine::extract_corpus;
@@ -36,8 +37,12 @@ type ResourceRow = (String, u32, String);
 /// second writer safe; per-book transactions are short), so `Library`
 /// reads and writes proceed while it runs — coordinate columns still
 /// NULL simply surface the read-time default until their book is done.
-pub(crate) fn run(data_dir: &Path, db_path: &Path, index: &IndexWriteHandle) {
-    if let Err(e) = run_with_hook(data_dir, db_path, index, |_| Ok(())) {
+///
+/// `cancel` is the `SearchIndex`'s drop-time flag: a dropped `Library`
+/// sets it before joining the reconcile thread, and the pass bails at
+/// the next check, leaving remaining books unstamped for the next open.
+pub(crate) fn run(data_dir: &Path, db_path: &Path, index: &IndexWriteHandle, cancel: &AtomicBool) {
+    if let Err(e) = run_with_hook(data_dir, db_path, index, cancel, |_| Ok(())) {
         log::warn!("v8 rebaseline could not run: {e}");
     }
 }
@@ -49,6 +54,7 @@ fn run_with_hook(
     data_dir: &Path,
     db_path: &Path,
     index: &IndexWriteHandle,
+    cancel: &AtomicBool,
     mut hook: impl FnMut(&str) -> Result<(), CoreError>,
 ) -> Result<(), CoreError> {
     let mut conn = open_connection(db_path)?;
@@ -62,31 +68,50 @@ fn run_with_hook(
         rows.collect::<Result<_, _>>()?
     };
     for (id, file_path) in pending {
+        // Cancellation is checked between books (and again between a
+        // book's extraction and its writes, inside `rebaseline_book`):
+        // whatever is not yet stamped simply resumes at the next open.
+        if cancel.load(Ordering::Relaxed) {
+            log::info!("v8 rebaseline cancelled; remaining books resume at the next open");
+            return Ok(());
+        }
         // Per-book fault isolation: an error rolls back that book's
         // transaction alone; the book retries at the next open because
         // `reconciled_at` was never stamped.
-        match rebaseline_book(&mut conn, data_dir, &id, &file_path, &mut hook) {
-            Ok(()) => reindex_book(&conn, index, &id),
+        match rebaseline_book(&mut conn, data_dir, &id, &file_path, cancel, &mut hook) {
+            Ok(true) => reindex_book(&conn, index, &id),
+            Ok(false) => {
+                log::info!("v8 rebaseline cancelled; remaining books resume at the next open");
+                return Ok(());
+            }
             Err(e) => log::warn!("rebaseline of {id} failed (retries next open): {e}"),
         }
     }
     Ok(())
 }
 
-/// One book, all inside one IMMEDIATE transaction — a crash retries the
-/// whole book at the next open.
+/// One book: corpus extraction first, OUTSIDE any transaction, then all
+/// writes inside one IMMEDIATE transaction — a crash retries the whole
+/// book at the next open. Extraction is a whole book's parse + style +
+/// projection, and holding the write lock across it would starve other
+/// writers against the 5s busy_timeout; running it first changes nothing
+/// about idempotency (`reconciled_at` still gates, and a crash between
+/// extraction and the transaction just re-extracts at the next open).
+/// Returns `false` when cancellation bailed out after extraction, before
+/// anything was written.
 fn rebaseline_book(
     conn: &mut Connection,
     data_dir: &Path,
     id: &str,
     file_path: &str,
+    cancel: &AtomicBool,
     hook: &mut impl FnMut(&str) -> Result<(), CoreError>,
-) -> Result<(), CoreError> {
-    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    hook(id)?;
-
+) -> Result<bool, CoreError> {
+    // Read outside the transaction too: a book deleted concurrently just
+    // makes this book's writes affect nothing — per-book fault isolation
+    // already covers that shape.
     let resources: Vec<ResourceRow> = {
-        let mut stmt = tx.prepare_cached(
+        let mut stmt = conn.prepare_cached(
             "SELECT id, spine_idx, href FROM resources
              WHERE publication_id = ?1 ORDER BY spine_idx",
         )?;
@@ -101,12 +126,26 @@ fn rebaseline_book(
     // had, and is stamped: the book still opens; its position falls back
     // at read time.
     let file = data_dir.join(file_path);
-    let char_lens: Vec<Option<u64>> = if file.is_file() {
+    let corpus: Option<Vec<Option<String>>> = if file.is_file() {
         let hrefs: Vec<String> = resources.iter().map(|(_, _, href)| href.clone()).collect();
-        let corpus = extract_corpus(&file, &hrefs, MAX_TOTAL_TEXT_BYTES);
+        Some(extract_corpus(&file, &hrefs, MAX_TOTAL_TEXT_BYTES))
+    } else {
+        log::warn!(
+            "rebaseline of {id}: book file missing at {}; converting locators with defaults",
+            file.display()
+        );
+        None
+    };
+    if cancel.load(Ordering::Relaxed) {
+        return Ok(false);
+    }
 
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    hook(id)?;
+
+    let char_lens: Vec<Option<u64>> = if let Some(corpus) = &corpus {
         // 1. The corpus becomes the canonical projection.
-        for ((resource_id, _, _), text) in resources.iter().zip(&corpus) {
+        for ((resource_id, _, _), text) in resources.iter().zip(corpus) {
             match text {
                 Some(body) => tx.execute(
                     "INSERT OR REPLACE INTO resource_text (resource_id, body) VALUES (?1, ?2)",
@@ -145,22 +184,25 @@ fn rebaseline_book(
                 insert.execute(rusqlite::params![id, spine_idx, start, count])?;
             }
         }
-        if total > 0 {
-            tx.execute(
-                "UPDATE publications SET position_count = ?1 WHERE id = ?2",
-                rusqlite::params![total, id],
-            )?;
-        }
+        // Unconditionally, zero included: a book with no `resources`
+        // rows must not keep a stale shell-reported Readium count while
+        // stamped reconciled — the read-time fallbacks (1/1 when no
+        // position rows exist) already cover the degenerate case.
+        tx.execute(
+            "UPDATE publications SET position_count = ?1 WHERE id = ?2",
+            rusqlite::params![total, id],
+        )?;
         counts.into_iter().map(Some).collect()
     } else {
-        log::warn!(
-            "rebaseline of {id}: book file missing at {}; converting locators with defaults",
-            file.display()
-        );
         vec![None; resources.len()]
     };
 
-    // 3. The publication's Readium locator becomes a content coordinate.
+    // 3. The publication's Readium locator becomes a content coordinate
+    // — but only while the coordinate columns are still NULL. A book
+    // read while this pass was pending already has a fresh coordinate
+    // from `update_progress`, and the stale legacy locator must never
+    // overwrite it: then the conversion is skipped and only the consumed
+    // locator is NULLed.
     let locator: Option<String> = tx.query_row(
         "SELECT locator FROM publications WHERE id = ?1",
         [id],
@@ -168,19 +210,28 @@ fn rebaseline_book(
     )?;
     if let Some(locator) = locator {
         let (spine_idx, char_offset) = convert_locator(&locator, &resources, &char_lens);
-        tx.execute(
+        let converted = tx.execute(
             "UPDATE publications
              SET position_spine_idx = ?1, position_char_offset = ?2, locator = NULL
-             WHERE id = ?3",
+             WHERE id = ?3 AND position_spine_idx IS NULL",
             rusqlite::params![spine_idx, char_offset as i64, id],
         )?;
+        if converted == 0 {
+            tx.execute("UPDATE publications SET locator = NULL WHERE id = ?1", [id])?;
+        }
     }
 
-    // 4. Every bookmark, same conversion; the column is NOT NULL, so a
-    // consumed locator becomes ''.
+    // 4. Every legacy bookmark, same conversion; the column is NOT NULL,
+    // so a consumed locator becomes ''. A row already carrying a
+    // coordinate is a post-migration bookmark (written with `locator`
+    // '') and is skipped — re-converting it would "parse-fail" its empty
+    // locator into (0, 0) — and an empty locator is nothing to convert
+    // either way, never a parse-failure default.
     let bookmarks: Vec<(String, String)> = {
-        let mut stmt =
-            tx.prepare_cached("SELECT id, locator FROM bookmarks WHERE publication_id = ?1")?;
+        let mut stmt = tx.prepare_cached(
+            "SELECT id, locator FROM bookmarks
+             WHERE publication_id = ?1 AND position_spine_idx IS NULL AND locator <> ''",
+        )?;
         let rows = stmt.query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))?;
         rows.collect::<Result<_, _>>()?
     };
@@ -200,7 +251,7 @@ fn rebaseline_book(
         rusqlite::params![unix_now(), id],
     )?;
     tx.commit()?;
-    Ok(())
+    Ok(true)
 }
 
 /// Legacy Readium locator JSON → content coordinate, never failing:
