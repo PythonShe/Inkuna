@@ -9,8 +9,11 @@ blake3 = "1.8"
 cssparser = "0.37"
 inkuna-content = { path = "../inkuna-content" }
 quick-xml = { version = "0.41", features = ["escape-html"] }
+rustybuzz = "0.20"
 thiserror = "2"
 log = "0.4"
+unicode-bidi = "0.3"
+unicode-script = "0.5"
 
 [dev-dependencies]
 inkuna-content = { path = "../inkuna-content", features = ["test-support"] }
