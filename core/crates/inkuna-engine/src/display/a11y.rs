@@ -10,7 +10,8 @@ use crate::dom::{Document, ElementName, NodeId};
 use crate::fixed::Fx;
 use crate::paginate::{nearest_block, rt_text, LaidPage};
 
-use super::list::{rect, A11yBlock, A11yRole, DisplayContext};
+use super::context::DisplayContext;
+use super::list::{rect, A11yBlock, A11yRole};
 
 /// Builds the page's a11y blocks. A block split across pages
 /// contributes only its on-page lines' text.
