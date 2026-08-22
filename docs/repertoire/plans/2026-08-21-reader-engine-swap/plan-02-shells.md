@@ -66,6 +66,15 @@ Movement 6 is the full parity gate.
   `font_registry() -> [FontEntry]`, `page_digest(spine_idx, page_idx) ->
   String`. Async: `update_layout(viewport, settings)`, `resource(href) ->
   Vec<u8>`.
+  - **Progressive readiness semantics**: `page(spine_idx, page_idx)` succeeds as
+    soon as that individual page is published (page 0 ready upon
+    `on_first_page_ready`); `chapter(spine_idx)` and `is_ready(spine_idx)`
+    require the complete chapter layout to finish.
+  - **Selection geometry semantics**: `selection_rects` returns rects in
+    page-local layout coordinates. In v1, selection is bounded to the visible
+    page and the queried range is constrained to the active page's char range,
+    preventing multi-page rect ambiguity. (Long-term FFI evolution will carry
+    `page_idx` in `SelectionRect` or accept `page_idx` directly).
 - `LayoutListener` (foreign-implemented):
   `on_first_page_ready(generation: u64, spine_idx: u32)`,
   `on_chapter_ready(generation: u64, spine_idx: u32, page_count: u32)` —
@@ -480,15 +489,24 @@ end of this movement the iOS reader reads real books on the core engine
     `suppressNativeGestures`/`restoreNativeGestures` (no native renderer
     gestures exist to silence), async `commitBoundaryCrossing` (now a
     synchronous cache-pointer swap that reports only whether the neighbor's
-    geometry was present) and `verifyBoundaryCommit` (nothing asynchronous
-    remains to verify). `ReaderPager.swift` edits: remove the
-    suppress/restore call sites; make the boundary commit synchronous at its
-    one call site (the `outerSpringSettled` path around line 707–767) and
-    **delete the verification task, its retry/rescue reaction, and any
-    widened arrival-commit thresholds** — a `false` commit (neighbor
-    geometry evicted mid-flight, effectively impossible) is handled by
-    recapturing baselines on the next gesture, not by rescue logic. Physics,
-    springs, chained-turn velocity, hold-loop, rubber-banding stay
+    required page/geometry was present) and `verifyBoundaryCommit` (nothing
+    asynchronous remains to verify).
+    - **Crossing readiness semantics (`neighborIsReady`):** Asymmetric for
+      progressive pagination:
+      - **Forward crossing (next chapter in reading progression):** Destination is
+        page 0. Ready as soon as the next chapter's page 0 is available
+        (`on_first_page_ready` received / `session.page(nextSpine, 0)` cached).
+        Does NOT block on full chapter layout.
+      - **Backward crossing (previous chapter in reading progression):** Destination
+        is the last page (`pageCount − 1`). Requires full chapter completion
+        (`ChapterGeometry` cached) to determine the terminal page index.
+    `ReaderPager.swift` edits: remove the suppress/restore call sites; make the
+    boundary commit synchronous at its one call site (the `outerSpringSettled`
+    path around line 707–767) and **delete the verification task, its
+    retry/rescue reaction, and any widened arrival-commit thresholds** — a
+    `false` commit (neighbor evicted mid-flight, effectively impossible) is
+    handled by recapturing baselines on the next gesture, not by rescue logic.
+    Physics, springs, chained-turn velocity, hold-loop, rubber-banding stay
     byte-identical — rescue/verify/latch/timing-compensation is workaround;
     gesture physics and animation curves are feel. Patch the old
     `ReadiumPagerSurface` class minimally to conform (wrap its async commit
@@ -538,6 +556,11 @@ end of this movement the iOS reader reads real books on the core engine
     - `EnginePagerSurface` — implements the Task 2.1 protocol over
       `(session, canvas)` and owns the reader's position state:
       ```swift
+      enum ChapterReadiness {
+          case empty
+          case partial(publishedPages: UInt32)
+          case complete(geometry: ChapterGeometry)
+      }
       @MainActor final class EnginePagerSurface: ReaderPagerSurface {
           init(session: ReaderSession, canvas: EnginePageCanvas)
           private(set) var spineIdx: UInt32
@@ -545,54 +568,67 @@ end of this movement the iOS reader reads real books on the core engine
           var spineCount: UInt32          // set once by the reader (session.spineCount())
           var onPageSettled: ((UInt32, UInt32) -> Void)?  // spine, page — after any turn/jump lands
           func display(spineIdx: UInt32, pageIdx: UInt32) // programmatic jump: reset strips, setScene, fire onPageSettled
-          func chapterBecameReady(generation: UInt64, spineIdx: UInt32)    // from the relay
+          func firstPageBecameReady(generation: UInt64, spineIdx: UInt32)  // from relay: transitions Empty -> Partial
+          func chapterBecameReady(generation: UInt64, spineIdx: UInt32)    // from relay: transitions Partial -> Complete
           func layoutInvalidated(generation: UInt64)      // update_layout: mark busy, canvas.invalidate
           var selectionActive: Bool                        // set by the selection controller
       }
       ```
-      Protocol mapping: `isEngageable` — session open ∧ current
-      `ChapterGeometry` cached (`session.chapter(spineIdx)` succeeded) ∧
-      canvas laid out; `isBusy` — true from `layoutInvalidated` until
-      `chapterBecameReady` arrives for the current chapter at the new
-      generation (the only busy window left; there is no renderer to wait
-      on); `hasActiveSelection` — `selectionActive`; `isRightToLeft` —
-      current geometry's `rtlProgression`. `innerMetrics()` —
-      `ReaderPagerStrip(offset: innerOffset, range: 0…(pageCount−1)·w,
-      pageWidth: w)` from the cached `ChapterGeometry { generation,
-      pageCount, charRange, writingMode, rtlProgression }`; nil while not
-      ready. `setInnerOffset` — clamp, store, `canvas.setScene`.
-      `outerMetrics()` — the synthetic 3-slot chapter strip: `pageWidth =
-      w`, `offset = w`, `range = (leftNeighborExists ? 0 : w) …
-      (rightNeighborExists ? 2w : w)` where the geometric neighbor spine is
-      `rtl ? spineIdx∓1 : spineIdx±1` and existence means `0 ≤ n <
-      spineCount`. `setOuterOffset(x)` — `outerDisplacement = w − x` pushed
-      into the scene along with `neighborEdge` (the geometric neighbor's
-      entry page: its slot-0 page when revealed from the right, its last
-      slot when revealed from the left — with the slot formula this lands
-      on "next chapter first page / previous chapter last page" in both
-      progressions automatically). `neighborIsReady(toRight:)` — neighbor
-      exists ∧ `session.isReady(neighborSpine)`; calling
-      `session.chapter(neighborSpine)` first schedules its layout (the
-      overview's contract) so readiness converges while the user reads.
-      `commitBoundaryCrossing(toRight:)` — read the neighbor's
-      `ChapterGeometry` (must be cached — the pager only commits to ready
-      neighbors); set `spineIdx = neighbor`, `pageIdx` = entry page
-      (first page when entering forward in reading order, last page when
-      entering backward), `innerOffset` = that page's rest offset, reset
-      `outerDisplacement` to 0, `setScene`, fire `onPageSettled`; returns
-      false only if the geometry read throws `NotReady` (then nothing
-      changes — the pager recaptures baselines on the next gesture).
-      `onPageSettled` also fires when a drag/spring rests on a new
-      `pageIdx` (detected in `setInnerOffset` when offset lands on a page
-      boundary and no gesture is active — the pager calls the existing
-      settle path, which the reader observes for progress/chrome).
-  - **Error handling:** every sync session call catches
-    `InkunaError.NotReady` and degrades (nil metrics, blank page slot —
-    the pager already treats nil metrics/unready neighbors as "no
-    neighbor": rubber band, honest snap). Stale generations: any
-    `PageDisplayList`/`ChapterGeometry`/`PageLocation` whose `generation`
-    differs from the latest `layoutInvalidated`-known generation is
-    discarded, per the overview's generation rule.
+      Protocol mapping:
+      - `isEngageable` — session open ∧ current page display list available
+        (`session.page(spineIdx: pageIdx)` succeeded) ∧ canvas laid out ∧
+        `!isBusy`. **Does NOT require full `ChapterGeometry`** — the reader is
+        engageable the moment page 0 is presented (~30ms), rather than stalling
+        until the entire chapter completes pagination (~400ms).
+      - `isBusy` — true from `layoutInvalidated` until `firstPageBecameReady` /
+        `chapterBecameReady` arrives for the current chapter at the new
+        generation (the only busy window left; no renderer to wait on).
+      - `hasActiveSelection` — `selectionActive`.
+      - `isRightToLeft` — current geometry's `rtlProgression` (or false if
+        still `Partial` with default LTR until geometry caches).
+      - `innerMetrics()` — strip metrics based on progressive readiness:
+        - `Complete(geometry)`: `ReaderPagerStrip(offset: innerOffset,
+          range: 0…(geometry.pageCount − 1)·w, pageWidth: w)`.
+        - `Partial(publishedPages)`: `ReaderPagerStrip(offset: innerOffset,
+          range: 0…max(innerOffset, CGFloat(publishedPages − 1) * w),
+          pageWidth: w)` (allows swipe across published pages, dynamically
+          extends as layout finishes).
+        - `Empty`: nil.
+      - `setInnerOffset` — clamp, store, `canvas.setScene`.
+      - `outerMetrics()` — synthetic 3-slot chapter strip: `pageWidth = w`,
+        `offset = w`, `range = (leftNeighborExists ? 0 : w) …
+        (rightNeighborExists ? 2w : w)` where the geometric neighbor spine is
+        `rtl ? spineIdx∓1 : spineIdx±1` and existence means `0 ≤ n < spineCount`.
+      - `setOuterOffset(x)` — `outerDisplacement = w − x` pushed into the scene
+        along with `neighborEdge` (forward neighbor entry page = 0, available
+        as soon as neighbor is `Partial`; backward neighbor entry page =
+        `prevGeometry.pageCount − 1`, requiring `Complete`).
+      - `neighborIsReady(toRight:)` — neighbor exists ∧ asymmetric check:
+        - If moving forward in reading progression: next chapter is in `Partial`
+          or `Complete` (page 0 ready). Calling `session.page(nextSpine, 0)`
+          first schedules layout if not yet running.
+        - If moving backward in reading progression: previous chapter is
+          `Complete` (`session.isReady(prevSpine)` is true).
+      - `commitBoundaryCrossing(toRight:)` — synchronous state/pointer swap:
+        - Forward crossing: set `spineIdx = nextSpine`, `pageIdx = 0`,
+          `innerOffset = 0`, reset `outerDisplacement = 0`, `setScene`, fire
+          `onPageSettled`.
+        - Backward crossing: read cached `prevGeometry`, set `spineIdx = prevSpine`,
+          `pageIdx = prevGeometry.pageCount − 1`, `innerOffset = pageIdx * w`,
+          reset `outerDisplacement = 0`, `setScene`, fire `onPageSettled`.
+        - Returns false only if target display list/geometry is missing (snap
+          back, recaptures on next gesture; no rescue state machine).
+      - `onPageSettled` also fires when a drag/spring rests on a new `pageIdx`
+        (detected in `setInnerOffset` when offset lands on a page boundary and
+        no gesture is active).
+    - **Single Generation Rule:** The Rust engine's `generation: UInt64` is the
+      sole source of truth. Shells never introduce parallel `renderRevision` or
+      `navigationGeneration` counters. Stale generations: any
+      `PageDisplayList`/`ChapterGeometry`/`PageLocation` whose `generation`
+      differs from the latest `layoutInvalidated`-known generation is discarded.
+  - **Error handling:** every sync session call catches `InkunaError.NotReady`
+    and degrades (nil metrics, blank page slot — the pager treats nil metrics /
+    unready neighbors as "no neighbor": rubber band, honest snap).
   - **Verify:** iOS build command → succeeds (goes live in 2.3).
 
 - [ ] **Task 2.3 — `ReaderViewController` open-path rewrite**
@@ -617,11 +653,11 @@ end of this movement the iOS reader reads real books on the core engine
       normalized through `ReadingFont` (below). Then `session = try await
       bookshelf.openReader(id:viewport:settings:listener:)` with a
       `ReaderLayoutRelay` whose closures route to the surface
-      (`chapterBecameReady`) and to first-render bookkeeping. Build
-      `EnginePageCanvas` (pinned inside the reading band: top/bottom =
-      `ReaderMetrics` insets) + `EnginePagerSurface`; `surface.spineCount =
-      session.spineCount()` (the shared-derivations rule). `ReaderPager`
-      attaches to the new surface unchanged.
+      (`firstPageBecameReady` and `chapterBecameReady`) and to first-render
+      bookkeeping. Build `EnginePageCanvas` (pinned inside the reading band:
+      top/bottom = `ReaderMetrics` insets) + `EnginePagerSurface`;
+      `surface.spineCount = session.spineCount()` (the shared-derivations rule).
+      `ReaderPager` attaches to the new surface unchanged.
     - **Restore & progressive first page:** target coordinate = the
       `initialChapter`'s href through the shared href rule (split at `#`,
       `session.locateHref(resource:fragment:)`) when launched from a
@@ -630,7 +666,8 @@ end of this movement the iOS reader reads real books on the core engine
       immediately if `session.locate(coordinate)` already succeeds):
       `surface.display(spineIdx:pageIdx:)` from the `PageLocation {
       generation, spineIdx, pageIdx }` and hide the loading state — the
-      first page shows before neighbors exist. `NotReady` from `locate`
+      first page shows and is immediately interactive (`isEngageable == true`)
+      before neighbors or remaining pages finish layout. `NotReady` from `locate`
       before that callback → keep the loading state; the callback always
       follows (or the open throws).
     - **Progress & sessions:** on every `onPageSettled` debounce-write
@@ -661,11 +698,11 @@ end of this movement the iOS reader reads real books on the core engine
       session.updateLayout(viewport:settings:)` (async; bumps generation,
       relays current chapter first, listener re-fires) →
       `surface.layoutInvalidated(generation:)` → on the current chapter's
-      `chapterBecameReady`, `locate(anchor)` → `display` (content
-      coordinates survive `update_layout` — overview §property). Rotation
-      (`viewWillTransition`) is the same flow with the new viewport.
-      `ReadingFont` prunes to the two bundled faces: cases `notoSerif
-      ("noto-serif")`, `notoSans ("noto-sans")`; a static
+      `firstPageBecameReady` / `chapterBecameReady`, `locate(anchor)` →
+      `display` (content coordinates survive `update_layout` — overview
+      §property). Rotation (`viewWillTransition`) is the same flow with the
+      new viewport. `ReadingFont` prunes to the two bundled faces: cases
+      `notoSerif ("noto-serif")`, `notoSans ("noto-sans")`; a static
       `normalize(_ stored: String) -> ReadingFont` maps legacy values
       (`system-sans` → `.notoSans`; `publisher`/`system-serif`/unknown →
       `.notoSerif`) — the customize panel now offers exactly two options
@@ -685,8 +722,11 @@ end of this movement the iOS reader reads real books on the core engine
     - **Instrumentation (consumed by Task 6.4):** `Logger(subsystem:
       "app.inkuna.ios", category: "perf")`: log
       `open_to_first_page_ready_ms` (from just before `openReader` to the
-      first `on_first_page_ready`) and `tap_to_first_page_ms` (from a
-      static timestamp stamped in `ReaderLauncher.push` to the first
+      first `on_first_page_ready`), `first_page_ready_to_first_render_ms`
+      (from `on_first_page_ready` arrival to first `draw(_:)` completion of
+      the presented page), `chapter_layout_complete_ms` (from openReader to
+      the opening chapter's `on_chapter_ready`), and `tap_to_first_page_ms`
+      (from a static timestamp stamped in `ReaderLauncher.push` to the first
       `draw(_:)` completion of a presented current page).
     - **Failure states:** `open_reader` throwing anything except
       `UnsupportedContent` → the existing failure/retry state.
@@ -768,8 +808,14 @@ Readium leaves the project file entirely.
       boundary coordinate; the opposite end stays anchored; swap ends when
       the drag crosses the anchor; re-query `selectionRects` per move
       (sync + cache-only — cheap on the UI thread by contract). Selection
-      is bounded to the visible page in v1: clamp to the page's rects;
-      dragging past the edge does not auto-turn (spec A4, documented).
+      is bounded to the visible page in v1: clamp to the page's char range
+      and rects; dragging past the edge does not auto-turn (spec A4,
+      documented). Note on FFI coordinate semantics: `selectionRects` returns
+      page-local rects without a `page_idx` tag; scoping the queried `CharRange`
+      strictly to the active page (`session.pageCharRange(spineIdx:pageIdx)`)
+      guarantees rects map unambiguously to the current `PageView`. Long-term
+      FFI evolution will extend `SelectionRect` with `page_idx: UInt32` or accept
+      a page parameter.
     - **Menu:** `UIEditMenuInteraction` on the canvas, presented at the
       selection's bounding rect on seed and on drag end. Actions: system
       Copy via the responder chain (`copy(_:)` on the canvas sets
@@ -869,7 +915,17 @@ shape being mirrored is final).
     `settlePager`/`settleInner`/`settleRubber`, `SettleSpring` use,
     `turnLogical`/`turnGeometric`, velocity feeding) and gains
     `var surface: ReaderPagerSurface?` + `fun bind(surface:
-    ReaderPagerSurface)`. Everything Readium-shaped moves into
+    ReaderPagerSurface)`.
+    - **Crossing readiness semantics (`neighborIsReady`):** Asymmetric for
+      progressive pagination:
+      - **Forward crossing (next chapter in reading progression):** Ready as
+        soon as the next chapter's page 0 is available (`FirstPage` event
+        received / `session.page(nextSpine, 0)` cached). Does NOT block on full
+        chapter layout.
+      - **Backward crossing (previous chapter in reading progression):** Requires
+        full chapter completion (`ChapterGeometry` cached) to determine the
+        last page index (`pageCount − 1`).
+    Everything Readium-shaped moves into
     `ReadiumPagerSurface(navigator: EpubNavigatorFragment, hostView: View)`
     behind the interface: WebView walking (`webViewsIn`/`visibleWebView`/
     `neighbourWebView`), `seedInnerMax`, `prepareNeighbour`/
@@ -978,17 +1034,35 @@ shape being mirrored is final).
     pageIdx`, same 3-slot synthetic outer strip, same entry-page rule on
     commit, same generation-discard rule, same pool of 6 recycled
     `PageView`s — positioned via `translationX`, sized to the canvas).
+    `sealed interface ChapterReadiness { object Empty : ChapterReadiness;
+    data class Partial(val publishedPages: UInt) : ChapterReadiness;
+    data class Complete(val geometry: ChapterGeometry) : ChapterReadiness }`.
     `EnginePageCanvas(context) : FrameLayout` with `fun setScene(scene:
     PageScene)`, `var palette: PagePalette`, `fun invalidate(generation:
     ULong)`; `EnginePagerSurface(session: ReaderSession, canvas:
     EnginePageCanvas) : ReaderPagerSurface` with the engine-side members
     `spineIdx`/`pageIdx`/`spineCount`, `onPageSettled: ((UInt, UInt) ->
-    Unit)?`, `display(spineIdx, pageIdx)`, `chapterBecameReady(generation,
-    spineIdx)`, `layoutInvalidated(generation)`, `var selectionActive:
-    Boolean`. All calls happen on the main thread (the ViewModel hops
-    listener callbacks before touching the surface). Sync session calls
-    catch `NotReadyException` and degrade to nil metrics / blank slot,
-    exactly as iOS.
+    Unit)?`, `display(spineIdx, pageIdx)`, `firstPageBecameReady(generation,
+    spineIdx)`, `chapterBecameReady(generation, spineIdx)`,
+    `layoutInvalidated(generation)`, `var selectionActive: Boolean`.
+    - `isEngageable`: session != null ∧ current page display list available ∧
+      canvas laid out ∧ !isBusy. **Does NOT require full `ChapterGeometry`** —
+      the reader is engageable the moment page 0 is mounted (~30ms), without
+      waiting for the whole chapter to finish layout (~400ms).
+    - `innerMetrics()`: returns `ReaderPagerStrip` with range
+      `0f..(geometry.pageCount - 1) * w` when `Complete`, dynamic range
+      `0f..maxOf(innerOffset, (publishedPages - 1).toFloat() * w)` when
+      `Partial`, or null when `Empty`.
+    - `neighborIsReady(toRight)`: asymmetric check — next chapter in progression
+      needs only `Partial` / `Complete` (page 0 ready); previous chapter needs
+      `Complete`.
+    - `commitBoundaryCrossing(toRight)`: synchronous pointer swap to page 0
+      (forward) or last page (backward) without rescue loops.
+    - **Single Generation Rule:** Rust engine `generation: ULong` is the sole
+      source of truth. No parallel shell-side generation counters.
+    All calls happen on the main thread (the ViewModel hops listener callbacks
+    before touching the surface). Sync session calls catch `NotReadyException`
+    and degrade to nil metrics / blank slot, exactly as iOS.
   - **Error handling:** as iOS Task 2.2.
   - **Verify:** `./gradlew assembleDebug` → succeeds (goes live in 5.2).
 
@@ -1050,11 +1124,11 @@ every workaround.
       `session.updateLayout(viewport, settings)` → emit
       `LayoutEvent`-driven re-anchor (screen calls `locate(anchor)` →
       `display`) — mirrors iOS Task 2.3's flow.
-    - Instrumentation: `Log.i("InkunaPerf", "open_to_first_page_ready_ms=…")`
-      and `tap_to_first_page_ms` (tap timestamp stamped in
-      `InkunaApp.openReader` via a shared `object ReaderPerf { var
-      tapUptimeMs: Long }`, logged at the first canvas draw of a current
-      page).
+    - Instrumentation: `Log.i("InkunaPerf",
+      "open_to_first_page_ready_ms=… first_page_ready_to_first_render_ms=… chapter_layout_complete_ms=… tap_to_first_page_ms=…")`
+      (tap timestamp stamped in `InkunaApp.openReader` via a shared `object
+      ReaderPerf { var tapUptimeMs: Long }`, logged at the first canvas draw
+      of a current page).
     - Failure: `UnsupportedContent` → `UiState.FixedLayoutUnsupported`;
       everything else → `UiState.Failed` (existing retry UI).
   - **Error handling:** as listed; `locateHref` `AnchorNotFound` on the nav
@@ -1079,12 +1153,16 @@ every workaround.
       whose single child is the `EnginePageCanvas`; construct
       `EnginePagerSurface(session, canvas)` and `bind` it;
       `surface.spineCount = book.spineCount`. Collect the ViewModel's
-      `LayoutEvent` flow → `surface.chapterBecameReady` / initial
-      `display` at the resolved `PageLocation` (first frame shows as soon
-      as `FirstPage` for the target chapter arrives). `onPageSettled` →
-      `viewModel.onPageSettled` + chrome auto-hide (existing behavior).
-      Tap handling moves off Readium's `onTap`: the canvas exposes a tap
-      listener delivering page-space points → `hitTest` → link follow
+      `LayoutEvent` flow:
+      - `LayoutEvent.FirstPage`: call `surface.firstPageBecameReady(generation,
+        spineIdx)`, resolve initial `PageLocation`, call `surface.display(...)`.
+        The first page is immediately displayed and interactive (`isEngageable
+        == true`) without waiting for full chapter layout.
+      - `LayoutEvent.Chapter`: call `surface.chapterBecameReady(generation,
+        spineIdx)`, extending `innerMetrics` range to final `pageCount`.
+      `onPageSettled` → `viewModel.onPageSettled` + chrome auto-hide (existing
+      behavior). Tap handling moves off Readium's `onTap`: the canvas exposes a
+      tap listener delivering page-space points → `hitTest` → link follow
       (shared href rule / external `Intent.ACTION_VIEW`) or edge-tap
       zones / chrome toggle — the existing zone math survives. Theme
       changes set `canvas.palette` only (repaint, no relayout);
@@ -1132,6 +1210,11 @@ every workaround.
     (Android teardrop idiom, accent color), orientation by
     `SelectionRect.writingMode` as on iOS. Handle drag → `hitTest` →
     boundary update, anchor-swap, visible-page-bounded (spec A4).
+    Note on FFI coordinate semantics: `selectionRects` returns page-local
+    rects without a `page_idx` tag; scoping the queried `CharRange` strictly
+    to the active page (`session.pageCharRange(spineIdx, pageIdx)`) prevents
+    rect ambiguity across page boundaries in v1. (Long-term FFI evolution
+    will extend `SelectionRect` with `page_idx: UInt` or accept a page index).
     Floating `ActionMode` (`startActionMode(callback,
     ActionMode.TYPE_FLOATING)` on the canvas; `onGetContentRect` = the
     selection's bounding rect): menu items — Copy (`android.R.string.copy`,
@@ -1331,15 +1414,33 @@ lets `dev/core` merge.
     exact commands). Cold open = app freshly launched, target book not
     yet opened this run, seeded benchmark library imported (must include
     the long-chapter book).
-    - **Numbers:** `tap_to_first_page_ms ≤ 250` and
-      `open_to_first_page_ready_ms ≤ 100` from the perf log lines, 5
-      runs each on: the long-chapter book and a normal book, both
-      platforms. iOS: Release configuration build; read the lines via
-      Console.app (device) / `xcrun simctl spawn booted log show --last
-      5m --predicate 'subsystem == "app.inkuna.ios" AND category ==
-      "perf"'` (simulator rehearsal). Android: `assembleRelease`
-      (debug-signed locally is fine) — but the perf log lives in release
-      too (plain `Log.i`, two lines per open, deliberately kept);
+    - **Decomposed Latency & Throughput Metrics:** 5 runs each on: the
+      long-chapter book and a normal book, both platforms:
+      1. `open_to_first_page_ready_ms ≤ 100`: from `openReader` call to
+         `on_first_page_ready` event (isolates Core layout of page 0).
+      2. `first_page_ready_to_first_render_ms`: from `on_first_page_ready` to
+         first `PageView` draw completion (isolates Shell view composition and
+         rasterization overhead).
+      3. `tap_to_first_page_ms ≤ 250`: from tap timestamp in launcher to first
+         `draw(_:)` completion (end-to-end visual readiness).
+      4. `chapter_layout_complete_ms`: from `openReader` to `on_chapter_ready`
+         (full background pagination of the opening chapter).
+      5. **Long-chapter boundary crossing latency:** time to enter and render
+         page 0 of an un-laid-out next chapter (verifying zero stall when
+         page 0 is published).
+      6. **Memory high-water mark:** peak RSS during continuous 20-page reading
+         and 5 chapter crossings (verifying View pooling and display list cache
+         bounds).
+      - **Progressive verification invariant:** Verify on the long-chapter book
+        that the reading surface is visible and interactive (`isEngageable ==
+        true`) at `open_to_first_page_ready_ms` (e.g. ~30 ms), significantly
+        ahead of `chapter_layout_complete_ms` (e.g. ~400 ms).
+    - **iOS log capture:** Release configuration build; read the lines via
+      Console.app (device) / `xcrun simctl spawn booted log show --last 5m
+      --predicate 'subsystem == "app.inkuna.ios" AND category == "perf"'`
+      (simulator rehearsal).
+    - **Android log capture:** `assembleRelease` (debug-signed locally is fine)
+      — perf log lives in release (`Log.i`, lines per open deliberately kept);
       `adb logcat -d -s InkunaPerf`.
     - **Jank comparison ("Keep Reading" open + first five page turns):**
       Android — `adb shell dumpsys gfxinfo app.inkuna.android reset`,
@@ -1353,9 +1454,7 @@ lets `dev/core` merge.
       real; the gate metric is the median, worst run also recorded).
   - **Error handling:** a miss on any number is a gate failure → file the
     finding against plan 01's engine (layout speed) or this plan's shell
-    path (draw/first-present) with the split visible in the two metrics —
-    `open_to_first_page_ready` isolates the core, the difference to
-    `tap_to_first_page` isolates the shell.
+    path (draw/first-present) with the split visible in the decomposed metrics.
   - **Verify:** the recorded table in the evidence file shows every cell
     within gate numbers; both raw log captures attached (pasted) under it.
 
@@ -1385,7 +1484,7 @@ lets `dev/core` merge.
     9. VoiceOver/TalkBack block-granular navigation with correct bounds,
        language switching (CJK book), link traits — the documented §7
        scope.
-    10. Performance gate (Task 6.4 table).
+    10. Performance gate (Task 6.4 decomposed table + progressive verification).
     11. Cross-device digest check (Task 6.3): `scripts/parity-compare.sh
         parity-ios.json parity-android.json` → PARITY OK; corpus
         manifest (names + SHA-256) recorded.
@@ -1409,6 +1508,11 @@ lets `dev/core` merge.
 
 ## Notes for the conductor
 
+- **Page-granular readiness is an architectural invariant:** shells must
+  never block interaction or forward chapter crossing on whole-chapter
+  geometry completion. Page 0 readiness enables immediate engagement; forward
+  crossing requires only target page 0; backward crossing requires complete
+  geometry.
 - **Mid-plan degraded states are deliberate:** after Movement 1 both shells
   read via the interim Readium bridge at chapter-start accuracy (positions
   written as `charOffset 0`); precision returns in Movements 2 (iOS) and 5
