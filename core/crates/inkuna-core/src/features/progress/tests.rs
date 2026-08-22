@@ -22,12 +22,10 @@ fn update_progress_stores_locator_progression_and_positions() {
     library
         .update_progress(&id, locator, 0.42, Some(12))
         .unwrap();
-    library.report_position_count(&id, 300).unwrap();
 
     let publication = library.publication(&id).unwrap();
     assert_eq!(publication.locator.as_deref(), Some(locator));
     assert_eq!(publication.progression, 0.42);
-    assert_eq!(publication.position_count, Some(300));
     assert!(publication.last_opened_at.is_some());
     assert!(publication.finished_at.is_none());
 

@@ -1,12 +1,12 @@
-//! Reading-progress writes: position, position count, per-resource
-//! position ranges, and finished state.
+//! Reading-progress writes and the chapter position ranges derived from
+//! the core-computed synthetic positions.
 
 use crate::bookshelf::blocking;
 use crate::error::InkunaError;
 
-/// One TOC entry's span of Readium synthetic positions; 1-based, both
-/// bounds inclusive. Sparse per chapter: entries whose href matches no
-/// spine resource are absent.
+/// One TOC entry's span of synthetic positions; 1-based, both bounds
+/// inclusive. Sparse per chapter: entries whose href matches no spine
+/// resource are absent.
 #[derive(Debug, Clone, Copy, uniffi::Record)]
 pub struct ChapterPositionRange {
     pub chapter_idx: u32,
@@ -46,29 +46,9 @@ impl ShelfProgress {
         blocking(move || Ok(library.update_progress(&id, &locator, progression, position)?)).await
     }
 
-    /// Once per book, after the navigator computes synthetic positions;
-    /// from then on "page N of M" is real.
-    pub async fn report_position_count(&self, id: String, count: u32) -> Result<(), InkunaError> {
-        let library = self.0.clone();
-        blocking(move || Ok(library.report_position_count(&id, count)?)).await
-    }
-
-    /// Once per book, after the navigator computes positions: one count per
-    /// reading-order resource, replacing any previous report and keeping
-    /// the publication's total in agreement. Supersedes
-    /// `report_position_count` when the full breakdown is in hand.
-    pub async fn report_position_ranges(
-        &self,
-        id: String,
-        counts: Vec<u32>,
-    ) -> Result<(), InkunaError> {
-        let library = self.0.clone();
-        blocking(move || Ok(library.report_position_ranges(&id, &counts)?)).await
-    }
-
     /// Every TOC entry's position span, in chapter order; empty until the
-    /// shell has reported ranges. Powers "pages left in this chapter"
-    /// without opening the book.
+    /// book's synthetic positions are computed. Powers "pages left in
+    /// this chapter" without opening the book.
     pub async fn chapter_position_ranges(
         &self,
         id: String,

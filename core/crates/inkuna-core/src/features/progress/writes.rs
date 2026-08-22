@@ -79,20 +79,6 @@ impl Library {
         Ok(())
     }
 
-    /// Records the navigator's synthetic position count, once known; from
-    /// then on "page N of M" is real.
-    pub fn report_position_count(&self, id: &str, count: u32) -> Result<(), CoreError> {
-        let conn = self.writer.lock().unwrap();
-        let changed = conn.execute(
-            "UPDATE publications SET position_count = ?1 WHERE id = ?2",
-            rusqlite::params![count, id],
-        )?;
-        if changed == 0 {
-            return Err(CoreError::NotFound(id.to_string()));
-        }
-        Ok(())
-    }
-
     /// Explicit finish/unfinish. Unfinishing sticks even at end-of-book
     /// because auto-finish requires an upward crossing of the threshold.
     pub fn set_finished(&self, id: &str, finished: bool) -> Result<(), CoreError> {

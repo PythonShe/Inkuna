@@ -46,14 +46,29 @@ pub enum CoreError {
     #[error("invalid publication: {0}")]
     InvalidPublication(String),
 
-    /// The shell reported a position breakdown that does not match the
-    /// publication's reading order or contains an empty resource range.
-    #[error("invalid position ranges: expected {expected} resources, received {actual} (zero count: {has_zero})")]
-    InvalidPositionRanges {
-        expected: u32,
-        actual: u32,
-        has_zero: bool,
-    },
+    /// The caller asked the reader engine for a page or position before
+    /// the layout pass that would produce it has run. Cache-only query
+    /// discipline: never an error about the book, always about timing.
+    #[error("layout not ready")]
+    NotReady,
+
+    /// The publication opened, but this content is beyond what the reader
+    /// engine can lay out (an unsupported document structure, a resource
+    /// kind it cannot shape, a fixed-layout package). The detail names the
+    /// specific failure for logs; it is not a user-facing string.
+    #[error("unsupported content: {0}")]
+    UnsupportedContent(String),
+
+    /// A layout budget tripped — the bounded-resource discipline the
+    /// container layer enforces on reads, applied to what layout builds
+    /// from them.
+    #[error("layout budget exceeded: {0}")]
+    LayoutBudgetExceeded(String),
+
+    /// A jump target (a TOC fragment, a stored position) that does not
+    /// exist in the laid-out content.
+    #[error("anchor not found: {0}")]
+    AnchorNotFound(String),
 
     /// The tantivy search index failed — opening, writing, or querying
     /// it. The index is derived data: a shell can treat this as "search
@@ -66,6 +81,10 @@ pub enum CoreError {
     #[error("publication not found: {0}")]
     NotFound(String),
 }
+
+#[cfg(test)]
+#[path = "error_tests.rs"]
+mod tests;
 
 impl From<zip::result::ZipError> for CoreError {
     fn from(e: zip::result::ZipError) -> Self {
@@ -102,6 +121,24 @@ impl From<inkuna_content::ContentError> for CoreError {
             ContentError::Archive(detail) => CoreError::Archive(detail),
             ContentError::InvalidPublication(detail) => CoreError::InvalidPublication(detail),
             ContentError::FileTooLarge(bytes) => CoreError::FileTooLarge(bytes),
+        }
+    }
+}
+
+/// Maps the reader engine's errors one-for-one onto core variants, so the
+/// FFI mirror routes shell messaging off the variant. Deliberately
+/// exhaustive — no catch-all — so a future `EngineError` variant is a
+/// compile error here rather than a silently misrouted failure.
+impl From<inkuna_engine::EngineError> for CoreError {
+    fn from(e: inkuna_engine::EngineError) -> Self {
+        use inkuna_engine::EngineError;
+        match e {
+            EngineError::NotReady => CoreError::NotReady,
+            EngineError::UnsupportedContent { detail } => CoreError::UnsupportedContent(detail),
+            EngineError::BudgetExceeded { detail } => CoreError::LayoutBudgetExceeded(detail),
+            EngineError::AnchorNotFound { detail } => CoreError::AnchorNotFound(detail),
+            EngineError::Io(e) => CoreError::Io(e),
+            EngineError::Content(e) => e.into(),
         }
     }
 }
