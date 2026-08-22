@@ -46,6 +46,7 @@ fn scale_font_units_matches_reference() {
     assert_eq!(scale(500), Fx(512));
     assert_eq!(scale(1), Fx(1)); // (1024 + 500) / 1000 = 1
     assert_eq!(scale(333), Fx(341)); // (340992 + 500) / 1000 = 341
+
     // Negatives: round half up (toward +∞); exact multiples stay exact.
     assert_eq!(scale(-1000), Fx(-1024));
     // -333 × 1024 / 1000 = -340.992 → -341.
