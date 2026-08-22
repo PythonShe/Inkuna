@@ -9,6 +9,7 @@ pub mod fixed;
 pub mod fonts;
 pub mod layout;
 pub mod paginate;
+pub mod session;
 pub mod settings;
 pub mod shape;
 pub mod style;
@@ -33,6 +34,10 @@ pub use layout::{
 pub use paginate::{
     paginate, ChapterInput, ChapterLayoutResult, DecorationKind as PlacedDecorationKind, FxRect,
     FxSize, LaidPage, PlacedDecoration, PlacedImage, PlacedLine, MAX_PAGES_PER_CHAPTER,
+};
+pub use session::{
+    ChapterGeometry, CharRange, EngineSession, HitResult, LayoutEvents, PageLocation,
+    SelectionRect, Viewport,
 };
 pub use settings::{FontFamily, LayoutSettings, Typography};
 pub use shape::{

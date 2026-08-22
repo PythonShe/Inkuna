@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 blake3 = "1.8"
 cssparser = "0.37"
+icu_segmenter = "2.3"
 inkuna-content = { path = "../inkuna-content" }
 quick-xml = { version = "0.41", features = ["escape-html"] }
 rustybuzz = "0.20"
