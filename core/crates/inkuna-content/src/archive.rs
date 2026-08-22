@@ -73,19 +73,22 @@ fn read_entry_capped(
 /// any resource (an image, a stylesheet) for the reader engine — under
 /// [`MAX_RESOURCE_BYTES`]. The single enforcement point for bounded
 /// binary reads: it does not decode, and an entry inflating past the
-/// budget is an archive-level fault (`ContentError::Archive`), never
-/// materialized in full. Callers degrade on the error where the resource
-/// is optional (import keeps going without a cover).
+/// budget is a cap breach (`ContentError::InvalidPublication`, like
+/// every other capped reader here), never materialized in full. Callers
+/// degrade on the error where the resource is optional (import keeps
+/// going without a cover).
+///
+/// Cost contract: each call opens the file and re-parses the zip central
+/// directory. That is fine for the occasional read (a cover at import);
+/// a hot path reading many resources — the engine's per-page asset loads
+/// — must not loop over this, and the engine session owns its own
+/// long-lived `ZipArchive` handle for exactly that reason.
 pub fn read_resource(epub_path: &Path, href: &str) -> Result<Vec<u8>, ContentError> {
     let mut archive = zip::ZipArchive::new(File::open(epub_path)?)?;
     let entry = open_entry(&mut archive, href)?;
     let mut buf = Vec::new();
     entry.take(MAX_RESOURCE_BYTES + 1).read_to_end(&mut buf)?;
-    if buf.len() as u64 > MAX_RESOURCE_BYTES {
-        return Err(ContentError::Archive(format!(
-            "{href} exceeds the {MAX_RESOURCE_BYTES}-byte decompression limit"
-        )));
-    }
+    check_cap(buf.len(), MAX_RESOURCE_BYTES, href)?;
     Ok(buf)
 }
 

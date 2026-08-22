@@ -106,8 +106,9 @@ fn oversize_cjk_entry_cut_mid_character_is_still_invalid_publication() {
 }
 
 /// `read_resource` is the single bounded read for binary resources: a
-/// crafted entry inflating past the per-entry budget is rejected as an
-/// archive-level fault instead of being materialized in full.
+/// crafted entry inflating past the per-entry budget is rejected as the
+/// cap breach it is (`InvalidPublication`, the classification every
+/// capped reader shares) instead of being materialized in full.
 #[test]
 fn read_resource_respects_entry_budget() {
     use std::io::Write;
@@ -131,7 +132,7 @@ fn read_resource_respects_entry_budget() {
 
     assert!(matches!(
         read_resource(&path, "OEBPS/images/cover.png"),
-        Err(ContentError::Archive(_))
+        Err(ContentError::InvalidPublication(_))
     ));
     // An in-budget sibling still reads back verbatim.
     assert_eq!(
