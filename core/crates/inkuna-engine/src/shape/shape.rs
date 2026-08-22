@@ -1,7 +1,9 @@
 //! Turns itemized text into positioned glyph runs via rustybuzz, with
 //! the explicit fallback chain: reading face → CJK face → symbols →
-//! the reading face's `.notdef`. Text is never dropped. Missing-glyph
-//! detection is cluster-granular, so ligatures never straddle fonts.
+//! the reading face's `.notdef`. Visible text is never dropped — only
+//! control/default-ignorable characters emit no glyphs (see
+//! [`shape_text`]). Missing-glyph detection is cluster-granular, so
+//! ligatures never straddle fonts.
 //!
 //! Determinism: rustybuzz is pure Rust over fixed bytes, and no path
 //! that orders output iterates a HashMap.
@@ -117,6 +119,14 @@ pub(super) struct RawGlyph {
 }
 
 /// Shape a paragraph's text into runs. Empty input yields an empty vec.
+///
+/// Control and default-ignorable characters — `\n`, `\r`, `\t`, soft
+/// hyphen, the zero-width and bidi controls, U+2028/U+2029, U+FEFF
+/// (the module's `is_ignorable` set) — never trigger font fallback and emit no
+/// glyphs: their cluster deterministically contributes zero advance,
+/// and a run left with no glyphs at all is omitted. The canonical
+/// projection feeds `\n` at block boundaries and for `<br>`; those
+/// offsets simply have no glyph.
 pub fn shape_text(text: &str, ctx: &ShapeContext) -> Vec<ShapedRun> {
     let chars: Vec<char> = text.chars().collect();
     let mut runs = Vec::new();
@@ -160,12 +170,18 @@ fn shape_slice(
     }
 
     // Cluster values present, with a missing flag when any glyph of
-    // the cluster is .notdef; sorted ascending = logical order.
+    // the cluster is .notdef. Raw clusters are monotonic (rustybuzz's
+    // default cluster level; descending for RTL), so same-cluster
+    // glyphs are adjacent and comparing against the last entry keeps
+    // this linear. Ignorable clusters are never "missing" — they must
+    // not walk the fallback chain (see `shape_text`). Sorted ascending
+    // = logical order.
     let mut clusters: Vec<(u32, bool)> = Vec::new();
     for g in &raw {
-        match clusters.iter_mut().find(|(c, _)| *c == g.cluster) {
-            Some((_, missing)) => *missing |= g.glyph_id == 0,
-            None => clusters.push((g.cluster, g.glyph_id == 0)),
+        let miss = g.glyph_id == 0 && !cluster_ignorable(chars, g.cluster);
+        match clusters.last_mut() {
+            Some((c, missing)) if *c == g.cluster => *missing |= miss,
+            _ => clusters.push((g.cluster, miss)),
         }
     }
     clusters.sort_unstable_by_key(|(c, _)| *c);
@@ -173,7 +189,10 @@ fn shape_slice(
     let end_char = (start_char + slice.chars().count()) as u32;
     let terminal = stage.next().is_none();
     if terminal || clusters.iter().all(|(_, missing)| !missing) {
-        runs.push(build_run(&raw, font_id, item, orientation, ctx, chars));
+        push_run(
+            runs,
+            build_run(&raw, font_id, item, orientation, ctx, chars),
+        );
         return;
     }
 
@@ -211,14 +230,62 @@ fn shape_slice(
                 .filter(|g| g.cluster >= group_start && g.cluster < group_end)
                 .copied()
                 .collect();
-            runs.push(build_run(&group, font_id, item, orientation, ctx, chars));
+            push_run(
+                runs,
+                build_run(&group, font_id, item, orientation, ctx, chars),
+            );
         }
         idx = end_idx + 1;
     }
 }
 
-/// Scale raw glyphs to `Fx` and apply spacing: letter spacing adds to
-/// every cluster's closing advance, word spacing to space clusters.
+/// Only non-empty runs reach the output — all-ignorable slices (a lone
+/// `\n`) shape to nothing.
+fn push_run(runs: &mut Vec<ShapedRun>, run: ShapedRun) {
+    if !run.glyphs.is_empty() {
+        runs.push(run);
+    }
+}
+
+/// Control/default-ignorable characters short-circuited by shaping:
+/// never fallback candidates, never emitted as glyphs (`shape_text`
+/// documents the contract). The set covers what the canonical
+/// projection can carry plus the classic invisibles: `\t` `\n` `\r`,
+/// soft hyphen, zero-width and bidi controls, line/paragraph
+/// separators, word joiner, and the BOM.
+fn is_ignorable(c: char) -> bool {
+    matches!(
+        c,
+        '\t' | '\n'
+            | '\r'
+            | '\u{00AD}'
+            | '\u{061C}'
+            | '\u{200B}'..='\u{200F}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2060}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Whether a cluster's character is in the ignorable set. Clusters are
+/// global char offsets into `chars`.
+fn cluster_ignorable(chars: &[char], cluster: u32) -> bool {
+    chars
+        .get(cluster as usize)
+        .is_some_and(|c| is_ignorable(*c))
+}
+
+/// Scale raw glyphs to `Fx` and apply spacing. Letter spacing adds to
+/// every cluster's closing advance — including the run's LAST cluster,
+/// i.e. CSS `letter-spacing` semantics — so a run's advance sum
+/// carries one trailing spacing; M4's line layout trims the line-final
+/// spacing if it wants none there. Script/fallback splits never
+/// accumulate extra spacing: each cluster lives in exactly one run and
+/// is spaced exactly once. Word spacing adds to space clusters
+/// (U+0020, U+00A0). Ignorable clusters emit no glyph (zero advance).
 fn build_run(
     raw: &[RawGlyph],
     font_id: u32,
@@ -231,6 +298,9 @@ fn build_run(
     let along_block = ctx.vertical && orientation == RunOrientation::Upright;
     let mut glyphs = Vec::with_capacity(raw.len());
     for (i, g) in raw.iter().enumerate() {
+        if cluster_ignorable(chars, g.cluster) {
+            continue;
+        }
         // Vertical upright advances run along the block axis —
         // rustybuzz reports them as negative y; the line's inline
         // advance is their magnitude.

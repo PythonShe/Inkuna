@@ -280,3 +280,69 @@ fn ruby_position_carried_through() {
     let ruby = shape_ruby("漢字", "かんじ", &ctx(fonts), (1, 2), RubyPosition::Under);
     assert_eq!(ruby.position, RubyPosition::Under);
 }
+
+#[test]
+fn newline_emits_no_glyph_and_no_fallback_run() {
+    let fonts = registry();
+    let runs = shape_text("ab\ncd", &ctx(fonts));
+    // The \n never walks the fallback chain: one reading-face run, not
+    // a split with a symbols/.notdef stage run in the middle.
+    assert_eq!(runs.len(), 1, "no fallback-stage runs for \\n");
+    let run = &runs[0];
+    assert_eq!(run.font_id, 0, "reading face");
+    // No glyph for the \n cluster (offset 2): zero advance contributed.
+    let clusters: Vec<u32> = run.glyphs.iter().map(|g| g.cluster).collect();
+    assert_eq!(clusters, vec![0, 1, 3, 4]);
+    assert!(run.glyphs.iter().all(|g| g.glyph_id != 0));
+}
+
+#[test]
+fn ignorable_only_input_yields_no_runs() {
+    let fonts = registry();
+    assert!(shape_text("\n", &ctx(fonts)).is_empty());
+    assert!(shape_text("\t\r\u{00AD}\u{200B}\u{FEFF}", &ctx(fonts)).is_empty());
+}
+
+#[test]
+fn letter_spacing_applies_once_per_cluster_across_run_splits() {
+    let fonts = registry();
+    let plain = shape_text("a汉b", &ctx(fonts));
+    let spacing = Fx(64);
+    let spaced_ctx = ShapeContext {
+        letter_spacing: spacing,
+        ..ctx(fonts)
+    };
+    let spaced = shape_text("a汉b", &spaced_ctx);
+    let total = |runs: &[ShapedRun]| {
+        runs.iter()
+            .flat_map(|r| r.glyphs.iter())
+            .fold(Fx::ZERO, |acc, g| acc + g.advance)
+    };
+    // Three clusters -> exactly three spacings (CSS semantics: the
+    // last cluster of each run carries trailing spacing, and fallback
+    // splits never double-space a boundary).
+    assert_eq!(total(&spaced), total(&plain) + Fx(3 * 64));
+}
+
+#[test]
+fn fallback_split_output_locked() {
+    // Locks shaped output across the O(n^2)->O(n) cluster-grouping
+    // rewrite: mixed-script text with multiple fallback splits keeps
+    // full cluster coverage, logical run order, and per-run font
+    // consistency.
+    let fonts = registry();
+    let text = "abc汉字def漢ghi";
+    let runs = shape_text(text, &ctx(fonts));
+    assert_eq!(all_clusters(&runs), (0..12).collect::<Vec<u32>>());
+    let firsts: Vec<u32> = runs
+        .iter()
+        .map(|r| r.glyphs.iter().map(|g| g.cluster).min().unwrap())
+        .collect();
+    let mut sorted = firsts.clone();
+    sorted.sort_unstable();
+    assert_eq!(firsts, sorted, "runs stay in logical order");
+    for run in &runs {
+        assert!(matches!(run.font_id, 0 | 8), "reading or CJK face only");
+        assert!(run.glyphs.iter().all(|g| g.glyph_id != 0));
+    }
+}
