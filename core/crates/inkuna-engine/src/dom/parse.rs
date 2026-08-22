@@ -102,6 +102,8 @@ pub fn parse(xhtml: &[u8]) -> Result<Document, EngineError> {
         buf.clear();
     }
 
+    // An unclosed <style> at EOF: keep the CSS captured so far.
+    b.flush_style();
     let Some(root) = b.root else {
         return Err(EngineError::UnsupportedContent {
             detail: "no root element in resource".to_string(),
@@ -140,9 +142,20 @@ impl Builder {
     /// budget stopped the parse.
     fn start(&mut self, e: &BytesStart, empty: bool) -> bool {
         let local = e.local_name().as_ref().to_ascii_lowercase();
+        // HTML void elements never get an end tag even when written
+        // without `/>` (`<meta charset="utf-8">`), so treating their
+        // start tags as non-empty would unbalance the head counter and
+        // swallow the body.
+        let empty = empty || is_void(&local);
 
         if self.style_text.is_some() {
-            return false; // markup inside <style> is not CSS; drop it
+            if local != b"body" {
+                return false; // markup inside <style> is not CSS; drop it
+            }
+            // Recovery: an unclosed <style> reached <body>. Keep the CSS
+            // captured so far and parse the body normally.
+            self.flush_style();
+            self.head_depth = 0;
         }
         if self.skip_depth > 0 {
             if !empty && matches!(local.as_slice(), b"script" | b"template") {
@@ -167,13 +180,19 @@ impl Builder {
             return false;
         }
         if self.head_depth > 0 {
-            if local == b"link" {
-                self.link(e);
+            if local == b"body" {
+                // Recovery: <body> always exits head state, even when an
+                // unbalanced tag left the counter above zero.
+                self.head_depth = 0;
+            } else {
+                if local == b"link" {
+                    self.link(e);
+                }
+                if !empty {
+                    self.head_depth += 1;
+                }
+                return false;
             }
-            if !empty {
-                self.head_depth += 1;
-            }
-            return false;
         }
         if local == b"head" {
             if !empty {
@@ -231,9 +250,13 @@ impl Builder {
         let local = local.to_ascii_lowercase();
         if self.style_text.is_some() {
             if local == b"style" {
-                let text = self.style_text.take().unwrap_or_default();
-                self.stylesheets.push(StylesheetSource::Inline(text));
+                self.flush_style();
                 self.head_depth = self.head_depth.saturating_sub(1);
+            } else if local == b"head" {
+                // Recovery: an unclosed <style> reached </head>. Keep the
+                // CSS captured so far and exit head state entirely.
+                self.flush_style();
+                self.head_depth = 0;
             }
             return;
         }
@@ -244,7 +267,13 @@ impl Builder {
             return;
         }
         if self.head_depth > 0 {
-            self.head_depth -= 1;
+            if local == b"head" {
+                // </head> exits head state even when an unbalanced tag
+                // left the counter above one.
+                self.head_depth = 0;
+            } else {
+                self.head_depth -= 1;
+            }
             return;
         }
         // Pop to the nearest matching open element; drop if none matches.
@@ -299,6 +328,14 @@ impl Builder {
             return true;
         }
         false
+    }
+
+    /// Emits the `<style>` body captured so far, if any, as an inline
+    /// stylesheet source.
+    fn flush_style(&mut self) {
+        if let Some(text) = self.style_text.take() {
+            self.stylesheets.push(StylesheetSource::Inline(text));
+        }
     }
 
     /// The node new content attaches to: the nearest open element that
@@ -379,6 +416,28 @@ fn truncate_boundary(text: &str, max: usize) -> &str {
         end -= 1;
     }
     &text[..end]
+}
+
+/// The HTML void elements: no end tag exists even when the start tag is
+/// written without `/>` (EPUB XHTML is HTML-flavored in practice).
+fn is_void(local: &[u8]) -> bool {
+    matches!(
+        local,
+        b"area"
+            | b"base"
+            | b"br"
+            | b"col"
+            | b"embed"
+            | b"hr"
+            | b"img"
+            | b"input"
+            | b"link"
+            | b"meta"
+            | b"param"
+            | b"source"
+            | b"track"
+            | b"wbr"
+    )
 }
 
 /// Interns an element's lowercased local name via the shared mapping.

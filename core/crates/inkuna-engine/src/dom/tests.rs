@@ -116,6 +116,67 @@ fn node_budget_truncates_not_errors() {
 }
 
 #[test]
+fn html_void_tags_in_head_never_swallow_body() {
+    // <meta> and <link> written HTML-style, without `/>`: the head must
+    // still end at </head> and the body must parse as body.
+    let doc = parse(
+        br#"<html><head><meta charset="utf-8"><link rel="stylesheet" href="a.css"><title>T</title></head><body><p>body text</p></body></html>"#,
+    )
+    .unwrap();
+
+    assert!(!doc.truncated);
+    let text = subtree_text(&doc, doc.root);
+    assert!(text.contains("body text"), "body swallowed by head: {text:?}");
+    assert!(!text.contains('T'), "head title leaked: {text:?}");
+    // The HTML-style <link> is still scanned as a stylesheet source.
+    assert_eq!(
+        doc.stylesheets,
+        vec![StylesheetSource::Linked("a.css".to_string())]
+    );
+    assert_eq!(find_all(&doc, &ElementName::P).len(), 1);
+}
+
+#[test]
+fn unclosed_style_recovers_at_head_end() {
+    // </head> while <style> is still open: the captured CSS is kept and
+    // the body parses normally.
+    let doc = parse(
+        br#"<html><head><style>p { color: red }</head><body><p>after</p></body></html>"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        doc.stylesheets,
+        vec![StylesheetSource::Inline("p { color: red }".to_string())]
+    );
+    assert!(subtree_text(&doc, doc.root).contains("after"));
+    assert_eq!(find_all(&doc, &ElementName::P).len(), 1);
+}
+
+#[test]
+fn unclosed_style_recovers_at_body_start() {
+    // Neither </style> nor </head>: <body> itself is the recovery point.
+    let doc =
+        parse(br#"<html><head><style>em { font-style: normal }<body><p>kept</p></body></html>"#)
+            .unwrap();
+
+    assert_eq!(
+        doc.stylesheets,
+        vec![StylesheetSource::Inline("em { font-style: normal }".to_string())]
+    );
+    assert!(subtree_text(&doc, doc.root).contains("kept"));
+}
+
+#[test]
+fn unclosed_style_flushes_at_eof() {
+    let doc = parse(br#"<html><head><style>p { color: red }"#).unwrap();
+    assert_eq!(
+        doc.stylesheets,
+        vec![StylesheetSource::Inline("p { color: red }".to_string())]
+    );
+}
+
+#[test]
 fn garbage_input_fails_closed() {
     let garbage: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8 | 0x80).collect();
     match parse(&garbage) {
