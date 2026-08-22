@@ -284,3 +284,142 @@ fn fullwidth_latin_folds_to_ascii() {
     assert_eq!(results.total, 1);
     assert_eq!(results.hits[0].snippet_match, "Second");
 }
+
+/// Replaces one resource's stored body directly, bypassing import.
+fn set_body(library: &Library, id: &str, spine_idx: u32, body: &str) {
+    let conn = library.writer.lock().unwrap();
+    conn.execute(
+        "UPDATE resource_text SET body = ?1 WHERE resource_id IN
+             (SELECT id FROM resources WHERE publication_id = ?2 AND spine_idx = ?3)",
+        rusqlite::params![body, id, spine_idx],
+    )
+    .unwrap();
+}
+
+#[test]
+fn offsets_original_space_under_fold_expansion() {
+    let (_dir, library, id) = library_with_book();
+    // `ﬁ` (U+FB01) folds to "fi": folded-space offsets after it drift +1
+    // per ligature. The hit's offset must index the ORIGINAL body.
+    let body = "oﬃce ﬁrst ﬁne 月光書房 end";
+    set_body(&library, &id, 0, body);
+
+    let results = library.search_in_book(&id, "月光書房", 10).unwrap();
+    assert_eq!(results.total, 1);
+    let hit = &results.hits[0];
+    assert_eq!(
+        body.chars().nth(hit.char_offset as usize).unwrap(),
+        '月',
+        "char_offset must start the match in the original body"
+    );
+    let matched: String = body
+        .chars()
+        .skip(hit.char_offset as usize)
+        .take("月光書房".chars().count())
+        .collect();
+    assert_eq!(matched, "月光書房");
+}
+
+#[test]
+fn offsets_original_space_nfkc_contraction() {
+    let (_dir, library, id) = library_with_book();
+    // `㍿` (U+337F) folds to 株式会社 (1 char → 4): folded offsets after
+    // it drift +3. The later hit still indexes the original body.
+    let body = "㍿の発表。月光書房は静かだった。";
+    set_body(&library, &id, 0, body);
+
+    let results = library.search_in_book(&id, "月光書房", 10).unwrap();
+    assert_eq!(results.total, 1);
+    let hit = &results.hits[0];
+    assert_eq!(body.chars().nth(hit.char_offset as usize).unwrap(), '月');
+    // The folded form also matches through the contraction itself.
+    let company = library.search_in_book(&id, "株式会社", 10).unwrap();
+    assert_eq!(company.total, 1);
+    assert_eq!(
+        body.chars()
+            .nth(company.hits[0].char_offset as usize)
+            .unwrap(),
+        '㍿'
+    );
+}
+
+#[test]
+fn search_offset_equals_projection_offset() {
+    use std::sync::mpsc::{channel, Sender};
+    use std::sync::{Arc, OnceLock};
+
+    use crate::{
+        CharRange, Coordinate, EngineSession, FontRegistry, LayoutEvents, LayoutSettings, Viewport,
+    };
+
+    struct Events(Sender<(u64, u32)>);
+    impl LayoutEvents for Events {
+        fn first_page_ready(&self, _generation: u64, _spine_idx: u32) {}
+        fn chapter_ready(&self, generation: u64, spine_idx: u32, _page_count: u32) {
+            let _ = self.0.send((generation, spine_idx));
+        }
+    }
+
+    fn registry() -> Arc<FontRegistry> {
+        static REG: OnceLock<Arc<FontRegistry>> = OnceLock::new();
+        Arc::clone(REG.get_or_init(|| {
+            let dir =
+                std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"));
+            FontRegistry::load(dir).expect("repo font set must load")
+        }))
+    }
+
+    let (_dir, library, id) = library_with_book();
+    // A unique CJK term from the fixture's first chapter.
+    let results = library.search_in_book(&id, "窓辺", 10).unwrap();
+    assert_eq!(results.total, 1);
+    let hit = &results.hits[0];
+
+    // The same offsets, fed to the engine on the same file, name the
+    // same characters: end-to-end coordinate identity.
+    let publication = library.publication(&id).unwrap();
+    let epub_path = library.data_dir().join(&publication.file_path);
+    let (tx, rx) = channel();
+    let session = EngineSession::open(
+        &epub_path,
+        registry(),
+        Viewport {
+            width: 300.0,
+            height: 400.0,
+        },
+        LayoutSettings::default(),
+        Some("ja".to_string()),
+        hit.spine_idx,
+        Arc::new(Events(tx)),
+    )
+    .unwrap();
+    // Wait for the hit's chapter to lay out.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !session.is_ready(hit.spine_idx) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "chapter never laid out"
+        );
+        let _ = rx.recv_timeout(std::time::Duration::from_millis(100));
+    }
+    let len = "窓辺".chars().count() as u64;
+    let text = session
+        .text_range(
+            hit.spine_idx,
+            CharRange {
+                start: u64::from(hit.char_offset),
+                end: u64::from(hit.char_offset) + len,
+            },
+        )
+        .unwrap();
+    assert_eq!(text, "窓辺");
+    // And the coordinate built from the hit locates a page.
+    let location = session
+        .locate(Coordinate {
+            spine_idx: hit.spine_idx,
+            char_offset: u64::from(hit.char_offset),
+        })
+        .unwrap();
+    assert_eq!(location.spine_idx, hit.spine_idx);
+    session.close();
+}

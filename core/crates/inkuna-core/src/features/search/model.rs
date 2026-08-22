@@ -6,6 +6,11 @@ use crate::Publication;
 /// three pieces so a shell can highlight the match; `snippet_pre` /
 /// `snippet_post` already carry a leading/trailing `…` when the window
 /// truncated the surrounding text.
+///
+/// A hit is a content coordinate with no conversion step:
+/// `Coordinate { spine_idx, char_offset }` feeds the reader session's
+/// `locate` / `match_rects` directly, because the corpus these offsets
+/// index IS the canonical projection layout indexes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BookSearchHit {
     /// Reading-order index of the resource the hit is in.

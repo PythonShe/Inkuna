@@ -9,6 +9,15 @@
 //! alphanumerics (ＡＢＣ→abc, common in CJK books), compatibility
 //! singletons, ligatures — and both sides of every comparison go through
 //! the same transform, so matching stays internally consistent.
+//!
+//! INVARIANT: no folded offset ever crosses the FFI. Every hit
+//! [`FoldedText::occurrences`] yields (and hence `BookSearchHit`'s
+//! `char_offset` and its `progression` denominator) indexes the ORIGINAL
+//! `resource_text` body — the canonical projection — in Unicode scalars.
+//! With the corpus being exactly the projection, a hit IS a content
+//! coordinate: it feeds `locate` / `match_rects` with no conversion
+//! step. A fold expansion (`ﬁ`→"fi") or contraction (`㍿`→株式会社)
+//! shifts folded-space offsets, never the offsets returned here.
 
 /// How many chars of context a snippet keeps around a match; shared with
 /// the shells' result rows (2-line snippet labels).
