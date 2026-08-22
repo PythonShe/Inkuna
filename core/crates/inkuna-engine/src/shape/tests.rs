@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock};
 use crate::fixed::Fx;
 use crate::fonts::FontRegistry;
 use crate::settings::FontFamily;
-use crate::style::{FontStyle, FontWeight};
+use crate::style::{FontStyle, FontWeight, RubyPosition};
 
 use super::{shape_ruby, shape_text, RunOrientation, ShapeContext, ShapedRun};
 
@@ -244,9 +244,10 @@ fn latin_in_vertical_is_sideways() {
 fn ruby_annotation_scaled_and_mapped() {
     let fonts = registry();
     let base_ctx = ctx(fonts);
-    let ruby = shape_ruby("漢字", "かんじ", &base_ctx, (1, 2));
+    let ruby = shape_ruby("漢字", "かんじ", &base_ctx, (1, 2), RubyPosition::Over);
     assert!(!ruby.base.is_empty());
     assert!(!ruby.annotation.is_empty());
+    assert_eq!(ruby.position, RubyPosition::Over);
     let expected_size = base_ctx.size.mul_ratio(1, 2);
     for run in &ruby.annotation {
         assert_eq!(run.size, expected_size, "base size × ruby scale");
@@ -263,7 +264,19 @@ fn ruby_annotation_scaled_and_mapped() {
 #[test]
 fn ruby_empty_annotation_is_plain_base() {
     let fonts = registry();
-    let ruby = shape_ruby("漢字", "", &ctx(fonts), (1, 2));
+    let ruby = shape_ruby("漢字", "", &ctx(fonts), (1, 2), RubyPosition::Under);
     assert!(!ruby.base.is_empty());
     assert!(ruby.annotation.is_empty());
+    assert_eq!(
+        ruby.position,
+        RubyPosition::Under,
+        "position carried through"
+    );
+}
+
+#[test]
+fn ruby_position_carried_through() {
+    let fonts = registry();
+    let ruby = shape_ruby("漢字", "かんじ", &ctx(fonts), (1, 2), RubyPosition::Under);
+    assert_eq!(ruby.position, RubyPosition::Under);
 }

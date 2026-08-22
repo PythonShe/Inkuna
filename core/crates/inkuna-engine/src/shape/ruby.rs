@@ -19,22 +19,22 @@ pub struct RubyRun {
 /// Shape a ruby pair. The annotation shapes at
 /// `ctx.size.mul_ratio(num, den)` (`Typography::ruby_scale`'s exact
 /// ratio), marked `is_ruby`, with letter/word spacing zeroed — reader
-/// tracking applies to body text, not annotations. `position` starts
-/// at its default; the caller sets it from the node's computed
-/// `ruby_position`. An empty `rt_text` yields an empty annotation
-/// (renders as plain base).
+/// tracking applies to body text, not annotations. `position` is the
+/// node's computed `ruby_position`, carried through verbatim. An empty
+/// `rt_text` yields an empty annotation (renders as plain base).
 pub fn shape_ruby(
     base_text: &str,
     rt_text: &str,
     ctx: &ShapeContext,
     ruby_scale: (u32, u32),
+    position: RubyPosition,
 ) -> RubyRun {
     let base = shape_text(base_text, ctx);
     if rt_text.is_empty() {
         return RubyRun {
             base,
             annotation: Vec::new(),
-            position: RubyPosition::default(),
+            position,
         };
     }
     let (num, den) = ruby_scale;
@@ -56,6 +56,6 @@ pub fn shape_ruby(
     RubyRun {
         base,
         annotation,
-        position: RubyPosition::default(),
+        position,
     }
 }
