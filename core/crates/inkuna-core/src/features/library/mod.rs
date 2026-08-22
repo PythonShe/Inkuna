@@ -5,6 +5,7 @@
 mod bookmarks;
 mod model;
 mod queries;
+mod rebaseline;
 mod search;
 mod store;
 

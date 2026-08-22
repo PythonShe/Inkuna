@@ -16,6 +16,8 @@ chrono-tz = "0.10"
 thiserror = "2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 uuid = { version = "1", features = ["v4"] }
+# V8 rebaseline: parsing legacy Readium locator JSON into content coordinates.
+serde_json = "1.0.151"
 blake3 = "1"
 # Cover normalization: pure-Rust decode/resize, libwebp for lossy encode.
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "webp", "rayon"] }

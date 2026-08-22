@@ -1315,6 +1315,7 @@ dependencies = [
  "log",
  "rayon",
  "rusqlite",
+ "serde_json",
  "tantivy",
  "tempfile",
  "thiserror",

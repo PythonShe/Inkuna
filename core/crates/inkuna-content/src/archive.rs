@@ -52,9 +52,10 @@ pub(crate) fn read_entry(
 }
 
 /// Reads a spine content document under the much tighter
-/// [`MAX_SPINE_ENTRY_BYTES`]. Callers degrade on the error (skip the
-/// resource's text and keep importing) — a content document is optional
-/// as far as import is concerned.
+/// [`MAX_SPINE_ENTRY_BYTES`]. Production spine reads go through
+/// [`read_resource`] since the corpus moved to the engine's projection;
+/// kept for the archive tests that pin the cap's CJK-safe behavior.
+#[cfg(test)]
 pub(crate) fn read_spine_entry(
     archive: &mut zip::ZipArchive<File>,
     name: &str,

@@ -131,12 +131,18 @@ impl SearchIndex {
         publication_id: &str,
         resources: impl IntoIterator<Item = (u32, &'a str)>,
     ) -> Result<(), CoreError> {
-        let mut writer = self.writer.lock().unwrap();
-        if let Err(e) = add_publication(&writer, self.fields, publication_id, resources) {
-            let _ = writer.rollback();
-            return Err(e);
+        self.write_handle()
+            .index_publication(publication_id, resources)
+    }
+
+    /// A cloneable, thread-independent write handle for background passes
+    /// (the V8 rebaseline) that re-index publications book-by-book while
+    /// they run.
+    pub(crate) fn write_handle(&self) -> IndexWriteHandle {
+        IndexWriteHandle {
+            writer: Arc::clone(&self.writer),
+            fields: self.fields,
         }
-        commit(writer)
     }
 
     /// Drops every doc of one publication.
@@ -154,11 +160,16 @@ impl SearchIndex {
     /// index, drops docs whose publication is gone. The thread owns its
     /// own read connection, so an open returns immediately even when a
     /// large library needs a full rebuild.
-    pub(crate) fn spawn_reconcile(&self, db_path: PathBuf) {
+    ///
+    /// `pre` runs first on the spawned thread, opening its own resources
+    /// — the V8 rebaseline chains here so the reconcile body never
+    /// indexes a corpus the rebaseline is about to replace.
+    pub(crate) fn spawn_reconcile(&self, db_path: PathBuf, pre: impl FnOnce() + Send + 'static) {
         let index = self.index.clone();
         let writer = Arc::clone(&self.writer);
         let fields = self.fields;
         let handle = std::thread::spawn(move || {
+            pre();
             if let Err(e) = reconcile(&index, &writer, fields, &db_path) {
                 log::warn!("search index reconcile failed: {e}");
             }
@@ -185,6 +196,34 @@ impl Drop for SearchIndex {
         if let Some(handle) = self.reconcile.lock().unwrap().take() {
             let _ = handle.join();
         }
+    }
+}
+
+/// A write handle detached from the [`SearchIndex`]'s lifetime concerns:
+/// it shares the writer mutex and schema fields, so a background pass can
+/// replace one publication's docs at a time. Holding one keeps tantivy's
+/// on-disk lockfile alive exactly as holding the index does — the pass
+/// runs on the reconcile thread, which `Drop` joins.
+#[derive(Clone)]
+pub(crate) struct IndexWriteHandle {
+    writer: Arc<Mutex<IndexWriter>>,
+    fields: Fields,
+}
+
+impl IndexWriteHandle {
+    /// (Re-)indexes one publication: `delete_term` + re-add, the same
+    /// replace path [`SearchIndex::index_publication`] takes.
+    pub(crate) fn index_publication<'a>(
+        &self,
+        publication_id: &str,
+        resources: impl IntoIterator<Item = (u32, &'a str)>,
+    ) -> Result<(), CoreError> {
+        let mut writer = self.writer.lock().unwrap();
+        if let Err(e) = add_publication(&writer, self.fields, publication_id, resources) {
+            let _ = writer.rollback();
+            return Err(e);
+        }
+        commit(writer)
     }
 }
 
