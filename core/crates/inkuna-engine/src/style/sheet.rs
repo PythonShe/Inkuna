@@ -238,12 +238,15 @@ fn map_declaration(property: &str, value: Option<&Token<'_>>) -> Option<Declarat
     };
     let ident = ident.as_deref();
     match property {
-        "writing-mode" => Some(Declaration::WritingMode(match ident {
-            // Anything that is not exactly vertical-rl — vertical-lr and
-            // sideways modes included — renders horizontal.
-            Some("vertical-rl") => WritingMode::VerticalRl,
-            _ => WritingMode::HorizontalTb,
-        })),
+        "writing-mode" => match ident {
+            // ONLY vertical-rl is honored. Every other value —
+            // vertical-lr, sideways modes, legacy/vendor forms like
+            // tb-rl, inherit — is skipped entirely, never retained as
+            // horizontal, so it can never override an honored
+            // vertical-rl elsewhere in the cascade.
+            Some("vertical-rl") => Some(Declaration::WritingMode(WritingMode::VerticalRl)),
+            _ => None,
+        },
         "direction" => match ident {
             Some("ltr") => Some(Declaration::Direction(Direction::Ltr)),
             Some("rtl") => Some(Declaration::Direction(Direction::Rtl)),

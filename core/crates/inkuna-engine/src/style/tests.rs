@@ -154,6 +154,30 @@ fn writing_mode_from_body_only() {
 }
 
 #[test]
+fn unsupported_writing_mode_values_never_override_vertical() {
+    // A legacy/vendor value (tb-rl, inherit, …) later in the cascade is
+    // skipped entirely — it must not flip an honored vertical-rl back to
+    // horizontal.
+    let doc = parse("<html><body><p>縦書き</p></body></html>".as_bytes()).unwrap();
+    let styled_legacy = styled(
+        &doc,
+        &["html { writing-mode: vertical-rl } body { writing-mode: tb-rl }"],
+    );
+    assert_eq!(styled_legacy.writing_mode, WritingMode::VerticalRl);
+
+    let styled_inherit = styled(
+        &doc,
+        &["body { writing-mode: vertical-rl } body { writing-mode: inherit }"],
+    );
+    assert_eq!(styled_inherit.writing_mode, WritingMode::VerticalRl);
+
+    // horizontal-tb itself stays honored… by being the default: with no
+    // vertical-rl anywhere, the resource is horizontal.
+    let styled_plain = styled(&doc, &["body { writing-mode: horizontal-tb }"]);
+    assert_eq!(styled_plain.writing_mode, WritingMode::HorizontalTb);
+}
+
+#[test]
 fn dir_attr_sets_direction() {
     let doc = parse(RTL_DOC.as_bytes()).unwrap();
     let styled = styled(&doc, &[]);
