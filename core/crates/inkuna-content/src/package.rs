@@ -230,3 +230,7 @@ fn declared_media_type(media_type: &str) -> Option<String> {
         Some(media_type.to_string())
     }
 }
+
+#[cfg(test)]
+#[path = "package_tests.rs"]
+mod tests;

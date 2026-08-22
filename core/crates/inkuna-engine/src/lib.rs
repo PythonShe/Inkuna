@@ -4,4 +4,7 @@
 
 mod error;
 
+#[cfg(test)]
+mod test_support;
+
 pub use error::EngineError;

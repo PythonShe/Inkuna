@@ -8,3 +8,7 @@ license.workspace = true
 inkuna-content = { path = "../inkuna-content" }
 thiserror = "2"
 log = "0.4"
+
+[dev-dependencies]
+inkuna-content = { path = "../inkuna-content", features = ["test-support"] }
+tempfile = "3"
