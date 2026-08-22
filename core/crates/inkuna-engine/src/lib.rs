@@ -16,8 +16,12 @@ pub mod shape;
 pub mod style;
 pub mod text;
 
+#[cfg(any(test, feature = "test_support"))]
+pub mod test_support;
+
 #[cfg(test)]
-mod test_support;
+#[path = "golden_tests.rs"]
+mod golden_tests;
 
 pub use corpus::extract_corpus;
 pub use display::{

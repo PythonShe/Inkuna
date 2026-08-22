@@ -1,0 +1,2 @@
+chapter 0: pages=1 chars=95 truncated=false writing_mode=HorizontalTb rtl=false
+  page 0: 2c4a5e0a7cc26d193dacc5b97cd025c218ac007f3fe0015f302f2ae70ae351bb

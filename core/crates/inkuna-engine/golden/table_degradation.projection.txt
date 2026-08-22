@@ -1,0 +1,7 @@
+Counts by year:
+Totals
+YearCount
+1901417
+1902523
+1903611
+The table degrades to sequential rows.

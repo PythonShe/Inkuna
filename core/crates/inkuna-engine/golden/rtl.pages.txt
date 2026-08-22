@@ -1,0 +1,3 @@
+chapter 0: pages=2 chars=1167 truncated=false writing_mode=HorizontalTb rtl=true
+  page 0: 897e59300100bbd9b55545d1c447c34ce457537934f39a19ca15e78bc379b844
+  page 1: 897e59300100bbd9b55545d1c447c34ce457537934f39a19ca15e78bc379b844

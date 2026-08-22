@@ -1,0 +1,4 @@
+chapter 0: pages=3 chars=543 truncated=false writing_mode=VerticalRl rtl=false
+  page 0: 5e0f6a8522b056250dd4b43598a22b474597aad1ddf792202fd5bc3f2caaecd0
+  page 1: 5e0f6a8522b056250dd4b43598a22b474597aad1ddf792202fd5bc3f2caaecd0
+  page 2: b090db675e8f943f022717077b777ee6f7ad02feefb50e3e36dde40ce8d903c0

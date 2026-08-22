@@ -134,3 +134,219 @@ pub fn single_chapter(doc: &str) -> EpubBuilder {
 pub fn single_chapter_epub(dir: &TempDir, doc: &str) -> PathBuf {
     build_epub(dir, single_chapter(doc))
 }
+
+// --- The golden / parity fixture roster (task 5.5) -------------------
+//
+// Every fixture is built by `EpubBuilder` with fully deterministic
+// content and laid out at [`GOLDEN_VIEWPORT_PT`] under
+// [`golden_settings`]. The golden tests assert committed digests
+// against these; the `export-parity-fixtures` example writes exactly
+// these EPUBs for the shells' on-device parity harness (plan 02) —
+// the device harness never invents its own corpus.
+
+/// The fixed golden viewport, in layout points.
+pub const GOLDEN_VIEWPORT_PT: (f64, f64) = (390.0, 664.0);
+
+/// The exact settings the golden corpus is laid out under.
+pub fn golden_settings() -> crate::settings::LayoutSettings {
+    crate::settings::LayoutSettings::default()
+}
+
+/// One roster entry: a stable name and its deterministic builder.
+pub struct GoldenFixture {
+    pub name: &'static str,
+    pub build: fn() -> EpubBuilder,
+}
+
+/// The full roster, in stable order.
+pub fn golden_roster() -> Vec<GoldenFixture> {
+    vec![
+        GoldenFixture {
+            name: "latin",
+            build: latin_fixture,
+        },
+        GoldenFixture {
+            name: "cjk_horizontal",
+            build: cjk_horizontal_fixture,
+        },
+        GoldenFixture {
+            name: "cjk_vertical_ruby",
+            build: cjk_vertical_ruby_fixture,
+        },
+        GoldenFixture {
+            name: "rtl",
+            build: rtl_fixture,
+        },
+        GoldenFixture {
+            name: "mixed_script",
+            build: mixed_script_fixture,
+        },
+        GoldenFixture {
+            name: "image_heavy",
+            build: image_heavy_fixture,
+        },
+        GoldenFixture {
+            name: "table_degradation",
+            build: table_degradation_fixture,
+        },
+    ]
+}
+
+/// Wraps deterministic body markup in a full XHTML document.
+fn doc(head_extra: &str, body_attrs: &str, body: &str) -> String {
+    format!(
+        r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>fixture</title>{head_extra}</head>
+<body{body_attrs}>
+{body}
+</body></html>"#
+    )
+}
+
+/// `n` copies of one paragraph.
+fn paras(p: &str, n: usize) -> String {
+    let mut out = String::with_capacity((p.len() + 1) * n);
+    for _ in 0..n {
+        out.push_str(p);
+        out.push('\n');
+    }
+    out
+}
+
+fn latin_fixture() -> EpubBuilder {
+    let ch1 = doc(
+        "",
+        "",
+        &format!(
+            r##"<h1 id="top">The Voyage</h1>
+{}<h2 id="landfall">Landfall</h2>
+<p>They sighted land on the <a href="#top">ninth</a> day, and the <em>quiet</em> crew grew <strong>resolute</strong>.</p>
+"##,
+            paras(
+                "<p>The ship left quietly at dawn, its wake a pale seam on the grey water, and the long swell carried it past the last of the harbor lights.</p>",
+                24
+            )
+        ),
+    );
+    let ch2 = doc(
+        "",
+        "",
+        &paras(
+            "<p>Ashore, the charts were redrawn one line at a time until the coast agreed with them.</p>",
+            8
+        ),
+    );
+    EpubBuilder::new()
+        .resource("ch01.xhtml", "application/xhtml+xml", ch1.as_bytes())
+        .resource("ch02.xhtml", "application/xhtml+xml", ch2.as_bytes())
+        .spine(&["ch01.xhtml", "ch02.xhtml"])
+        .toc(&[
+            ("The Voyage", "ch01.xhtml#top", 0),
+            ("Landfall", "ch01.xhtml#landfall", 1),
+        ])
+}
+
+fn cjk_horizontal_fixture() -> EpubBuilder {
+    let ch1 = doc(
+        "",
+        "",
+        &format!(
+            "<h1>第一章</h1>\n{}",
+            paras(
+                "<p>月光洒在窗台上，屋里一片寂静。他放下手中的书，望向远处的群山，山脊在夜色里连成一道墨线。</p>",
+                24
+            )
+        ),
+    );
+    EpubBuilder::new()
+        .language("zh")
+        .resource("ch01.xhtml", "application/xhtml+xml", ch1.as_bytes())
+        .spine(&["ch01.xhtml"])
+}
+
+fn cjk_vertical_ruby_fixture() -> EpubBuilder {
+    let ch1 = doc(
+        "<style>body { writing-mode: vertical-rl; }</style>",
+        "",
+        &paras(
+            "<p><ruby>東京<rt>とうきょう</rt></ruby>の<ruby>空<rt>そら</rt></ruby>は高かった。駅の屋根の向こうに、秋の雲が静かに流れていた。</p>",
+            16,
+        ),
+    );
+    EpubBuilder::new()
+        .language("ja")
+        .resource("ch01.xhtml", "application/xhtml+xml", ch1.as_bytes())
+        .spine(&["ch01.xhtml"])
+}
+
+fn rtl_fixture() -> EpubBuilder {
+    let ch1 = doc(
+        "",
+        r#" dir="rtl""#,
+        &paras(
+            "<p>בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃</p>",
+            16,
+        ),
+    );
+    EpubBuilder::new()
+        .language("he")
+        .resource("ch01.xhtml", "application/xhtml+xml", ch1.as_bytes())
+        .spine(&["ch01.xhtml"])
+        .rtl_progression()
+}
+
+fn mixed_script_fixture() -> EpubBuilder {
+    let ch1 = doc(
+        "",
+        "",
+        &paras(
+            "<p>The 東京 line opened in 1927 and carries 2000000 riders past שלום signs daily.</p>",
+            16,
+        ),
+    );
+    EpubBuilder::new()
+        .resource("ch01.xhtml", "application/xhtml+xml", ch1.as_bytes())
+        .spine(&["ch01.xhtml"])
+}
+
+fn image_heavy_fixture() -> EpubBuilder {
+    let ch1 = doc(
+        "",
+        "",
+        r#"<p>Before the first plate.</p>
+<img src="plate1.png" alt="small plate"/>
+<p>Between the plates.</p>
+<img src="plate2.png" alt="tall plate"/>
+<p>A reference the archive cannot serve:</p>
+<img src="missing.png" alt="missing plate"/>
+<p>After the plates.</p>"#,
+    );
+    EpubBuilder::new()
+        .resource("ch01.xhtml", "application/xhtml+xml", ch1.as_bytes())
+        .resource("plate1.png", "image/png", &tiny_png(120, 80))
+        .resource("plate2.png", "image/png", &tiny_png(400, 900))
+        .spine(&["ch01.xhtml"])
+}
+
+fn table_degradation_fixture() -> EpubBuilder {
+    let ch1 = doc(
+        "",
+        "",
+        r#"<p>Counts by year:</p>
+<table><caption>Totals</caption>
+<tr><th>Year</th><th>Count</th></tr>
+<tr><td>1901</td><td>417</td></tr>
+<tr><td>1902</td><td>523</td></tr>
+<tr><td>1903</td><td>611</td></tr>
+</table>
+<p>The table degrades to sequential rows.</p>"#,
+    );
+    EpubBuilder::new()
+        .resource("ch01.xhtml", "application/xhtml+xml", ch1.as_bytes())
+        .spine(&["ch01.xhtml"])
+}
+
+/// Whether golden files should be rewritten instead of asserted:
+/// `INKUNA_UPDATE_GOLDEN=1 cargo test -p inkuna-engine golden`.
+pub fn update_golden() -> bool {
+    std::env::var("INKUNA_UPDATE_GOLDEN").is_ok_and(|v| v == "1")
+}

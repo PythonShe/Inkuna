@@ -1,0 +1,3 @@
+chapter 0: pages=2 chars=1231 truncated=false writing_mode=HorizontalTb rtl=false
+  page 0: 692a90ea564ab0695aab5f2e305bd2a55be438fda27104a8c4056bda3fd4b7c2
+  page 1: 692a90ea564ab0695aab5f2e305bd2a55be438fda27104a8c4056bda3fd4b7c2
