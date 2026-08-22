@@ -11,11 +11,15 @@
 use crate::fixed::Fx;
 use crate::paginate::{FxRect, LaidPage, PlacedLine};
 use crate::shape::RunOrientation;
-use crate::style::WritingMode;
+use crate::style::{RubyPosition, WritingMode};
 
 use super::a11y;
 use super::context::{DisplayContext, FaceMetrics};
 use super::maps::{LineGeom, PageMaps};
+
+#[cfg(test)]
+#[path = "list_tests.rs"]
+mod tests;
 
 /// A hairline: 1 pt, for underline decorations.
 const HAIRLINE: Fx = Fx(64);
@@ -209,12 +213,19 @@ fn emit_line(
     for pr in &line.runs {
         let is_ruby = pr.run.style.is_ruby;
         // Block-axis anchor: the baseline (horizontal) or column axis
-        // (vertical). Ruby annotations sit on the over side, their own
-        // descent inset into the ruby band.
+        // (vertical). Ruby annotations occupy their requested side, with
+        // their metric inset into that side's band.
         let axis = if is_ruby {
             let desc = metrics.descent(ctx.fonts, pr.run.font_id, pr.run.size);
+            let under = pr.ruby_position == Some(RubyPosition::Under);
             if vertical {
-                pl.x + line.ascent + desc
+                if under {
+                    pl.x - line.descent - metrics.ascent(ctx.fonts, pr.run.font_id, pr.run.size)
+                } else {
+                    pl.x + line.ascent + desc
+                }
+            } else if under {
+                pl.y + line.descent + metrics.ascent(ctx.fonts, pr.run.font_id, pr.run.size)
             } else {
                 pl.y - line.ascent - desc
             }
@@ -297,17 +308,17 @@ fn emit_line(
 
     let band = if vertical {
         FxRect {
-            x: pl.x - line.descent,
+            x: pl.x - line.descent - line.ruby_under_extent,
             y: Fx::ZERO,
-            w: line.descent + line.ascent + line.ruby_extent,
+            w: line.ruby_under_extent + line.descent + line.ascent + line.ruby_over_extent,
             h: ctx.viewport.height,
         }
     } else {
         FxRect {
             x: Fx::ZERO,
-            y: pl.y - line.ascent - line.ruby_extent,
+            y: pl.y - line.ascent - line.ruby_over_extent,
             w: ctx.viewport.width,
-            h: line.ascent + line.ruby_extent + line.descent,
+            h: line.ruby_over_extent + line.ascent + line.descent + line.ruby_under_extent,
         }
     };
     LineGeom {

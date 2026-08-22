@@ -13,9 +13,13 @@ use unicode_linebreak::{linebreaks, BreakOpportunity};
 use crate::fixed::Fx;
 use crate::fonts::FontRegistry;
 use crate::shape::{RubyRun, ShapedRun};
-use crate::style::TextAlign;
+use crate::style::{RubyPosition, TextAlign};
 
 use super::assemble::{self, MetricsCache};
+
+#[cfg(test)]
+#[path = "lines_tests.rs"]
+mod tests;
 
 /// Line-count budget guard per paragraph: excess lines are dropped and
 /// the caller detects the prefix (the last line ends short of the
@@ -78,13 +82,16 @@ pub struct LineOptions {
 /// advance (e.g. only trailing spaces) repeats the previous offset
 /// rather than strictly exceeding it. Ruby annotation runs
 /// (`run.style.is_ruby`) are centered over their base and exempt from
-/// the ordering; they carry the base's char range.
+/// the ordering; they carry the base's char range and requested side.
 pub struct PositionedRun {
     pub run: ShapedRun,
     /// Inline-axis offset from the line's start (alignment included).
     pub inline_offset: Fx,
     /// Canonical projection char range this run covers.
     pub char_range: Range<u64>,
+    /// `Some` only for ruby annotation runs, preserving the computed
+    /// side through line assembly into display emission.
+    pub ruby_position: Option<RubyPosition>,
 }
 
 /// One laid-out line. `char_range` is canonical projection offsets;
@@ -97,8 +104,10 @@ pub struct Line {
     pub inline_extent: Fx,
     pub ascent: Fx,
     pub descent: Fx,
-    /// Extra block extent ruby annotations need; zero without ruby.
-    pub ruby_extent: Fx,
+    /// Extra block extent ruby annotations need on the over side.
+    pub ruby_over_extent: Fx,
+    /// Extra block extent ruby annotations need on the under side.
+    pub ruby_under_extent: Fx,
 }
 
 /// The smallest unbreakable measure unit: one glyph cluster or one
@@ -128,7 +137,8 @@ pub fn break_paragraph(p: &ShapedParagraph<'_>, width: Fx, opts: &LineOptions) -
             inline_extent: Fx::ZERO,
             ascent: Fx::ZERO,
             descent: Fx::ZERO,
-            ruby_extent: Fx::ZERO,
+            ruby_over_extent: Fx::ZERO,
+            ruby_under_extent: Fx::ZERO,
         }];
     }
     let cands = candidates(&p.text, &atoms, n_chars);
@@ -289,10 +299,33 @@ fn build_atoms(p: &ShapedParagraph<'_>, chars: &[char], n_chars: u64) -> Vec<Ato
         last.end = n_chars;
     }
     for atom in &mut atoms {
-        atom.is_space =
-            atom.end - atom.start == 1 && chars.get(atom.start as usize) == Some(&' ');
+        atom.is_space = chars.get(atom.start as usize) == Some(&' ')
+            && chars[(atom.start + 1) as usize..atom.end as usize]
+                .iter()
+                .all(|c| is_glyphless_ignorable(*c));
     }
     atoms
+}
+
+/// Characters that projection retains but shaping emits without a glyph.
+/// Keep this in lockstep with the shape module's ignorable set: here it
+/// decides whether a space atom still trims at a line break after coverage
+/// has folded following ignorables into it.
+fn is_glyphless_ignorable(c: char) -> bool {
+    matches!(
+        c,
+        '\t' | '\n'
+            | '\r'
+            | '\u{00AD}'
+            | '\u{061C}'
+            | '\u{200B}'..='\u{200F}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2060}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{FEFF}'
+    )
 }
 
 fn runs_advance(runs: &[ShapedRun]) -> Fx {

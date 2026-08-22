@@ -132,7 +132,7 @@ impl Pager {
             return;
         }
         if self.has_content() {
-            let first = adv + lines[0].ruby_extent;
+            let first = adv + lines[0].ruby_over_extent + lines[0].ruby_under_extent;
             if self.used + spacing + first > self.block_total {
                 self.flush(emit);
             } else {
@@ -148,7 +148,7 @@ impl Pager {
             let mut cap = 0usize;
             let mut u = self.used;
             for line in &lines {
-                let a = adv + line.ruby_extent;
+                let a = adv + line.ruby_over_extent + line.ruby_under_extent;
                 if u + a > self.block_total {
                     break;
                 }
@@ -191,20 +191,20 @@ impl Pager {
     }
 
     /// Stacks one line: the baseline advances by the block advance plus
-    /// the line's ruby extent (annotations sit on the over side — above
-    /// in horizontal, right of the column in vertical-rl).
+    /// ruby extents on their requested sides (above/below in horizontal,
+    /// right/left of the column in vertical-rl).
     fn place_line(&mut self, line: Line, adv: Fx, inset: Fx) {
-        let extent = adv + line.ruby_extent;
+        let extent = adv + line.ruby_over_extent + line.ruby_under_extent;
         let (x, y) = if self.vertical {
             let right = self.content_x + self.content_w;
             (
-                right - self.used - line.ruby_extent - line.ascent,
+                right - self.used - line.ruby_over_extent - line.ascent,
                 self.content_y + inset,
             )
         } else {
             (
                 self.content_x + inset,
-                self.content_y + self.used + line.ruby_extent + line.ascent,
+                self.content_y + self.used + line.ruby_over_extent + line.ascent,
             )
         };
         self.cursor = self.cursor.max(line.char_range.end);

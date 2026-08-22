@@ -7,7 +7,6 @@
 //! parity-breaking event:
 //!
 //! - all integers little-endian, fixed width;
-//! - `u64 generation` first;
 //! - each vector as `u32 len` followed by its elements in order;
 //! - strings as `u64 len` + UTF-8 bytes;
 //! - `Option<String>` as a `u8` presence flag (0/1) + the string when 1;
@@ -32,7 +31,9 @@ pub fn digest_hex(bytes: &[u8]) -> String {
     blake3::hash(bytes).to_hex().to_string()
 }
 
-/// Lowercase blake3 hex (64 chars) of the list's canonical bytes.
+/// Lowercase blake3 hex (64 chars) of the list's canonical bytes. The
+/// digest is pure page-content identity: session counters such as
+/// [`PageDisplayList::generation`] are intentionally excluded.
 pub fn page_digest(list: &PageDisplayList) -> String {
     digest_hex(&canonical_bytes(list))
 }
@@ -40,7 +41,6 @@ pub fn page_digest(list: &PageDisplayList) -> String {
 /// The canonical byte serialization the module doc specifies.
 fn canonical_bytes(list: &PageDisplayList) -> Vec<u8> {
     let mut out = Vec::new();
-    out.extend_from_slice(&list.generation.to_le_bytes());
     vec_header(&mut out, list.glyph_runs.len());
     for run in &list.glyph_runs {
         glyph_run(&mut out, run);

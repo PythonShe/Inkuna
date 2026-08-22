@@ -75,7 +75,7 @@ pub struct Chapter {
     pub id: String,
     pub idx: u32,
     pub title: String,
-    /// Package-root-relative Readium jump target, possibly with fragment.
+    /// Package-root-relative engine locate_href target, possibly with fragment.
     pub href: String,
     pub depth: u32,
 }

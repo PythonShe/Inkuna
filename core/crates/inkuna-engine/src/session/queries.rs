@@ -251,9 +251,21 @@ impl EngineSession {
         range: CharRange,
     ) -> Result<Vec<SelectionRect>, EngineError> {
         self.with_chapter(spine_idx, true, |data, _| {
+            if range.start >= range.end {
+                return Ok(Vec::new());
+            }
             let vertical = data.writing_mode == WritingMode::VerticalRl;
             let mut out = Vec::new();
-            for (_, maps) in &data.pages {
+            // Page ranges are ascending and contiguous. Restrict the
+            // synchronous mutex-held work to pages the caller's range can
+            // touch (normally exactly one; see the page-local contract).
+            let first_page = data
+                .pages
+                .partition_point(|(_, maps)| maps.char_range.end <= range.start);
+            let past_last_page = data
+                .pages
+                .partition_point(|(_, maps)| maps.char_range.start < range.end);
+            for (_, maps) in &data.pages[first_page..past_last_page] {
                 for line in &maps.lines {
                     if line.char_range.end <= range.start || line.char_range.start >= range.end {
                         continue;

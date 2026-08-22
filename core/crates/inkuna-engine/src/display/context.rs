@@ -143,4 +143,10 @@ impl FaceMetrics {
         let (_, desc, upem) = self.get(fonts, font_id);
         Fx::scale_font_units(desc, size, upem)
     }
+
+    /// Scaled ascent of a face at `size`.
+    pub(super) fn ascent(&mut self, fonts: &FontRegistry, font_id: u32, size: Fx) -> Fx {
+        let (asc, _, upem) = self.get(fonts, font_id);
+        Fx::scale_font_units(asc, size, upem)
+    }
 }

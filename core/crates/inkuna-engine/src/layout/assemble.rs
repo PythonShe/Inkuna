@@ -7,7 +7,7 @@ use std::ops::Range;
 use crate::fixed::Fx;
 use crate::fonts::FontRegistry;
 use crate::shape::ShapedRun;
-use crate::style::TextAlign;
+use crate::style::{RubyPosition, TextAlign};
 
 use super::justify;
 use super::lines::{Line, PositionedRun, SegmentKind, ShapedParagraph};
@@ -19,6 +19,7 @@ pub(super) struct Item {
     pub base: Vec<WorkRun>,
     pub annotation: Vec<WorkRun>,
     pub is_ruby: bool,
+    pub ruby_position: Option<RubyPosition>,
 }
 
 /// A run sliced to the line, glyph clusters rebased to canonical
@@ -76,6 +77,7 @@ pub(super) fn build_line(
                 run: wr.run.clone(),
                 inline_offset: at,
                 char_range: wr.char_range.clone(),
+                ruby_position: None,
             });
             at += run_advance(&wr.run);
         }
@@ -85,6 +87,7 @@ pub(super) fn build_line(
                 run: wr.run.clone(),
                 inline_offset: at,
                 char_range: wr.char_range.clone(),
+                ruby_position: item.ruby_position,
             });
             at += run_advance(&wr.run);
         }
@@ -99,14 +102,16 @@ pub(super) fn build_line(
         }
     }
 
-    let (ascent, descent, ruby_extent) = line_metrics(p.fonts, cache, &runs);
+    let (ascent, descent, ruby_over_extent, ruby_under_extent) =
+        line_metrics(p.fonts, cache, &runs);
     Line {
         runs,
         char_range: p.char_range.start + local.start..p.char_range.start + local.end,
         inline_extent,
         ascent,
         descent,
-        ruby_extent,
+        ruby_over_extent,
+        ruby_under_extent,
     }
 }
 
@@ -130,6 +135,7 @@ fn slice_items(p: &ShapedParagraph<'_>, local: &Range<u64>, trailing: &Range<u64
                             base: vec![wr],
                             annotation: Vec::new(),
                             is_ruby: false,
+                            ruby_position: None,
                         });
                     }
                 }
@@ -164,6 +170,7 @@ fn slice_items(p: &ShapedParagraph<'_>, local: &Range<u64>, trailing: &Range<u64
                     base,
                     annotation: rebase(&ruby.annotation, false),
                     is_ruby: true,
+                    ruby_position: Some(ruby.position),
                 });
             }
         }
@@ -330,27 +337,32 @@ fn clamp_u32(v: u64) -> u32 {
 }
 
 /// Line ascent/descent from the base runs' faces at their sizes, and
-/// the ruby extent from annotation runs (their full ascent+descent).
+/// ruby extents from annotation runs (their full ascent+descent) on
+/// each requested side.
 fn line_metrics(
     fonts: &FontRegistry,
     cache: &mut MetricsCache,
     runs: &[PositionedRun],
-) -> (Fx, Fx, Fx) {
+) -> (Fx, Fx, Fx, Fx) {
     let mut ascent = Fx::ZERO;
     let mut descent = Fx::ZERO;
-    let mut ruby = Fx::ZERO;
+    let mut ruby_over = Fx::ZERO;
+    let mut ruby_under = Fx::ZERO;
     for pr in runs {
         let (asc_units, desc_units, upem) = face_metrics(fonts, cache, pr.run.font_id);
         let asc = Fx::scale_font_units(asc_units, pr.run.size, upem);
         let desc = Fx::scale_font_units(desc_units, pr.run.size, upem);
         if pr.run.style.is_ruby {
-            ruby = ruby.max(asc + desc);
+            match pr.ruby_position.unwrap_or(RubyPosition::Over) {
+                RubyPosition::Over => ruby_over = ruby_over.max(asc + desc),
+                RubyPosition::Under => ruby_under = ruby_under.max(asc + desc),
+            }
         } else {
             ascent = ascent.max(asc);
             descent = descent.max(desc);
         }
     }
-    (ascent, descent, ruby)
+    (ascent, descent, ruby_over, ruby_under)
 }
 
 /// Ascender/descender in font units for a face, parsed once per

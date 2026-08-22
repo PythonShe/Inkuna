@@ -301,6 +301,6 @@ fn block_extent(
     lines
         .iter()
         .take(take)
-        .map(|l| adv + l.ruby_extent)
+        .map(|l| adv + l.ruby_over_extent + l.ruby_under_extent)
         .fold(Fx::ZERO, Fx::saturating_add)
 }

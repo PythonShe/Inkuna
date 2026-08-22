@@ -1,2 +1,2 @@
 chapter 0: pages=1 chars=95 truncated=false writing_mode=HorizontalTb rtl=false
-  page 0: 2c4a5e0a7cc26d193dacc5b97cd025c218ac007f3fe0015f302f2ae70ae351bb
+  page 0: ef1915ed027515e6d9d15dd325470c0cb19ff43d866c44768541209b82b4abc7

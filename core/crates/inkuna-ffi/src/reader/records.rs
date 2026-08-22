@@ -51,7 +51,7 @@ impl From<Viewport> for inkuna_core::Viewport {
     }
 }
 
-/// The six Customize settings as the shells persist them; out-of-range
+/// The seven Customize settings as the shells persist them; out-of-range
 /// values clamp engine-side and unknown fonts default, never error.
 /// `reading_margins` is inline-axis page padding in layout points
 /// (numerically identical to the stored CSS px at 1×).

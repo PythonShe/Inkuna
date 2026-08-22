@@ -259,10 +259,10 @@ fn digest_sensitive_to_any_field() {
     l.glyph_runs[0].color_role = ColorRole::Secondary;
     assert_ne!(page_digest(&l), base);
 
-    // Generation, a glyph id, a string, an enum, the lang option.
+    // A glyph id, a string, an enum, the lang option.
     let mut l = reference_list();
     l.generation = 4;
-    assert_ne!(page_digest(&l), base);
+    assert_eq!(page_digest(&l), base, "generation is not page content");
     let mut l = reference_list();
     l.glyph_runs[0].glyph_ids[1] = 122;
     assert_ne!(page_digest(&l), base);
@@ -285,6 +285,6 @@ fn digest_sensitive_to_any_field() {
 fn digest_reference_vector() {
     assert_eq!(
         page_digest(&reference_list()),
-        "5e2d603234b9bc4e3ef1b16f3fb8e35f29930ecee7ca246bdb8044d6a98f64cf"
+        "7ae59f054c4a7ddf2c4f7a0b36b93d5296ef2a0d5fca2428a2b0b3211f33f7a2"
     );
 }

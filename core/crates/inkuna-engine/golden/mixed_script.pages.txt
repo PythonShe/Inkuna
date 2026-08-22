@@ -1,3 +1,3 @@
 chapter 0: pages=2 chars=1231 truncated=false writing_mode=HorizontalTb rtl=false
-  page 0: 88baf80ab5773a84edef23a779bd613ae3e393ca87c2a9cb489192da2508e2e7
-  page 1: 88baf80ab5773a84edef23a779bd613ae3e393ca87c2a9cb489192da2508e2e7
+  page 0: 6537669e7c581f1525657c888ab966c5cf522b4867ac5aa882e95e1e351e50ce
+  page 1: 6537669e7c581f1525657c888ab966c5cf522b4867ac5aa882e95e1e351e50ce

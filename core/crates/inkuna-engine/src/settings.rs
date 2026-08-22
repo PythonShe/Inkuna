@@ -51,7 +51,7 @@ pub enum FontFamily {
     NotoSans,
 }
 
-/// The six Customize settings, as the shells persist them. Apply
+/// The seven Customize settings, as the shells persist them. Apply
 /// [`LayoutSettings::clamped`] at every engine entry; out-of-range values
 /// clamp and unknown fonts default, never error.
 #[derive(Debug, Clone, PartialEq)]

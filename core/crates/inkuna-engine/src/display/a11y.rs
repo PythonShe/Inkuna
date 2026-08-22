@@ -129,17 +129,17 @@ fn block_rect(page: &LaidPage, vertical: bool, range: Range<u64>) -> Option<supe
         }
         let (x0, y0, x1, y1) = if vertical {
             (
-                pl.x - line.descent,
+                pl.x - line.descent - line.ruby_under_extent,
                 pl.y,
-                pl.x + line.ascent + line.ruby_extent,
+                pl.x + line.ascent + line.ruby_over_extent,
                 pl.y + line.inline_extent,
             )
         } else {
             (
                 pl.x,
-                pl.y - line.ascent - line.ruby_extent,
+                pl.y - line.ascent - line.ruby_over_extent,
                 pl.x + line.inline_extent,
-                pl.y + line.descent,
+                pl.y + line.descent + line.ruby_under_extent,
             )
         };
         acc = Some(match acc {
