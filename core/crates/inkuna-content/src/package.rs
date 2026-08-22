@@ -179,14 +179,35 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
 
     // Every manifest entry, normalized the same way the spine is — the
     // engine resolves non-spine assets (images, styles) through this.
+    // MAX_HREF_BYTES holds on the *resolved* href here for the same
+    // reason it does on the spine above: a crafted container.xml can
+    // prepend a multi-KB directory to every item while each as-written
+    // href stays in bounds, and at MAX_MANIFEST_ITEMS entries the
+    // uncapped result retains 100,000 copies of that prefix out of a
+    // tiny archive. An oversized entry is skipped, exactly like an
+    // oversized spine href.
+    let mut oversized_manifest_hrefs = 0usize;
     let manifest: Vec<ManifestItem> = opf
         .items
         .iter()
-        .map(|item| ManifestItem {
-            href: resolve(&item.href),
-            media_type: declared_media_type(&item.media_type),
+        .filter_map(|item| {
+            let resolved = resolve(&item.href);
+            if resolved.len() > MAX_HREF_BYTES {
+                oversized_manifest_hrefs += 1;
+                return None;
+            }
+            Some(ManifestItem {
+                href: resolved,
+                media_type: declared_media_type(&item.media_type),
+            })
         })
         .collect();
+    if oversized_manifest_hrefs > 0 {
+        log::warn!(
+            "manifest of {} has {oversized_manifest_hrefs} items whose resolved hrefs exceed {MAX_HREF_BYTES} bytes; skipped",
+            path.display()
+        );
+    }
 
     Ok(EpubPackage {
         metadata: opf.metadata,

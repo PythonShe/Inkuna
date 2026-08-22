@@ -107,6 +107,46 @@ fn spine_items_carry_media_types() {
     assert!(!package.page_progression_rtl);
 }
 
+/// The href cap holds on the *resolved* manifest href too: an item whose
+/// as-written href fits under `MAX_HREF_BYTES` but whose resolution
+/// against the OPF's directory pushes it over is dropped from both the
+/// spine and the manifest — otherwise a crafted container.xml plus a
+/// full manifest retains the oversized prefix once per item.
+#[test]
+fn oversized_resolved_manifest_hrefs_are_dropped() {
+    // Under the cap as written; over it once "OEBPS/" is prepended.
+    let long_href = format!("{}.xhtml", "a".repeat(MAX_HREF_BYTES - 6));
+    assert!(long_href.len() <= MAX_HREF_BYTES);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("resolved-bomb.epub");
+    crate::test_support::write_epub_parts(
+        &path,
+        &format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>解決</dc:title></metadata>
+  <manifest>
+    <item id="bomb" href="{long_href}" media-type="application/xhtml+xml"/>
+    <item id="c1" href="text/ch01.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="bomb"/><itemref idref="c1"/></spine>
+</package>"#
+        ),
+        &[("text/ch01.xhtml", "<html><body><p>一</p></body></html>")],
+    );
+
+    let package = crate::read_package(&path).unwrap();
+    assert_eq!(
+        package.manifest,
+        [crate::ManifestItem {
+            href: "OEBPS/text/ch01.xhtml".into(),
+            media_type: Some("application/xhtml+xml".into()),
+        }]
+    );
+    assert_eq!(package.spine.len(), 1);
+    assert_eq!(package.spine[0].href, "OEBPS/text/ch01.xhtml");
+}
+
 #[test]
 fn rendition_prepaginated_detected() {
     let opf = parse_opf(
@@ -131,6 +171,37 @@ fn unknown_rendition_value_is_reflowable() {
     )
     .unwrap();
     assert_eq!(opf.rendition_layout, RenditionLayout::Reflowable);
+}
+
+/// `rendition:layout` is publication-level only when un-refined: a
+/// `<meta refines="…">` overrides one itemref, so it must not set the
+/// whole book's layout — even when it appears first — and the
+/// publication-level meta after it still wins.
+#[test]
+fn refined_rendition_meta_does_not_set_book_layout() {
+    let refined_only = parse_opf(
+        r##"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata><meta refines="#spread1" property="rendition:layout">pre-paginated</meta></metadata>
+  <manifest/><spine/>
+</package>"##,
+    )
+    .unwrap();
+    assert_eq!(refined_only.rendition_layout, RenditionLayout::Reflowable);
+
+    let refined_then_publication = parse_opf(
+        r##"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata>
+    <meta refines="#spread1" property="rendition:layout">reflowable</meta>
+    <meta property="rendition:layout">pre-paginated</meta>
+  </metadata>
+  <manifest/><spine/>
+</package>"##,
+    )
+    .unwrap();
+    assert_eq!(
+        refined_then_publication.rendition_layout,
+        RenditionLayout::PrePaginated
+    );
 }
 
 #[test]

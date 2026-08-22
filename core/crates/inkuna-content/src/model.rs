@@ -22,7 +22,7 @@ pub struct EpubMetadata {
 pub struct TocEntry {
     pub title: String,
     /// Package-root-relative, possibly carrying a `#fragment` — the
-    /// Readium jump target.
+    /// jump target a TOC selection navigates to.
     pub href: String,
     /// 0-based nesting depth in the flattened tree.
     pub depth: u32,
@@ -75,8 +75,9 @@ pub struct EpubPackage {
     /// directory and deduplicated; entries whose resolved href exceeds
     /// `MAX_HREF_BYTES` are dropped rather than persisted.
     pub spine: Vec<SpineItem>,
-    /// Every manifest entry, hrefs normalized the same way, capped by
-    /// `MAX_MANIFEST_ITEMS` at the parse.
+    /// Every manifest entry, hrefs normalized the same way — entries
+    /// whose resolved href exceeds `MAX_HREF_BYTES` are dropped, like the
+    /// spine's — capped by `MAX_MANIFEST_ITEMS` at the parse.
     pub manifest: Vec<ManifestItem>,
     /// `<meta property="rendition:layout">`; [`RenditionLayout::Reflowable`]
     /// unless the OPF explicitly declares `pre-paginated`.
@@ -93,8 +94,10 @@ pub struct EpubPackage {
 }
 
 impl EpubPackage {
-    /// The spine's hrefs alone, in reading order — the shape
-    /// [`crate::extract_spine_text`] and the import pipeline consume.
+    /// The spine's hrefs alone, in reading order — a convenience
+    /// accessor in the shape [`crate::extract_spine_text`] takes. Only
+    /// tests consume it today; the import pipeline builds its href list
+    /// inline.
     pub fn spine_hrefs(&self) -> Vec<String> {
         self.spine.iter().map(|item| item.href.clone()).collect()
     }

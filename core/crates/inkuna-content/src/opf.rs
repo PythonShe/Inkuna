@@ -193,6 +193,13 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
                             opf.cover_meta = attr_value(e, b"content");
                         } else if !is_empty
                             && attr_value(e, b"property").as_deref() == Some("rendition:layout")
+                            // Only the publication-level meta decides the
+                            // book's layout: a `refines` meta overrides a
+                            // single itemref (a spread's fixed insert in a
+                            // reflowable book), and reading it here would
+                            // let a per-itemref override placed first set
+                            // the whole book pre-paginated.
+                            && attr_value(e, b"refines").is_none()
                         {
                             current = Some("rendition:layout");
                         }
