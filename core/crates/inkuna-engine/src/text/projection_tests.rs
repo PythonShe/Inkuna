@@ -112,6 +112,22 @@ fn anchor_offsets() {
     );
 }
 
+/// Pins the canonical nested-block rule: a block boundary breaks at
+/// START and END, deliberately deviating from the legacy
+/// `extract_spine_text` collapse (see the module doc). The legacy stream
+/// dies in Movement 6 and all corpus offsets rebaseline onto this.
+#[test]
+fn nested_block_boundaries_break_at_start_and_end() {
+    let nested_div = projected("<html><body><div>a<p>b</p></div></body></html>", &[]);
+    assert_eq!(nested_div.text, "a\nb");
+
+    let list_item = projected("<html><body><li>Item <p>para</p></li></body></html>", &[]);
+    assert_eq!(list_item.text, "Item\npara");
+
+    let stray = projected("<html><body><p>a</p>stray<p>b</p></body></html>", &[]);
+    assert_eq!(stray.text, "a\nstray\nb");
+}
+
 #[test]
 fn br_emits_newline() {
     let projection = projected(

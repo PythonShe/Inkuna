@@ -4,11 +4,21 @@
 //! `display: none` subtrees excluded; `rt` subtree text excluded (ruby
 //! annotation is display-only) while ruby base text is included; runs of
 //! Unicode whitespace collapse to one ASCII space; a block-element
-//! boundary emits exactly one `\n` (the block set matches the `BLOCK`
-//! list in inkuna-content's `text.rs`, the search-corpus extractor);
-//! `br` emits `\n`; each block's leading/trailing whitespace is trimmed;
-//! never a double `\n`; soft hyphens (U+00AD) are dropped; no generated
-//! content, no list markers. All offsets are Unicode scalar counts.
+//! boundary emits exactly one `\n` at the block's START and END (the
+//! block set matches the `BLOCK` list in inkuna-content's `text.rs`, the
+//! search-corpus extractor); `br` emits `\n`; each block's
+//! leading/trailing whitespace is trimmed; never a double `\n`; soft
+//! hyphens (U+00AD) are dropped; no generated content, no list markers.
+//! All offsets are Unicode scalar counts.
+//!
+//! DELIBERATE DEVIATION from the legacy `extract_spine_text` collapse in
+//! inkuna-content's `text.rs`, which flushes only on block END: emitting
+//! the boundary at both edges separates text sitting directly inside a
+//! block from a nested block's text (`<div>a<p>b</p></div>` → "a\nb"
+//! here vs "ab" there). The break-at-start-and-end behavior is the
+//! canonical rule; `text.rs` is deleted in Movement 6 and every book's
+//! corpus is rebaselined onto this projection by the V8 reconcile pass,
+//! so no lasting dual-stream exists.
 //!
 //! INVARIANT: input is publisher CSS + UA defaults only — reader
 //! settings never reach this pass, so the stream is stable across every
@@ -223,8 +233,8 @@ impl Projector<'_, '_> {
 }
 
 /// The block set — kept identical to the `BLOCK` const in
-/// inkuna-content's `text.rs`, because that extractor and this
-/// projection must segment text the same way.
+/// inkuna-content's `text.rs`. Boundary placement deliberately differs
+/// (see the module doc): the set is shared, the segmentation is not.
 fn is_block(name: &ElementName) -> bool {
     matches!(
         name,
