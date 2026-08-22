@@ -61,30 +61,43 @@ fn id_order_is_stable() {
     assert_eq!(file(6), "NotoSans-Bold.ttf");
     assert_eq!(file(7), "NotoSans-BoldItalic.ttf");
     // CJK: Serif before Sans; SC, TC, JP, KR; Regular before Bold.
-    // Collection indices per the noto-cjk OTC layout (jp,kr,sc,tc,hk).
-    let cjk = [
-        (8, "NotoSerifCJK-Regular.ttc", 2),
-        (9, "NotoSerifCJK-Bold.ttc", 2),
-        (10, "NotoSerifCJK-Regular.ttc", 3),
-        (11, "NotoSerifCJK-Bold.ttc", 3),
-        (12, "NotoSerifCJK-Regular.ttc", 0),
-        (13, "NotoSerifCJK-Bold.ttc", 0),
-        (14, "NotoSerifCJK-Regular.ttc", 1),
-        (15, "NotoSerifCJK-Bold.ttc", 1),
-        (16, "NotoSansCJK-Regular.ttc", 2),
-        (17, "NotoSansCJK-Bold.ttc", 2),
-        (18, "NotoSansCJK-Regular.ttc", 3),
-        (19, "NotoSansCJK-Bold.ttc", 3),
-        (20, "NotoSansCJK-Regular.ttc", 0),
-        (21, "NotoSansCJK-Bold.ttc", 0),
-        (22, "NotoSansCJK-Regular.ttc", 1),
-        (23, "NotoSansCJK-Bold.ttc", 1),
-    ];
-    for (id, name, index) in cjk {
-        assert_eq!(file(id), name, "id {id}");
-        assert_eq!(entries[id].collection_index, index, "id {id}");
+    // Identity is proven by the name table of the face each id's
+    // collection_index actually selects — NOT by echoing the code's
+    // index constants — so a font bump that reorders the OTC fails
+    // here instead of silently rendering SC text with JP glyphs.
+    let names = |id: u32| -> Vec<String> {
+        let face = reg.face(id);
+        let parsed = match rustybuzz::ttf_parser::Face::parse(&face.data, face.collection_index) {
+            Ok(f) => f,
+            Err(e) => panic!("face {id} must parse: {e}"),
+        };
+        parsed
+            .names()
+            .into_iter()
+            .filter_map(|n| n.to_string())
+            .collect()
+    };
+    let expect = |id: usize, tokens: [&str; 3]| {
+        let found = names(id as u32);
+        for token in tokens {
+            assert!(
+                found.iter().any(|n| n.contains(token)),
+                "id {id}: no name table entry contains {token:?}: {found:?}"
+            );
+        }
+    };
+    // PostScript names in the noto-cjk OTCs carry the region as e.g.
+    // "NotoSerifCJKsc-Regular".
+    let regions = ["CJKsc", "CJKtc", "CJKjp", "CJKkr"];
+    for (r, region) in regions.iter().enumerate() {
+        let serif_regular = 8 + r * 2;
+        expect(serif_regular, ["Serif", region, "Regular"]);
+        expect(serif_regular + 1, ["Serif", region, "Bold"]);
+        expect(serif_regular + 8, ["Sans", region, "Regular"]);
+        expect(serif_regular + 9, ["Sans", region, "Bold"]);
     }
     assert_eq!(file(24), "NotoSansSymbols2-Regular.ttf");
+    expect(24, ["Noto", "Sans", "Symbols"]);
     for (i, entry) in entries.iter().enumerate() {
         assert_eq!(entry.id, i as u32);
     }
