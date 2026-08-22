@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/inkuna-core", "crates/inkuna-ffi"]
+members = ["crates/inkuna-content", "crates/inkuna-core", "crates/inkuna-ffi"]
 
 [workspace.package]
 version = "0.6.2"

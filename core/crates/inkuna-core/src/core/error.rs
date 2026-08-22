@@ -72,3 +72,19 @@ impl From<zip::result::ZipError> for CoreError {
         CoreError::Archive(e.to_string())
     }
 }
+
+/// Maps the container layer's errors one-for-one onto the existing
+/// variants, so the FFI mirror stays unchanged. Deliberately exhaustive —
+/// no catch-all — so a future `ContentError` variant is a compile error
+/// here rather than a silently misrouted failure.
+impl From<inkuna_content::ContentError> for CoreError {
+    fn from(e: inkuna_content::ContentError) -> Self {
+        use inkuna_content::ContentError;
+        match e {
+            ContentError::Io(e) => CoreError::Io(e),
+            ContentError::Archive(detail) => CoreError::Archive(detail),
+            ContentError::InvalidPublication(detail) => CoreError::InvalidPublication(detail),
+            ContentError::FileTooLarge(bytes) => CoreError::FileTooLarge(bytes),
+        }
+    }
+}

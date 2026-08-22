@@ -3,16 +3,16 @@
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
-use super::model::EpubMetadata;
-use super::xml::{attr_value, clean_text, push_word, resolve_ref};
-use crate::CoreError;
+use crate::model::EpubMetadata;
+use crate::xml::{attr_value, clean_text, push_word, resolve_ref};
+use crate::ContentError;
 
 /// Upper bound on the `<itemref>` entries kept for one publication. Real
 /// books run to a few hundred; a crafted OPF can list millions, each
 /// costing an entry read and a DB row. Enforced at the push site so the
 /// idrefs beyond it are never materialized; extra ones degrade away with
 /// a warning at the caller.
-pub(crate) const MAX_SPINE_ITEMS: usize = 10_000;
+pub const MAX_SPINE_ITEMS: usize = 10_000;
 
 /// Upper bound on `<item>` manifest entries. The manifest names every
 /// asset (images, fonts, styles), so it legitimately runs larger than the
@@ -22,7 +22,7 @@ pub(crate) const MAX_SPINE_ITEMS: usize = 10_000;
 /// file inflating to a 616 MB resident set). The manifest is a mandatory
 /// part, and exceeding this bound means the file is not a real book, so
 /// the parse fails cleanly with `InvalidPublication`.
-pub(crate) const MAX_MANIFEST_ITEMS: usize = 100_000;
+pub const MAX_MANIFEST_ITEMS: usize = 100_000;
 
 /// Upper bound on one manifest item's `href` length. Real hrefs are
 /// archive paths a few dozen bytes long; a crafted OPF can attach a
@@ -48,43 +48,43 @@ pub(crate) const MAX_AUTHORS: usize = 1_000;
 /// import. Enforced at the push site while the OPF is walked, so the
 /// oversized value is never accumulated; the tail degrades away (cut on a
 /// `char` boundary, never a byte offset) with a warning at the caller.
-pub(crate) const MAX_METADATA_VALUE_BYTES: usize = 2048;
+pub const MAX_METADATA_VALUE_BYTES: usize = 2048;
 
 #[derive(Debug)]
-pub(super) struct ManifestItem {
-    pub(super) id: String,
-    pub(super) href: String,
-    pub(super) media_type: String,
+pub(crate) struct ManifestItem {
+    pub(crate) id: String,
+    pub(crate) href: String,
+    pub(crate) media_type: String,
     properties: String,
 }
 
 impl ManifestItem {
-    pub(super) fn has_property(&self, name: &str) -> bool {
+    pub(crate) fn has_property(&self, name: &str) -> bool {
         self.properties.split_ascii_whitespace().any(|p| p == name)
     }
 }
 
 #[derive(Debug, Default)]
-pub(super) struct Opf {
-    pub(super) metadata: EpubMetadata,
-    pub(super) items: Vec<ManifestItem>,
-    pub(super) spine_idrefs: Vec<String>,
+pub(crate) struct Opf {
+    pub(crate) metadata: EpubMetadata,
+    pub(crate) items: Vec<ManifestItem>,
+    pub(crate) spine_idrefs: Vec<String>,
     /// The spine's `toc` attribute (NCX manifest id), EPUB 2 style.
-    pub(super) spine_toc: Option<String>,
+    pub(crate) spine_toc: Option<String>,
     /// `<meta name="cover" content="…">`, EPUB 2 style.
-    pub(super) cover_meta: Option<String>,
+    pub(crate) cover_meta: Option<String>,
     /// Total `<itemref>`s the spine listed, including any dropped at
     /// [`MAX_SPINE_ITEMS`] — lets the caller log the truncation with the
     /// archive path for context.
-    pub(super) spine_itemrefs_seen: usize,
+    pub(crate) spine_itemrefs_seen: usize,
     /// Total `<dc:creator>`s listed, including any dropped at
     /// [`MAX_AUTHORS`].
-    pub(super) creators_seen: usize,
+    pub(crate) creators_seen: usize,
     /// Manifest items skipped for an href over [`MAX_HREF_BYTES`].
-    pub(super) oversized_href_items: usize,
+    pub(crate) oversized_href_items: usize,
     /// Metadata values cut at [`MAX_METADATA_VALUE_BYTES`] — lets the
     /// caller log the truncation once with the archive path for context.
-    pub(super) truncated_metadata_values: usize,
+    pub(crate) truncated_metadata_values: usize,
     /// The reader error that cut the walk short, with the byte offset it
     /// happened at — everything after it was never seen, so the title,
     /// the authors and the whole tail of the spine may be missing.
@@ -97,7 +97,7 @@ pub(super) struct Opf {
     /// doing it silently, so the caller logs this once with the archive
     /// path; a walk that died early enough to lose the title still fails
     /// cleanly downstream, where import rejects an untitled publication.
-    pub(super) parse_error: Option<String>,
+    pub(crate) parse_error: Option<String>,
 }
 
 /// Appends `text` to `acc` through [`push_word`], never letting `acc`
@@ -122,7 +122,7 @@ fn push_word_capped(acc: &mut String, text: &str) -> bool {
     true
 }
 
-pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
+pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
     let mut opf = Opf::default();
     let mut reader = Reader::from_str(opf_xml);
     // quick-xml keeps a stack of open element names while validating end
@@ -150,7 +150,7 @@ pub(super) fn parse_opf(opf_xml: &str) -> Result<Opf, CoreError> {
                     b"language" if !is_empty => current = Some("language"),
                     b"item" => {
                         if opf.items.len() == MAX_MANIFEST_ITEMS {
-                            return Err(CoreError::InvalidPublication(format!(
+                            return Err(ContentError::InvalidPublication(format!(
                                 "manifest lists more than {MAX_MANIFEST_ITEMS} items"
                             )));
                         }

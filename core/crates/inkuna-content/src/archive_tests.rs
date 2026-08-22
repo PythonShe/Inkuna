@@ -30,7 +30,7 @@ fn oversize_entry_hits_the_decompression_cap() {
     let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
     assert!(matches!(
         read_entry(&mut archive, "OEBPS/bomb.xhtml"),
-        Err(CoreError::InvalidPublication(_))
+        Err(ContentError::InvalidPublication(_))
     ));
 }
 
@@ -63,7 +63,7 @@ fn spine_cap_is_tighter_than_the_mandatory_xml_cap() {
     let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
     assert!(matches!(
         read_spine_entry(&mut archive, "OEBPS/between.xhtml"),
-        Err(CoreError::InvalidPublication(_))
+        Err(ContentError::InvalidPublication(_))
     ));
     let xml = read_entry(&mut archive, "OEBPS/between.xhtml").unwrap();
     assert_eq!(xml.len() as u64, size);
@@ -99,8 +99,43 @@ fn oversize_cjk_entry_cut_mid_character_is_still_invalid_publication() {
 
     let mut archive = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
     match read_entry(&mut archive, "OEBPS/bomb.xhtml") {
-        Err(CoreError::InvalidPublication(_)) => {}
+        Err(ContentError::InvalidPublication(_)) => {}
         Err(other) => panic!("expected InvalidPublication, got {other:?}"),
         Ok(_) => panic!("expected the cap to reject the entry"),
     }
+}
+
+/// `read_resource` is the single bounded read for binary resources: a
+/// crafted entry inflating past the per-entry budget is rejected as an
+/// archive-level fault instead of being materialized in full.
+#[test]
+fn read_resource_respects_entry_budget() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("resource-bomb.epub");
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+    let deflated = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    zip.start_file("OEBPS/images/cover.png", deflated).unwrap();
+    let chunk = vec![0u8; 1024 * 1024];
+    let mut written = 0u64;
+    while written <= MAX_RESOURCE_BYTES {
+        zip.write_all(&chunk).unwrap();
+        written += chunk.len() as u64;
+    }
+    zip.start_file("OEBPS/images/small.png", deflated).unwrap();
+    zip.write_all(b"\x89PNG\r\n\x1a\nsmall").unwrap();
+    zip.finish().unwrap();
+
+    assert!(matches!(
+        read_resource(&path, "OEBPS/images/cover.png"),
+        Err(ContentError::Archive(_))
+    ));
+    // An in-budget sibling still reads back verbatim.
+    assert_eq!(
+        read_resource(&path, "OEBPS/images/small.png").unwrap(),
+        b"\x89PNG\r\n\x1a\nsmall"
+    );
 }

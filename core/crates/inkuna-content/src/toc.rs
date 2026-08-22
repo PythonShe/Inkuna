@@ -4,9 +4,9 @@
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
-use super::href::resolve_relative;
-use super::model::TocEntry;
-use super::xml::{attr_value, clean_text, push_word, raw_attr, resolve_ref};
+use crate::href::resolve_relative;
+use crate::model::TocEntry;
+use crate::xml::{attr_value, clean_text, push_word, raw_attr, resolve_ref};
 
 /// Upper bound on the TOC entries kept for one publication. With
 /// [`MAX_TOC_TOTAL_BYTES`] bounding the retained bytes, this only bounds
@@ -16,7 +16,7 @@ use super::xml::{attr_value, clean_text, push_word, raw_attr, resolve_ref};
 /// entries — because the TOC is an optional part that degrades: the parse
 /// stops at the cap and the rest falls away with a warning, which for a
 /// real book is its own kind of data loss.
-pub(crate) const MAX_TOC_ENTRIES: usize = 100_000;
+pub const MAX_TOC_ENTRIES: usize = 100_000;
 
 /// Aggregate byte budget for the TOC retained from one publication,
 /// charging what each entry actually keeps: its title plus its resolved
@@ -29,7 +29,7 @@ pub(crate) const MAX_TOC_ENTRIES: usize = 100_000;
 /// at hundreds of MB. Accounting uses whole-`String` byte lengths only;
 /// no text is ever split or indexed at a byte offset, so multi-byte CJK
 /// titles are never cut.
-pub(crate) const MAX_TOC_TOTAL_BYTES: usize = 8 * 1024 * 1024;
+pub const MAX_TOC_TOTAL_BYTES: usize = 8 * 1024 * 1024;
 
 /// Appends `entry` when both TOC caps allow it: the entry-count cap and
 /// the aggregate byte budget over what each entry retains. Returns
@@ -66,7 +66,7 @@ pub(crate) const MAX_TOC_DEPTH: usize = 64;
 /// Parses the `<nav epub:type="toc">` (or `role="doc-toc"`) of a nav doc
 /// into a flattened, depth-annotated list. Nesting depth follows `<ol>`
 /// levels; entries are `<a>` elements with an href.
-pub(super) fn parse_nav(xml: &str, nav_path: &str) -> Vec<TocEntry> {
+pub(crate) fn parse_nav(xml: &str, nav_path: &str) -> Vec<TocEntry> {
     let mut entries = Vec::new();
     let mut reader = Reader::from_str(xml);
     reader.config_mut().check_end_names = false;
@@ -156,7 +156,7 @@ pub(super) fn parse_nav(xml: &str, nav_path: &str) -> Vec<TocEntry> {
 
 /// Parses an NCX `<navMap>`: nested `<navPoint>` elements, each with a
 /// `<navLabel><text>` title and a `<content src>` target.
-pub(super) fn parse_ncx(xml: &str, ncx_path: &str) -> Vec<TocEntry> {
+pub(crate) fn parse_ncx(xml: &str, ncx_path: &str) -> Vec<TocEntry> {
     let mut entries = Vec::new();
     let mut reader = Reader::from_str(xml);
     reader.config_mut().check_end_names = false;

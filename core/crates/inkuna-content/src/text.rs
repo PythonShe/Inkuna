@@ -11,9 +11,9 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 use rayon::prelude::*;
 
-use super::archive::read_spine_entry;
-use super::xml::{push_word, resolve_ref};
-use crate::CoreError;
+use crate::archive::read_spine_entry;
+use crate::xml::{push_word, resolve_ref};
+use crate::ContentError;
 
 /// Aggregate budget for the text retained for one publication. The
 /// per-entry decompression cap bounds a single resource, never the corpus:
@@ -25,7 +25,7 @@ use crate::CoreError;
 /// was ~25x a huge novel, and measured, it let an 18 KB crafted archive
 /// import into a 364 MB data directory; a crafted spine now stops at a
 /// quarter of that.
-pub(crate) const MAX_TOTAL_TEXT_BYTES: usize = 32 * 1024 * 1024;
+pub const MAX_TOTAL_TEXT_BYTES: usize = 32 * 1024 * 1024;
 
 /// Elements whose entire content is invisible to a reader.
 const SKIPPED: &[&[u8]] = &[b"head", b"script", b"style", b"template"];
@@ -114,7 +114,7 @@ fn extract_spine_text_budgeted(
         .map_init(
             // One archive handle per rayon worker split; zip readers need
             // &mut access, so they cannot be shared across threads.
-            || zip::ZipArchive::new(File::open(path)?).map_err(CoreError::from),
+            || zip::ZipArchive::new(File::open(path)?).map_err(ContentError::from),
             |archive, href| {
                 if extracted_bytes.load(Ordering::Relaxed) >= budget {
                     return Extraction::Deferred;
@@ -233,8 +233,8 @@ fn reopen_for_deferred(extracted: &[Extraction], path: &Path) -> Option<zip::Zip
         return None;
     }
     match File::open(path)
-        .map_err(CoreError::from)
-        .and_then(|file| zip::ZipArchive::new(file).map_err(CoreError::from))
+        .map_err(ContentError::from)
+        .and_then(|file| zip::ZipArchive::new(file).map_err(ContentError::from))
     {
         Ok(archive) => Some(archive),
         Err(e) => {

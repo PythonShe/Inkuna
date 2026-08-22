@@ -4,10 +4,10 @@
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
-use super::xml::attr_value;
-use crate::CoreError;
+use crate::xml::attr_value;
+use crate::ContentError;
 
-pub(super) fn rootfile_path(container_xml: &str) -> Result<String, CoreError> {
+pub(crate) fn rootfile_path(container_xml: &str) -> Result<String, ContentError> {
     let mut reader = Reader::from_str(container_xml);
     // No end-name validation: it would grow a stack of open element names
     // on a crafted deeply-nested document (see the note in `parse_opf`).
@@ -21,12 +21,12 @@ pub(super) fn rootfile_path(container_xml: &str) -> Result<String, CoreError> {
                 }
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(CoreError::InvalidPublication(e.to_string())),
+            Err(e) => return Err(ContentError::InvalidPublication(e.to_string())),
             _ => {}
         }
         buf.clear();
     }
-    Err(CoreError::InvalidPublication(
+    Err(ContentError::InvalidPublication(
         "no rootfile in container.xml".into(),
     ))
 }

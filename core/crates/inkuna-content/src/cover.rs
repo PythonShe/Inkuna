@@ -50,7 +50,7 @@ fn usable_suffix(suffix: &str) -> bool {
 /// missing media type (non-conforming, but real files do it) leaves the
 /// href suffix as the only signal, so it is matched against
 /// [`IMAGE_SUFFIXES`] instead of being taken on trust.
-pub(super) fn image_extension(media_type: &str, href: &str) -> Option<String> {
+pub(crate) fn image_extension(media_type: &str, href: &str) -> Option<String> {
     if let Some(extension) = known_extension(media_type) {
         return Some(extension.into());
     }

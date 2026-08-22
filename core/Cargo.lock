@@ -1190,6 +1190,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "inkuna-content"
+version = "0.6.2"
+dependencies = [
+ "log",
+ "percent-encoding",
+ "quick-xml",
+ "rayon",
+ "tempfile",
+ "thiserror",
+ "zip",
+]
+
+[[package]]
 name = "inkuna-core"
 version = "0.6.2"
 dependencies = [
@@ -1201,9 +1214,9 @@ dependencies = [
  "icu_casemap",
  "icu_normalizer",
  "image",
+ "inkuna-content",
  "jieba-rs",
  "log",
- "percent-encoding",
  "quick-xml",
  "rayon",
  "regex",

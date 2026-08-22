@@ -4,21 +4,21 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::path::Path;
 
-use super::archive::{read_entry, read_entry_bytes};
-use super::container::rootfile_path;
-use super::cover::image_extension;
-use super::href::{parent_dir, resolve_href};
-use super::model::{Cover, EpubPackage};
-use super::opf::{
+use crate::archive::{read_entry, read_resource};
+use crate::container::rootfile_path;
+use crate::cover::image_extension;
+use crate::href::{parent_dir, resolve_href};
+use crate::model::{Cover, EpubPackage};
+use crate::opf::{
     parse_opf, ManifestItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_METADATA_VALUE_BYTES, MAX_SPINE_ITEMS,
 };
-use super::toc::{parse_nav, parse_ncx};
-use crate::CoreError;
+use crate::toc::{parse_nav, parse_ncx};
+use crate::ContentError;
 
 /// Parses everything import needs in one pass over the archive: metadata,
 /// spine, TOC, and cover bytes. Text extraction is separate
 /// (`extract_spine_text`) so it can run in parallel.
-pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
+pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
     let mut archive = zip::ZipArchive::new(File::open(path)?)?;
 
     let container = read_entry(&mut archive, "META-INF/container.xml")?;
@@ -170,7 +170,7 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, CoreError> {
             );
             return None;
         };
-        let bytes = read_entry_bytes(&mut archive, &resolve(&item.href)).ok()?;
+        let bytes = read_resource(path, &resolve(&item.href)).ok()?;
         Some(Cover { bytes, extension })
     });
 

@@ -9,9 +9,7 @@ use quick_xml::escape::escape;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, DateTime, ZipWriter};
 
-use super::archive::MAX_SPINE_ENTRY_BYTES;
-use super::opf::MAX_SPINE_ITEMS;
-use super::toc::MAX_TOC_ENTRIES;
+use inkuna_content::{MAX_SPINE_ENTRY_BYTES, MAX_SPINE_ITEMS, MAX_TOC_ENTRIES};
 use crate::CoreError;
 
 const DEFAULT_STYLESHEET: &str = "p { text-indent: 2em; margin: 0.2em 0; }\n\

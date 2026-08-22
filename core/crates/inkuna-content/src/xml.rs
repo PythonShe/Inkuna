@@ -7,7 +7,7 @@ use quick_xml::events::BytesStart;
 /// predefined five, and (EPUB XHTML being HTML-flavored in practice) the
 /// HTML5 named set. Unresolvable references are kept verbatim so no
 /// content silently disappears.
-pub(super) fn resolve_ref(r: &quick_xml::events::BytesRef) -> String {
+pub(crate) fn resolve_ref(r: &quick_xml::events::BytesRef) -> String {
     if let Ok(Some(ch)) = r.resolve_char_ref() {
         return ch.to_string();
     }
@@ -26,7 +26,7 @@ pub(super) fn resolve_ref(r: &quick_xml::events::BytesRef) -> String {
 /// spaces. UTF-8-safe: operates on `char` boundaries only, never byte
 /// offsets. (Entities never appear here — the parser emits them as
 /// separate `GeneralRef` events.)
-pub(super) fn push_word(acc: &mut String, text: &str) {
+pub(crate) fn push_word(acc: &mut String, text: &str) {
     let mut needs_sep = text.starts_with(char::is_whitespace);
     for word in text.split_whitespace() {
         if needs_sep && !acc.is_empty() && !acc.ends_with(' ') {
@@ -44,7 +44,7 @@ pub(super) fn push_word(acc: &mut String, text: &str) {
 }
 
 /// Trims a captured text value; `None` when empty.
-pub(super) fn clean_text(text: Option<&str>) -> Option<String> {
+pub(crate) fn clean_text(text: Option<&str>) -> Option<String> {
     let trimmed = text?.trim();
     if trimmed.is_empty() {
         None
@@ -54,7 +54,7 @@ pub(super) fn clean_text(text: Option<&str>) -> Option<String> {
 }
 
 /// An attribute's entity-unescaped value by exact local-name match.
-pub(super) fn attr_value(e: &BytesStart, name: &[u8]) -> Option<String> {
+pub(crate) fn attr_value(e: &BytesStart, name: &[u8]) -> Option<String> {
     e.attributes().flatten().find_map(|attr| {
         if attr.key.local_name().as_ref() == name {
             attr.normalized_value(quick_xml::XmlVersion::default())
@@ -68,7 +68,7 @@ pub(super) fn attr_value(e: &BytesStart, name: &[u8]) -> Option<String> {
 
 /// An attribute's value by raw qualified name (e.g. `epub:type`, where the
 /// prefix is significant and `local_name` would collide with other vocab).
-pub(super) fn raw_attr(e: &BytesStart, name: &[u8]) -> Option<String> {
+pub(crate) fn raw_attr(e: &BytesStart, name: &[u8]) -> Option<String> {
     e.attributes().flatten().find_map(|attr| {
         if attr.key.as_ref() == name {
             attr.normalized_value(quick_xml::XmlVersion::default())

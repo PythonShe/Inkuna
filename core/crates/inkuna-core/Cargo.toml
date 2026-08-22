@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+inkuna-content = { path = "../inkuna-content" }
 rusqlite = { version = "0.40", features = ["bundled"] }
 chrono = "0.4.45"
 chrono-tz = "0.10"
@@ -19,7 +20,6 @@ encoding_rs = "0.8"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "webp", "rayon"] }
 webp = { version = "0.3", default-features = false }
 rayon = "1"
-percent-encoding = "2"
 log = "0.4"
 regex = "1"
 icu_casemap = "2"
@@ -30,4 +30,5 @@ tantivy = "0.26"
 jieba-rs = "0.10"
 
 [dev-dependencies]
+inkuna-content = { path = "../inkuna-content", features = ["test-support"] }
 tempfile = "3"

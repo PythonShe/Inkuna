@@ -25,3 +25,13 @@ fn resolves_hrefs_against_base_dirs() {
         "OEBPS/text/ch01.xhtml"
     );
 }
+
+#[test]
+fn split_fragment_variants() {
+    assert_eq!(split_fragment("a.xhtml#x"), ("a.xhtml", Some("x")));
+    assert_eq!(split_fragment("a.xhtml"), ("a.xhtml", None));
+    assert_eq!(split_fragment("#x"), ("", Some("x")));
+    // Splits at the FIRST '#': anything after it belongs to the fragment.
+    assert_eq!(split_fragment("a.xhtml#x#y"), ("a.xhtml", Some("x#y")));
+    assert_eq!(split_fragment(""), ("", None));
+}

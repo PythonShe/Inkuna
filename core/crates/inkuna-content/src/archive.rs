@@ -3,8 +3,9 @@
 
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 
-use crate::CoreError;
+use crate::ContentError;
 
 /// Per-entry decompression budget for the XML parts import cannot do
 /// without: `container.xml`, the OPF, the nav doc, the NCX. A zip entry's
@@ -18,7 +19,7 @@ use crate::CoreError;
 /// push sites (`MAX_MANIFEST_ITEMS`, `MAX_SPINE_ITEMS`,
 /// `MAX_TOC_ENTRIES`). A big book's OPF or NCX can legitimately run to
 /// megabytes, which is why this byte budget stays generous.
-pub(super) const MAX_XML_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
+pub(crate) const MAX_XML_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
 /// Per-entry budget for spine content documents, which are far tighter
 /// than the mandatory parts because they are read *concurrently*: the
 /// transient peak is `rayon threads × this`, so the 64 MiB above would
@@ -27,15 +28,16 @@ pub(super) const MAX_XML_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
 /// in flight when it trips. A whole large novel's text is a few MB, so
 /// 8 MiB for one chapter keeps orders of magnitude of headroom over any
 /// honest content while bounding the peak to ~48 MB.
-pub(super) const MAX_SPINE_ENTRY_BYTES: u64 = 8 * 1024 * 1024;
-/// Same idea for cover art, which never legitimately approaches it.
-const MAX_COVER_BYTES: u64 = 16 * 1024 * 1024;
+pub const MAX_SPINE_ENTRY_BYTES: u64 = 8 * 1024 * 1024;
+/// Same idea for binary resources — cover art and the engine's images —
+/// which never legitimately approach it.
+const MAX_RESOURCE_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Reads a mandatory XML part under [`MAX_XML_ENTRY_BYTES`].
-pub(super) fn read_entry(
+pub(crate) fn read_entry(
     archive: &mut zip::ZipArchive<File>,
     name: &str,
-) -> Result<String, CoreError> {
+) -> Result<String, ContentError> {
     read_entry_capped(archive, name, MAX_XML_ENTRY_BYTES)
 }
 
@@ -43,10 +45,10 @@ pub(super) fn read_entry(
 /// [`MAX_SPINE_ENTRY_BYTES`]. Callers degrade on the error (skip the
 /// resource's text and keep importing) — a content document is optional
 /// as far as import is concerned.
-pub(super) fn read_spine_entry(
+pub(crate) fn read_spine_entry(
     archive: &mut zip::ZipArchive<File>,
     name: &str,
-) -> Result<String, CoreError> {
+) -> Result<String, ContentError> {
     read_entry_capped(archive, name, MAX_SPINE_ENTRY_BYTES)
 }
 
@@ -54,7 +56,7 @@ fn read_entry_capped(
     archive: &mut zip::ZipArchive<File>,
     name: &str,
     cap: u64,
-) -> Result<String, CoreError> {
+) -> Result<String, ContentError> {
     let entry = open_entry(archive, name)?;
     let mut buf = Vec::new();
     entry.take(cap + 1).read_to_end(&mut buf)?;
@@ -64,21 +66,26 @@ fn read_entry_capped(
     // not as invalid UTF-8, because the shells route on the variant.
     check_cap(buf.len(), cap, name)?;
     String::from_utf8(buf)
-        .map_err(|e| CoreError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))
+        .map_err(|e| ContentError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))
 }
 
-/// Reads a binary entry — cover art, the only one today — under
-/// [`MAX_COVER_BYTES`]. Unlike the text readers this one does not decode:
-/// the bytes are written to `covers/` exactly as the archive stored them.
-/// Callers degrade on the error (import keeps going without a cover).
-pub(super) fn read_entry_bytes(
-    archive: &mut zip::ZipArchive<File>,
-    name: &str,
-) -> Result<Vec<u8>, CoreError> {
-    let entry = open_entry(archive, name)?;
+/// Reads one package-root-relative binary entry — cover art at import,
+/// any resource (an image, a stylesheet) for the reader engine — under
+/// [`MAX_RESOURCE_BYTES`]. The single enforcement point for bounded
+/// binary reads: it does not decode, and an entry inflating past the
+/// budget is an archive-level fault (`ContentError::Archive`), never
+/// materialized in full. Callers degrade on the error where the resource
+/// is optional (import keeps going without a cover).
+pub fn read_resource(epub_path: &Path, href: &str) -> Result<Vec<u8>, ContentError> {
+    let mut archive = zip::ZipArchive::new(File::open(epub_path)?)?;
+    let entry = open_entry(&mut archive, href)?;
     let mut buf = Vec::new();
-    entry.take(MAX_COVER_BYTES + 1).read_to_end(&mut buf)?;
-    check_cap(buf.len(), MAX_COVER_BYTES, name)?;
+    entry.take(MAX_RESOURCE_BYTES + 1).read_to_end(&mut buf)?;
+    if buf.len() as u64 > MAX_RESOURCE_BYTES {
+        return Err(ContentError::Archive(format!(
+            "{href} exceeds the {MAX_RESOURCE_BYTES}-byte decompression limit"
+        )));
+    }
     Ok(buf)
 }
 
@@ -92,22 +99,22 @@ pub(super) fn read_entry_bytes(
 fn open_entry<'a>(
     archive: &'a mut zip::ZipArchive<File>,
     name: &str,
-) -> Result<zip::read::ZipFile<'a, File>, CoreError> {
+) -> Result<zip::read::ZipFile<'a, File>, ContentError> {
     archive.by_name(name).map_err(|e| match e {
         zip::result::ZipError::FileNotFound => {
-            CoreError::InvalidPublication(format!("missing {name}"))
+            ContentError::InvalidPublication(format!("missing {name}"))
         }
-        zip::result::ZipError::Io(e) => CoreError::Io(e),
-        other => CoreError::Archive(format!("cannot read {name}: {other}")),
+        zip::result::ZipError::Io(e) => ContentError::Io(e),
+        other => ContentError::Archive(format!("cannot read {name}: {other}")),
     })
 }
 
 /// Every reader above takes `cap + 1` bytes: a read that stops exactly at
 /// the cap is indistinguishable from a silently truncated entry, so the
 /// extra byte is what makes the overflow detectable here.
-fn check_cap(read: usize, cap: u64, name: &str) -> Result<(), CoreError> {
+fn check_cap(read: usize, cap: u64, name: &str) -> Result<(), ContentError> {
     if read as u64 > cap {
-        return Err(CoreError::InvalidPublication(format!(
+        return Err(ContentError::InvalidPublication(format!(
             "{name} exceeds the {cap}-byte decompression limit"
         )));
     }
