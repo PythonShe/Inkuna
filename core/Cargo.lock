@@ -1214,6 +1214,7 @@ dependencies = [
  "icu_normalizer",
  "image",
  "inkuna-content",
+ "inkuna-engine",
  "inkuna-format",
  "jieba-rs",
  "log",
@@ -1225,6 +1226,15 @@ dependencies = [
  "uuid",
  "webp",
  "zip",
+]
+
+[[package]]
+name = "inkuna-engine"
+version = "0.6.2"
+dependencies = [
+ "inkuna-content",
+ "log",
+ "thiserror",
 ]
 
 [[package]]

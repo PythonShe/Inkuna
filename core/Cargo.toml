@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/inkuna-content",
     "crates/inkuna-format",
+    "crates/inkuna-engine",
     "crates/inkuna-core",
     "crates/inkuna-ffi",
 ]

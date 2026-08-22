@@ -2,7 +2,7 @@
 //!
 //! Owns everything that is not pixels: the library database, import
 //! pipeline, format detection, metadata extraction, and reading progress.
-//! Rendering stays in the platform shells (Readium navigators).
+//! Rendering is split: layout in the core's engine, drawing in the shells.
 
 mod core;
 mod features;
