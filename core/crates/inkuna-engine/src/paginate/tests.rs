@@ -7,6 +7,7 @@ use crate::fixed::Fx;
 use crate::fonts::FontRegistry;
 use crate::settings::LayoutSettings;
 use crate::style::{parse_sheet, resolve};
+use crate::test_support::tiny_png;
 use crate::text::project;
 
 use super::{paginate, ChapterInput, ChapterLayoutResult, FxSize, LaidPage};
@@ -26,6 +27,15 @@ fn registry() -> &'static FontRegistry {
 /// settings, returning the emitted pages, the result, and the
 /// projection text (for locating paragraph boundaries).
 fn run(doc_src: &str, viewport: FxSize) -> (Vec<LaidPage>, ChapterLayoutResult, String) {
+    run_with(doc_src, viewport, "OEBPS/ch01.xhtml", &|_| None)
+}
+
+fn run_with(
+    doc_src: &str,
+    viewport: FxSize,
+    resource_path: &str,
+    resources: &dyn Fn(&str) -> Option<Vec<u8>>,
+) -> (Vec<LaidPage>, ChapterLayoutResult, String) {
     let doc = parse(doc_src.as_bytes()).expect("fixture parses");
     let css: Vec<&str> = doc
         .stylesheets
@@ -48,6 +58,8 @@ fn run(doc_src: &str, viewport: FxSize) -> (Vec<LaidPage>, ChapterLayoutResult, 
         settings: &settings,
         viewport,
         lang: None,
+        resource_path,
+        resources,
     };
     let mut pages = Vec::new();
     let result = paginate(&input, &mut |p| pages.push(p)).expect("paginate is infallible");
@@ -300,4 +312,103 @@ fn blockquote_inset_narrower_lines() {
         content_w - inset - inset,
         "quoted lines justify to the narrower measure"
     );
+}
+
+#[test]
+fn image_scaled_to_fit_never_upscaled() {
+    // Content box 400 pt wide (452 minus the default 26 pt margins).
+    let body = r#"<p>before</p><img src="small.png"/><img src="big.png"/>"#;
+    let resources = |href: &str| -> Option<Vec<u8>> {
+        match href {
+            "OEBPS/small.png" => Some(tiny_png(100, 50)),
+            "OEBPS/big.png" => Some(tiny_png(1000, 500)),
+            _ => None,
+        }
+    };
+    let (pages, result, _) = run_with(
+        &wrap_body(body, ""),
+        viewport(452.0, 600.0),
+        "OEBPS/ch01.xhtml",
+        &resources,
+    );
+    assert_eq!(result.page_count, 1);
+    let images = &pages[0].images;
+    assert_eq!(images.len(), 2);
+    let small = &images[0];
+    assert_eq!(small.href, "OEBPS/small.png");
+    assert_eq!(small.frame.w, Fx::from_pt(100.0), "never upscaled");
+    assert_eq!(small.frame.h, Fx::from_pt(50.0));
+    assert_eq!(small.frame.x, Fx::from_pt(26.0 + 150.0), "inline-centered");
+    let big = &images[1];
+    assert_eq!(big.frame.w, Fx::from_pt(400.0), "fit to the content width");
+    assert_eq!(big.frame.h, Fx::from_pt(200.0), "aspect preserved");
+    assert_eq!(big.frame.x, Fx::from_pt(26.0));
+}
+
+#[test]
+fn unsniffable_gets_placeholder() {
+    let body = r#"<p>before</p><img src="junk.bin"/>"#;
+    let resources = |_: &str| Some(b"not an image at all".to_vec());
+    let (pages, _, _) = run_with(
+        &wrap_body(body, ""),
+        viewport(452.0, 600.0),
+        "OEBPS/ch01.xhtml",
+        &resources,
+    );
+    let img = &pages[0].images[0];
+    assert_eq!(img.href, "OEBPS/junk.bin", "href still emitted");
+    assert_eq!(img.frame.w, Fx::from_pt(160.0));
+    assert_eq!(img.frame.h, Fx::from_pt(160.0));
+}
+
+#[test]
+fn oversize_dimensions_get_placeholder() {
+    let body = r#"<p>before</p><img src="huge.png"/>"#;
+    let resources = |_: &str| Some(tiny_png(60_000, 100));
+    let (pages, _, _) = run_with(
+        &wrap_body(body, ""),
+        viewport(452.0, 600.0),
+        "OEBPS/ch01.xhtml",
+        &resources,
+    );
+    let img = &pages[0].images[0];
+    assert_eq!(img.frame.w, Fx::from_pt(160.0), "claimed 60000 px -> placeholder");
+    assert_eq!(img.frame.h, Fx::from_pt(160.0));
+}
+
+#[test]
+fn image_breaks_to_next_page() {
+    // ~10 lines of filler leave less than 200 pt on the 348 pt page.
+    let sentence = "月光洒在窗台上屋里一片寂静。";
+    let body = format!("<p>{}</p><img src=\"plate.png\"/>", sentence.repeat(10));
+    let resources = |_: &str| Some(tiny_png(200, 200));
+    let (pages, result, _) = run_with(
+        &wrap_body(&body, ""),
+        viewport(300.0, 400.0),
+        "OEBPS/ch01.xhtml",
+        &resources,
+    );
+    assert!(result.page_count >= 2);
+    assert!(pages[0].images.is_empty(), "no room on the first page");
+    let img = &pages[1].images[0];
+    assert_eq!(img.frame.y, Fx::from_pt(26.0), "lands at the next page's top");
+    assert_eq!(img.frame.h, Fx::from_pt(200.0));
+}
+
+#[test]
+fn image_href_normalized() {
+    let body = r#"<p>before</p><img src="../images/a%20b.png"/>"#;
+    let resources = |href: &str| -> Option<Vec<u8>> {
+        assert_eq!(href, "OEBPS/images/a b.png", "lookup uses the resolved path");
+        Some(tiny_png(50, 50))
+    };
+    let (pages, _, _) = run_with(
+        &wrap_body(body, ""),
+        viewport(452.0, 600.0),
+        "OEBPS/text/ch1.xhtml",
+        &resources,
+    );
+    let img = &pages[0].images[0];
+    assert_eq!(img.href, "OEBPS/images/a b.png");
+    assert_eq!(img.frame.w, Fx::from_pt(50.0));
 }

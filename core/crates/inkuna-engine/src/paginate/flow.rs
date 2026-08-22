@@ -13,6 +13,7 @@ use crate::fixed::Fx;
 use crate::layout::Line;
 use crate::style::WritingMode;
 
+use super::images::{self, MeasuredImage, PlacedImage};
 use super::pages::{
     ChapterInput, DecorationKind, FxRect, LaidPage, Metrics, PlacedDecoration, PlacedLine,
     MAX_PAGES_PER_CHAPTER,
@@ -31,6 +32,7 @@ pub(super) struct Pager {
     index: u32,
     used: Fx,
     lines: Vec<PlacedLine>,
+    images: Vec<PlacedImage>,
     decorations: Vec<PlacedDecoration>,
     page_start: u64,
     cursor: u64,
@@ -55,6 +57,7 @@ impl Pager {
             index: 0,
             used: Fx::ZERO,
             lines: Vec::new(),
+            images: Vec::new(),
             decorations: Vec::new(),
             page_start: 0,
             cursor: 0,
@@ -78,7 +81,7 @@ impl Pager {
     }
 
     fn has_content(&self) -> bool {
-        !self.lines.is_empty() || !self.decorations.is_empty()
+        !self.lines.is_empty() || !self.images.is_empty() || !self.decorations.is_empty()
     }
 
     /// Closes the current page and emits it — the progressive path.
@@ -90,6 +93,7 @@ impl Pager {
             index: self.index,
             char_range: self.page_start..self.cursor,
             lines: std::mem::take(&mut self.lines),
+            images: std::mem::take(&mut self.images),
             decorations: std::mem::take(&mut self.decorations),
         });
         self.pages += 1;
@@ -247,6 +251,59 @@ impl Pager {
             kind: DecorationKind::Rule,
         });
         self.used += adv;
+    }
+
+    /// Places one measured image in the block flow between lines. It
+    /// contributes no chars — its position in `char_range` is the
+    /// boundary offset between the surrounding text. An image taller
+    /// (block-axis) than the remaining page space moves to the next
+    /// page; taller than a whole page was already scaled to fit by
+    /// [`images::fit`]. In vertical-rl the content box axes swap with
+    /// the flow; the frame is still emitted in page coordinates.
+    pub fn place_image(
+        &mut self,
+        img: MeasuredImage,
+        m: &Metrics,
+        emit: &mut dyn FnMut(LaidPage),
+    ) {
+        if self.capped {
+            return;
+        }
+        let (w, h) = images::fit(img.intrinsic, self.content_w, self.content_h);
+        let block_extent = if self.vertical { w } else { h };
+        if self.has_content() {
+            if self.used + m.para_spacing + block_extent > self.block_total {
+                self.flush(emit);
+                if self.capped {
+                    return;
+                }
+            } else {
+                self.used += m.para_spacing;
+            }
+        }
+        let frame = if self.vertical {
+            let right = self.content_x + self.content_w;
+            FxRect {
+                x: right - self.used - w,
+                // Centered on the (vertical) inline axis.
+                y: self.content_y + Fx((self.content_h - h).0 / 2),
+                w,
+                h,
+            }
+        } else {
+            FxRect {
+                // Centered on the inline axis.
+                x: self.content_x + Fx((self.content_w - w).0 / 2),
+                y: self.content_y + self.used,
+                w,
+                h,
+            }
+        };
+        self.images.push(PlacedImage {
+            href: img.href,
+            frame,
+        });
+        self.used += block_extent;
     }
 
     /// Flushes the final page (an empty chapter still yields one page)

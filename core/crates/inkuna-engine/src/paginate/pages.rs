@@ -14,6 +14,7 @@ use crate::text::Projection;
 
 use super::blocks::{self, BlockKind};
 use super::flow::Pager;
+use super::images::{self, PlacedImage};
 
 /// Page budget per chapter: layout stops here and the result is a
 /// truncated prefix (`char_range`s cover exactly the emitted pages).
@@ -62,6 +63,7 @@ pub struct LaidPage {
     pub index: u32,
     pub char_range: Range<u64>,
     pub lines: Vec<PlacedLine>,
+    pub images: Vec<PlacedImage>,
     pub decorations: Vec<PlacedDecoration>,
 }
 
@@ -75,7 +77,8 @@ pub struct ChapterLayoutResult {
 }
 
 /// Everything one chapter layout consumes. The engine is a pure
-/// library: no I/O happens inside `paginate`.
+/// library: no I/O happens inside `paginate` — image bytes arrive
+/// through the `resources` lookup the caller provides.
 pub struct ChapterInput<'a> {
     pub styled: &'a StyledDocument<'a>,
     pub projection: &'a Projection,
@@ -84,6 +87,14 @@ pub struct ChapterInput<'a> {
     pub settings: &'a LayoutSettings,
     pub viewport: FxSize,
     pub lang: Option<&'a str>,
+    /// Package path of the chapter's own XHTML resource; relative image
+    /// hrefs resolve against it (via inkuna-content).
+    pub resource_path: &'a str,
+    /// Pure lookup from a normalized package-root-relative href to the
+    /// resource's bytes. M5's session worker backs this with its
+    /// archive reads; `None` degrades to the placeholder box. Must be
+    /// deterministic for the layout to be.
+    pub resources: &'a dyn Fn(&str) -> Option<Vec<u8>>,
 }
 
 /// The chapter's resolved fixed-point numbers — THE float boundary:
@@ -198,8 +209,9 @@ pub fn paginate(
             }
             BlockKind::Rule => pager.place_rule(&m, emit),
             BlockKind::Image { src } => {
-                // Placement lands with the images task.
-                log::debug!("image block deferred: {src}");
+                let measured =
+                    images::measure_image(src, input.resource_path, input.resources);
+                pager.place_image(measured, &m, emit);
             }
         }
     }

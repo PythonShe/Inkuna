@@ -5,11 +5,13 @@
 
 mod blocks;
 mod flow;
+mod images;
 mod pages;
 
 #[cfg(test)]
 mod tests;
 
+pub use images::PlacedImage;
 pub use pages::{
     paginate, ChapterInput, ChapterLayoutResult, DecorationKind, FxRect, FxSize, LaidPage,
     PlacedDecoration, PlacedLine, MAX_PAGES_PER_CHAPTER,

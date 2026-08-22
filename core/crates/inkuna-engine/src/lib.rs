@@ -26,7 +26,7 @@ pub use layout::{
 };
 pub use paginate::{
     paginate, ChapterInput, ChapterLayoutResult, DecorationKind, FxRect, FxSize, LaidPage,
-    PlacedDecoration, PlacedLine, MAX_PAGES_PER_CHAPTER,
+    PlacedDecoration, PlacedImage, PlacedLine, MAX_PAGES_PER_CHAPTER,
 };
 pub use settings::{FontFamily, LayoutSettings, Typography};
 pub use shape::{
