@@ -13,6 +13,7 @@ import app.inkuna.android.model.LibraryStore
 import app.inkuna.android.ui.reader.ReaderPositions
 import app.inkuna.core.Chapter
 import app.inkuna.core.ChapterPositionRange
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,14 +72,23 @@ class BookDetailViewModel(
                 // The position line and the chapter highlight both hang on
                 // the stored coordinate; without one there is nothing to
                 // ask the core about, and both degrade rather than guess.
+                // A book the core cannot place is degraded the same way
+                // rather than failing the screen — the cover, the blurb and
+                // the contents are all still worth showing.
                 val coordinate = core.coordinate
-                val position = coordinate?.let {
-                    ReaderPositions.position(it, publicationId, bookshelf)
-                }
-                val ranges = if (position == null) {
-                    emptyList()
-                } else {
-                    bookshelf.progress().chapterPositionRanges(publicationId)
+                var position: UInt? = null
+                var ranges: List<ChapterPositionRange> = emptyList()
+                if (coordinate != null) {
+                    try {
+                        position = ReaderPositions.position(coordinate, publicationId, bookshelf)
+                        ranges = bookshelf.progress().chapterPositionRanges(publicationId)
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (failure: Throwable) {
+                        Log.w(TAG, "The saved position for $publicationId would not resolve", failure)
+                        position = null
+                        ranges = emptyList()
+                    }
                 }
                 _state.value = UiState(
                     book = BookRow.from(core, app.getString(R.string.unknown_author)),
@@ -94,7 +104,7 @@ class BookDetailViewModel(
                     },
                     currentChapterIndex = currentChapterIndex(chapters, ranges, position),
                 )
-            } catch (cancellation: kotlinx.coroutines.CancellationException) {
+            } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (failure: Throwable) {
                 Log.w(TAG, "Detail for $publicationId would not load", failure)
