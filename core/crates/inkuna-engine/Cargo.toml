@@ -3,6 +3,7 @@ name = "inkuna-engine"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [features]
 # Exposes src/test_support.rs (the fixture roster) outside cfg(test), so

@@ -1,4 +1,9 @@
 [workspace]
+# Deliberately NOT bumped to "3" alongside the edition. Resolver 3 is
+# MSRV-aware: it would read the rust-version below and hold dependencies
+# back to whatever 1.85 supports, which is exactly backwards from the
+# repo's newest-stable-everything policy. Resolver 2 ignores rust-version,
+# so the floor above stays pure documentation-plus-error-message.
 resolver = "2"
 members = [
     "crates/inkuna-content",
@@ -11,6 +16,12 @@ members = [
 [workspace.package]
 version = "0.6.2"
 edition = "2024"
+# The floor edition 2024 imposes. Nothing in CI or scripts/build-core-*.sh
+# pins a toolchain — both just take rustup's stable — so this is what turns
+# a too-old compiler into a named error instead of an opaque edition parse
+# failure part-way through a tag-driven release build. It is a floor, not a
+# cap: the stack policy is still newest stable everywhere.
+rust-version = "1.85"
 license = "AGPL-3.0-only"
 
 # Release profile is what CI and the build-core scripts ship (--release):
