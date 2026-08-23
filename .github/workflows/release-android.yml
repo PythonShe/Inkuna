@@ -98,6 +98,14 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.tag }}
 
+      # core/Cargo.toml pins rust-version to the newest stable release, and
+      # edition 2024 has a hard toolchain floor of its own. Runner images
+      # can trail stable by weeks, so fetch it rather than trusting the
+      # image — otherwise a release build dies on a version error at tag
+      # time, which is the worst possible moment to discover it.
+      - name: Use latest stable Rust
+        run: rustup update stable && rustup default stable
+
       - name: Rust cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -121,6 +129,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+
+      # core/Cargo.toml pins rust-version to the newest stable release, and
+      # edition 2024 has a hard toolchain floor of its own. Runner images
+      # can trail stable by weeks, so fetch it rather than trusting the
+      # image — otherwise a release build dies on a version error at tag
+      # time, which is the worst possible moment to discover it.
+      - name: Use latest stable Rust
+        run: rustup update stable && rustup default stable
 
       - name: Setup Rust for Android
         run: rustup target add aarch64-linux-android

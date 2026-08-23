@@ -8,7 +8,7 @@ common defaults.
 
 | Layer | Technology | Notes |
 |------|------|------|
-| Language | Rust, latest stable via rustup; edition 2024 (floor 1.85, declared as `rust-version`) | never the Homebrew rustc (see root CLAUDE.md) |
+| Language | Rust, latest stable via rustup; edition 2024 | `rust-version` pins newest stable (1.98) and CI runs `rustup update stable` — bump both together; never the Homebrew rustc (see root CLAUDE.md) |
 | Storage | rusqlite (bundled SQLite, WAL) | one DB per install, owned by `Library`; append-only `user_version` migrations (refinery once it supports latest rusqlite) |
 | Async | tokio, at the FFI layer only | core stays sync; `inkuna-ffi` wraps calls in `spawn_blocking` so shells get `await`/`suspend` |
 | Time | chrono | unix-seconds `i64` in the DB |
