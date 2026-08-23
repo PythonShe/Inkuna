@@ -157,19 +157,74 @@ fn append_css(content: &Kf8Content, writer: &mut EpubWriter) {
     }
 }
 
+/// Total `strip_css_threats` passes one stylesheet may spend, across every
+/// escape-resolution round.
+///
+/// Benign CSS spends four (two to reach a strip fixed point, two to confirm
+/// its escape-resolved form is clean). Every pass past that is one more level
+/// of a hand-built chain — `@im@im@import;port;port`, or an escape spliced
+/// out of an already-stripped form — which costs the attacker input bytes and
+/// costs us one O(n) pass. Sixteen leaves an order of magnitude of headroom
+/// over anything a real stylesheet reaches while bounding total work at
+/// 16·O(n) instead of the O(n) passes an unbounded fixed point would allow on
+/// a 96 MiB KF8 flow.
+const MAX_CSS_STRIP_PASSES: usize = 16;
+
 pub(super) fn sanitize_css(input: &str) -> String {
-    let sanitized = strip_css_threats(input);
-    // CSS identifier escapes (`@\69 mport`, `\75 rl(...)`) can hide the
-    // literal substrings the scan looks for. Resolve escapes and re-scan;
-    // when the resolved form still carries threats, emit its stripped copy
-    // instead so escaped constructs cannot survive. Benign CSS (escaped or
-    // not) passes through the first scan untouched.
-    let normalized = unescape_css(&sanitized);
-    let restripped = strip_css_threats(&normalized);
-    if restripped == normalized {
-        sanitized
-    } else {
-        restripped
+    let mut budget = MAX_CSS_STRIP_PASSES;
+    let Some(mut stripped) = strip_css_threats_to_fixed_point(input, &mut budget) else {
+        return String::new();
+    };
+    loop {
+        // CSS identifier escapes (`@\69 mport`, `\75 rl(...)`) can hide the
+        // literal substrings the scan looks for. Resolve escapes and re-scan;
+        // when the resolved form still carries threats, emit its stripped
+        // copy instead so escaped constructs cannot survive. Benign CSS
+        // (escaped or not) passes through the first scan untouched.
+        //
+        // Resolving *once* is the right depth, not a shortcut: a CSS parser
+        // applies escape rules exactly once, so `\5c 75 rl(` reaches it as
+        // the ident `\75` beside a `rl(` function, never as `url(`. What does
+        // need repeating is the round as a whole — stripping the resolved
+        // form can splice a *fresh* escape out of its own deletion (`\7` +
+        // `5 rl(` = `\75 rl(`), and that one a parser does resolve into a
+        // live `url(`. So keep alternating: `stripped` may only be emitted
+        // once resolving its escapes exposes nothing left to strip.
+        let normalized = unescape_css(&stripped);
+        let Some(restripped) = strip_css_threats_to_fixed_point(&normalized, &mut budget) else {
+            return String::new();
+        };
+        if restripped == normalized {
+            return stripped;
+        }
+        // Every round that gets here strictly shrinks the text — the strip
+        // removed something — so the alternation terminates on its own; the
+        // budget only bounds how much adversarial nesting is worth chasing.
+        stripped = restripped;
+    }
+}
+
+/// Runs `strip_css_threats` until the text stops changing, spending passes
+/// from a budget shared with the caller's escape-resolution rounds.
+///
+/// A single pass is a forward scan, so removing one threat can splice its
+/// neighbours into a fresh one (`@im` + `port …` re-forms `@import …`); only
+/// a fixed point rules that out for chains of arbitrary depth. Every pass
+/// that changes anything strictly shrinks the text — it only deletes, or
+/// replaces `url(…)` with the shorter `none` — so convergence is monotone.
+/// Returns `None` once the shared budget is spent: input still changing that
+/// late is hostile by construction, and the caller fails closed by dropping
+/// the stylesheet rather than emitting a partially sanitized one.
+fn strip_css_threats_to_fixed_point(input: &str, budget: &mut usize) -> Option<String> {
+    *budget = budget.checked_sub(1)?;
+    let mut current = strip_css_threats(input);
+    loop {
+        *budget = budget.checked_sub(1)?;
+        let next = strip_css_threats(&current);
+        if next == current {
+            return Some(current);
+        }
+        current = next;
     }
 }
 

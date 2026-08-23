@@ -184,11 +184,10 @@ fn position_parser_accepts_the_full_ten_digit_base32_offset_space() {
 /// `strip_css_threats` is a single forward pass, so deleting one `@import`
 /// can splice its neighbours into a fresh one: `@im` + `port "https://evil";`
 /// re-forms `@import "https://evil";`. Nothing inside that pass catches the
-/// re-formed rule — what closes the hole is `sanitize_css` running the strip
-/// **twice**, once over the raw input and once over the unescaped result, so
-/// the second pass consumes what the first spliced together. This test pins
-/// that composition: collapse `sanitize_css` to a single strip and the remote
-/// import survives verbatim.
+/// re-formed rule — what closes the hole is `sanitize_css` iterating the
+/// strip to a fixed point, so each pass consumes what the previous one
+/// spliced together. This test pins the shallowest case; the deeper chains
+/// live in `css_sanitizer_kills_multi_level_splice_chains`.
 #[test]
 fn css_sanitizer_kills_an_import_reformed_by_its_own_splice() {
     let spliced = sanitize_css("@im@import;port \"https://evil\";");
@@ -208,4 +207,147 @@ fn css_sanitizer_kills_an_import_reformed_by_its_own_splice() {
         "mixed-case splice re-formed a live @import: {mixed:?}"
     );
     assert!(!mixed.contains("evil"), "remote target survived: {mixed:?}");
+}
+
+/// Builds an `@import` splice chain of `levels` levels: every `@im`/`port`
+/// pair only meets to form a live `@import` once the pass before it deleted
+/// the rule wedged between them, so the chain needs `levels + 2` strip passes
+/// to settle. One level is `@im@import;port "…";`, two levels
+/// `@im@im@import;port;port "…";`, and so on.
+fn spliced_import_chain(levels: usize) -> String {
+    let mut css = "@im".repeat(levels);
+    css.push_str("@import;");
+    css.push_str(&"port;".repeat(levels - 1));
+    css.push_str("port \"https://evil\";");
+    css
+}
+
+/// The same construction aimed at `url(`: the deletions splice `ur` onto
+/// `l(https://evil)`.
+fn spliced_url_chain(levels: usize) -> String {
+    let mut css = String::from("ur");
+    css.push_str(&"@im".repeat(levels - 1));
+    css.push_str("@import;");
+    css.push_str(&"port;".repeat(levels - 1));
+    css.push_str("l(https://evil)");
+    css
+}
+
+/// Resolves CSS identifier escapes the way a CSS parser does — once — so a
+/// test can ask what the *parser* will see in what the sanitizer emitted.
+fn unescaped_once(css: &str) -> String {
+    let mut out = String::new();
+    let mut chars = css.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        let mut hex = String::new();
+        while hex.len() < 6 && chars.peek().is_some_and(char::is_ascii_hexdigit) {
+            hex.push(chars.next().unwrap());
+        }
+        if hex.is_empty() {
+            if let Some(escaped) = chars.next() {
+                out.push(escaped);
+            }
+            continue;
+        }
+        out.push(char::from_u32(u32::from_str_radix(&hex, 16).unwrap()).unwrap_or('\u{fffd}'));
+        if chars.peek().is_some_and(|c| c.is_whitespace()) {
+            chars.next();
+        }
+    }
+    out
+}
+
+fn assert_no_remote_reference(label: &str, css: &str) {
+    let lowered = css.to_ascii_lowercase();
+    assert!(
+        !lowered.contains("@import"),
+        "{label} re-formed a live @import: {css:?}"
+    );
+    assert!(!lowered.contains("url("), "{label} left a url(: {css:?}");
+    assert!(!css.contains("evil"), "{label} kept a remote target: {css:?}");
+}
+
+/// Two passes only defeat one level of self-splicing: the two-level chain
+/// `@im@im@import;port;port "https://evil";` used to come back out as a live
+/// `@import "https://evil";`, i.e. an outbound fetch chosen by the ebook.
+/// The fixed-point loop settles chains of any depth up to the cap.
+#[test]
+fn css_sanitizer_kills_multi_level_splice_chains() {
+    for levels in 1..=6 {
+        let imports = spliced_import_chain(levels);
+        assert_no_remote_reference(
+            &format!("{levels}-level import chain"),
+            &sanitize_css(&imports),
+        );
+
+        let urls = spliced_url_chain(levels);
+        assert_no_remote_reference(&format!("{levels}-level url chain"), &sanitize_css(&urls));
+    }
+}
+
+/// Past the shared pass budget the sanitizer fails closed: it drops the whole
+/// stylesheet rather than handing `append_css` a partially stripped one. The
+/// benign sibling rule makes the difference observable — inside the budget it
+/// survives, past it the entire sheet goes.
+#[test]
+fn css_sanitizer_drops_stylesheets_that_outrun_the_pass_cap() {
+    let keep = ".keep{color:red}";
+    assert_eq!(
+        sanitize_css(&format!("{keep}{}", spliced_import_chain(12))),
+        keep
+    );
+    assert_eq!(
+        sanitize_css(&format!("{keep}{}", spliced_import_chain(13))),
+        ""
+    );
+    assert_eq!(sanitize_css(&format!("{keep}{}", spliced_url_chain(64))), "");
+}
+
+/// A CSS parser resolves identifier escapes exactly once, so a *doubly*
+/// escaped `\5c 75 rl(` reaches it as the ident `\75` beside an `rl(`
+/// function — not as `url(`, and not as a fetch. It is left alone on purpose;
+/// resolving escapes twice would be a threat model the parser does not share.
+#[test]
+fn css_sanitizer_leaves_doubly_escaped_text_alone_because_css_resolves_once() {
+    let css = ".a{background:\\5c 75 rl(https://x)}";
+    assert_eq!(sanitize_css(css), css);
+}
+
+/// Stripping the escape-resolved form can splice a *fresh* escape out of its
+/// own deletion: `\5c 7` + `@import;` + `5 rl(...)` resolves to
+/// `\7@import;5 rl(...)`, and deleting that rule joins the halves into
+/// `\75 rl(...)` — which a parser *does* resolve into a live `url(`. One
+/// strip-then-unescape round used to emit exactly that; the alternation keeps
+/// going until resolving the escapes of what it is about to emit exposes
+/// nothing left to strip.
+#[test]
+fn css_sanitizer_kills_escapes_spliced_by_the_strip_itself() {
+    let url = sanitize_css("\\5c 7@\\69 mport;5 rl(https://evil)");
+    assert_no_remote_reference("escape spliced into url(", &url);
+    assert!(
+        !unescaped_once(&url).to_ascii_lowercase().contains("url("),
+        "escape resolves to a live url(: {url:?}"
+    );
+
+    let import = sanitize_css("@\\5c 6@\\69 mport;9 mport \"https://evil\";");
+    assert_no_remote_reference("escape spliced into @import", &import);
+    assert!(
+        !unescaped_once(&import)
+            .to_ascii_lowercase()
+            .contains("@import"),
+        "escape resolves to a live @import: {import:?}"
+    );
+
+    // Two levels deep: the splice that forms `\75 rl(` is itself only formed
+    // by an earlier splice, so it takes another whole round to settle.
+    let deeper = sanitize_css("\\5c 7@\\69 m@\\69 mport;port;5 rl(https://evil)");
+    assert_no_remote_reference("two-level escape splice", &deeper);
+    assert!(
+        !unescaped_once(&deeper).to_ascii_lowercase().contains("url("),
+        "escape resolves to a live url(: {deeper:?}"
+    );
 }
