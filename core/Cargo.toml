@@ -1,10 +1,11 @@
 [workspace]
 # Deliberately NOT bumped to "3" alongside the edition. Resolver 3 is
 # MSRV-aware: it reads rust-version and holds dependencies back to what
-# that version supports. Harmless while rust-version tracks newest stable,
-# but it would silently start capping dependencies the moment the pin lags
-# a release. Resolver 2 ignores rust-version entirely, so the pin below
-# stays what it claims to be: a build-time assertion, not a resolver input.
+# that version supports. Since rust-version below is a minimum that lags
+# between bumps, resolver 3 would start capping dependencies against a
+# stale value — backwards from the newest-stable-everything policy.
+# Resolver 2 ignores rust-version entirely, keeping it a build-time
+# requirement check and nothing more.
 resolver = "2"
 members = [
     "crates/inkuna-content",
@@ -17,16 +18,20 @@ members = [
 [workspace.package]
 version = "0.6.2"
 edition = "2024"
-# Newest stable, per the stack policy — NOT edition 2024's 1.85 minimum.
-# Nothing on the build path pins a toolchain (CI takes the runner image's
-# rustup stable; scripts/build-core-*.sh pin RUSTC only to dodge the
-# Homebrew rustc), so this is the one place the policy is machine-checked:
-# an older compiler now fails by name instead of dying on an opaque edition
-# parse error part-way through a tag-driven release build.
+# A MINIMUM, not an exact pin: cargo only errors when rustc is OLDER than
+# this, and says nothing when it is newer. So this does not and cannot
+# enforce "newest stable" — it lags the moment the next release lands, and
+# that is expected. What it buys is a named error ("requires rustc X")
+# instead of an opaque edition parse failure part-way through a tag-driven
+# release build when something genuinely stale tries to compile.
 #
-# This is a tripwire, not a floor — it fails builds on anything older, so
-# it must be bumped in step with rustup stable. The release workflows call
-# `rustup update stable` before cargo so CI can never trail it.
+# Set to the newest stable the workspace has actually been verified on, so
+# it never claims support for a compiler nobody tested. Bump it when the
+# verified toolchain moves; if code starts relying on a newer rustc, bump
+# it then too, or contributors get a confusing compile error rather than a
+# version error.
+#
+# Choosing the compiler is rust-toolchain.toml's job, not this field's.
 rust-version = "1.98"
 license = "AGPL-3.0-only"
 
