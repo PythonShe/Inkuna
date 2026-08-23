@@ -1,10 +1,7 @@
-import ReadiumShared
 import UIKit
 
 // The UniFFI bindings are compiled into this target, so `Publication` below
-// is the core's record; the Readium import is for `Locator`, which decodes
-// the core's stored position — the same shell-side read the detail screen
-// does.
+// is the core's record.
 
 /// The Tonight (home) tab: pick up where you left off, filter chips, and
 /// the nightstand shelf.
@@ -115,13 +112,21 @@ final class TonightViewController: ScrollScreenViewController {
                 // Unfinished, not all: a book just finished must not be the
                 // "keep reading" hero merely for being touched last.
                 let publications = try await bookshelf.library().list(shelf: .unfinished, sort: .recentlyOpened)
-                // The hero's caption wants the chapter it is parked in;
-                // the ranges come from the core, the position from the
-                // stored locator.
+                // The hero's caption wants the chapter it is parked in.
+                // Both halves are core answers: the position the stored
+                // coordinate lands on, and the chapter spans around it. A
+                // book with no coordinate yet — never opened, or a legacy
+                // row the rebaseline has not reached — has no position to
+                // caption, and degrades to the percentage line.
                 var pagesLeft: Int?
                 if
                     let hero = publications.first,
-                    let position = Self.storedPosition(of: hero),
+                    let coordinate = hero.coordinate,
+                    let position = try? await ReaderPositions.position(
+                        of: coordinate,
+                        id: hero.id,
+                        on: bookshelf
+                    ),
                     let ranges = try? await bookshelf.progress().chapterPositionRanges(id: hero.id)
                 {
                     pagesLeft = Self.pagesLeft(in: ranges, at: position)
@@ -152,25 +157,13 @@ final class TonightViewController: ScrollScreenViewController {
         }
     }
 
-    /// The synthetic position the book is parked at.
-    /// plan-02: real coordinates from the engine — the stored position is
-    /// a content coordinate now; deriving its synthetic position is core
-    /// math (`positionOf`), wired up when the engine reader lands. Until
-    /// then the caption degrades to the percentage line.
-    private static func storedPosition(of publication: Publication) -> UInt32? {
-        nil
-    }
-
-    /// Pages left in the chapter holding `position`. Chapter ranges are
-    /// 1-based and inclusive, and several may contain one position when a
-    /// resource carries nested entries — the innermost (greatest start)
-    /// wins, the same "closest preceding entry" rule the contents sheet
-    /// highlights by. Zero or less is not a caption worth showing.
+    /// Pages left in the chapter holding `position`, for display only.
+    /// The range match is `ReaderPositions`' shared rule; zero or less is
+    /// not a caption worth showing.
     private static func pagesLeft(in ranges: [ChapterPositionRange], at position: UInt32) -> Int? {
-        let containing = ranges
-            .filter { $0.startPosition <= position && position <= $0.endPosition }
-            .max { $0.startPosition < $1.startPosition }
-        guard let containing else { return nil }
+        guard let containing = ReaderPositions.chapterRange(in: ranges, at: position) else {
+            return nil
+        }
         let left = Int(containing.endPosition) - Int(position)
         return left > 0 ? left : nil
     }

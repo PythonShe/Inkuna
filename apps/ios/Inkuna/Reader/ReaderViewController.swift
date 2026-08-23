@@ -377,13 +377,12 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         let opened: OpenedBook
         do {
             userStyleBox.write(ReaderUserStyle.current.css())
-            // plan-02: real coordinates from the engine. The stored
-            // position is a content coordinate now, not a Readium locator;
-            // until the engine reader lands, restore falls back to locating
-            // the stored book-wide progression.
+            // ENGINE-SWAP INTERIM: dies with the Readium open path
+            // (plan-02 Task 2.2). The navigator cannot consume a content
+            // coordinate, so only its spine index makes the trip.
             opened = try await Self.openBook(
                 path: publication.filePath,
-                locatorJSON: nil,
+                spineIndex: publication.coordinate.map { Int($0.spineIdx) },
                 progression: publication.progression,
                 style: userStyleBox
             )
@@ -482,7 +481,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
     /// publication, restored location, and synthetic positions.
     private nonisolated static func openBook(
         path: String,
-        locatorJSON: String?,
+        spineIndex: Int?,
         progression: Double,
         style: ReaderUserStyleBox
     ) async throws -> OpenedBook {
@@ -509,10 +508,23 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
 
         let positions = await readiumPublication.positionsByReadingOrder().getOrNil() ?? []
 
-        // Restore the saved position: the stored locator verbatim, or — if
-        // it is missing or unreadable — the honest fallback of locating the
-        // stored book-wide progression.
-        var initialLocation = locatorJSON.flatMap { try? Locator(jsonString: $0) }
+        // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
+        // Task 2.2). Restore the saved position at the top of the spine
+        // item the coordinate names — the char offset inside it is in the
+        // engine's projection, which the navigator knows nothing about.
+        // A book with no stored coordinate falls back to locating the
+        // book-wide progression; it must never be read as spine 0, which
+        // would send every not-yet-converted book back to page one.
+        var initialLocation = spineIndex.flatMap { index -> Locator? in
+            guard readiumPublication.readingOrder.indices.contains(index) else { return nil }
+            let link = readiumPublication.readingOrder[index]
+            guard let mediaType = link.mediaType else { return nil }
+            return Locator(
+                href: link.url(),
+                mediaType: mediaType,
+                locations: Locator.Locations(progression: 0)
+            )
+        }
         if initialLocation == nil, progression > 0 {
             initialLocation = await readiumPublication.locate(progression: progression)
         }
@@ -656,15 +668,21 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
             !liveStyleSession,
             let totalProgression = locator.locations.totalProgression
         else { return }
+        // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
+        // Task 2.2). The navigator knows which spine item is on screen but
+        // not where the engine's projection puts the page inside it, so the
+        // write is chapter-granular — which is exactly what the interim
+        // restore above consumes, so the pair stays self-consistent. Sent
+        // rather than omitted: with no coordinate written, restore would be
+        // pinned forever to whatever the rebaseline last stored. When the
+        // resource is unknown the coordinate is omitted instead of being
+        // faked as spine 0, and `progression` carries the position alone.
+        let coordinate = resourceIndex(forHref: locator.href.string)
+            .map { Coordinate(spineIdx: UInt32($0), charOffset: 0) }
         enqueueCoreWrite("progress") { [id = publication.id] bookshelf in
-            // plan-02: real coordinates from the engine. The Readium
-            // reader cannot produce content coordinates, so none is sent:
-            // the core then leaves the stored coordinate alone instead of
-            // clobbering a rebaselined one with book start. The real
-            // progression keeps Keep Reading and the shelves correct.
             try await bookshelf.progress().updateProgress(
                 id: id,
-                coordinate: nil,
+                coordinate: coordinate,
                 progression: totalProgression,
                 position: nil
             )
@@ -941,16 +959,19 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
             return
         }
         let progression = locator.locations.totalProgression ?? publication.progression
+        // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
+        // Task 2.2). Chapter-granular for the same reason progress is, and
+        // omitted rather than faked as spine 0 when the resource is
+        // unknown — `progression` is then what a jump falls back to.
+        let coordinate = resourceIndex(forHref: locator.href.string)
+            .map { Coordinate(spineIdx: UInt32($0), charOffset: 0) }
         bookmarkFeedback.impactOccurred()
         Task { [weak self, id = publication.id, logger] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                // plan-02: real coordinates from the engine. Until then
-                // the mark stores no coordinate at all — `progression`
-                // is what a restore falls back to.
                 _ = try await bookshelf.library().addBookmark(
                     id: id,
-                    coordinate: nil,
+                    coordinate: coordinate,
                     progression: progression
                 )
                 guard let self else { return }
