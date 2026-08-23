@@ -373,21 +373,14 @@ fn line_metrics(
     (ascent, descent, ruby_over, ruby_under)
 }
 
-/// Ascender/descender in font units for a face, parsed once per
-/// paragraph. Parse failure (impossible past registry load) falls back
-/// to the 3/4–1/4 em split rather than panicking.
+/// Ascender/descender in font units for a face, cached once per
+/// paragraph. The registry validates these metrics at load time.
 fn face_metrics(fonts: &FontRegistry, cache: &mut MetricsCache, font_id: u32) -> (i32, i32, u16) {
     if let Some(&(_, asc, desc, upem)) = cache.0.iter().find(|&&(id, ..)| id == font_id) {
         return (asc, desc, upem);
     }
     let face = fonts.face(font_id);
-    let (asc, desc) = match rustybuzz::ttf_parser::Face::parse(&face.data, face.collection_index) {
-        Ok(parsed) => (
-            i32::from(parsed.ascender()),
-            i32::from(parsed.descender()).saturating_neg(),
-        ),
-        Err(_) => (i32::from(face.upem) * 3 / 4, i32::from(face.upem) / 4),
-    };
+    let (asc, desc) = (face.ascender, face.descender);
     cache.0.push((font_id, asc, desc, face.upem));
     (asc, desc, face.upem)
 }

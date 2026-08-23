@@ -1,4 +1,4 @@
-//! Text shaping: bidi + script itemization, rustybuzz shaping with the
+//! Text shaping: bidi + script itemization, harfrust shaping with the
 //! reading→Hebrew (Hebrew-script clusters only)→CJK→symbols→`.notdef`
 //! fallback chain, vertical-mode
 //! orientation, and ruby runs.

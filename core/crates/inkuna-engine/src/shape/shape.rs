@@ -1,4 +1,4 @@
-//! Turns itemized text into positioned glyph runs via rustybuzz, with
+//! Turns itemized text into positioned glyph runs via harfrust, with
 //! the explicit fallback chain: reading face → script fallback (Hebrew
 //! clusters only) → CJK face → symbols → the reading face's `.notdef`.
 //! Visible text is never dropped — only
@@ -6,7 +6,7 @@
 //! [`shape_text`]). Missing-glyph detection is cluster-granular, so
 //! ligatures never straddle fonts.
 //!
-//! Determinism: rustybuzz is pure Rust over fixed bytes, and no path
+//! Determinism: harfrust is pure Rust over fixed bytes, and no path
 //! that orders output iterates a HashMap.
 
 use unicode_script::{Script, UnicodeScript};
@@ -46,7 +46,7 @@ pub struct RunStyle {
 }
 
 /// A maximal single-font, single-level glyph sequence. Glyphs are in
-/// rustybuzz's output order (visual order within the run for RTL);
+/// harfrust's output order (visual order within the run for RTL);
 /// runs themselves are in logical order — M4 reorders by `bidi_level`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShapedRun {
@@ -123,7 +123,7 @@ impl Stage {
     }
 }
 
-/// Raw rustybuzz output, still in font units.
+/// Raw harfrust output, still in font units.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct RawGlyph {
     pub glyph_id: u32,
@@ -186,7 +186,7 @@ fn shape_slice(
     }
 
     // Cluster values present, with a missing flag when any glyph of
-    // the cluster is .notdef. Raw clusters are monotonic (rustybuzz's
+    // the cluster is .notdef. Raw clusters are monotonic (harfrust's
     // default cluster level; descending for RTL), so same-cluster
     // glyphs are adjacent and comparing against the last entry keeps
     // this linear. Ignorable clusters are never "missing" — they must
@@ -321,7 +321,7 @@ fn build_run(
             continue;
         }
         // Vertical upright advances run along the block axis —
-        // rustybuzz reports them as negative y; the line's inline
+        // harfrust reports them as negative y; the line's inline
         // advance is their magnitude.
         let advance_units = if along_block {
             g.y_advance.saturating_abs()

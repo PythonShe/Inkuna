@@ -25,6 +25,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use read_fonts::tables::os2::SelectionFlags;
+use read_fonts::{FontRef, TableProvider};
+
 use crate::error::EngineError;
 use crate::settings::FontFamily;
 use crate::style::{FontStyle, FontWeight};
@@ -49,7 +52,7 @@ pub struct FontEntry {
     pub axes: Vec<FontAxis>,
 }
 
-/// A parsed, memory-resident face. rustybuzz's `Face` borrows the
+/// A parsed, memory-resident face. harfrust's `FontRef` borrows the
 /// bytes, so shaping call sites rebuild it from `data` +
 /// `collection_index` per shape (cheap; revisit with `self_cell` only
 /// if profiling demands).
@@ -57,6 +60,8 @@ pub struct FontEntry {
 pub struct LoadedFace {
     pub data: Arc<Vec<u8>>,
     pub upem: u16,
+    pub ascender: i32,
+    pub descender: i32,
     pub collection_index: u32,
 }
 
@@ -151,9 +156,10 @@ impl FontRegistry {
                     data
                 }
             };
-            let face = rustybuzz::ttf_parser::Face::parse(&data, spec.collection_index)
+            let font = FontRef::from_index(&data, spec.collection_index)
                 .map_err(|e| missing(spec.file, &e))?;
-            let upem = face.units_per_em();
+            let (upem, ascender, descender) =
+                font_metrics(&font).map_err(|e| missing(spec.file, &e))?;
             if upem == 0 {
                 return Err(missing(spec.file, &"units_per_em is 0"));
             }
@@ -170,6 +176,8 @@ impl FontRegistry {
             faces.push(LoadedFace {
                 data,
                 upem,
+                ascender,
+                descender,
                 collection_index: spec.collection_index,
             });
         }
@@ -240,6 +248,41 @@ impl FontRegistry {
     pub fn symbols(&self) -> u32 {
         SYMBOLS_ID
     }
+}
+
+/// Matches ttf-parser's default-instance horizontal metric selection:
+/// `USE_TYPO_METRICS`, then hhea, then OS/2 typo metrics, then Windows
+/// metrics. The registry contains no non-default axis coordinates.
+fn font_metrics(font: &FontRef<'_>) -> Result<(u16, i32, i32), read_fonts::ReadError> {
+    let upem = font.head()?.units_per_em();
+    let hhea = font.hhea()?;
+    let mut ascender = i32::from(hhea.ascender().to_i16());
+    let mut descender = i32::from(hhea.descender().to_i16());
+    if let Ok(os2) = font.os2() {
+        if os2
+            .fs_selection()
+            .contains(SelectionFlags::USE_TYPO_METRICS)
+        {
+            return Ok((
+                upem,
+                i32::from(os2.s_typo_ascender()),
+                i32::from(os2.s_typo_descender()).saturating_neg(),
+            ));
+        }
+        if ascender == 0 {
+            ascender = i32::from(os2.s_typo_ascender());
+            if ascender == 0 {
+                ascender = i32::from(os2.us_win_ascent());
+            }
+        }
+        if descender == 0 {
+            descender = i32::from(os2.s_typo_descender());
+            if descender == 0 {
+                descender = -i32::from(os2.us_win_descent());
+            }
+        }
+    }
+    Ok((upem, ascender, descender.saturating_neg()))
 }
 
 /// Region offset in id order: SC 0, TC 1, JP 2, KR 3.

@@ -40,8 +40,7 @@ impl<'a> DisplayContext<'a> {
         viewport: FxSize,
         resource_path: &str,
     ) -> DisplayContext<'a> {
-        let mut byte_of_char: Vec<usize> =
-            projection.text.char_indices().map(|(b, _)| b).collect();
+        let mut byte_of_char: Vec<usize> = projection.text.char_indices().map(|(b, _)| b).collect();
         byte_of_char.push(projection.text.len());
         DisplayContext {
             generation,
@@ -126,14 +125,7 @@ impl FaceMetrics {
             return (asc, desc, upem);
         }
         let face = fonts.face(font_id);
-        let (asc, desc) =
-            match rustybuzz::ttf_parser::Face::parse(&face.data, face.collection_index) {
-                Ok(parsed) => (
-                    i32::from(parsed.ascender()),
-                    i32::from(parsed.descender()).saturating_neg(),
-                ),
-                Err(_) => (i32::from(face.upem) * 3 / 4, i32::from(face.upem) / 4),
-            };
+        let (asc, desc) = (face.ascender, face.descender);
         self.0.push((font_id, asc, desc, face.upem));
         (asc, desc, face.upem)
     }

@@ -1,6 +1,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use read_fonts::{FontRef, TableProvider};
+
 use super::FontRegistry;
 use crate::settings::FontFamily;
 use crate::style::{FontStyle, FontWeight};
@@ -67,14 +69,19 @@ fn id_order_is_stable() {
     // here instead of silently rendering SC text with JP glyphs.
     let names = |id: u32| -> Vec<String> {
         let face = reg.face(id);
-        let parsed = match rustybuzz::ttf_parser::Face::parse(&face.data, face.collection_index) {
+        let font = match FontRef::from_index(&face.data, face.collection_index) {
             Ok(f) => f,
             Err(e) => panic!("face {id} must parse: {e}"),
         };
-        parsed
-            .names()
+        let names = match font.name() {
+            Ok(names) => names,
+            Err(e) => panic!("face {id} must have a name table: {e}"),
+        };
+        let data = names.string_data();
+        names
+            .name_record()
             .into_iter()
-            .filter_map(|n| n.to_string())
+            .filter_map(|record| record.string(data).ok().map(|name| name.to_string()))
             .collect()
     };
     let expect = |id: usize, tokens: [&str; 3]| {
@@ -172,12 +179,18 @@ fn hebrew_family_weight() {
     // fallback stage would be pointless tofu otherwise.
     for id in 24..=27 {
         let face = reg.face(id);
-        let parsed = match rustybuzz::ttf_parser::Face::parse(&face.data, face.collection_index) {
+        let font = match FontRef::from_index(&face.data, face.collection_index) {
             Ok(f) => f,
             Err(e) => panic!("face {id} must parse: {e}"),
         };
-        let gid = parsed.glyph_index('\u{05D0}');
-        assert!(gid.is_some_and(|g| g.0 != 0), "face {id} must cover Hebrew");
+        let gid = font
+            .cmap()
+            .ok()
+            .and_then(|cmap| cmap.map_codepoint('\u{05D0}'));
+        assert!(
+            gid.is_some_and(|g| g.to_u32() != 0),
+            "face {id} must cover Hebrew"
+        );
     }
 }
 

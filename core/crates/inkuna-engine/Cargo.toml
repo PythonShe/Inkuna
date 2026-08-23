@@ -15,7 +15,8 @@ cssparser = "0.37"
 icu_segmenter = "2.3"
 inkuna-content = { path = "../inkuna-content" }
 quick-xml = { version = "0.41", features = ["escape-html"] }
-rustybuzz = "0.20"
+harfrust = "0.13.1"
+read-fonts = "0.43.2"
 thiserror = "2"
 log = "0.4"
 tempfile = { version = "3", optional = true }

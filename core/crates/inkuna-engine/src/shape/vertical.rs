@@ -1,4 +1,4 @@
-//! The single rustybuzz pass, owning direction, features, and run
+//! The single harfrust pass, owning direction, features, and run
 //! orientation. In vertical mode, CJK-class items shape top-to-bottom
 //! with `vert`+`vrt2` (the font applies vertical presentation forms)
 //! and stay upright; horizontal-script items shape horizontally with
@@ -10,7 +10,7 @@ use unicode_script::Script;
 use super::itemize::Item;
 use super::shape::{RawGlyph, RunOrientation, ShapeContext};
 
-/// One rustybuzz pass over one slice with one face. Clusters are
+/// One harfrust pass over one slice with one face. Clusters are
 /// explicit global char offsets.
 pub(super) fn shape_once(
     slice: &str,
@@ -27,38 +27,42 @@ pub(super) fn shape_once(
     };
 
     let loaded = ctx.fonts.face(font_id);
-    let Some(face) = rustybuzz::Face::from_slice(&loaded.data, loaded.collection_index) else {
+    let Ok(font) = harfrust::FontRef::from_index(&loaded.data, loaded.collection_index) else {
         // Impossible past registry load; never drop text silently at
         // shape time either.
         return (Vec::new(), orientation);
     };
-    let mut buf = rustybuzz::UnicodeBuffer::new();
+    let mut buf = harfrust::UnicodeBuffer::new();
     for (k, ch) in slice.chars().enumerate() {
         buf.add(ch, (start_char + k) as u32);
     }
     let vertical_features = [
-        rustybuzz::Feature::new(rustybuzz::ttf_parser::Tag::from_bytes(b"vert"), 1, ..),
-        rustybuzz::Feature::new(rustybuzz::ttf_parser::Tag::from_bytes(b"vrt2"), 1, ..),
+        harfrust::Feature::new(harfrust::Tag::new(b"vert"), 1, ..),
+        harfrust::Feature::new(harfrust::Tag::new(b"vrt2"), 1, ..),
     ];
-    let features: &[rustybuzz::Feature] = if upright {
-        buf.set_direction(rustybuzz::Direction::TopToBottom);
+    let features: &[harfrust::Feature] = if upright {
+        buf.set_direction(harfrust::Direction::TopToBottom);
         &vertical_features
     } else {
         // Sideways-rotated runs shape HORIZONTALLY with the same face.
         buf.set_direction(if item.bidi_level % 2 == 1 {
-            rustybuzz::Direction::RightToLeft
+            harfrust::Direction::RightToLeft
         } else {
-            rustybuzz::Direction::LeftToRight
+            harfrust::Direction::LeftToRight
         });
         &[]
     };
     if let Some(script) = rb_script(item.script) {
         buf.set_script(script);
     }
-    if let Some(lang) = ctx.lang.and_then(|l| l.parse::<rustybuzz::Language>().ok()) {
+    if let Some(lang) = ctx.lang.and_then(|l| l.parse::<harfrust::Language>().ok()) {
         buf.set_language(lang);
     }
-    let out = rustybuzz::shape(&face, features, buf);
+    let shaper_data = harfrust::ShaperData::new(&font);
+    let out = shaper_data
+        .shaper(&font)
+        .build()
+        .shape(buf, harfrust::ShapeOptions::new().features(features));
     let raw = out
         .glyph_infos()
         .iter()
@@ -99,8 +103,8 @@ fn upright_char(c: char) -> bool {
     )
 }
 
-/// The rustybuzz script for a unicode-script value, via ISO 15924.
-fn rb_script(script: Script) -> Option<rustybuzz::Script> {
+/// The harfrust script for a unicode-script value, via ISO 15924.
+fn rb_script(script: Script) -> Option<harfrust::Script> {
     let bytes: [u8; 4] = script.short_name().as_bytes().try_into().ok()?;
-    rustybuzz::Script::from_iso15924_tag(rustybuzz::ttf_parser::Tag::from_bytes(&bytes))
+    harfrust::Script::from_iso15924_tag(harfrust::Tag::new(&bytes))
 }
