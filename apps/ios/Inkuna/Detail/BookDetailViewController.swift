@@ -247,9 +247,12 @@ final class BookDetailViewController: UIViewController {
     }
 
     /// The chapter the saved position sits in, attributed by the core's
-    /// own chapter spans rather than by matching hrefs here — the same
-    /// rule the reader's contents sheet highlights by. A position no span
-    /// claims leaves the list unhighlighted rather than guessed.
+    /// own chapter spans rather than by matching hrefs here. Those spans
+    /// are sparse — one per TOC chapter, never one per spine resource — so
+    /// a position inside a resource carrying no TOC entry of its own is
+    /// claimed by no span and leaves the list unhighlighted rather than
+    /// guessed. The reader's contents sheet is looser and keeps the
+    /// preceding chapter lit there; this screen deliberately does not.
     private func currentChapterIndex() -> Int? {
         guard
             let position = storedPosition,

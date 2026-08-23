@@ -46,9 +46,14 @@ enum ReaderPositions {
     /// Ranges are 1-based and inclusive, and several may contain one
     /// position when a resource carries nested TOC entries — positions are
     /// resource-granular and cannot split inside one. The innermost
-    /// (greatest start) wins, the same "closest preceding entry" rule the
-    /// reader's contents sheet highlights by, shared here so the home and
-    /// detail screens cannot drift from it.
+    /// (greatest start) wins.
+    ///
+    /// The set is sparse: the core emits one range per TOC chapter, keyed
+    /// by `chapterIdx`, and never one per spine resource — a resource with
+    /// no TOC entry of its own falls outside every range and reads as nil
+    /// here. Shared so the home and detail screens cannot drift from each
+    /// other; the reader's contents sheet highlights by a looser rule of
+    /// its own and is not built on this.
     static func chapterRange(
         in ranges: [ChapterPositionRange],
         at position: UInt32
