@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use super::kf8::{self, FragmentAnchor, Kf8Content};
-use crate::EpubWriter;
 use crate::mobi::{image_type, markup, sanitize, MobiBook};
+use crate::EpubWriter;
 use crate::FormatError;
 
 const BASE32: &[u8; 32] = b"0123456789ABCDEFGHIJKLMNOPQRSTUV";
@@ -216,30 +216,35 @@ fn unescape_css(input: &str) -> String {
 }
 
 fn strip_css_threats(input: &str) -> String {
-    let mut css = input.to_string();
-    while let Some(start) = find_ascii_case_insensitive(&css, "@import") {
-        let end = css[start..]
-            .find(';')
-            .map_or(css.len(), |relative| start + relative + 1);
-        css.replace_range(start..end, "");
+    let mut without_imports = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(start) = find_ascii_case_insensitive(rest, "@import") {
+        without_imports.push_str(&rest[..start]);
+        let tail = &rest[start..];
+        let end = tail.find(';').map_or(tail.len(), |relative| relative + 1);
+        rest = &tail[end..];
     }
-    let mut cursor = 0usize;
-    while let Some(relative) = find_ascii_case_insensitive(&css[cursor..], "url(") {
-        let start = cursor + relative;
-        let Some(close_relative) = css[start + 4..].find(')') else {
-            css.truncate(start);
-            break;
+    without_imports.push_str(rest);
+
+    let mut output = String::with_capacity(without_imports.len());
+    rest = &without_imports;
+    while let Some(start) = find_ascii_case_insensitive(rest, "url(") {
+        output.push_str(&rest[..start]);
+        let tail = &rest[start..];
+        let Some(close_relative) = tail[4..].find(')') else {
+            return output;
         };
-        let end = start + 4 + close_relative + 1;
-        let value = css[start + 4..end - 1].trim().trim_matches(['\'', '"']);
+        let end = 4 + close_relative + 1;
+        let value = tail[4..end - 1].trim().trim_matches(['\'', '"']);
         if is_remote_css_url(value) {
-            css.replace_range(start..end, "none");
-            cursor = start + 4;
+            output.push_str("none");
         } else {
-            cursor = end;
+            output.push_str(&tail[..end]);
         }
+        rest = &tail[end..];
     }
-    css
+    output.push_str(rest);
+    output
 }
 
 fn is_remote_css_url(value: &str) -> bool {

@@ -263,7 +263,7 @@ pub(super) fn read_varuint(bytes: &[u8], cursor: &mut usize) -> Result<u32, Form
             .ok_or_else(|| invalid("truncated INDX variable-width integer"))?;
         *cursor += 1;
         value = value
-            .checked_shl(7)
+            .checked_mul(128)
             .and_then(|value| value.checked_add(u32::from(byte & 0x7f)))
             .ok_or_else(|| invalid("INDX variable-width integer overflow"))?;
         if byte & 0x80 != 0 {

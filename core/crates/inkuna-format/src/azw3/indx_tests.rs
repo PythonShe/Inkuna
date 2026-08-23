@@ -1,4 +1,4 @@
-use super::parse_records;
+use super::{parse_records, read_varuint};
 use crate::test_support::{build_indx_records, IndxEntryFixture};
 use crate::FormatError;
 
@@ -91,6 +91,26 @@ fn round_trips_a_multi_bit_all_mask_byte_length_budget() {
     let index = parse_records(&records).unwrap();
 
     assert_eq!(index.entries[0].values(1), Some(values.as_slice()));
+}
+
+#[test]
+fn rejects_an_overflowing_five_byte_varuint() {
+    let mut cursor = 0;
+    assert!(matches!(
+        read_varuint(&[0x7f, 0x7f, 0x7f, 0x7f, 0xff], &mut cursor),
+        Err(FormatError::InvalidPublication(message))
+            if message == "INDX variable-width integer overflow"
+    ));
+}
+
+#[test]
+fn preserves_legal_four_byte_varuint_decoding() {
+    let mut cursor = 0;
+    assert_eq!(
+        read_varuint(&[0x01, 0x02, 0x03, 0x84], &mut cursor).unwrap(),
+        2_130_308
+    );
+    assert_eq!(cursor, 4);
 }
 
 #[test]

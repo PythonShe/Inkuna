@@ -79,6 +79,17 @@ fn detects_utf16_txt_but_still_rejects_nul_binary_data() {
     ));
 }
 
+#[test]
+fn detects_bomless_utf16_cjk_txt() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cjk.txt");
+    let text = "春夏秋冬 山中月夜".repeat(64);
+    let bytes: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    std::fs::write(&path, bytes).unwrap();
+
+    assert_eq!(Format::detect(&path).unwrap(), Format::Txt);
+}
+
 /// A `mimetype` entry that trims to the EPUB literal but inflates far past
 /// the detection budget must not be read whole, and must not pass as an
 /// EPUB — detection falls through exactly as a wrong mimetype string does.

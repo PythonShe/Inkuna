@@ -41,18 +41,36 @@ fn push_entry(
     retained: &mut usize,
     entry: TocEntry,
     doc_path: &str,
+    oversized: bool,
 ) -> bool {
     if entries.len() == MAX_TOC_ENTRIES {
         log::warn!("TOC in {doc_path} lists more than {MAX_TOC_ENTRIES} entries; truncated");
         return false;
     }
     let bytes = entry.title.len() + entry.href.len();
-    if *retained + bytes > MAX_TOC_TOTAL_BYTES {
+    if oversized || *retained + bytes > MAX_TOC_TOTAL_BYTES {
         log::warn!("TOC in {doc_path} exceeds the {MAX_TOC_TOTAL_BYTES}-byte budget; truncated");
         return false;
     }
     *retained += bytes;
     entries.push(entry);
+    true
+}
+
+/// Appends `text` through [`push_word`] without letting `acc` exceed
+/// `limit`. The cut is always at a character boundary so CJK titles remain
+/// valid UTF-8. Returns whether text was cut.
+fn push_word_capped(acc: &mut String, text: &str, limit: usize) -> bool {
+    let room = limit.saturating_sub(acc.len());
+    if text.len() <= room {
+        push_word(acc, text);
+        return false;
+    }
+    let mut end = room;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    push_word(acc, &text[..end]);
     true
 }
 
@@ -75,7 +93,7 @@ pub(crate) fn parse_nav(xml: &str, nav_path: &str) -> Vec<TocEntry> {
     let mut in_toc_nav = false;
     let mut nav_depth = 0u32; // <nav> nesting while inside the toc nav
     let mut ol_depth = 0u32;
-    let mut link: Option<(String, String)> = None; // (href, title so far)
+    let mut link: Option<(String, String, bool)> = None; // (href, title so far, oversized)
     let mut warned_depth = false;
     let mut retained = 0usize; // bytes charged against MAX_TOC_TOTAL_BYTES
 
@@ -104,21 +122,30 @@ pub(crate) fn parse_nav(xml: &str, nav_path: &str) -> Vec<TocEntry> {
                             );
                         }
                     } else if let Some(href) = attr_value(&e, b"href") {
-                        link = Some((href, String::new()));
+                        link = Some((href, String::new(), false));
                     }
                 }
                 _ => {}
             },
             Ok(Event::Text(t)) => {
-                if let Some((_, title)) = &mut link {
+                if let Some((_, title, oversized)) = &mut link {
                     if let Ok(text) = t.decode() {
-                        push_word(title, &text);
+                        *oversized |= push_word_capped(
+                            title,
+                            &text,
+                            MAX_TOC_TOTAL_BYTES.saturating_sub(retained),
+                        );
                     }
                 }
             }
             Ok(Event::GeneralRef(r)) => {
-                if let Some((_, title)) = &mut link {
-                    title.push_str(&resolve_ref(&r));
+                if let Some((_, title, oversized)) = &mut link {
+                    let text = resolve_ref(&r);
+                    *oversized |= push_word_capped(
+                        title,
+                        &text,
+                        MAX_TOC_TOTAL_BYTES.saturating_sub(retained),
+                    );
                 }
             }
             Ok(Event::End(e)) => match e.local_name().as_ref() {
@@ -130,14 +157,25 @@ pub(crate) fn parse_nav(xml: &str, nav_path: &str) -> Vec<TocEntry> {
                 }
                 b"ol" if in_toc_nav && ol_depth > 0 => ol_depth -= 1,
                 b"a" if in_toc_nav => {
-                    if let Some((href, title)) = link.take() {
+                    if let Some((href, title, oversized)) = link.take() {
                         if let Some(title) = clean_text(Some(&title)) {
                             let entry = TocEntry {
                                 title,
                                 href: resolve_relative(nav_path, &href),
                                 depth: ol_depth.saturating_sub(1),
                             };
-                            if !push_entry(&mut entries, &mut retained, entry, nav_path) {
+                            if !push_entry(&mut entries, &mut retained, entry, nav_path, oversized)
+                            {
+                                break;
+                            }
+                        } else if oversized {
+                            let entry = TocEntry {
+                                title: String::new(),
+                                href: resolve_relative(nav_path, &href),
+                                depth: ol_depth.saturating_sub(1),
+                            };
+                            if !push_entry(&mut entries, &mut retained, entry, nav_path, oversized)
+                            {
                                 break;
                             }
                         }
@@ -163,13 +201,18 @@ pub(crate) fn parse_ncx(xml: &str, ncx_path: &str) -> Vec<TocEntry> {
     let mut buf = Vec::new();
 
     // One `(label, content already taken)` pair per open navPoint.
-    let mut labels: Vec<(String, bool)> = Vec::new();
+    let mut labels: Vec<(String, bool, bool)> = Vec::new();
     // Open navPoints beyond MAX_TOC_DEPTH: counted, never allocated, and
     // everything inside them is skipped.
     let mut overflow = 0usize;
     let mut in_text = false;
     let mut warned_depth = false;
     let mut retained = 0usize; // bytes charged against MAX_TOC_TOTAL_BYTES
+
+    // Bytes held by labels on the open navPoint stack. Together with
+    // `retained`, this caps the parser's title allocations at the aggregate
+    // TOC budget even when 64 navPoints are nested.
+    let mut pending_label_bytes = 0usize;
 
     loop {
         let event = reader.read_event_into(&mut buf);
@@ -183,7 +226,7 @@ pub(crate) fn parse_ncx(xml: &str, ncx_path: &str) -> Vec<TocEntry> {
                     // of depth (and one String) per occurrence.
                     b"navPoint" if is_start => {
                         if labels.len() < MAX_TOC_DEPTH {
-                            labels.push((String::new(), false));
+                            labels.push((String::new(), false, false));
                         } else {
                             overflow += 1;
                             if !warned_depth {
@@ -211,18 +254,42 @@ pub(crate) fn parse_ncx(xml: &str, ncx_path: &str) -> Vec<TocEntry> {
                     // each per-entry cap saw in-bounds numbers.
                     b"content" if overflow == 0 => {
                         let depth = (labels.len() as u32).saturating_sub(1);
-                        if let (Some(src), Some((title, taken))) =
+                        if let (Some(src), Some((title, taken, oversized))) =
                             (attr_value(e, b"src"), labels.last_mut())
                         {
                             if !*taken {
                                 *taken = true;
-                                if let Some(title) = clean_text(Some(title.as_str())) {
+                                let title = std::mem::take(title);
+                                pending_label_bytes =
+                                    pending_label_bytes.saturating_sub(title.len());
+                                if let Some(title) = clean_text(Some(&title)) {
                                     let entry = TocEntry {
                                         title,
                                         href: resolve_relative(ncx_path, &src),
                                         depth,
                                     };
-                                    if !push_entry(&mut entries, &mut retained, entry, ncx_path) {
+                                    if !push_entry(
+                                        &mut entries,
+                                        &mut retained,
+                                        entry,
+                                        ncx_path,
+                                        *oversized,
+                                    ) {
+                                        break;
+                                    }
+                                } else if *oversized {
+                                    let entry = TocEntry {
+                                        title: String::new(),
+                                        href: resolve_relative(ncx_path, &src),
+                                        depth,
+                                    };
+                                    if !push_entry(
+                                        &mut entries,
+                                        &mut retained,
+                                        entry,
+                                        ncx_path,
+                                        true,
+                                    ) {
                                         break;
                                     }
                                 }
@@ -234,15 +301,29 @@ pub(crate) fn parse_ncx(xml: &str, ncx_path: &str) -> Vec<TocEntry> {
             }
             Ok(Event::Text(t)) => {
                 if in_text {
-                    if let (Some((label, _)), Ok(text)) = (labels.last_mut(), t.decode()) {
-                        push_word(label, &text);
+                    if let (Some((label, _, oversized)), Ok(text)) = (labels.last_mut(), t.decode())
+                    {
+                        let available = MAX_TOC_TOTAL_BYTES
+                            .saturating_sub(retained)
+                            .saturating_sub(pending_label_bytes);
+                        let before = label.len();
+                        *oversized |=
+                            push_word_capped(label, &text, label.len().saturating_add(available));
+                        pending_label_bytes += label.len() - before;
                     }
                 }
             }
             Ok(Event::GeneralRef(r)) => {
                 if in_text {
-                    if let Some((label, _)) = labels.last_mut() {
-                        label.push_str(&resolve_ref(r));
+                    if let Some((label, _, oversized)) = labels.last_mut() {
+                        let text = resolve_ref(r);
+                        let available = MAX_TOC_TOTAL_BYTES
+                            .saturating_sub(retained)
+                            .saturating_sub(pending_label_bytes);
+                        let before = label.len();
+                        *oversized |=
+                            push_word_capped(label, &text, label.len().saturating_add(available));
+                        pending_label_bytes += label.len() - before;
                     }
                 }
             }
@@ -251,7 +332,9 @@ pub(crate) fn parse_ncx(xml: &str, ncx_path: &str) -> Vec<TocEntry> {
                     if overflow > 0 {
                         overflow -= 1;
                     } else {
-                        labels.pop();
+                        if let Some((label, _, _)) = labels.pop() {
+                            pending_label_bytes = pending_label_bytes.saturating_sub(label.len());
+                        }
                     }
                 }
                 b"text" => in_text = false,

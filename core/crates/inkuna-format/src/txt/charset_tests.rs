@@ -58,6 +58,39 @@ fn detects_utf16le_with_and_without_bom() {
 }
 
 #[test]
+fn detects_bomless_utf16_cjk_in_both_byte_orders() {
+    let text = "春夏秋冬 山中月夜".repeat(64);
+    let little_endian: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let decoded = decode_text(&little_endian);
+    assert_eq!(decoded.encoding, "UTF-16LE");
+    assert_eq!(decoded.text, text);
+
+    let big_endian: Vec<u8> = text.encode_utf16().flat_map(u16::to_be_bytes).collect();
+    let decoded = decode_text(&big_endian);
+    assert_eq!(decoded.encoding, "UTF-16BE");
+    assert_eq!(decoded.text, text);
+}
+
+#[test]
+fn cjk_utf8_gbk_and_big5_samples_remain_non_utf16() {
+    let utf8 = "春夏秋冬 山中月夜".as_bytes();
+    assert!(bomless_utf16(utf8).is_none());
+    assert_eq!(decode_text(utf8).text, "春夏秋冬 山中月夜");
+
+    let gbk = encoded(encoding_rs::GBK, "第一章 春天");
+    assert!(bomless_utf16(&gbk).is_none());
+    let decoded = decode_text(&gbk);
+    assert_eq!(decoded.encoding, "GBK");
+    assert_eq!(decoded.text, "第一章 春天");
+
+    let big5 = encoded(encoding_rs::BIG5, "第一章 春天");
+    assert!(bomless_utf16(&big5).is_none());
+    let decoded = decode_text(&big5);
+    assert_eq!(decoded.encoding, "Big5");
+    assert_eq!(decoded.text, "第一章 春天");
+}
+
+#[test]
 fn normalizes_unicode_line_separators_and_lossy_decode_never_panics() {
     let decoded = decode_text(b"one\x85two\x81three");
     assert!(!decoded.text.is_empty());

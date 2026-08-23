@@ -88,6 +88,30 @@ fn nav_toc_stops_at_the_byte_budget() {
     assert!(toc.iter().all(|e| e.title.chars().all(|c| c == '夜')));
 }
 
+#[test]
+fn nav_toc_stops_before_an_oversized_pending_title_is_retained() {
+    let title = "夜".repeat(MAX_TOC_TOTAL_BYTES / '夜'.len_utf8() + 1);
+    let mut pending = String::new();
+    assert!(push_word_capped(&mut pending, &title, MAX_TOC_TOTAL_BYTES));
+    assert!(pending.len() <= MAX_TOC_TOTAL_BYTES);
+    assert!(pending.capacity() <= MAX_TOC_TOTAL_BYTES);
+    assert!(pending.is_char_boundary(pending.len()));
+
+    let xml = format!(
+        r#"<html xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="ch.xhtml">{title}</a></li></ol></nav></body></html>"#,
+    );
+    assert!(parse_nav(&xml, "OEBPS/nav.xhtml").is_empty());
+}
+
+#[test]
+fn nav_toc_stops_after_an_oversized_whitespace_title() {
+    let title = " ".repeat(MAX_TOC_TOTAL_BYTES + 1);
+    let xml = format!(
+        r#"<html xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="ch.xhtml">{title}</a></li><li><a href="next.xhtml">Later</a></li></ol></nav></body></html>"#,
+    );
+    assert!(parse_nav(&xml, "OEBPS/nav.xhtml").is_empty());
+}
+
 /// A crafted NCX listing far more navPoints than any real TOC stops at
 /// the entry cap instead of materializing one `TocEntry` (and later one
 /// DB row) per navPoint.

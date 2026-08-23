@@ -1,10 +1,11 @@
 use std::io::Read;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use super::{parse_position, sanitize_css, ImageBudget, MAX_TOTAL_IMAGE_BYTES};
-use inkuna_content as epub;
 use crate::mobi::convert_to_epub;
 use crate::test_support::{Kf8FileFixture, Kf8NcxFixture, MobiTestBuilder};
+use inkuna_content as epub;
 
 fn chapter(path: &Path, index: usize) -> String {
     let mut archive = zip::ZipArchive::new(std::fs::File::open(path).unwrap()).unwrap();
@@ -135,6 +136,28 @@ fn css_sanitizer_catches_identifier_escaped_imports_and_urls() {
     assert!(!escaped_import.contains("https://"));
     let escaped_url = sanitize_css(".a{background:\\75 rl(https://x)}");
     assert!(!escaped_url.contains("https://"));
+}
+
+#[test]
+fn css_sanitizer_handles_large_repeated_threats_in_linear_time() {
+    let imports = "@import;".repeat(4 * 1024 * 1024 / "@import;".len() + 1);
+    let started = Instant::now();
+    assert!(sanitize_css(&imports).is_empty());
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "sanitizing imports took {:?}",
+        started.elapsed()
+    );
+
+    let urls = "url(https://x)".repeat(4 * 1024 * 1024 / "url(https://x)".len() + 1);
+    let expected = "none".repeat(urls.len() / "url(https://x)".len());
+    let started = Instant::now();
+    assert_eq!(sanitize_css(&urls), expected);
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "sanitizing remote URLs took {:?}",
+        started.elapsed()
+    );
 }
 
 #[test]

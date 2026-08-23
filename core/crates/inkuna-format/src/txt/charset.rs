@@ -41,17 +41,15 @@ pub(super) fn decode_text(bytes: &[u8]) -> DecodedText {
 }
 
 /// Recognizes BOM-less UTF-16 from NUL density: over a clamped 4 KiB
-/// sample, NULs must exceed 30% and skew clearly to even (BE) or odd (LE)
-/// offsets. `None` means "not UTF-16", including for a NUL-free sample —
+/// sample, the dominant parity must contain at least 1% NULs and at least
+/// four times as many as the other parity. Valid UTF-8 is never treated as
+/// UTF-16 unless its alternating NULs are the unambiguous byte layout of
+/// ASCII UTF-16. `None` means "not UTF-16", including for a NUL-free sample —
 /// shared by [`decode_text`] and `Format` detection so the two always
 /// agree.
 pub fn bomless_utf16(sample: &[u8]) -> Option<&'static Encoding> {
     let sample = &sample[..sample.len().min(UTF16_SAMPLE_BYTES)];
     if sample.is_empty() {
-        return None;
-    }
-    let nulls = sample.iter().filter(|byte| **byte == 0).count();
-    if nulls * 10 <= sample.len() * 3 {
         return None;
     }
     let (even, odd) = sample
@@ -65,11 +63,31 @@ pub fn bomless_utf16(sample: &[u8]) -> Option<&'static Encoding> {
                 (even, odd + 1)
             }
         });
+    let dominant = even.max(odd);
+    let other = even.min(odd);
+    if dominant * 100 < sample.len() || dominant < other * 4 {
+        return None;
+    }
+    // An ASCII UTF-16 stream is technically valid UTF-8 because NUL is a
+    // legal UTF-8 code point. Preserve that unambiguous layout while
+    // rejecting every other valid UTF-8 sample before it can be a false
+    // positive under the lower NUL floor.
+    if std::str::from_utf8(sample).is_ok() && !is_ascii_utf16(sample, even > odd) {
+        return None;
+    }
     if even == odd {
         None
     } else {
         Some(if even > odd { UTF_16BE } else { UTF_16LE })
     }
+}
+
+fn is_ascii_utf16(sample: &[u8], big_endian: bool) -> bool {
+    let (high, low) = if big_endian { (0, 1) } else { (1, 0) };
+    sample.len().is_multiple_of(2)
+        && sample
+            .chunks_exact(2)
+            .all(|pair| pair[high] == 0 && pair[low].is_ascii())
 }
 
 fn normalize_line_endings(text: &str) -> String {
