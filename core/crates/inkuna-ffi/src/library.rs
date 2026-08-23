@@ -96,9 +96,11 @@ impl From<inkuna_core::Chapter> for Chapter {
 pub struct Bookmark {
     pub id: String,
     pub publication_id: String,
-    /// The pinned position; a legacy row the rebaseline has not
-    /// converted yet reads as the book-start default `(0, 0)`.
-    pub coordinate: Coordinate,
+    /// The pinned position, or `None` when the row has no stored
+    /// coordinate — a legacy row the rebaseline has not converted yet, or
+    /// one pinned before the shell had an engine coordinate. Fall back to
+    /// `progression`; never treat it as book start.
+    pub coordinate: Option<Coordinate>,
     pub progression: f64,
     pub created_at: i64,
 }
@@ -108,7 +110,7 @@ impl From<inkuna_core::Bookmark> for Bookmark {
         Bookmark {
             id: b.id,
             publication_id: b.publication_id,
-            coordinate: b.coordinate.into(),
+            coordinate: b.coordinate.map(Into::into),
             progression: b.progression,
             created_at: b.created_at,
         }
@@ -197,16 +199,20 @@ impl ShelfLibrary {
         blocking(move || Ok(library.chapters(&id)?.into_iter().map(Into::into).collect())).await
     }
 
+    /// Pins a mark at `coordinate`. Pass `coordinate: None` when the
+    /// caller has no engine coordinate: the row then stores no coordinate
+    /// at all instead of a book-start placeholder, and `progression`
+    /// carries the position.
     pub async fn add_bookmark(
         &self,
         id: String,
-        coordinate: Coordinate,
+        coordinate: Option<Coordinate>,
         progression: f64,
     ) -> Result<Bookmark, InkunaError> {
         let library = self.0.clone();
         blocking(move || {
             Ok(library
-                .add_bookmark(&id, coordinate.into(), progression)?
+                .add_bookmark(&id, coordinate.map(Into::into), progression)?
                 .into())
         })
         .await

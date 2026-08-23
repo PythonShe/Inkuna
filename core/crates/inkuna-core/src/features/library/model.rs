@@ -74,14 +74,16 @@ pub enum Sort {
 }
 
 /// A reader-placed mark in a publication: a content coordinate plus the
-/// book-wide progression the list sorts by. A legacy row whose
-/// coordinate the V8 rebaseline has not converted yet reads as the
-/// book-start default `(0, 0)`.
+/// book-wide progression the list sorts by. `coordinate` is `None` when
+/// the row has none stored — a legacy row the V8 rebaseline has not
+/// converted yet, or one pinned by a caller with no engine coordinate —
+/// and a consumer falls back to `progression` rather than jumping to
+/// book start.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bookmark {
     pub id: String,
     pub publication_id: String,
-    pub coordinate: Coordinate,
+    pub coordinate: Option<Coordinate>,
     pub progression: f64,
     pub created_at: i64,
 }

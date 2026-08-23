@@ -18,13 +18,21 @@ impl Library {
     /// `updated_at` heartbeat, all in a single writer transaction. With
     /// no open session it updates the publication only; never an error.
     ///
+    /// `coordinate: None` means "this caller has no content coordinate to
+    /// report" — the plan-01 shells, which have no engine coordinate yet.
+    /// The publication's stored coordinate is then left exactly as it is
+    /// (a `(0, 0)` write would clobber a rebaselined coordinate beyond
+    /// recovery, because the legacy locator it came from is already
+    /// consumed); only `progression`, `last_opened_at`, and `finished_at`
+    /// are written.
+    ///
     /// Shells may pass `position: None`: the core then derives the
     /// synthetic position from the coordinate against
     /// `resource_positions` (best-effort — a book with no rows leaves the
     /// session position untouched), so session stats keep flowing without
-    /// a shell-side position model. During plan-01, a `(0, 0)` placeholder
-    /// coordinate instead derives from progression and the total position
-    /// count, preserving useful session history until shells send engine
+    /// a shell-side position model. With no coordinate either, the
+    /// position derives from progression and the total position count,
+    /// preserving useful session history until shells send engine
     /// coordinates.
     ///
     /// Auto-finish is transition-triggered: `finished_at` is set only when
@@ -33,7 +41,7 @@ impl Library {
     pub fn update_progress(
         &self,
         id: &str,
-        coordinate: Coordinate,
+        coordinate: Option<Coordinate>,
         progression: f64,
         position: Option<u32>,
     ) -> Result<(), CoreError> {
@@ -72,34 +80,43 @@ impl Library {
             existing => existing,
         };
 
-        tx.execute(
-            "UPDATE publications
-             SET position_spine_idx = ?1, position_char_offset = ?2, progression = ?3,
-                 last_opened_at = ?4, finished_at = ?5
-             WHERE id = ?6",
-            rusqlite::params![
-                coordinate.spine_idx,
-                coordinate.char_offset as i64,
-                progression,
-                now,
-                finished_at,
-                id
-            ],
-        )?;
+        match coordinate {
+            Some(coordinate) => tx.execute(
+                "UPDATE publications
+                 SET position_spine_idx = ?1, position_char_offset = ?2, progression = ?3,
+                     last_opened_at = ?4, finished_at = ?5
+                 WHERE id = ?6",
+                rusqlite::params![
+                    coordinate.spine_idx,
+                    coordinate.char_offset as i64,
+                    progression,
+                    now,
+                    finished_at,
+                    id
+                ],
+            )?,
+            // No coordinate to report: leave the stored one untouched
+            // rather than overwriting it with a book-start placeholder.
+            None => tx.execute(
+                "UPDATE publications
+                 SET progression = ?1, last_opened_at = ?2, finished_at = ?3
+                 WHERE id = ?4",
+                rusqlite::params![progression, now, finished_at, id],
+            )?,
+        };
         // Derive the synthetic position from the coordinate when the shell
-        // did not pass one; the plan-01 `(0, 0)` stub has no meaningful
-        // coordinate, so use book-wide progression instead. No position
-        // rows still leave it None.
+        // did not pass one; with no coordinate either, use book-wide
+        // progression instead. No position rows — or a degenerate range
+        // row whose last position is 0 — still leaves it None, which
+        // `COALESCE` below turns into "leave the session position alone".
         let ranges = position_ranges_on(&tx, id)?;
-        let position = match position {
-            Some(position) => Some(position),
-            None if coordinate.spine_idx == 0 && coordinate.char_offset == 0 => {
-                ranges.last().map(|&(_, start, count)| {
-                    let total = start.saturating_add(count.saturating_sub(1));
-                    ((progression * f64::from(total)) as u32).clamp(1, total)
-                })
-            }
-            None => position_for(&ranges, coordinate),
+        let position = match (position, coordinate) {
+            (Some(position), _) => Some(position),
+            (None, Some(coordinate)) => position_for(&ranges, coordinate),
+            (None, None) => ranges.last().and_then(|&(_, start, count)| {
+                let total = start.saturating_add(count.saturating_sub(1));
+                (total > 0).then(|| ((progression * f64::from(total)) as u32).clamp(1, total))
+            }),
         };
         // Session heartbeat: the first position-bearing update of a session
         // also backfills its start_position, so pages-read deltas measure

@@ -48,7 +48,7 @@ fn progress_roundtrip_coordinate() {
     let (_dir, library, id) = library_with_book();
 
     library
-        .update_progress(&id, at(1, 42), 0.42, Some(12))
+        .update_progress(&id, Some(at(1, 42)), 0.42, Some(12))
         .unwrap();
 
     let publication = library.publication(&id).unwrap();
@@ -58,7 +58,7 @@ fn progress_roundtrip_coordinate() {
     assert!(publication.finished_at.is_none());
 
     assert!(matches!(
-        library.update_progress("missing", at(0, 0), 0.5, None),
+        library.update_progress("missing", Some(at(0, 0)), 0.5, None),
         Err(CoreError::NotFound(_))
     ));
 }
@@ -68,7 +68,9 @@ fn publication_coordinate_none_until_written() {
     let (_dir, library, id) = library_with_book();
     assert_eq!(library.publication(&id).unwrap().coordinate, None);
 
-    library.update_progress(&id, at(0, 7), 0.1, None).unwrap();
+    library
+        .update_progress(&id, Some(at(0, 7)), 0.1, None)
+        .unwrap();
     assert_eq!(library.publication(&id).unwrap().coordinate, Some(at(0, 7)));
 }
 
@@ -96,7 +98,7 @@ fn position_derived_from_coordinate() {
     // the open session's end_position.
     let session_id = library.session_start(&id).unwrap();
     library
-        .update_progress(&id, at(1, 3000), 0.9, None)
+        .update_progress(&id, Some(at(1, 3000)), 0.9, None)
         .unwrap();
     let end_position: Option<i64> = library
         .readers
@@ -118,10 +120,10 @@ fn stub_coordinate_uses_progression_for_session_position() {
     seed_positions(&library, &id, &[10, 5]);
     let session_id = library.session_start(&id).unwrap();
 
-    // Plan-01 shells report this placeholder coordinate until the reader
-    // engine is wired through. It must not make a 90%-through sitting look
+    // Plan-01 shells report no coordinate at all until the reader engine
+    // is wired through. That must not make a 90%-through sitting look
     // like it never left synthetic position one.
-    library.update_progress(&id, at(0, 0), 0.9, None).unwrap();
+    library.update_progress(&id, None, 0.9, None).unwrap();
 
     let end_position: Option<i64> = library
         .readers
@@ -153,13 +155,14 @@ fn bookmark_defaults_before_reconcile() {
     }
     let listed = library.bookmarks(&id).unwrap();
     assert_eq!(listed.len(), 1);
-    assert_eq!(listed[0].coordinate, at(0, 0));
+    // No stored coordinate reads as `None`, never as a fake book start.
+    assert_eq!(listed[0].coordinate, None);
 }
 
 #[test]
 fn auto_finish_fires_only_on_upward_crossing() {
     let (_dir, library, id) = library_with_book();
-    let origin = at(0, 0);
+    let origin = Some(at(0, 0));
 
     library.update_progress(&id, origin, 0.9, None).unwrap();
     assert!(library.publication(&id).unwrap().finished_at.is_none());
@@ -184,4 +187,96 @@ fn auto_finish_fires_only_on_upward_crossing() {
     assert!(library.publication(&id).unwrap().finished_at.is_none());
     library.set_finished(&id, true).unwrap();
     assert!(library.publication(&id).unwrap().finished_at.is_some());
+}
+
+#[test]
+fn coordinate_none_preserves_the_stored_coordinate() {
+    let (_dir, library, id) = library_with_book();
+    // A reconciled book: the rebaseline already converted its legacy
+    // locator and NULLed it, so a book-start write here would be
+    // unrecoverable.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications
+             SET position_spine_idx = 3, position_char_offset = 500,
+                 locator = NULL, reconciled_at = 1
+             WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+
+    library.update_progress(&id, None, 0.9, None).unwrap();
+
+    let publication = library.publication(&id).unwrap();
+    assert_eq!(publication.coordinate, Some(at(3, 500)));
+    assert_eq!(publication.progression, 0.9);
+    assert!(publication.last_opened_at.is_some());
+}
+
+#[test]
+fn bookmark_without_coordinate_stores_null_columns() {
+    let (_dir, library, id) = library_with_book();
+
+    let bookmark = library.add_bookmark(&id, None, 0.5).unwrap();
+    assert_eq!(bookmark.coordinate, None);
+
+    let columns: (Option<i64>, Option<i64>) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT position_spine_idx, position_char_offset FROM bookmarks WHERE id = ?1",
+                [&bookmark.id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(columns, (None, None));
+
+    let listed = library.bookmarks(&id).unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].coordinate, None);
+}
+
+#[test]
+fn degenerate_position_range_leaves_the_session_position_untouched() {
+    let (_dir, library, id) = library_with_book();
+    // `seed_positions` starts its cumulative counter at 1, so this row —
+    // a total of zero synthetic positions — has to be written raw. It is
+    // the shape that used to panic the clamp, poisoning the writer lock
+    // for the whole process.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "DELETE FROM resource_positions WHERE publication_id = ?1",
+            [&id],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO resource_positions
+                (publication_id, spine_idx, start_position, position_count)
+             VALUES (?1, 0, 0, 0)",
+            [&id],
+        )
+        .unwrap();
+    }
+    let session_id = library.session_start(&id).unwrap();
+
+    assert!(library.update_progress(&id, None, 0.9, None).is_ok());
+
+    let end_position: Option<i64> = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT end_position FROM sessions WHERE id = ?1",
+                [&session_id],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(end_position, None);
+    assert_eq!(library.publication(&id).unwrap().progression, 0.9);
 }

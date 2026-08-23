@@ -363,8 +363,10 @@ fn search_offset_equals_projection_offset() {
     fn registry() -> Arc<FontRegistry> {
         static REG: OnceLock<Arc<FontRegistry>> = OnceLock::new();
         Arc::clone(REG.get_or_init(|| {
-            let dir =
-                std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"));
+            let dir = std::path::Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../assets/fonts"
+            ));
             FontRegistry::load(dir).expect("repo font set must load")
         }))
     }
@@ -422,4 +424,42 @@ fn search_offset_equals_projection_offset() {
         .unwrap();
     assert_eq!(location.spine_idx, hit.spine_idx);
     session.close();
+}
+
+#[test]
+fn in_book_results_report_canonicality() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let data_dir = dir.path().join("library");
+
+    let id = {
+        let library = Library::open(&data_dir).unwrap();
+        library.search.wait_for_reconcile();
+        let id = imported_id(&library, &epub);
+        // Rewind to the pre-engine state the V8 migration leaves behind:
+        // the stored bodies are then a legacy-extractor projection, and
+        // their offsets must not reach the engine.
+        {
+            let conn = library.writer.lock().unwrap();
+            conn.execute(
+                "UPDATE publications SET reconciled_at = NULL WHERE id = ?1",
+                [&id],
+            )
+            .unwrap();
+        }
+
+        let results = library.search_in_book(&id, "月", 50).unwrap();
+        assert_eq!(results.total, 1);
+        assert!(!results.canonical);
+        id
+    };
+
+    // Reopening runs the V8 rebaseline; once it stamps the book, the same
+    // offsets are canonical.
+    let library = Library::open(&data_dir).unwrap();
+    library.search.wait_for_reconcile();
+    let results = library.search_in_book(&id, "月", 50).unwrap();
+    assert_eq!(results.total, 1);
+    assert!(results.canonical);
 }

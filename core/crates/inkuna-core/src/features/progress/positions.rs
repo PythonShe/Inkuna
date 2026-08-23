@@ -170,7 +170,7 @@ impl Library {
         let range_for = |spine_idx: u32| ranges.iter().find(|r| r.0 == spine_idx);
         let last = ranges
             .last()
-            .map(|&(_, start, count)| start + count.saturating_sub(1))
+            .map(|&(_, start, count)| start.saturating_add(count.saturating_sub(1)))
             .unwrap_or(1);
 
         // Each chapter's spine resource, via href minus fragment.
@@ -202,7 +202,7 @@ impl Library {
                 .and_then(range_for)
                 .map(|&(_, next_start, _)| next_start.saturating_sub(1))
                 .unwrap_or(last);
-            let own_end = start + count.saturating_sub(1);
+            let own_end = start.saturating_add(count.saturating_sub(1));
             out.push(ChapterPositionRange {
                 chapter_idx,
                 start_position: start,

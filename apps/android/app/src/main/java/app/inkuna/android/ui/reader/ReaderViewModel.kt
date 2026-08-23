@@ -10,7 +10,6 @@ import androidx.lifecycle.viewModelScope
 import app.inkuna.android.model.LibraryStore
 import app.inkuna.core.Bookshelf
 import app.inkuna.core.Chapter
-import app.inkuna.core.Coordinate
 import app.inkuna.core.Publication as CorePublication
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
@@ -430,10 +429,12 @@ class ReaderViewModel(
                 val progression = locator.locations.totalProgression ?: return@withLock
                 lastPersisted = locator
                 runCatching {
-                    // plan-02: real coordinates from the engine
+                    // plan-02: real coordinates from the engine. Sending
+                    // none leaves the stored coordinate untouched instead
+                    // of overwriting it with book start.
                     shelf.progress().updateProgress(
                         publicationId,
-                        Coordinate(spineIdx = 0u, charOffset = 0uL),
+                        null,
                         progression,
                         null,
                     )
@@ -530,10 +531,12 @@ class ReaderViewModel(
             // thread availability.
             writeLock.withLock {
                 runCatching {
-                    // plan-02: real coordinates from the engine
+                    // plan-02: real coordinates from the engine. Until
+                    // then the mark stores no coordinate at all and
+                    // `progression` is the restore fallback.
                     shelf.library().addBookmark(
                         publicationId,
-                        Coordinate(spineIdx = 0u, charOffset = 0uL),
+                        null,
                         locator.locations.totalProgression ?: 0.0,
                     )
                 }

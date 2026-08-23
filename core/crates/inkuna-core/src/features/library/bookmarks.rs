@@ -14,10 +14,15 @@ impl Library {
     /// number must not cost the reader the bookmark. The legacy `locator`
     /// column is NOT NULL, so new rows write it as `''`. Returns
     /// `NotFound` if no publication has that id.
+    ///
+    /// `coordinate: None` — a caller with no engine coordinate yet —
+    /// stores NULL in both coordinate columns rather than the book-start
+    /// `(0, 0)`, so the mark stays distinguishable from a genuine
+    /// book-start bookmark and a consumer can fall back to `progression`.
     pub fn add_bookmark(
         &self,
         publication_id: &str,
-        coordinate: Coordinate,
+        coordinate: Option<Coordinate>,
         progression: f64,
     ) -> Result<Bookmark, CoreError> {
         let progression = if progression.is_finite() {
@@ -49,8 +54,8 @@ impl Library {
             rusqlite::params![
                 bookmark.id,
                 bookmark.publication_id,
-                bookmark.coordinate.spine_idx,
-                bookmark.coordinate.char_offset as i64,
+                bookmark.coordinate.map(|c| c.spine_idx),
+                bookmark.coordinate.map(|c| c.char_offset as i64),
                 bookmark.progression,
                 bookmark.created_at,
             ],
@@ -59,8 +64,10 @@ impl Library {
     }
 
     /// Bookmarks for a publication, sorted by progression through the
-    /// book. A legacy row the V8 rebaseline has not converted yet reads
-    /// as the book-start default `(0, 0)`.
+    /// book. A row with no stored coordinate — a legacy row the V8
+    /// rebaseline has not converted yet, or one pinned before the shells
+    /// had engine coordinates — reads as `coordinate: None`, never as a
+    /// fake book-start `(0, 0)`; `progression` is the fallback.
     pub fn bookmarks(&self, publication_id: &str) -> Result<Vec<Bookmark>, CoreError> {
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(
@@ -72,13 +79,17 @@ impl Library {
             let rows = stmt.query_map([publication_id], |row| {
                 let spine_idx: Option<u32> = row.get(2)?;
                 let char_offset: Option<i64> = row.get(3)?;
+                let coordinate = match (spine_idx, char_offset) {
+                    (Some(spine_idx), Some(char_offset)) => Some(Coordinate {
+                        spine_idx,
+                        char_offset: char_offset.max(0) as u64,
+                    }),
+                    _ => None,
+                };
                 Ok(Bookmark {
                     id: row.get(0)?,
                     publication_id: row.get(1)?,
-                    coordinate: Coordinate {
-                        spine_idx: spine_idx.unwrap_or(0),
-                        char_offset: char_offset.unwrap_or(0).max(0) as u64,
-                    },
+                    coordinate,
                     progression: row.get(4)?,
                     created_at: row.get(5)?,
                 })

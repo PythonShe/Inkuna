@@ -22,8 +22,11 @@ impl Library {
     /// over the book's stored `resource_text` body. Once a book's
     /// `reconciled_at` is set, that body is the canonical projection:
     /// imports stamp new books and the background pass converges legacy
-    /// books most-recently-read first. Plan-02 consumers must not give an
-    /// unreconciled legacy-body offset to the engine. Matches partial words ("cat" in
+    /// books most-recently-read first. Whether this call's offsets are
+    /// canonical is reported by [`BookSearchResults::canonical`] rather
+    /// than left to the caller to remember — a `false` result's offsets
+    /// address a legacy-extractor body and must not reach the engine.
+    /// Matches partial words ("cat" in
     /// "category") and single CJK chars by construction; any length
     /// floor is a shell UI policy, not the core's. Returns up to `limit`
     /// hits and the true total; an empty or whitespace query returns no
@@ -35,14 +38,28 @@ impl Library {
         limit: u32,
     ) -> Result<BookSearchResults, CoreError> {
         let needle = fold_query(query.trim());
-        let rows: Vec<(u32, String, String)> = self.readers.with(|conn| {
+        // The canonicality flag is read on the same reader connection as
+        // the bodies, so it describes exactly the text that was scanned.
+        let (rows, canonical): (Vec<(u32, String, String)>, bool) = self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(
                 "SELECT r.spine_idx, r.href, t.body FROM resources r
                  JOIN resource_text t ON t.resource_id = r.id
                  WHERE r.publication_id = ?1 ORDER BY r.spine_idx",
             )?;
             let rows = stmt.query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
-            rows.collect::<Result<_, _>>().map_err(Into::into)
+            let rows: Vec<(u32, String, String)> = rows.collect::<Result<_, _>>()?;
+            let canonical: bool = conn
+                .query_row(
+                    "SELECT reconciled_at IS NOT NULL FROM publications WHERE id = ?1",
+                    [id],
+                    |row| row.get(0),
+                )
+                .or_else(|e| match e {
+                    // A missing book is reported as `NotFound` below.
+                    rusqlite::Error::QueryReturnedNoRows => Ok(false),
+                    other => Err(other),
+                })?;
+            Ok((rows, canonical))
         })?;
         if rows.is_empty() {
             // Distinguish "book with no text" from "no such book".
@@ -52,6 +69,7 @@ impl Library {
             return Ok(BookSearchResults {
                 hits: Vec::new(),
                 total: 0,
+                canonical,
             });
         }
 
@@ -77,7 +95,11 @@ impl Library {
                 });
             }
         }
-        Ok(BookSearchResults { hits, total })
+        Ok(BookSearchResults {
+            hits,
+            total,
+            canonical,
+        })
     }
 
     /// Ranked library-wide full-text search: which books talk about this,

@@ -44,6 +44,11 @@ impl From<inkuna_core::BookSearchHit> for BookSearchHit {
 pub struct BookSearchResults {
     pub hits: Vec<BookSearchHit>,
     pub total: u32,
+    /// Whether the hit offsets index the book's canonical projection.
+    /// `false` while the background rebaseline has not reached this book:
+    /// the snippets are fine to display, but the offsets must not be fed
+    /// to a reader session's `locate` / `match_rects`.
+    pub canonical: bool,
 }
 
 /// One book matching a library-wide query, best first, with the first
@@ -82,6 +87,7 @@ impl ShelfSearch {
             Ok(BookSearchResults {
                 hits: results.hits.into_iter().map(Into::into).collect(),
                 total: results.total,
+                canonical: results.canonical,
             })
         })
         .await

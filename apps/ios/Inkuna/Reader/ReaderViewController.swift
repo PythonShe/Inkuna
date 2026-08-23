@@ -658,12 +658,13 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         else { return }
         enqueueCoreWrite("progress") { [id = publication.id] bookshelf in
             // plan-02: real coordinates from the engine. The Readium
-            // reader cannot produce content coordinates, so the write
-            // carries the book-start stub; the real progression keeps
-            // Keep Reading and the shelves correct.
+            // reader cannot produce content coordinates, so none is sent:
+            // the core then leaves the stored coordinate alone instead of
+            // clobbering a rebaselined one with book start. The real
+            // progression keeps Keep Reading and the shelves correct.
             try await bookshelf.progress().updateProgress(
                 id: id,
-                coordinate: Coordinate(spineIdx: 0, charOffset: 0),
+                coordinate: nil,
                 progression: totalProgression,
                 position: nil
             )
@@ -944,10 +945,12 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         Task { [weak self, id = publication.id, logger] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                // plan-02: real coordinates from the engine.
+                // plan-02: real coordinates from the engine. Until then
+                // the mark stores no coordinate at all — `progression`
+                // is what a restore falls back to.
                 _ = try await bookshelf.library().addBookmark(
                     id: id,
-                    coordinate: Coordinate(spineIdx: 0, charOffset: 0),
+                    coordinate: nil,
                     progression: progression
                 )
                 guard let self else { return }

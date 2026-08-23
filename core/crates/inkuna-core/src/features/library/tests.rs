@@ -31,10 +31,10 @@ fn imports_cjk_epub_and_roundtrips() {
     library
         .update_progress(
             &publication.id,
-            inkuna_engine::Coordinate {
+            Some(inkuna_engine::Coordinate {
                 spine_idx: 0,
                 char_offset: 0,
-            },
+            }),
             0.42,
             None,
         )
@@ -172,20 +172,20 @@ fn bookmarks_roundtrip_sorted_by_progression() {
     let late = library
         .add_bookmark(
             &publication.id,
-            inkuna_engine::Coordinate {
+            Some(inkuna_engine::Coordinate {
                 spine_idx: 1,
                 char_offset: 24,
-            },
+            }),
             0.8,
         )
         .unwrap();
     let early = library
         .add_bookmark(
             &publication.id,
-            inkuna_engine::Coordinate {
+            Some(inkuna_engine::Coordinate {
                 spine_idx: 0,
                 char_offset: 3,
-            },
+            }),
             0.2,
         )
         .unwrap();
@@ -202,10 +202,10 @@ fn bookmarks_roundtrip_sorted_by_progression() {
     assert!(matches!(
         library.add_bookmark(
             "missing",
-            inkuna_engine::Coordinate {
+            Some(inkuna_engine::Coordinate {
                 spine_idx: 0,
                 char_offset: 0,
-            },
+            }),
             0.5
         ),
         Err(CoreError::NotFound(_))

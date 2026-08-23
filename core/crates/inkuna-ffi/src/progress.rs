@@ -37,16 +37,21 @@ impl ShelfProgress {
     /// the page's first character; `progression` the book-wide total.
     /// Shells may pass `position: None` — the core derives the synthetic
     /// position from the coordinate.
+    ///
+    /// Pass `coordinate: None` when the caller has no engine coordinate:
+    /// the stored coordinate is then left untouched (a book-start
+    /// placeholder would destroy a rebaselined position irrecoverably)
+    /// and only progression / recency / finished state are written.
     pub async fn update_progress(
         &self,
         id: String,
-        coordinate: Coordinate,
+        coordinate: Option<Coordinate>,
         progression: f64,
         position: Option<u32>,
     ) -> Result<(), InkunaError> {
         let library = self.0.clone();
         blocking(move || {
-            Ok(library.update_progress(&id, coordinate.into(), progression, position)?)
+            Ok(library.update_progress(&id, coordinate.map(Into::into), progression, position)?)
         })
         .await
     }

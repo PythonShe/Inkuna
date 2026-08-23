@@ -77,10 +77,10 @@ fn session_lifecycle_snapshots_and_crash_recovery() {
     library
         .update_progress(
             &id,
-            inkuna_engine::Coordinate {
+            Some(inkuna_engine::Coordinate {
                 spine_idx: 0,
                 char_offset: 0,
-            },
+            }),
             0.1,
             Some(12),
         )
