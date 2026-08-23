@@ -80,10 +80,8 @@ pub trait LayoutEvents: Send + Sync + 'static {
     /// instead of `NotReady`, which is the shell's cue to render its
     /// unreadable-chapter placeholder in that slot.
     ///
-    /// Defaulted to a no-op so recorders that only care about readiness
-    /// (tests, corpus fixtures) stay source-compatible; the FFI adapter
-    /// overrides it, and any listener a shell actually waits on must.
-    fn chapter_failed(&self, generation: u64, spine_idx: u32) {
-        let _ = (generation, spine_idx);
-    }
+    /// Required, deliberately: a listener that silently drops failures
+    /// leaves a shell spinning forever, so that must be a compile error
+    /// rather than an inherited no-op.
+    fn chapter_failed(&self, generation: u64, spine_idx: u32);
 }

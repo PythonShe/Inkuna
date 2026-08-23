@@ -86,6 +86,13 @@ fn extract_one(reader: &mut ResourceReader, href: &str) -> Option<String> {
             return None;
         }
     };
+    if doc.truncated {
+        // The projection about to become this resource's canonical
+        // `resource_text` is a prefix, or lost element structure, at a
+        // parse budget. Never silent: a book whose corpus is short is
+        // otherwise indistinguishable from a book that is short.
+        log::warn!("corpus: {href} hit a parse budget; canonical text is degraded/truncated");
+    }
     let sheets = chapter_stylesheets(reader, href, &doc);
     let styled = resolve(&doc, &sheets);
     Some(project(&styled).text)

@@ -547,6 +547,7 @@ struct DropInWorker {
 
 impl LayoutEvents for DropInWorker {
     fn first_page_ready(&self, _: u64, _: u32) {}
+    fn chapter_failed(&self, _: u64, _: u32) {}
     fn chapter_ready(&self, _: u64, _: u32, _: u32) {
         let gate = self.gate.lock().expect("gate lock").take();
         let Some(gate) = gate else { return };

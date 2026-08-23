@@ -226,6 +226,59 @@ fn depth_budget_flattens_and_relocates_ids() {
 }
 
 #[test]
+fn flat_list_without_end_tags_is_not_truncated() {
+    // Generated EPUBs ship lists that never write `</li>`. These are
+    // siblings, not 5 000-deep nesting: the whole chapter must survive,
+    // every item keeping its own element and its own text.
+    const ITEMS: usize = 5_000;
+    let mut xhtml = String::from("<html><body><ul>");
+    for i in 0..ITEMS {
+        xhtml.push_str(&format!("<li>item {i}"));
+    }
+    xhtml.push_str("</ul></body></html>");
+
+    let doc = parse(xhtml.as_bytes()).unwrap();
+    assert!(!doc.truncated, "a flat list is not a budget hazard");
+    assert_eq!(find_all(&doc, &ElementName::Li).len(), ITEMS);
+    // The last item is present and still its own list item, so nothing
+    // was flattened into an ancestor either.
+    let last = *find_all(&doc, &ElementName::Li).last().unwrap();
+    assert_eq!(subtree_text(&doc, last), format!("item {}", ITEMS - 1));
+    // Every item is a child of the one `<ul>`, not of its predecessor.
+    let uls = find_all(&doc, &ElementName::Ul);
+    assert_eq!(uls.len(), 1);
+    assert_eq!(doc.node(uls[0]).children.len(), ITEMS);
+}
+
+#[test]
+fn unclosed_paragraphs_close_at_the_next_paragraph() {
+    let doc = parse(br#"<html><body><p>one<p>two<p>three</body></html>"#).unwrap();
+
+    assert!(!doc.truncated);
+    let paras = find_all(&doc, &ElementName::P);
+    assert_eq!(paras.len(), 3);
+    let texts: Vec<String> = paras.iter().map(|&p| subtree_text(&doc, p)).collect();
+    assert_eq!(texts, vec!["one", "two", "three"]);
+}
+
+#[test]
+fn well_formed_nesting_survives_the_implied_end_rules() {
+    // The implied-end rules must never disturb a properly closed
+    // nested list — the inner items belong to the inner <ul>.
+    let doc = parse(
+        br#"<html><body><ul><li>a<ul><li>b</li><li>c</li></ul></li><li>d</li></ul></body></html>"#,
+    )
+    .unwrap();
+
+    assert!(!doc.truncated);
+    let uls = find_all(&doc, &ElementName::Ul);
+    assert_eq!(uls.len(), 2);
+    assert_eq!(doc.node(uls[0]).children.len(), 2, "outer list has a and d");
+    assert_eq!(doc.node(uls[1]).children.len(), 2, "inner list has b and c");
+    assert_eq!(subtree_text(&doc, uls[1]), "bc");
+}
+
+#[test]
 fn open_element_budget_truncates_deep_nesting_promptly() {
     let mut xhtml = String::from("<html><body>");
     for _ in 0..200_000 {

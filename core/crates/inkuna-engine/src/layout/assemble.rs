@@ -374,7 +374,9 @@ fn line_metrics(
 }
 
 /// Ascender/descender in font units for a face, cached once per
-/// paragraph. The registry validates these metrics at load time.
+/// paragraph. The registry validates only `upem != 0` at load time;
+/// ascender/descender are stored as the face reports them, via its
+/// `USE_TYPO_METRICS` → hhea → OS/2 typo → OS/2 win selection.
 fn face_metrics(fonts: &FontRegistry, cache: &mut MetricsCache, font_id: u32) -> (i32, i32, u16) {
     if let Some(&(_, asc, desc, upem)) = cache.0.iter().find(|&&(id, ..)| id == font_id) {
         return (asc, desc, upem);

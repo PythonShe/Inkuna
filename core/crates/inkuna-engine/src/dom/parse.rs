@@ -21,8 +21,21 @@ pub const MAX_ATTR_BYTES: usize = 4_096;
 pub const MAX_STYLESHEET_BYTES: usize = 1_048_576;
 /// Elements deeper than this flatten into their ancestor at this depth.
 pub const MAX_DEPTH: usize = 256;
-/// Open elements retained for recovery while parsing one resource.
+/// Open elements retained for recovery while parsing one resource. This
+/// bounds the recovery stack — its memory, and the per-end-tag scan over
+/// it — against markup that never closes anything. It is NOT a content
+/// budget: past it start tags simply stop pushing frames (see
+/// [`Builder::start`]), so the rest of the resource still parses.
+///
+/// Ordinary markup never approaches it because the optional-end-tag
+/// rules below keep a flat `<li>a<li>b…` list one level deep instead of
+/// one level per item; what does approach it is nesting, which the
+/// [`MAX_DEPTH`] budget has already flattened long before.
 pub const MAX_OPEN_ELEMENTS: usize = 4_096;
+
+/// Dropping a frame at [`MAX_OPEN_ELEMENTS`] is only safe because every
+/// frame there is already past [`MAX_DEPTH`], hence node-less.
+const _: () = assert!(MAX_OPEN_ELEMENTS > MAX_DEPTH);
 
 /// Upper bound on recoverable parse errors before the tree so far is kept
 /// as-is; guards against a pathological byte stream that errors forever.
@@ -203,27 +216,56 @@ impl Builder {
             return false;
         }
 
+        // HTML's optional end tags. This parser sees plenty of markup
+        // that never writes `</li>` or `</p>`; treating each sibling as
+        // a child would nest a 5 000-item generated list 5 000 deep,
+        // blowing the depth budget and the open-element stack on
+        // perfectly ordinary content. Closing implicitly keeps such a
+        // list one level deep, which is both what HTML means and what
+        // leaves the stack ceiling for genuine runaway nesting.
+        let implied = implied_close_set(&local);
+        if !implied.is_empty() {
+            while self
+                .stack
+                .last()
+                .is_some_and(|open| implied.iter().any(|name| open.local == name.as_bytes()))
+            {
+                self.stack.pop();
+            }
+        }
+
         // A normal element. Budget first, placement second.
         if self.nodes.len() >= MAX_DOM_NODES {
             self.truncated = true;
             return true;
         }
-        if self.stack.len() >= MAX_OPEN_ELEMENTS {
+        // At the open-element ceiling the FRAME is dropped, not the
+        // parse: the stack is already far past MAX_DEPTH here, so the
+        // frame would carry no arena node and dropping it cannot move
+        // `current_parent` — the rest of the resource still lands in the
+        // tree instead of vanishing. The cost is pop precision: a later
+        // end tag may pop one frame too few, but only among these
+        // node-less frames, so the retained tree is unaffected.
+        let at_ceiling = self.stack.len() >= MAX_OPEN_ELEMENTS;
+        if at_ceiling {
             self.truncated = true;
-            return true;
         }
-        let parent = self.current_parent();
         if self.stack.len() >= MAX_DEPTH {
             // Flattened: children attach to the ancestor at MAX_DEPTH;
-            // an id here still anchors, at that ancestor.
-            if let (Some(id), Some(parent)) = (attr(e, b"id"), parent) {
-                self.anchors.push((id, parent));
+            // an id here still anchors, at that ancestor. The ancestor
+            // is looked up only when there IS an id, so the common
+            // deep-junk element costs nothing but its name.
+            if let Some(id) = attr(e, b"id") {
+                if let Some(parent) = self.current_parent() {
+                    self.anchors.push((id, parent));
+                }
             }
-            if !empty {
+            if !empty && !at_ceiling {
                 self.stack.push(Open { local, node: None });
             }
             return false;
         }
+        let parent = self.current_parent();
 
         let name = element_name(&local);
         let data = self.element_data(e, name);
@@ -346,8 +388,14 @@ impl Builder {
 
     /// The node new content attaches to: the nearest open element that
     /// has one, else the root (stray content after `</html>`).
+    ///
+    /// A frame only carries a node when it was pushed below
+    /// [`MAX_DEPTH`], so the search never has to look above that index —
+    /// which keeps this O(MAX_DEPTH) rather than O(stack depth) on the
+    /// deeply nested inputs the ceiling exists for.
     fn current_parent(&self) -> Option<NodeId> {
-        self.stack
+        let searchable = self.stack.len().min(MAX_DEPTH);
+        self.stack[..searchable]
             .iter()
             .rev()
             .find_map(|open| open.node)
@@ -444,6 +492,30 @@ fn is_void(local: &[u8]) -> bool {
             | b"track"
             | b"wbr"
     )
+}
+
+/// The open elements a start tag closes implicitly, per HTML's optional
+/// end-tag rules — the innermost run of them, popped from the top; the
+/// first open element outside the set stops the scan, so a list nested
+/// inside a still-open `<ul>` or `<div>` is never disturbed.
+///
+/// `p` appears in the sets that can enclose it (`<li><p>a<li>b` must
+/// close both). Well-formed XHTML writes every end tag, so every one of
+/// these elements is already popped by its own end tag and this rule is
+/// a no-op there.
+fn implied_close_set(local: &[u8]) -> &'static [&'static str] {
+    match local {
+        b"p" => &["p"],
+        b"li" => &["li", "p"],
+        b"dd" | b"dt" => &["dd", "dt", "p"],
+        b"option" => &["option"],
+        b"optgroup" => &["optgroup", "option"],
+        b"rt" | b"rp" => &["rt", "rp"],
+        b"td" | b"th" => &["td", "th", "p"],
+        b"tr" => &["tr", "td", "th", "p"],
+        b"thead" | b"tbody" | b"tfoot" => &["thead", "tbody", "tfoot", "tr", "td", "th", "p"],
+        _ => &[],
+    }
 }
 
 /// Interns an element's lowercased local name via the shared mapping.

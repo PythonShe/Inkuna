@@ -15,6 +15,13 @@ cssparser = "0.37"
 icu_segmenter = "2.3"
 inkuna-content = { path = "../inkuna-content" }
 quick-xml = { version = "0.41", features = ["escape-html"] }
+# `read-fonts` is direct only because harfrust re-exports just
+# `{types::{GlyphId, Tag}, FontRef}` — not `TableProvider`, `ReadError`, or
+# `tables::os2::SelectionFlags`, which fonts/registry.rs needs. Its version
+# MUST stay in lockstep with the read-fonts version harfrust itself requires;
+# re-check this pin on every harfrust bump, because a mismatch silently yields
+# two incompatible `FontRef` types (registry parsing vs shaping) with no
+# compile error.
 harfrust = "0.13.1"
 read-fonts = "0.43.2"
 thiserror = "2"

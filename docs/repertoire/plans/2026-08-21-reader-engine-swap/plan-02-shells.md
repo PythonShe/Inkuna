@@ -92,11 +92,19 @@ Movement 6 is the full parity gate.
   shells apply screen scale when drawing. All char offsets index the
   canonical text projection.
 - Progress/bookmark FFI: same method names as today, `locator: String`
-  parameters/fields are now `coordinate: Coordinate`
-  (`updateProgress(id, coordinate, progression, position)`,
-  `addBookmark(id, coordinate, progression)`, `Publication.coordinate:
-  Coordinate?`, `Bookmark.coordinate: Coordinate`).
-  `reportPositionCount`/`reportPositionRanges`/`InvalidPositionRanges` are
+  parameters/fields are now an OPTIONAL `coordinate: Coordinate?`
+  (`updateProgress(id, coordinate: Coordinate?, progression, position)`,
+  `addBookmark(id, coordinate: Coordinate?, progression)`,
+  `Publication.coordinate: Coordinate?`, `Bookmark.coordinate:
+  Coordinate?`). NULL coordinate columns read back as `nil`/`null`, NOT
+  as a `(0, 0)` default: a shell holding a bookmark or publication
+  without a coordinate falls back to its stored `progression` — it must
+  never treat a missing coordinate as the top of the first spine item.
+  In-book search: `BookSearchResults` carries a `canonical: Bool` flag —
+  `false` while the background rebaseline has not reached the book. Its
+  snippets are fine to display, but non-canonical hit offsets must NOT be
+  fed to `locate` / `matchRects`; the shell shows the hit without a jump
+  target instead. `reportPositionCount`/`reportPositionRanges`/`InvalidPositionRanges` are
   gone; `chapterPositionRanges(id) -> [ChapterPositionRange { chapterIdx,
   startPosition, endPosition }]` survives, now core-computed from synthetic
   positions (**fixed 1024-character blocks per spine resource, minimum one**
@@ -701,7 +709,10 @@ end of this movement the iOS reader reads real books on the core engine
       the existing `showLinkNotFollowed()` toast.
     - **TOC & bookmarks:** `jump(to chapter:)` = shared href rule →
       `locate` → `display`. `placeBookmark()` uses the anchor coordinate;
-      bookmark rows jump via `locate(bookmark.coordinate)`; the contents
+      bookmark rows jump via `locate(coordinate)` when
+      `bookmark.coordinate` is non-nil and fall back to
+      `bookmark.progression` (→ `ReaderPositions` → `locate`) when it is
+      nil; the contents
       sheet's "p. N" labels switch to `ReaderPositions` (chapter rows:
       `startPosition` of the row).
     - **Theme & typography:** theme changes (`presentThemeSheet` /
@@ -1132,11 +1143,15 @@ every workaround.
       with last-open-wins / bookshelf drop — overview contract) but
       cancels in-flight shell work.
     - Search: `search(query)` keeps `search().searchInBook`; a hit maps to
-      `Coordinate(hit.spineIdx, hit.charOffset)`; `searchLocator` and
+      `Coordinate(hit.spineIdx, hit.charOffset)` ONLY when
+      `results.canonical` is true (otherwise the offsets do not index the
+      canonical projection and must not reach `locate`); `searchLocator` and
       `positionOf` die — "p. N" via `ReaderPositions`. Match length for
       highlights = `hit.snippetMatch` character count (Task 6.1 consumes).
     - Bookmarks: `addBookmark(coordinate, progression)` from the current
-      anchor; jump via `locate(bookmark.coordinate)`.
+      anchor (`coordinate` is `Coordinate?`); jump via
+      `bookmark.coordinate?.let { locate(it) }`, falling back to
+      `bookmark.progression` when it is null.
     - `updateAppearance(settings)`: capture anchor → suspend
       `session.updateLayout(viewport, settings)` → emit
       `LayoutEvent`-driven re-anchor (screen calls `locate(anchor)` →
@@ -1198,7 +1213,9 @@ every workaround.
       iOS Task 2.3; the appearance sheet offers exactly two faces.
     - `ReaderSheets.kt` (contents/bookmarks): chapter rows jump via the
       shared href rule → `locate` → `surface.display`; bookmark rows via
-      `locate(bookmark.coordinate)`; "p. N" labels via `ReaderPositions`.
+      `bookmark.coordinate?.let { locate(it) }`, falling back to
+      `bookmark.progression` when it is null; "p. N" labels via
+      `ReaderPositions`.
   - **Error handling:** `AnchorNotFound` → the existing
     `ReaderToast.LinkNotFollowed`; `NotReady` on a jump target → schedule
     via `chapter(spineIdx)` and complete on that chapter's `LayoutEvent`
@@ -1307,7 +1324,8 @@ lets `dev/core` merge.
     `apps/ios/Inkuna/Reader/Engine/EnginePageCanvas.swift` (highlight
     overlay hook) · `app/src/main/java/app/inkuna/android/ui/reader/ReaderSearchPanel.kt`,
     `ui/reader/ReaderScreen.kt`, `engine/EnginePageCanvas.kt`.
-  - **Behavior:** A chosen hit (`BookSearchHit { spineIdx, charOffset,
+  - **Behavior:** A chosen hit from a `BookSearchResults` whose
+    `canonical` flag is true (`BookSearchHit { spineIdx, charOffset,
     snippetMatch, … }` — offsets are content coordinates with no
     conversion step, spec §10) jumps via
     `locate(Coordinate(spineIdx, charOffset))` → `surface.display`, then
@@ -1322,7 +1340,10 @@ lets `dev/core` merge.
     untouched.
   - **Error handling:** `matchRects` returning empty (match fell across a
     truncated resource boundary) → jump lands without a highlight, no
-    error surfaced.
+    error surfaced. `results.canonical == false` (rebaseline has not
+    reached this book) → rows still render their snippets, but they are
+    not tappable: no `locate`, no `matchRects`, since the offsets index a
+    pre-rebaseline body.
   - **Verify:** both build commands → succeed. Both platforms: search a
     word with multiple hits including a CJK query in a CJK book; tapping a
     hit lands on the right page with the match visibly highlighted, fading
