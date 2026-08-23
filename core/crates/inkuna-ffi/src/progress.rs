@@ -6,8 +6,23 @@ use crate::error::InkunaError;
 use crate::reader::Coordinate;
 
 /// One TOC entry's span of synthetic positions; 1-based, both bounds
-/// inclusive. Sparse per chapter: entries whose href matches no spine
-/// resource are absent.
+/// inclusive.
+///
+/// Rows are **per TOC chapter, not per spine item, and sparse**:
+///
+/// - `chapter_idx` is a `Chapter.idx` — an index into the `chapters()`
+///   result — never a spine index and never a row index into this
+///   vector.
+/// - The vector is **sparse**: a chapter whose href matches no spine
+///   resource has no row at all, so `rows.len()` is NOT the chapter
+///   count and emphatically NOT the spine count. Never index this vector
+///   positionally; match on `chapter_idx`.
+/// - Spans are derived from the reading order, not the TOC order: a
+///   chapter covering several spine items spans all of them, and
+///   fragment-anchored chapters sharing one resource each report that
+///   whole resource — so spans of sibling chapters may overlap.
+/// - The vector is empty until the book's synthetic positions are
+///   computed, and for a book with no TOC.
 #[derive(Debug, Clone, Copy, uniffi::Record)]
 pub struct ChapterPositionRange {
     pub chapter_idx: u32,
