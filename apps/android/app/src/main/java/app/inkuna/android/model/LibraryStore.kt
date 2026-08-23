@@ -3,7 +3,6 @@ package app.inkuna.android.model
 import android.content.Context
 import android.util.Log
 import app.inkuna.core.Bookshelf
-import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,12 +53,14 @@ object LibraryStore {
         val dataDir = context.applicationContext.filesDir
         return openLock.withLock {
             opened ?: withContext(Dispatchers.IO) {
-                // fontDir is a placeholder until the reader engine's
-                // bundled fonts land (plan 02 wires the real assets/fonts/
-                // bundle directory).
+                // The engine shapes with the bundled font set and needs a
+                // real directory to read it from, so the APK's copy is
+                // unpacked first. A failure here fails the open, which the
+                // caller's retry path already covers — a reader engine with
+                // no fonts could not lay a page out anyway.
                 Bookshelf.open(
                     dataDir.absolutePath,
-                    File(dataDir, "fonts").apply { mkdirs() }.absolutePath,
+                    CoreFonts.ensureExtracted(context).absolutePath,
                 )
             }.also { shelf ->
                 opened = shelf

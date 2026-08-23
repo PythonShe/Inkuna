@@ -19,6 +19,33 @@ val inkunaAbis = (findProperty("inkunaAbis") as String? ?: "arm64-v8a,x86_64")
     .map(String::trim)
     .filter(String::isNotEmpty)
 
+/**
+ * Where the reader engine's fonts are staged for packaging.
+ *
+ * Repo `assets/fonts/` is the one source of truth — the same set iOS
+ * bundles, including the CJK `.ttc` faces the core shapes vertical text
+ * with. [syncCoreFonts] copies it here wholesale rather than by name:
+ * which files exist is the core's business, and enumerating them would go
+ * stale the first time a face is added.
+ *
+ * A sync into a private staging directory, not an assets source directory
+ * on repo `assets/` itself: that directory also holds `assets/brand/`,
+ * which has no business in the APK. The `fonts` segment below is what
+ * makes the packaged path `assets/fonts/…`, which the reading-font stack
+ * and Readium's asset loader already spell.
+ */
+val coreFontAssets: Provider<Directory> = layout.buildDirectory.dir("generated/inkunaFonts")
+
+val syncCoreFonts = tasks.register<Sync>("syncCoreFonts") {
+    // rootProject here is apps/android, so the repo root is two levels up.
+    from(rootProject.file("../../assets/fonts"))
+    into(coreFontAssets.map { it.dir("fonts") })
+}
+
+tasks.named("preBuild") {
+    dependsOn(syncCoreFonts)
+}
+
 android {
     namespace = "app.inkuna.android"
     compileSdk = 37
@@ -43,6 +70,10 @@ android {
     sourceSets {
         // UniFFI bindings emitted by scripts/build-core-android.sh.
         getByName("main").kotlin.srcDir("src/generated/kotlin")
+        // The synced copy of the repo font set; see coreFontAssets above.
+        // Resolved to a plain directory because AGP 9 rejects providers
+        // here — `preBuild` carries the task dependency instead.
+        getByName("main").assets.srcDir(coreFontAssets.get().asFile)
     }
 
     if (keyProps.isNotEmpty()) {
