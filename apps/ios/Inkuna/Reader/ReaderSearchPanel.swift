@@ -235,7 +235,9 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
     /// `nil` means the core could not run the search at all — the panel
     /// says so instead of passing failure off as an empty book.
     private func render(_ maybeResults: BookSearchResults?) {
-        let results = maybeResults ?? BookSearchResults(hits: [], total: 0)
+        // The failure stand-in carries no hits, so it claims no canonical
+        // offsets either: nothing here may be fed to a reader session.
+        let results = maybeResults ?? BookSearchResults(hits: [], total: 0, canonical: false)
         clearResults()
         let visibleHits = results.hits.prefix(Self.renderLimit)
         for hit in visibleHits {
