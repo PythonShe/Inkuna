@@ -229,8 +229,12 @@ class ReaderViewModel(
         openPublication.set(publication)
 
         // Synthetic positions are the honest substitute for page numbers.
-        // plan-02: the core now derives positions from its own canonical
-        // projection at import; the shell no longer reports Readium's.
+        // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
+        // Task 5.1). These are Readium's own positions, used for this
+        // reader's footer, contents sheet and search hits only — the core
+        // derives its own from its canonical projection, and the two
+        // disagree, so nothing computed here is ever reported to the core
+        // or compared against `chapterPositionRanges`.
         val positionsByResource = publication.positionsByReadingOrder()
         val positionCount = positionsByResource.sumOf { it.size }
 
@@ -253,10 +257,17 @@ class ReaderViewModel(
         // A requested start chapter wins over the saved position, resolved
         // the same way a contents-sheet jump is; an unresolvable href falls
         // back to resuming.
-        // plan-02: real coordinates from the engine — the stored position
-        // is a content coordinate now, which this Readium navigator cannot
-        // consume; until the engine reader lands, resume locates the stored
-        // book-wide progression.
+        // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
+        // Task 5.1). Resume restores from the stored book-wide progression
+        // alone. The core's `Coordinate.spineIdx` indexes the *core's*
+        // spine — every itemref of the OPF — while Readium's `readingOrder`
+        // drops `linear="no"` items and resolves manifest fallbacks its own
+        // way, so the two index spaces diverge and one must never be read
+        // as the other. Translating through the resource href would be the
+        // honest bridge, but no FFI exposes a spine index's href without
+        // opening a ReaderSession (`Chapter.idx` is documented as *not* a
+        // spine index), and this path deliberately opens no engine.
+        // Progression is coarser but never names the wrong resource.
         val chapterTarget = initialChapterHref
             ?.let { href -> Url(href) }
             ?.let { url -> publication.locatorFromLink(Link(href = url)) }
@@ -429,9 +440,16 @@ class ReaderViewModel(
                 val progression = locator.locations.totalProgression ?: return@withLock
                 lastPersisted = locator
                 runCatching {
-                    // plan-02: real coordinates from the engine. Sending
-                    // none leaves the stored coordinate untouched instead
-                    // of overwriting it with book start.
+                    // ENGINE-SWAP INTERIM: dies with the Readium open path
+                    // (plan-02 Task 5.1). No coordinate is written: the
+                    // navigator's reading-order index is not the core's
+                    // spine index, and the core's contract is explicit that
+                    // a placeholder would clobber a rebaselined coordinate
+                    // beyond recovery — the rebaseline nulls the legacy
+                    // locator it was converted from, so the first page turn
+                    // would destroy the conversion permanently.
+                    // `progression` carries the read location, which is all
+                    // the interim restore consumes.
                     shelf.progress().updateProgress(
                         publicationId,
                         null,
@@ -531,9 +549,12 @@ class ReaderViewModel(
             // thread availability.
             writeLock.withLock {
                 runCatching {
-                    // plan-02: real coordinates from the engine. Until
-                    // then the mark stores no coordinate at all and
-                    // `progression` is the restore fallback.
+                    // ENGINE-SWAP INTERIM: dies with the Readium open path
+                    // (plan-02 Task 5.1). No coordinate, for the same
+                    // reason progress writes none — Readium's reading-order
+                    // index is not the core's spine index, and a bookmark
+                    // naming the wrong resource outlives the interim.
+                    // `progression` is what a jump to it falls back to.
                     shelf.library().addBookmark(
                         publicationId,
                         null,
