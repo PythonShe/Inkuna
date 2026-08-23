@@ -68,6 +68,40 @@ pub fn position_for(ranges: &[(u32, u32, u32)], coordinate: Coordinate) -> Optio
     }
 }
 
+/// The coordinate at a 1-based synthetic position within known ranges.
+/// Input below 1 clamps to the first position; input beyond the final
+/// position clamps to the last. The returned coordinate is the start of
+/// that position's 1024-character block, so only
+/// `position_for(coordinate_for(p)) == p` is guaranteed, not the reverse.
+/// `None` only when `ranges` is empty.
+pub fn coordinate_for(ranges: &[(u32, u32, u32)], position: u32) -> Option<Coordinate> {
+    let &(_, last_start, last_count) = ranges.last()?;
+    let last_position = last_start.saturating_add(last_count.saturating_sub(1));
+    let position = position.clamp(1, last_position.max(1));
+    let &(spine_idx, start, count) = ranges
+        .iter()
+        .find(|&&(_, start, count)| {
+            position >= start && position < start.saturating_add(count)
+        })
+        .or_else(|| ranges.last())?;
+    let offset = position
+        .saturating_sub(start)
+        .min(count.saturating_sub(1));
+    Some(Coordinate {
+        spine_idx,
+        char_offset: u64::from(offset) * CHARS_PER_POSITION,
+    })
+}
+
+/// Total positions represented by a range snapshot. A snapshot with no
+/// rows retains the established synthetic count of one.
+pub fn position_count_for(ranges: &[(u32, u32, u32)]) -> u32 {
+    ranges
+        .last()
+        .map(|&(_, start, count)| start.saturating_add(count.saturating_sub(1)))
+        .unwrap_or(1)
+}
+
 /// One publication's `resource_positions` rows in spine order, as
 /// `(spine_idx, start_position, position_count)`.
 pub(crate) fn position_ranges_on(
@@ -105,11 +139,32 @@ impl Library {
     /// book does not exist.
     pub fn position_count(&self, id: &str) -> Result<u32, CoreError> {
         let ranges = self.position_ranges(id)?;
-        match ranges.last() {
-            Some(&(_, start, count)) => Ok(start.saturating_add(count.saturating_sub(1))),
+        if ranges.is_empty() {
+            self.publication(id)?;
+        }
+        Ok(position_count_for(&ranges))
+    }
+
+    /// The coordinate at a 1-based synthetic position, session-free. Input
+    /// below 1 clamps to the first position; input beyond the final position
+    /// clamps to the last. The coordinate starts its 1024-character block,
+    /// therefore this inverts `position_of` but not arbitrary coordinates.
+    /// A book with no position rows answers the book-start coordinate.
+    /// `NotFound` when the book does not exist.
+    pub fn coordinate_at_position(
+        &self,
+        id: &str,
+        position: u32,
+    ) -> Result<Coordinate, CoreError> {
+        let ranges = self.position_ranges(id)?;
+        match coordinate_for(&ranges, position) {
+            Some(coordinate) => Ok(coordinate),
             None => {
                 self.publication(id)?;
-                Ok(1)
+                Ok(Coordinate {
+                    spine_idx: 0,
+                    char_offset: 0,
+                })
             }
         }
     }

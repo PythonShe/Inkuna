@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToLong
 
 /** One engine-backed reader; synchronous session reads are deliberately cache-only. */
 class ReaderViewModel(
@@ -149,14 +150,16 @@ class ReaderViewModel(
         val positionRanges = shelf.progress().chapterPositionRanges(publicationId)
         val session = shelf.openReader(publicationId, viewport(), layoutSettings(AppSettings.get(app).snapshot.value), listener())
         readerSession = session
+        val restoredCoordinate = publication.coordinate
+            ?: coordinateForProgression(publication.progression, session)
 
         targetCoordinate = initialChapterHref?.let { href ->
             runCatching { session.locateHrefParts(href) }
                 .onFailure { initialHrefFailed = it is InkunaException.AnchorNotFound || it is InkunaException.NotReady }
                 .getOrNull()
-        } ?: publication.coordinate ?: Coordinate(0u, 0uL)
+        } ?: restoredCoordinate
         if (initialChapterHref != null && targetCoordinate == null) {
-            targetCoordinate = publication.coordinate ?: Coordinate(0u, 0uL)
+            targetCoordinate = restoredCoordinate
         }
 
         val initialLocation = targetCoordinate?.let { runCatching { session.locate(it) }.getOrNull() }
@@ -291,17 +294,20 @@ class ReaderViewModel(
         )
     }
 
-    /**
-     * The generated Android bindings do not expose `coordinateAtPosition`, so
-     * a legacy coordinate-less bookmark cannot be resolved safely. The caller
-     * supplies the existing link-not-followed toast rather than silently doing
-     * nothing.
-     */
     fun coordinateForBookmark(bookmark: Bookmark, onUnavailable: () -> Unit): Coordinate? =
-        bookmark.coordinate ?: run {
+        bookmark.coordinate ?: readerSession?.let {
+            coordinateForProgression(bookmark.progression, it)
+        } ?: run {
             onUnavailable()
             null
         }
+
+    private fun coordinateForProgression(progression: Double, session: ReaderSession): Coordinate? {
+        val count = session.positionCount()
+        if (count == 0u) return null
+        val position = minOf(maxOf((progression * count.toDouble()).roundToLong().toUInt(), 1u), count)
+        return session.coordinateAtPosition(position)
+    }
 
     fun addBookmark(coordinate: Coordinate, progression: Double, onPlaced: () -> Unit) {
         enqueueCoreWrite {

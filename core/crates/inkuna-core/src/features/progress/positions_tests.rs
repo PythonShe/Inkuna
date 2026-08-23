@@ -125,3 +125,54 @@ fn chapter_ranges_follow_spine_order_when_toc_is_shuffled() {
         ]
     );
 }
+
+#[test]
+fn cjk_multi_resource_positions_round_trip_through_coordinates() {
+    let (_dir, library, id) = library_with_book();
+
+    // The CJK EPUB fixture has ch01 and ch02. These are the same
+    // `resource_positions` rows the import/reconcile pipeline persists.
+    seed_positions(&library, &id, &[2, 3]);
+
+    for position in 1..=library.position_count(&id).unwrap() {
+        let coordinate = library.coordinate_at_position(&id, position).unwrap();
+        assert_eq!(library.position_of(&id, coordinate).unwrap(), position);
+    }
+
+    assert_eq!(
+        library.coordinate_at_position(&id, 1).unwrap(),
+        inkuna_engine::Coordinate {
+            spine_idx: 0,
+            char_offset: 0,
+        }
+    );
+    assert_eq!(
+        library.coordinate_at_position(&id, 2).unwrap(),
+        inkuna_engine::Coordinate {
+            spine_idx: 0,
+            char_offset: 1024,
+        }
+    );
+    assert_eq!(
+        library.coordinate_at_position(&id, 3).unwrap(),
+        inkuna_engine::Coordinate {
+            spine_idx: 1,
+            char_offset: 0,
+        }
+    );
+    assert_eq!(
+        library.coordinate_at_position(&id, 5).unwrap(),
+        inkuna_engine::Coordinate {
+            spine_idx: 1,
+            char_offset: 2048,
+        }
+    );
+    assert_eq!(
+        library.coordinate_at_position(&id, 0).unwrap(),
+        library.coordinate_at_position(&id, 1).unwrap()
+    );
+    assert_eq!(
+        library.coordinate_at_position(&id, 6).unwrap(),
+        library.coordinate_at_position(&id, 5).unwrap()
+    );
+}

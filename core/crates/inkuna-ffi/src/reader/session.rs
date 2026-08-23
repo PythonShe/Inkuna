@@ -195,13 +195,24 @@ impl ReaderSession {
         inkuna_core::position_for(&self.ranges, coordinate.into()).unwrap_or(1)
     }
 
+    /// The coordinate at a 1-based synthetic position, from the same
+    /// snapshot. Input below 1 clamps to the first position; input beyond the
+    /// final position clamps to the last. It lands at the position block's
+    /// start, so only `position_of(coordinate_at_position(p)) == p` holds.
+    /// A book with no rows answers the book-start coordinate.
+    pub fn coordinate_at_position(&self, position: u32) -> Coordinate {
+        inkuna_core::coordinate_for(&self.ranges, position)
+            .map(Into::into)
+            .unwrap_or(Coordinate {
+                spine_idx: 0,
+                char_offset: 0,
+            })
+    }
+
     /// The publication's total synthetic position count, from the same
     /// snapshot; a book with no rows answers 1.
     pub fn position_count(&self) -> u32 {
-        self.ranges
-            .last()
-            .map(|&(_, start, count)| start.saturating_add(count.saturating_sub(1)))
-            .unwrap_or(1)
+        inkuna_core::position_count_for(&self.ranges)
     }
 
     /// The page's canonical digest (layout-determinism fingerprint).

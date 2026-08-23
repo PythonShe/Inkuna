@@ -66,13 +66,26 @@ extension ReaderViewController {
         catch { logger.warning("TOC jump for \(chapter.id, privacy: .public) failed: \(error)") }
     }
 
-    /// Legacy bookmark rows lack a coordinate. The generated session has no
-    /// progression-to-coordinate lookup, so those rows remain non-jumpable
-    /// until the core rebaseline supplies their coordinate.
     func jump(to bookmark: Bookmark) {
-        guard let coordinate = bookmark.coordinate else { showLinkNotFollowed(); return }
+        let coordinate: Coordinate
+        if let stored = bookmark.coordinate {
+            coordinate = stored
+        } else if let readerSession,
+                  let restored = coordinateForProgression(bookmark.progression, session: readerSession) {
+            coordinate = restored
+        } else {
+            showLinkNotFollowed()
+            return
+        }
         do { try jump(to: coordinate) }
         catch { logger.warning("Bookmark jump failed: \(error)") }
+    }
+
+    func coordinateForProgression(_ progression: Double, session: ReaderSession) -> Coordinate? {
+        let count = session.positionCount()
+        guard count > 0 else { return nil }
+        let position = min(max(UInt32((progression * Double(count)).rounded()), 1), count)
+        return session.coordinateAtPosition(position: position)
     }
 
     func setMenu(visible: Bool) {

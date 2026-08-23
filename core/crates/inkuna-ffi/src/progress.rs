@@ -91,6 +91,20 @@ impl ShelfProgress {
         blocking(move || Ok(library.position_count(&id)?)).await
     }
 
+    /// The coordinate at a 1-based synthetic position, session-free. Input
+    /// below 1 clamps to the first position; input beyond the final position
+    /// clamps to the last. The returned coordinate starts that position's
+    /// 1024-character block, so it inverts `position_of` but not arbitrary
+    /// coordinates within a block.
+    pub async fn coordinate_at_position(
+        &self,
+        id: String,
+        position: u32,
+    ) -> Result<Coordinate, InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.coordinate_at_position(&id, position)?.into())).await
+    }
+
     /// Every TOC entry's position span, in chapter order; empty until the
     /// book's synthetic positions are computed. Powers "pages left in
     /// this chapter" without opening the book.

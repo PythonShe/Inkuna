@@ -28,15 +28,18 @@ extension ReaderViewController {
             layoutRelay = relay
             ReaderFontStore.shared.prime(reader.fontRegistry())
             installCanvas(session: reader)
+            let restoredCoordinate = publication.coordinate
+                ?? coordinateForProgression(publication.progression, session: reader)
             if let initialChapter {
                 do {
                     targetCoordinate = try resolveHref(initialChapter)
                 } catch InkunaError.AnchorNotFound, InkunaError.NotReady {
-                    targetCoordinate = publication.coordinate ?? Coordinate(spineIdx: 0, charOffset: 0)
+                    targetCoordinate = restoredCoordinate
                     showLinkNotFollowed()
                 }
             } else {
-                targetCoordinate = publication.coordinate ?? Coordinate(spineIdx: 0, charOffset: 0)
+                targetCoordinate = restoredCoordinate
+                if targetCoordinate == nil { showLinkNotFollowed() }
             }
             if let targetCoordinate {
                 _ = try? reader.page(spineIdx: targetCoordinate.spineIdx, pageIdx: 0)
