@@ -52,12 +52,52 @@ extension ReaderViewController {
     }
 
     func jump(to coordinate: Coordinate) throws {
+        try attemptJump(PendingJump(coordinate: coordinate))
+    }
+
+    func attemptJump(_ jump: PendingJump) throws {
         guard let readerSession, let surface = pagerSurface else { return }
-        let location = try readerSession.locate(coordinate: coordinate)
-        guard accept(generation: location.generation) else { return }
         selectionController?.clear()
         pager?.cancelInteraction()
-        surface.display(spineIdx: location.spineIdx, pageIdx: location.pageIdx)
+        let spineIdx = jump.coordinate.spineIdx
+        if jump.toChapterEnd && !readerSession.isReady(spineIdx: spineIdx) {
+            pendingJump = jump
+            _ = try? readerSession.chapter(spineIdx: spineIdx)
+            return
+        }
+        do {
+            let wasReady = readerSession.isReady(spineIdx: spineIdx)
+            let location = try readerSession.locate(coordinate: jump.coordinate)
+            guard accept(generation: location.generation) else { return }
+            surface.display(spineIdx: location.spineIdx, pageIdx: location.pageIdx)
+            if let matchLength = jump.matchLength {
+                let rects: [SelectionRect]
+                do {
+                    let pageRange = try readerSession.pageCharRange(
+                        spineIdx: location.spineIdx,
+                        pageIdx: location.pageIdx
+                    )
+                    let (matchEnd, overflow) = jump.coordinate.charOffset.addingReportingOverflow(matchLength)
+                    let start = max(jump.coordinate.charOffset, pageRange.start)
+                    let end = min(overflow ? .max : matchEnd, pageRange.end)
+                    rects = start < end
+                        ? (try readerSession.matchRects(
+                            spineIdx: location.spineIdx,
+                            charOffset: start,
+                            len: end - start
+                        ))
+                        : []
+                } catch {
+                    rects = []
+                }
+                canvas?.showSearchHighlight(rects)
+            }
+            pendingJump = wasReady ? nil : jump
+            if jump.showChrome { setChrome(visible: true) }
+        } catch InkunaError.NotReady {
+            pendingJump = jump
+            _ = try? readerSession.chapter(spineIdx: spineIdx)
+        }
     }
 
     func jump(to chapter: Chapter) {
@@ -214,8 +254,17 @@ extension ReaderViewController {
             panel = ReaderSearchPanel(
                 search: { [weak self] query in await self?.runSearch(query) },
                 positionForHit: { [weak self] hit in
-                    self?.readerSession.map {
-                        Int($0.positionOf(coordinate: Coordinate(spineIdx: hit.spineIdx, charOffset: UInt64(hit.charOffset))))
+                    guard let self else { return nil }
+                    do {
+                        let shelf = try await LibraryStore.shared.library()
+                        return Int(try await ReaderPositions.position(
+                            of: Coordinate(spineIdx: hit.spineIdx, charOffset: UInt64(hit.charOffset)),
+                            id: self.publication.id,
+                            on: shelf
+                        ))
+                    } catch {
+                        self.logger.warning("Search position failed: \(error)")
+                        return nil
                     }
                 }
             )
@@ -262,7 +311,10 @@ extension ReaderViewController {
 
     func jump(to hit: BookSearchHit) {
         do {
-            try jump(to: Coordinate(spineIdx: hit.spineIdx, charOffset: UInt64(hit.charOffset)))
+            try attemptJump(PendingJump(
+                coordinate: Coordinate(spineIdx: hit.spineIdx, charOffset: UInt64(hit.charOffset)),
+                matchLength: UInt64(hit.snippetMatch.unicodeScalars.count)
+            ))
             hideSearch()
         } catch {
             logger.warning("Search jump failed: \(error)")

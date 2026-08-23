@@ -1,6 +1,6 @@
 //! The V8 rebaseline: a background pass that moves every pre-engine book
 //! onto the canonical projection — corpus replaced with `extract_corpus`
-//! output, synthetic positions recomputed, and legacy Readium locator
+//! output, synthetic positions recomputed, and legacy locator
 //! JSON converted to content coordinates — one book per transaction,
 //! most recently read books first. `reconciled_at` gates the pass:
 //! idempotent, crash-resumable, and skipped entirely for books imported
@@ -200,7 +200,7 @@ fn rebaseline_book(
             }
         }
         // Unconditionally, zero included: a book with no `resources`
-        // rows must not keep a stale shell-reported Readium count while
+        // rows must not keep a stale shell-reported position count while
         // stamped reconciled — the read-time fallbacks (1/1 when no
         // position rows exist) already cover the degenerate case.
         tx.execute(
@@ -212,7 +212,7 @@ fn rebaseline_book(
         vec![None; resources.len()]
     };
 
-    // 3. The publication's Readium locator becomes a content coordinate
+    // 3. The publication's legacy locator becomes a content coordinate
     // — but only while the coordinate columns are still NULL, which is
     // the only "unset" there is: `update_progress` writes the columns
     // solely from a real engine coordinate and leaves them alone
@@ -273,7 +273,7 @@ fn rebaseline_book(
     Ok(true)
 }
 
-/// Legacy Readium locator JSON → content coordinate, never failing:
+/// Legacy locator JSON → content coordinate, never failing:
 /// every failure shape has a written default. Unparseable JSON or an
 /// unresolvable href → `(0, 0)`; a resolvable href with bad/absent
 /// progression (or an unknowable char length) → the chapter start

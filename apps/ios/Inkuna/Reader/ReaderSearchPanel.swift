@@ -23,7 +23,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
     /// be run at all (the panel then shows its empty state).
     private let search: @MainActor (String) async -> BookSearchResults?
     /// The hit's core synthetic position, for the "p. N" line; `nil` hides it.
-    private let positionForHit: @MainActor (BookSearchHit) -> Int?
+    private let positionForHit: @MainActor (BookSearchHit) async -> Int?
 
     private let glass = InkGlassView(cornerRadius: InkRadius.lg)
     private let field = UITextField()
@@ -34,13 +34,15 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
     /// Search snippets are safe without canonical offsets, but their rows
     /// must not feed legacy offsets into a reader session.
     private var resultsAreCanonical = false
+    private var renderGeneration = 0
+    private var positionTasks: [Task<Void, Never>] = []
 
     /// The debounce-plus-search in flight; every edit cancels it.
     private var searchTask: Task<Void, Never>?
 
     init(
         search: @escaping @MainActor (String) async -> BookSearchResults?,
-        positionForHit: @escaping @MainActor (BookSearchHit) -> Int?
+        positionForHit: @escaping @MainActor (BookSearchHit) async -> Int?
     ) {
         self.search = search
         self.positionForHit = positionForHit
@@ -230,6 +232,9 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
     }
 
     private func clearResults() {
+        renderGeneration &+= 1
+        positionTasks.forEach { $0.cancel() }
+        positionTasks.removeAll()
         for row in resultsStack.arrangedSubviews {
             row.removeFromSuperview()
         }
@@ -243,9 +248,10 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         let results = maybeResults ?? BookSearchResults(hits: [], total: 0, canonical: false)
         resultsAreCanonical = results.canonical
         clearResults()
+        let generation = renderGeneration
         let visibleHits = results.hits.prefix(Self.renderLimit)
         for hit in visibleHits {
-            resultsStack.addArrangedSubview(makeResultRow(hit: hit))
+            resultsStack.addArrangedSubview(makeResultRow(hit: hit, generation: generation))
         }
 
         emptyLabel.text = maybeResults == nil
@@ -276,7 +282,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         UIAccessibility.post(notification: .announcement, argument: announcement)
     }
 
-    private func makeResultRow(hit: BookSearchHit) -> UIView {
+    private func makeResultRow(hit: BookSearchHit, generation: Int) -> UIView {
         let snippetFont = InkFont.serif(15, weight: .regular, style: .subheadline)
         let snippet = NSMutableAttributedString(
             string: Self.clampedLeadingContext(hit.snippetPre),
@@ -312,20 +318,6 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         content.isUserInteractionEnabled = false
         content.translatesAutoresizingMaskIntoConstraints = false
 
-        // The page line only shows when there is an honest position for it.
-        var pageText: String?
-        if resultsAreCanonical, let position = positionForHit(hit) {
-            let pageFormat = NSLocalizedString("reader_chapter_page", comment: "")
-            let text = String.localizedStringWithFormat(pageFormat, Int64(position))
-            let whereLabel = InkLabel()
-            whereLabel.text = text
-            whereLabel.font = InkFont.caption
-            whereLabel.textColor = InkColor.textTertiary
-            whereLabel.setContentCompressionResistancePriority(.required, for: .vertical)
-            content.addArrangedSubview(whereLabel)
-            pageText = text
-        }
-
         let row = ResultRowControl { [weak self] in
             guard self?.resultsAreCanonical == true else { return }
             self?.onJump?(hit)
@@ -341,9 +333,28 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
 
         let spoken = hit.snippetPre + hit.snippetMatch + hit.snippetPost
         row.isAccessibilityElement = true
-        row.accessibilityLabel = pageText.map { "\(spoken), \($0)" } ?? spoken
+        row.accessibilityLabel = spoken
         row.isUserInteractionEnabled = resultsAreCanonical
         row.accessibilityTraits = resultsAreCanonical ? .button : .staticText
+        row.alpha = resultsAreCanonical ? 1 : 0.55
+        if resultsAreCanonical {
+            let task = Task { @MainActor [weak self, weak row, weak content] in
+                guard let self, let position = await self.positionForHit(hit),
+                      self.renderGeneration == generation,
+                      let row,
+                      let content else { return }
+                let pageFormat = NSLocalizedString("reader_chapter_page", comment: "")
+                let pageText = String.localizedStringWithFormat(pageFormat, Int64(position))
+                let whereLabel = InkLabel()
+                whereLabel.text = pageText
+                whereLabel.font = InkFont.caption
+                whereLabel.textColor = InkColor.textTertiary
+                whereLabel.setContentCompressionResistancePriority(.required, for: .vertical)
+                content.addArrangedSubview(whereLabel)
+                row.accessibilityLabel = "\(spoken), \(pageText)"
+            }
+            positionTasks.append(task)
+        }
         return row
     }
 

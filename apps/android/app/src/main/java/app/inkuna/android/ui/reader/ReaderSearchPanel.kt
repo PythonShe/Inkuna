@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -288,6 +289,7 @@ private fun SearchResultRow(hit: ReaderViewModel.SearchHit, onClick: (() -> Unit
         Modifier
             .fillMaxWidth()
             .then(onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier)
+            .alpha(if (isNavigable) 1f else 0.55f)
             .padding(horizontal = 4.dp, vertical = 11.dp)
     ) {
         Text(

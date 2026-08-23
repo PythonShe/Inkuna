@@ -124,4 +124,6 @@
     <string name="reader_share_selection">分享</string>
     <string name="reader_web_search">搜尋網頁</string>
     <string name="reader_chapter_unreadable">無法顯示此章節。</string>
+    <string name="reader_chapter_truncated">此章節過大，無法完整顯示。</string>
+    <string name="reader_fixed_layout_unsupported">此書使用固定版式，Inkuna 暫時無法顯示。</string>
 </resources>

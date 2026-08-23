@@ -20,7 +20,7 @@ pub struct BookSearchHit {
     pub snippet_pre: String,
     pub snippet_match: String,
     pub snippet_post: String,
-    /// In-resource position of the hit, in [0, 1] — the value a Readium
+    /// In-resource position of the hit, in [0, 1] — the value a legacy
     /// locator's `locations.progression` takes.
     pub progression: f64,
 }

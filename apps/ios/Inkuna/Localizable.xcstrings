@@ -6283,20 +6283,58 @@
     "reader_chapter_unreadable": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "ja": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "ko": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "es": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "fr": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "it": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "ru": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "th": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "de": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "id": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
-        "pt": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } }
+        "en": { "stringUnit": { "state": "translated", "value": "This chapter can't be displayed." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法显示此章节。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "無法顯示此章節。" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "この章は表示できません。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 장을 표시할 수 없습니다." } },
+        "es": { "stringUnit": { "state": "translated", "value": "No se puede mostrar este capítulo." } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Ce chapitre ne peut pas être affiché." } },
+        "it": { "stringUnit": { "state": "translated", "value": "Impossibile visualizzare questo capitolo." } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Не удалось отобразить эту главу." } },
+        "th": { "stringUnit": { "state": "translated", "value": "ไม่สามารถแสดงบทนี้ได้" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Không thể hiển thị chương này." } },
+        "de": { "stringUnit": { "state": "translated", "value": "Dieses Kapitel kann nicht angezeigt werden." } },
+        "id": { "stringUnit": { "state": "translated", "value": "Bab ini tidak dapat ditampilkan." } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Não é possível exibir este capítulo." } }
+      }
+    },
+    "reader_chapter_truncated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This chapter was too large to display completely." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此章节过大，无法完整显示。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此章節過大，無法完整顯示。" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "この章は大きすぎるため、すべてを表示できませんでした。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 장은 너무 커서 모두 표시할 수 없습니다." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Este capítulo era demasiado grande para mostrarse por completo." } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Ce chapitre était trop volumineux pour être affiché entièrement." } },
+        "it": { "stringUnit": { "state": "translated", "value": "Questo capitolo era troppo grande per essere visualizzato completamente." } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Эта глава оказалась слишком большой, чтобы отобразить её полностью." } },
+        "th": { "stringUnit": { "state": "translated", "value": "บทนี้มีขนาดใหญ่เกินกว่าจะแสดงได้ทั้งหมด" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Chương này quá lớn để hiển thị toàn bộ." } },
+        "de": { "stringUnit": { "state": "translated", "value": "Dieses Kapitel war zu groß, um vollständig angezeigt zu werden." } },
+        "id": { "stringUnit": { "state": "translated", "value": "Bab ini terlalu besar untuk ditampilkan sepenuhnya." } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Este capítulo era grande demais para ser exibido por completo." } }
+      }
+    },
+    "reader_fixed_layout_unsupported": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This book uses a fixed layout, which Inkuna can't display yet." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此书使用固定版式，Inkuna 暂时无法显示。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此書使用固定版式，Inkuna 暫時無法顯示。" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "この本は固定レイアウトを使用しているため、Inkunaではまだ表示できません。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 책은 고정 레이아웃을 사용하므로 Inkuna에서 아직 표시할 수 없습니다." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Este libro usa un diseño fijo que Inkuna todavía no puede mostrar." } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Ce livre utilise une mise en page fixe qu’Inkuna ne peut pas encore afficher." } },
+        "it": { "stringUnit": { "state": "translated", "value": "Questo libro usa un layout fisso che Inkuna non può ancora visualizzare." } },
+        "ru": { "stringUnit": { "state": "translated", "value": "В этой книге используется фиксированная верстка, которую Inkuna пока не может отобразить." } },
+        "th": { "stringUnit": { "state": "translated", "value": "หนังสือเล่มนี้ใช้เลย์เอาต์แบบตายตัว ซึ่ง Inkuna ยังแสดงไม่ได้" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Sách này dùng bố cục cố định mà Inkuna chưa thể hiển thị." } },
+        "de": { "stringUnit": { "state": "translated", "value": "Dieses Buch verwendet ein festes Layout, das Inkuna noch nicht anzeigen kann." } },
+        "id": { "stringUnit": { "state": "translated", "value": "Buku ini menggunakan tata letak tetap yang belum dapat ditampilkan Inkuna." } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Este livro usa um layout fixo que o Inkuna ainda não consegue exibir." } }
       }
     },
     "reader_retry": {

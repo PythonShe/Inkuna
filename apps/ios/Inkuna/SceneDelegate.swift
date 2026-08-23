@@ -86,6 +86,10 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     private func debugShow(_ screen: String) {
+        if screen == "parityDigest" {
+            Task { await ParityDigestRunner.run() }
+            return
+        }
         if let main = window?.rootViewController as? MainTabBarController {
             switch screen {
             case "library": main.select(.library)

@@ -105,7 +105,7 @@ const V2_INDEX_SQL: &str = "
 CREATE UNIQUE INDEX idx_publications_content_hash ON publications(content_hash);
 ";
 
-// 0003: per-resource Readium position ranges, reported by the shell once
+// 0003: per-resource synthetic position ranges, reported by the shell once
 // its navigator computes synthetic positions (the core never invents page
 // numbers). `start_position` is 1-based and cumulative across the spine;
 // chapter ranges are derived from these rows at query time.
@@ -158,7 +158,7 @@ ALTER TABLE settings ADD COLUMN reading_margins INTEGER NOT NULL DEFAULT 26;
 
 // 0008: content coordinates (engine swap). position_spine_idx /
 // position_char_offset are the canonical-projection coordinate
-// replacing Readium locator JSON; `locator` columns are retained
+// replacing legacy locator JSON; `locator` columns are retained
 // as-is until the per-book reconcile pass consumes them (publications
 // NULLed / bookmarks set to '' after conversion). reconciled_at
 // stamps a book whose corpus, synthetic positions, and locators have

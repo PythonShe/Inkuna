@@ -73,6 +73,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
         self.spineIdx = spineIdx
         self.pageIdx = pageIdx
         interactionPageCount = nil
+        primeReadiness(for: spineIdx)
         let count = pageCount(for: spineIdx)
         innerOffset = PageSlot.offset(
             forPageIdx: pageIdx,
@@ -97,6 +98,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
         } else {
             readiness[spineIdx] = .partial(publishedPages: published)
         }
+        failedSpines.remove(spineIdx)
         neighborReadiness.removeAll()
         if spineIdx == self.spineIdx {
             pendingGeneration = false
@@ -109,6 +111,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
         guard accept(generation: generation), let geometry = try? session.chapter(spineIdx: spineIdx),
               geometry.generation == generation else { return }
         readiness[spineIdx] = .complete(geometry: geometry)
+        failedSpines.remove(spineIdx)
         neighborReadiness.removeAll()
         if spineIdx == self.spineIdx {
             pendingGeneration = false
@@ -226,7 +229,12 @@ final class EnginePagerSurface: ReaderPagerSurface {
         let key = NeighborKey(spineIdx: neighbor, toRight: toRight)
         if let ready = neighborReadiness[key] { return ready }
         let ready: Bool
-        if isForward(toRight: toRight) {
+        if failedSpines.contains(neighbor) {
+            // A failed chapter occupies one placeholder page; it must stay
+            // crossable in both directions or every chapter beyond it
+            // becomes unreachable by paging.
+            ready = true
+        } else if isForward(toRight: toRight) {
             ready = session.publishedPageCount(spineIdx: neighbor) > 0
             if !ready {
                 _ = try? session.chapter(spineIdx: neighbor)
@@ -243,37 +251,29 @@ final class EnginePagerSurface: ReaderPagerSurface {
 
     func commitBoundaryCrossing(toRight: Bool) -> Bool {
         guard let target = neighborSpine(toRight: toRight) else { return false }
-        if isForward(toRight: toRight) {
-            guard neighborIsReady(toRight: toRight) else { return false }
-            spineIdx = target
-            pageIdx = 0
-            let count = pageCount(for: target)
-            innerOffset = PageSlot.offset(
-                forPageIdx: pageIdx,
-                pageCount: count,
-                rtl: isRightToLeft,
-                pageWidth: pageWidth
-            )
-            scenePageCount = count
-            interactionPageCount = count
+        guard neighborIsReady(toRight: toRight) else { return false }
+        let targetPage: UInt32
+        if failedSpines.contains(target) || isForward(toRight: toRight) {
+            targetPage = 0
         } else {
-            guard case let .complete(geometry)? = readiness[target], geometry.pageCount > 0,
-                  neighborIsReady(toRight: toRight) else { return false }
-            spineIdx = target
-            pageIdx = geometry.pageCount - 1
-            innerOffset = PageSlot.offset(
-                forPageIdx: pageIdx,
-                pageCount: geometry.pageCount,
-                rtl: isRightToLeft,
-                pageWidth: pageWidth
-            )
-            scenePageCount = geometry.pageCount
-            interactionPageCount = geometry.pageCount
+            guard case let .complete(geometry)? = readiness[target], geometry.pageCount > 0 else { return false }
+            targetPage = geometry.pageCount - 1
         }
+        spineIdx = target
+        pageIdx = targetPage
+        let count = pageCount(for: target)
+        innerOffset = PageSlot.offset(
+            forPageIdx: targetPage,
+            pageCount: count,
+            rtl: isRightToLeft,
+            pageWidth: pageWidth
+        )
+        scenePageCount = count
+        interactionPageCount = count
         outerDisplacement = 0
         lastSettledPage = pageIdx
         neighborReadiness.removeAll()
-        canvas.showUnreadablePlaceholder(false)
+        canvas.showUnreadablePlaceholder(failedSpines.contains(target))
         setScene()
         onPageSettled?(spineIdx, pageIdx)
         return true
@@ -294,8 +294,16 @@ final class EnginePagerSurface: ReaderPagerSurface {
         switch readiness[spineIdx] ?? .empty {
         case let .complete(geometry): geometry.pageCount
         case let .partial(publishedPages): max(publishedPages, session.publishedPageCount(spineIdx: spineIdx))
-        case .empty: 0
+        case .empty: failedSpines.contains(spineIdx) ? 1 : 0
         }
+    }
+
+    /// Learns a spine's published prefix when a display gets ahead of its
+    /// main-actor layout callback (for example after a recreated surface).
+    private func primeReadiness(for spineIdx: UInt32) {
+        guard readiness[spineIdx] == nil, !failedSpines.contains(spineIdx) else { return }
+        let published = session.publishedPageCount(spineIdx: spineIdx)
+        if published > 0 { readiness[spineIdx] = .partial(publishedPages: published) }
     }
 
     private func accept(generation: UInt64) -> Bool {
@@ -348,6 +356,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
 
     private func neighborEntry(toRight: Bool) -> (spineIdx: UInt32, pageIdx: UInt32, toRight: Bool)? {
         guard let neighbor = neighborSpine(toRight: toRight), neighborIsReady(toRight: toRight) else { return nil }
+        if failedSpines.contains(neighbor) { return (neighbor, 0, toRight) }
         if isForward(toRight: toRight) {
             return (neighbor, 0, toRight)
         }

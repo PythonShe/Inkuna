@@ -127,4 +127,6 @@
     <string name="reader_share_selection">Condividi</string>
     <string name="reader_web_search">Cerca sul web</string>
     <string name="reader_chapter_unreadable">Impossibile visualizzare questo capitolo.</string>
+    <string name="reader_chapter_truncated">Questo capitolo era troppo grande per essere visualizzato completamente.</string>
+    <string name="reader_fixed_layout_unsupported">Questo libro usa un layout fisso che Inkuna non può ancora visualizzare.</string>
 </resources>

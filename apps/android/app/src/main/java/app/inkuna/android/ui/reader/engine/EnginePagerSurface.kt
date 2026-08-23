@@ -268,10 +268,13 @@ class EnginePagerSurface(
         if (published > 0u) readiness[spineIdx] = ChapterReadiness.Partial(published)
     }
 
-    private fun pageCountFor(spineIdx: UInt): UInt = when (val state = readiness[spineIdx]) {
-        is ChapterReadiness.Complete -> state.geometry.pageCount
-        is ChapterReadiness.Partial -> maxOf(state.publishedPages, session.publishedPageCount(spineIdx))
-        ChapterReadiness.Empty, null -> 0u
+    private fun pageCountFor(spineIdx: UInt): UInt {
+        if (spineIdx in failedSpines) return 1u
+        return when (val state = readiness[spineIdx]) {
+            is ChapterReadiness.Complete -> state.geometry.pageCount
+            is ChapterReadiness.Partial -> maxOf(state.publishedPages, session.publishedPageCount(spineIdx))
+            ChapterReadiness.Empty, null -> 0u
+        }
     }
 
     /**

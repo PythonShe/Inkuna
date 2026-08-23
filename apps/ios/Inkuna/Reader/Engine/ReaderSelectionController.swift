@@ -23,6 +23,8 @@ final class ReaderSelectionController: NSObject, @MainActor UIEditMenuInteractio
     private var editMenuInteraction: UIEditMenuInteraction!
     private let selectionFeedback = UIImpactFeedbackGenerator(style: .light)
     private let logger = Logger(subsystem: "app.inkuna.ios", category: "reader-selection")
+    private var searchHighlightAnimator: UIViewPropertyAnimator?
+    private var searchHighlightToken = 0
 
     private var selection: ActiveSelection? {
         didSet {
@@ -58,6 +60,7 @@ final class ReaderSelectionController: NSObject, @MainActor UIEditMenuInteractio
             self?.handlePan(handle, state: state, at: point)
         }
         canvas.addSubview(overlay)
+        canvas.selectionController = self
 
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
         longPress.minimumPressDuration = 0.35
@@ -67,6 +70,7 @@ final class ReaderSelectionController: NSObject, @MainActor UIEditMenuInteractio
     }
 
     func clear() {
+        cancelSearchHighlight()
         handleDrag = nil
         selection = nil
         overlay.clear()
@@ -83,8 +87,38 @@ final class ReaderSelectionController: NSObject, @MainActor UIEditMenuInteractio
         overlay.updateAccentColor(selectionAccent)
     }
 
+    func showSearchHighlight(_ rects: [SelectionRect]) {
+        clear()
+        guard !rects.isEmpty else { return }
+
+        canvas.bringSubviewToFront(overlay)
+        overlay.showSearchHighlight(rects: rects, accentColor: searchHighlightAccent)
+        searchHighlightToken &+= 1
+        let token = searchHighlightToken
+        let animator = UIViewPropertyAnimator(duration: SelectionOverlayView.searchHighlightFade, curve: .easeInOut) { [weak overlay] in
+            overlay?.alpha = 0
+        }
+        animator.addCompletion { [weak self] _ in
+            guard self?.searchHighlightToken == token else { return }
+            self?.overlay.alpha = 1
+            self?.overlay.clear()
+            self?.searchHighlightAnimator = nil
+        }
+        animator.startAnimation(afterDelay: SelectionOverlayView.searchHighlightHold)
+        searchHighlightAnimator = animator
+    }
+
+    private func cancelSearchHighlight() {
+        searchHighlightToken &+= 1
+        searchHighlightAnimator?.stopAnimation(true)
+        searchHighlightAnimator = nil
+        overlay.alpha = 1
+    }
+
     @objc private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
         guard recognizer.state == .began, !isActive else { return }
+        cancelSearchHighlight()
+        overlay.clear()
         let canvasPoint = recognizer.location(in: canvas)
         let spineIdx = surface.spineIdx
         let pageIdx = surface.pageIdx
@@ -241,5 +275,11 @@ final class ReaderSelectionController: NSObject, @MainActor UIEditMenuInteractio
 
     private var selectionAccent: UIColor {
         UIColor(ink: canvas.theme.isNight ? 0xD9AE63 : 0xB4863B)
+    }
+
+    private var searchHighlightAccent: UIColor {
+        UIColor(ink: canvas.theme.isNight
+            ? SelectionOverlayView.searchHighlightNightColor
+            : SelectionOverlayView.searchHighlightDayColor)
     }
 }

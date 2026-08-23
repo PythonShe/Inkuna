@@ -3,9 +3,21 @@ import UIKit
 /// Draws core-provided selection geometry and routes only handle touches.
 @MainActor
 final class SelectionOverlayView: UIView {
+    static let searchHighlightDayColor: UInt32 = 0xB4863B
+    static let searchHighlightNightColor: UInt32 = 0xD9AE63
+    static let searchHighlightAlpha: CGFloat = 0.35
+    static let searchHighlightCornerRadius: CGFloat = 3
+    static let searchHighlightHold: TimeInterval = 1.5
+    static let searchHighlightFade: TimeInterval = 0.6
+
     enum Handle: Hashable {
         case start
         case end
+    }
+
+    private enum Presentation: Equatable {
+        case selection
+        case searchHighlight
     }
 
     var onHandlePan: ((Handle, UIGestureRecognizer.State, CGPoint) -> Void)?
@@ -17,6 +29,7 @@ final class SelectionOverlayView: UIView {
     private var writingMode: WritingMode = .horizontalTb
     private var accentColor = UIColor(ink: 0xB4863B)
     private var activeHandle: Handle?
+    private var presentation: Presentation = .selection
 
     var selectionBounds: CGRect {
         highlightRects.reduce(into: CGRect.null) { $0 = $0.union($1) }
@@ -36,6 +49,19 @@ final class SelectionOverlayView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     func show(rects: [SelectionRect], accentColor: UIColor) {
+        presentation = .selection
+        present(rects: rects, accentColor: accentColor)
+    }
+
+    /// Search highlights deliberately share selection's page-local rect
+    /// conversion and writing-mode bookkeeping; only their presentation is
+    /// transient (no handles, a softer rounded fill).
+    func showSearchHighlight(rects: [SelectionRect], accentColor: UIColor) {
+        presentation = .searchHighlight
+        present(rects: rects, accentColor: accentColor)
+    }
+
+    private func present(rects: [SelectionRect], accentColor: UIColor) {
         highlightRects = rects.compactMap { selectionRect in
             let rect = selectionRect.rect
             guard rect.width > 0, rect.height > 0 else { return nil }
@@ -61,6 +87,7 @@ final class SelectionOverlayView: UIView {
 
     func clear() {
         activeHandle = nil
+        presentation = .selection
         highlightRects.removeAll()
         isHidden = true
         setNeedsDisplay()
@@ -71,7 +98,8 @@ final class SelectionOverlayView: UIView {
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        guard !isHidden, alpha > 0, isUserInteractionEnabled, handle(at: point) != nil else {
+        guard presentation == .selection, !isHidden, alpha > 0,
+              isUserInteractionEnabled, handle(at: point) != nil else {
             return nil
         }
         return self
@@ -80,8 +108,18 @@ final class SelectionOverlayView: UIView {
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext(), !highlightRects.isEmpty else { return }
 
-        context.setFillColor(accentColor.withAlphaComponent(0.30).cgColor)
-        highlightRects.forEach { context.fill($0) }
+        switch presentation {
+        case .selection:
+            context.setFillColor(accentColor.withAlphaComponent(0.30).cgColor)
+            highlightRects.forEach { context.fill($0) }
+        case .searchHighlight:
+            context.setFillColor(accentColor.withAlphaComponent(Self.searchHighlightAlpha).cgColor)
+            highlightRects.forEach { rect in
+                context.addPath(UIBezierPath(roundedRect: rect, cornerRadius: Self.searchHighlightCornerRadius).cgPath)
+                context.fillPath()
+            }
+            return
+        }
 
         context.setStrokeColor(accentColor.cgColor)
         context.setFillColor(accentColor.cgColor)

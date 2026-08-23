@@ -18,6 +18,28 @@ final class ReaderViewController: UIViewController {
         }
     }
 
+    struct PendingJump {
+        let coordinate: Coordinate
+        let matchLength: UInt64?
+        let toChapterEnd: Bool
+        let linkToast: Bool
+        let showChrome: Bool
+
+        init(
+            coordinate: Coordinate,
+            matchLength: UInt64? = nil,
+            toChapterEnd: Bool = false,
+            linkToast: Bool = false,
+            showChrome: Bool = true
+        ) {
+            self.coordinate = coordinate
+            self.matchLength = matchLength
+            self.toChapterEnd = toChapterEnd
+            self.linkToast = linkToast
+            self.showChrome = showChrome
+        }
+    }
+
     let publication: Publication
     let initialChapter: Chapter?
     var readerSession: ReaderSession?
@@ -30,6 +52,8 @@ final class ReaderViewController: UIViewController {
     var chapterRanges: [ChapterPositionRange] = []
     var layoutGeneration: UInt64?
     var targetCoordinate: Coordinate?
+    var pendingJump: PendingJump?
+    var notedTruncatedChapters: Set<UInt32> = []
     var relayoutAnchor: Coordinate?
     var pendingEvents: [LayoutEvent] = []
     var layoutChangeInFlight = false

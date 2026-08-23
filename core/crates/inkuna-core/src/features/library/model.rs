@@ -38,7 +38,7 @@ pub struct Publication {
 }
 
 /// One entry of the flattened TOC. `href` (which may carry a fragment) is
-/// the Readium jump target; mapping a chapter to its resource is
+/// the legacy jump target; mapping a chapter to its resource is
 /// href-minus-fragment matched against the spine, derived at query time
 /// when needed — never stored.
 #[derive(Debug, Clone, PartialEq)]

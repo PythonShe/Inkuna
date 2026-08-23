@@ -19,6 +19,7 @@ import app.inkuna.core.InkunaException
 import app.inkuna.core.ReaderSession
 import app.inkuna.core.SelectionRect
 import app.inkuna.core.WritingMode
+import kotlin.math.roundToInt
 
 /** Native text selection over one published engine page. */
 class ReaderSelectionController(
@@ -46,6 +47,8 @@ class ReaderSelectionController(
         }
     private var dragging: HandleDrag? = null
     private var actionMode: ActionMode? = null
+    private var searchHighlightDismissal: Runnable? = null
+    private var searchHighlightToken = 0
     private val overlay = SelectionOverlay(canvas.context) { handle, event, x, y ->
         when (event) {
             MotionEvent.ACTION_DOWN -> beginHandleDrag(handle)
@@ -68,6 +71,8 @@ class ReaderSelectionController(
 
     fun beginAt(spineIdx: UInt, pageIdx: UInt, x: Float, y: Float) {
         if (isActive) return
+        cancelSearchHighlight()
+        overlay.clear()
         try {
             val pageRange = session.pageCharRange(spineIdx, pageIdx)
             val hit = session.hitTest(spineIdx, pageIdx, canvas.toLayoutX(x), canvas.toLayoutY(y))
@@ -86,6 +91,7 @@ class ReaderSelectionController(
     }
 
     fun clear() {
+        cancelSearchHighlight()
         dragging = null
         active = null
         overlay.clear()
@@ -96,7 +102,39 @@ class ReaderSelectionController(
     fun containsSelection(x: Float, y: Float): Boolean = overlay.containsHighlight(x, y)
 
     fun updatePalette(accent: Int) {
-        if (isActive) overlay.updateAccent(accent)
+        overlay.updateAccent(accent)
+    }
+
+    fun showSearchHighlight(rects: List<SelectionRect>) {
+        clear()
+        if (rects.isEmpty()) return
+
+        overlay.showSearchHighlight(rects, searchHighlightAccent)
+        searchHighlightToken += 1
+        val token = searchHighlightToken
+        val dismissal = Runnable {
+            overlay.animate()
+                .alpha(0f)
+                .setDuration(SelectionOverlay.searchHighlightFade)
+                .withEndAction {
+                    if (searchHighlightToken == token && !isActive) {
+                        overlay.alpha = 1f
+                        overlay.clear()
+                        searchHighlightDismissal = null
+                    }
+                }
+                .start()
+        }
+        searchHighlightDismissal = dismissal
+        overlay.postDelayed(dismissal, SelectionOverlay.searchHighlightHold)
+    }
+
+    private fun cancelSearchHighlight() {
+        searchHighlightToken += 1
+        searchHighlightDismissal?.let(overlay::removeCallbacks)
+        searchHighlightDismissal = null
+        overlay.animate().cancel()
+        overlay.alpha = 1f
     }
 
     private fun beginHandleDrag(handle: Handle) {
@@ -191,6 +229,13 @@ class ReaderSelectionController(
         range.end.coerceIn(page.start, page.end),
     )
 
+    private val searchHighlightAccent: Int
+        get() = if (canvas.palette.link == SelectionOverlay.searchHighlightNightColor) {
+            SelectionOverlay.searchHighlightNightColor
+        } else {
+            SelectionOverlay.searchHighlightDayColor
+        }
+
     private class SelectionOverlay(
         context: Context,
         private val onHandle: (Handle, Int, Float, Float) -> Unit,
@@ -200,6 +245,7 @@ class ReaderSelectionController(
         private var mode = WritingMode.HORIZONTAL_TB
         private var accent = 0
         private var handle: Handle? = null
+        private var presentation = Presentation.SELECTION
 
         val bounds: RectF get() = rects.fold(RectF()) { total, rect ->
             if (total.isEmpty) RectF(rect) else total.apply { union(rect) }
@@ -210,6 +256,16 @@ class ReaderSelectionController(
         }
 
         fun show(source: List<SelectionRect>, color: Int) {
+            presentation = Presentation.SELECTION
+            present(source, color)
+        }
+
+        fun showSearchHighlight(source: List<SelectionRect>, color: Int) {
+            presentation = Presentation.SEARCH_HIGHLIGHT
+            present(source, color)
+        }
+
+        private fun present(source: List<SelectionRect>, color: Int) {
             rects = source.mapNotNull { selection ->
                 val rect = selection.rect
                 val scaled = RectF(
@@ -228,6 +284,7 @@ class ReaderSelectionController(
 
         fun clear() {
             handle = null
+            presentation = Presentation.SELECTION
             rects = emptyList()
             visibility = GONE
             invalidate()
@@ -243,14 +300,26 @@ class ReaderSelectionController(
         override fun onDraw(canvas: Canvas) {
             if (rects.isEmpty()) return
             paint.style = Paint.Style.FILL
-            paint.color = (accent and 0x00FFFFFF) or 0x4D000000
-            rects.forEach { rect -> canvas.drawRect(rect, paint) }
+            when (presentation) {
+                Presentation.SELECTION -> {
+                    paint.color = (accent and 0x00FFFFFF) or 0x4D000000
+                    rects.forEach { rect -> canvas.drawRect(rect, paint) }
+                }
+                Presentation.SEARCH_HIGHLIGHT -> {
+                    paint.color = (accent and 0x00FFFFFF) or
+                        ((searchHighlightAlpha * 255f).roundToInt() shl 24)
+                    val radius = searchHighlightCornerRadius * resources.displayMetrics.density
+                    rects.forEach { rect -> canvas.drawRoundRect(rect, radius, radius, paint) }
+                    return
+                }
+            }
             paint.color = accent
             handleGeometry(Handle.START)?.let { drawTeardrop(canvas, it.first, it.second) }
             handleGeometry(Handle.END)?.let { drawTeardrop(canvas, it.first, it.second) }
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (presentation != Presentation.SELECTION) return false
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     handle = listOf(Handle.START, Handle.END).firstOrNull { candidate ->
@@ -299,9 +368,17 @@ class ReaderSelectionController(
             canvas.drawCircle(knob.x, knob.y, HANDLE / 2f, paint)
         }
 
-        private companion object {
+        companion object {
             const val HANDLE = 24f
+            val searchHighlightDayColor = 0xFFB4863B.toInt()
+            val searchHighlightNightColor = 0xFFD9AE63.toInt()
+            const val searchHighlightAlpha = 0.35f
+            const val searchHighlightCornerRadius = 3f
+            const val searchHighlightHold = 1_500L
+            const val searchHighlightFade = 600L
         }
+
+        private enum class Presentation { SELECTION, SEARCH_HIGHLIGHT }
     }
 
     private companion object {

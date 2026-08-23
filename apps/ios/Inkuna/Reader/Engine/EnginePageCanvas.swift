@@ -31,6 +31,7 @@ final class EnginePageCanvas: UIView {
     private var latestGeneration: UInt64?
     private var useCounter: UInt64 = 0
     private let unreadableLabel = InkLabel()
+    private var truncationNotice: UIView?
 
     var theme: ReadingTheme {
         didSet {
@@ -43,6 +44,7 @@ final class EnginePageCanvas: UIView {
     var onTap: ((CGPoint) -> Void)?
     var onPageDrawn: ((UInt32, UInt32) -> Void)?
     var selectionCopyHandler: (() -> Void)?
+    weak var selectionController: ReaderSelectionController?
     var canCopySelection = false
     var isLaidOut: Bool { bounds.width > 0 && bounds.height > 0 }
 
@@ -109,6 +111,22 @@ final class EnginePageCanvas: UIView {
         }
     }
 
+    /// A completed chapter can retain its laid-out prefix while reporting a
+    /// budget truncation. This stays up until the reader explicitly closes
+    /// it, but its caller only asks once for each spine slot.
+    func showTruncationNotice() {
+        let notice = truncationNotice ?? makeTruncationNotice()
+        notice.isHidden = false
+        bringSubviewToFront(notice)
+    }
+
+    /// The selection controller owns the shared page-local rect renderer so
+    /// transient search highlights retain the exact horizontal/vertical
+    /// geometry conversion used by native selection.
+    func showSearchHighlight(_ rects: [SelectionRect]) {
+        selectionController?.showSearchHighlight(rects)
+    }
+
     func pagePoint(spineIdx: UInt32, pageIdx: UInt32, from point: CGPoint) -> CGPoint? {
         let key = PageKey(spineIdx: spineIdx, pageIdx: pageIdx)
         guard let page = mounted[key], !page.view.isHidden else { return nil }
@@ -129,6 +147,9 @@ final class EnginePageCanvas: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         unreadableLabel.frame = bounds.insetBy(dx: 32, dy: 32)
+        if let truncationNotice {
+            truncationNotice.layer.cornerRadius = truncationNotice.bounds.height / 2
+        }
         updatePages()
     }
 
@@ -191,6 +212,7 @@ final class EnginePageCanvas: UIView {
             page.view.frame = frame
             page.view.isHidden = unreadableLabel.isHidden == false
         }
+        if let truncationNotice { bringSubviewToFront(truncationNotice) }
     }
 
     private func mount(_ key: PageKey) -> MountedPage {
@@ -233,5 +255,54 @@ final class EnginePageCanvas: UIView {
         }
         guard list.generation == latestGeneration else { return nil }
         return list
+    }
+
+    private func makeTruncationNotice() -> UIView {
+        let notice = UIView()
+        notice.backgroundColor = UIColor(ink: 0x241F17, alpha: 0.92)
+        notice.clipsToBounds = true
+        notice.translatesAutoresizingMaskIntoConstraints = false
+
+        let label = InkLabel()
+        label.text = String(
+            localized: "reader_chapter_truncated",
+            defaultValue: "This chapter was too large to display completely."
+        )
+        label.font = InkFont.label
+        label.textColor = UIColor(ink: 0xF2EBDD)
+        label.numberOfLines = 1
+        label.lineBreakMode = .byTruncatingTail
+
+        var configuration = UIButton.Configuration.plain()
+        configuration.baseForegroundColor = UIColor(ink: 0xF2EBDD)
+        configuration.image = UIImage(
+            systemName: "xmark",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+        )
+        let close = UIButton(configuration: configuration)
+        close.accessibilityLabel = String(localized: "a11y_close", defaultValue: "Close")
+        close.addAction(UIAction { [weak notice] _ in notice?.isHidden = true }, for: .primaryActionTriggered)
+
+        let stack = UIStackView(arrangedSubviews: [label, close])
+        stack.axis = .horizontal
+        stack.spacing = 10
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        notice.addSubview(stack)
+        addSubview(notice)
+        NSLayoutConstraint.activate([
+            close.widthAnchor.constraint(equalToConstant: 32),
+            close.heightAnchor.constraint(equalToConstant: 32),
+            stack.leadingAnchor.constraint(equalTo: notice.leadingAnchor, constant: 18),
+            stack.trailingAnchor.constraint(equalTo: notice.trailingAnchor, constant: -10),
+            stack.topAnchor.constraint(equalTo: notice.topAnchor, constant: 10),
+            stack.bottomAnchor.constraint(equalTo: notice.bottomAnchor, constant: -10),
+            notice.centerXAnchor.constraint(equalTo: centerXAnchor),
+            notice.topAnchor.constraint(equalTo: topAnchor, constant: 16),
+            notice.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 16),
+            notice.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
+        ])
+        truncationNotice = notice
+        return notice
     }
 }

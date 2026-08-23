@@ -1,15 +1,21 @@
 package app.inkuna.android.ui.reader.engine
 
 import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
-import android.widget.TextView
 import android.view.Gravity
+import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.TextView
 import app.inkuna.core.PageDisplayList
 import app.inkuna.core.ReaderSession
 import app.inkuna.core.InkunaException
+import app.inkuna.core.SelectionRect
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -70,6 +76,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
     private var latestGeneration: ULong? = null
     private var useCounter = 0uL
     private var unreadableView: TextView? = null
+    private var truncationNotice: LinearLayout? = null
     private var selectionOverlay: View? = null
     internal var selectionController: ReaderSelectionController? = null
     private var gestureSpineIdx = 0u
@@ -138,6 +145,26 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
             updatePages()
         }
         selectionOverlay?.let(::bringChildToFront)
+    }
+
+    /**
+     * A completed chapter can retain its laid-out prefix while reporting a
+     * budget truncation. This stays up until the reader explicitly closes
+     * it, but its caller only asks once for each spine slot.
+     */
+    internal fun showTruncationNotice() {
+        val notice = truncationNotice ?: makeTruncationNotice()
+        notice.visibility = View.VISIBLE
+        bringChildToFront(notice)
+    }
+
+    /**
+     * The selection controller owns the shared layout-point-to-pixel rect
+     * renderer so transient search highlights preserve the same horizontal
+     * and vertical geometry path as native selection.
+     */
+    internal fun showSearchHighlight(rects: List<SelectionRect>) {
+        selectionController?.showSearchHighlight(rects)
     }
 
     internal fun toLayoutX(x: Float): Double = (x / resources.displayMetrics.density).toDouble()
@@ -243,6 +270,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
             page.view.visibility = if (unreadableView?.visibility == View.VISIBLE) View.INVISIBLE else View.VISIBLE
         }
         selectionOverlay?.let(::bringChildToFront)
+        truncationNotice?.let(::bringChildToFront)
     }
 
     private fun mount(key: PageKey): MountedPage {
@@ -293,6 +321,45 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
             null
         } ?: return null
         return list.takeIf { it.generation == expectedGeneration }
+    }
+
+    private fun makeTruncationNotice(): LinearLayout {
+        val density = resources.displayMetrics.density
+        fun pixels(value: Int) = (value * density).toInt()
+        val notice = LinearLayout(context).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.HORIZONTAL
+            background = GradientDrawable().apply {
+                setColor(Color.argb(235, 0x24, 0x1F, 0x17))
+                cornerRadius = pixels(26).toFloat()
+            }
+            clipToOutline = true
+            setPadding(pixels(18), pixels(10), pixels(10), pixels(10))
+        }
+        val label = TextView(context).apply {
+            text = context.getString(app.inkuna.android.R.string.reader_chapter_truncated)
+            setTextColor(Color.rgb(0xF2, 0xEB, 0xDD))
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        }
+        val close = ImageButton(context).apply {
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            setColorFilter(Color.rgb(0xF2, 0xEB, 0xDD))
+            contentDescription = context.getString(app.inkuna.android.R.string.a11y_close)
+            background = null
+            setOnClickListener { notice.visibility = View.GONE }
+        }
+        notice.addView(label, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        notice.addView(close, LinearLayout.LayoutParams(pixels(32), pixels(32)).apply {
+            marginStart = pixels(10)
+        })
+        addView(notice, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+            topMargin = pixels(16)
+            marginStart = pixels(16)
+            marginEnd = pixels(16)
+        })
+        truncationNotice = notice
+        return notice
     }
 
     private companion object {

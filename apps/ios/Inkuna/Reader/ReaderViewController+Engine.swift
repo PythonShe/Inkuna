@@ -51,6 +51,13 @@ extension ReaderViewController {
             events.forEach(process)
         } catch is CancellationError {
             return
+        } catch InkunaError.UnsupportedContent {
+            showOpenFailure(
+                String(
+                    localized: "reader_fixed_layout_unsupported",
+                    defaultValue: "This book uses a fixed layout, which Inkuna can't display yet."
+                )
+            )
         } catch {
             logger.error("Opening \(self.publication.id, privacy: .public) failed: \(error)")
             showOpenFailure()
@@ -82,6 +89,7 @@ extension ReaderViewController {
         surface.spineCount = session.spineCount()
         surface.onPageSettled = { [weak self] spineIdx, pageIdx in
             self?.selectionController?.clear()
+            self?.pendingJump = nil
             self?.pageSettled(spineIdx: spineIdx, pageIdx: pageIdx)
         }
         pagerSurface = surface
@@ -118,9 +126,11 @@ extension ReaderViewController {
                 log("open_to_first_page_ready_ms", since: openedAt)
                 tryPresentTarget()
             }
+            presentPendingJump(for: spineIdx)
         case let .complete(generation, spineIdx, _):
             guard accept(generation: generation) else { return }
             pagerSurface?.chapterBecameReady(generation: generation, spineIdx: spineIdx)
+            showTruncationNoticeIfNeeded(for: spineIdx)
             if spineIdx == targetCoordinate?.spineIdx {
                 tryPresentTarget()
             }
@@ -128,14 +138,36 @@ extension ReaderViewController {
                 didLogChapterComplete = true
                 log("chapter_layout_complete_ms", since: openedAt)
             }
+            presentPendingJump(for: spineIdx)
         case let .failed(generation, spineIdx):
             guard accept(generation: generation) else { return }
             pagerSurface?.chapterFailed(generation: generation, spineIdx: spineIdx)
-            if spineIdx == targetCoordinate?.spineIdx {
+            let pendingJumpTargetsSpine = pendingJump?.coordinate.spineIdx == spineIdx
+            if spineIdx == targetCoordinate?.spineIdx || pendingJumpTargetsSpine {
                 pagerSurface?.display(spineIdx: spineIdx, pageIdx: 0)
                 loadingIndicator.stopAnimating()
             }
+            if pendingJumpTargetsSpine { pendingJump = nil }
         }
+    }
+
+    func presentPendingJump(for spineIdx: UInt32) {
+        guard let jump = pendingJump, jump.coordinate.spineIdx == spineIdx else { return }
+        do {
+            try attemptJump(jump)
+        } catch {
+            pendingJump = nil
+            if jump.linkToast { showLinkNotFollowed() }
+        }
+    }
+
+    func showTruncationNoticeIfNeeded(for spineIdx: UInt32) {
+        guard !notedTruncatedChapters.contains(spineIdx),
+              let readerSession,
+              let geometry = try? readerSession.chapter(spineIdx: spineIdx),
+              geometry.truncated else { return }
+        notedTruncatedChapters.insert(spineIdx)
+        canvas?.showTruncationNotice()
     }
 
     func accept(generation: UInt64) -> Bool {
@@ -276,8 +308,9 @@ extension ReaderViewController {
         }
     }
 
-    func showOpenFailure() {
+    func showOpenFailure(_ message: String? = nil) {
         loadingIndicator.stopAnimating()
+        if let message { openFailureLabel.text = message }
         openFailureLabel.isHidden = false
     }
 

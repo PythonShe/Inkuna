@@ -25,6 +25,7 @@ internal class EngineHost(
  */
 internal data class PendingJump(
     val coordinate: Coordinate,
+    val matchLength: ULong? = null,
     val toChapterEnd: Boolean = false,
     val linkToast: Boolean = false,
     val showChrome: Boolean = true,

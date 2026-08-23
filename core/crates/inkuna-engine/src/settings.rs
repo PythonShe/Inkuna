@@ -29,18 +29,18 @@ const MARGINS_RANGE: (u32, u32) = (16, 48);
 const DEFAULT_LINE_SPACING: f64 = 1.65;
 
 /// Space between paragraphs as a multiple of the body size.
-/// engine-chosen: no Readium precedent in either shell — this mirrors the
-/// `p { margin: 1em 0 }` WebView UA default the Readium look rendered.
+/// engine-chosen: no prior renderer precedent in either shell — this mirrors
+/// the `p { margin: 1em 0 }` WebView UA default previously used by the shell.
 const PARAGRAPH_SPACING_EM: f64 = 1.0;
-/// First-line indent in points. engine-chosen: no Readium precedent —
+/// First-line indent in points. engine-chosen: no prior renderer precedent —
 /// neither shell indents; publishers indent via their own CSS.
 const PARAGRAPH_INDENT_PT: f64 = 0.0;
-/// h1..h6 size multipliers over the body size. engine-chosen: no Readium
+/// h1..h6 size multipliers over the body size. engine-chosen: no prior renderer
 /// precedent in either shell — mirrors the WebView UA defaults the
-/// Readium look rendered.
+/// former shell renderer used.
 const HEADING_SCALE: [f64; 6] = [2.0, 1.5, 1.17, 1.0, 0.83, 0.67];
 /// Ruby annotation size over base size, as an exact ratio (M4 shapes ruby
-/// at `size.mul_ratio(num, den)`). engine-chosen: no Readium precedent.
+/// at `size.mul_ratio(num, den)`). engine-chosen: no prior renderer precedent.
 const RUBY_SCALE: (u32, u32) = (1, 2);
 
 /// The registry faces the engine bundles. Publisher-embedded fonts are a

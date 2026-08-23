@@ -117,4 +117,6 @@
     <string name="reader_share_selection">Teilen</string>
     <string name="reader_web_search">Im Web suchen</string>
     <string name="reader_chapter_unreadable">Dieses Kapitel kann nicht angezeigt werden.</string>
+    <string name="reader_chapter_truncated">Dieses Kapitel war zu groß, um vollständig angezeigt zu werden.</string>
+    <string name="reader_fixed_layout_unsupported">Dieses Buch verwendet ein festes Layout, das Inkuna noch nicht anzeigen kann.</string>
 </resources>

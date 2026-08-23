@@ -100,11 +100,18 @@ internal fun ReaderChromeLayer(
 }
 
 @Composable
-internal fun ReaderOpenFailed(foreground: Color, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ReaderOpenFailed(
+    foreground: Color,
+    message: String,
+    onRetry: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.padding(horizontal = 40.dp)) {
-        Text(stringResource(R.string.reader_open_failed), style = InkType.reading, color = foreground.copy(alpha = 0.75f))
-        Spacer(Modifier.height(18.dp))
-        InkButton(stringResource(R.string.reader_retry), onRetry, size = InkButtonSize.Small)
+        Text(message, style = InkType.reading, color = foreground.copy(alpha = 0.75f))
+        if (onRetry != null) {
+            Spacer(Modifier.height(18.dp))
+            InkButton(stringResource(R.string.reader_retry), onRetry, size = InkButtonSize.Small)
+        }
     }
 }
 

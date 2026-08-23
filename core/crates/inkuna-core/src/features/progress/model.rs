@@ -1,6 +1,6 @@
 //! The progress domain's derived types.
 
-/// One TOC entry's span of Readium synthetic positions, derived from the
+/// One TOC entry's span of legacy synthetic positions, derived from the
 /// shell-reported per-resource ranges. Both bounds are 1-based and
 /// inclusive; a chapter that shares its resource with fragment-anchored
 /// siblings reports the whole resource span for each of them — positions

@@ -110,10 +110,16 @@ fun ReaderScreen(
     Box(Modifier.fillMaxSize().background(background)) {
         when (val current = state) {
             ReaderViewModel.UiState.Opening -> Unit
-            ReaderViewModel.UiState.Failed -> ReaderOpenFailed(foreground, viewModel::open, Modifier.align(Alignment.Center))
+            ReaderViewModel.UiState.Failed -> ReaderOpenFailed(
+                foreground,
+                stringResource(R.string.reader_open_failed),
+                viewModel::open,
+                Modifier.align(Alignment.Center),
+            )
             ReaderViewModel.UiState.FixedLayoutUnsupported -> ReaderOpenFailed(
                 foreground,
-                onBack,
+                stringResource(R.string.reader_fixed_layout_unsupported),
+                null,
                 Modifier.align(Alignment.Center),
             )
             is ReaderViewModel.UiState.Ready -> ReaderContent(
@@ -154,6 +160,7 @@ private fun ReaderContent(
     // dies legitimately with the composition.
     val pendingJumpState = remember(book) { mutableStateOf<PendingJump?>(null) }
     var pendingJump by pendingJumpState
+    val notedTruncatedChapters = remember(book) { mutableStateOf(setOf<UInt>()) }
     var brightnessPreview by remember { mutableStateOf<Float?>(null) }
     var toastCount by rememberSaveable { mutableIntStateOf(0) }
     var toastShown by rememberSaveable { mutableIntStateOf(0) }
@@ -174,12 +181,37 @@ private fun ReaderContent(
         toastCount += 1
     }
 
-    fun display(location: PageLocation, host: EngineHost, showChrome: Boolean = true) {
+    fun display(
+        location: PageLocation,
+        host: EngineHost,
+        showChrome: Boolean = true,
+        searchMatch: PendingJump? = null,
+    ) {
         host.selection.clear()
         host.layout.cancelInteraction()
         val chromeWas = chromeVisible.value
         host.surface.display(location.spineIdx, location.pageIdx)
-        anchorState.value = Coordinate(location.spineIdx, book.session.pageCharRange(location.spineIdx, location.pageIdx).start)
+        searchMatch?.matchLength?.let { length ->
+            val rects = runCatching {
+                val pageRange = book.session.pageCharRange(location.spineIdx, location.pageIdx)
+                val matchEnd = if (ULong.MAX_VALUE - searchMatch.coordinate.charOffset < length) {
+                    ULong.MAX_VALUE
+                } else {
+                    searchMatch.coordinate.charOffset + length
+                }
+                val start = maxOf(searchMatch.coordinate.charOffset, pageRange.start)
+                val end = minOf(matchEnd, pageRange.end)
+                if (start < end) {
+                    book.session.matchRects(location.spineIdx, start, end - start)
+                } else {
+                    emptyList()
+                }
+            }.getOrDefault(emptyList())
+            host.canvas.showSearchHighlight(rects)
+        }
+        anchorState.value = runCatching {
+            Coordinate(location.spineIdx, book.session.pageCharRange(location.spineIdx, location.pageIdx).start)
+        }.getOrNull()
         pendingJump = null
         chromeVisible.value = if (showChrome) true else chromeWas
     }
@@ -204,7 +236,7 @@ private fun ReaderContent(
             // after `locate` loses the jump when the chapter completes in
             // between: the clamped page shows, yet nothing re-presents.
             val wasReady = runCatching { book.session.isReady(spineIdx) }.getOrDefault(false)
-            display(book.session.locate(jump.coordinate), host, jump.showChrome)
+            display(book.session.locate(jump.coordinate), host, jump.showChrome, jump)
             // Keep a possibly-clamped jump parked so chapter completion
             // re-presents it exactly (a user page turn supersedes it via
             // onPageSettled).
@@ -238,14 +270,21 @@ private fun ReaderContent(
             }
             is ReaderViewModel.LayoutEvent.Chapter -> {
                 host.surface.chapterBecameReady(event.generation, event.spineIdx)
+                if (event.spineIdx !in notedTruncatedChapters.value &&
+                    runCatching { book.session.chapter(event.spineIdx).truncated }.getOrDefault(false)
+                ) {
+                    notedTruncatedChapters.value += event.spineIdx
+                    host.canvas.showTruncationNotice()
+                }
                 viewModel.onChapterReady(event.spineIdx)
                 presentPending(host, event.spineIdx)
             }
             is ReaderViewModel.LayoutEvent.Failed -> {
                 host.surface.chapterFailed(event.generation, event.spineIdx)
                 val jumpSpine = pendingJump?.coordinate?.spineIdx
+                val targetSpine = viewModel.currentCoordinate()?.spineIdx
                 if (jumpSpine == event.spineIdx) pendingJump = null
-                if (jumpSpine == event.spineIdx || anchorState.value?.spineIdx == event.spineIdx) {
+                if (jumpSpine == event.spineIdx || targetSpine == event.spineIdx || anchorState.value?.spineIdx == event.spineIdx) {
                     host.surface.display(event.spineIdx, 0u)
                 }
             }
@@ -422,7 +461,11 @@ private fun ReaderContent(
             onOpenContents = { contentsSheetOpen = true }, onOpenThemeType = { themeSheetOpen = true },
             onPlaceBookmark = placeBookmark,
             onSelectSearch = { hit ->
-                hit.charOffset?.let { offset -> hostState.value?.let { attemptJump(PendingJump(Coordinate(hit.spineIdx, offset)), it) } }
+                hit.charOffset?.let { offset ->
+                    hostState.value?.let {
+                        attemptJump(PendingJump(Coordinate(hit.spineIdx, offset), matchLength = hit.matchLength), it)
+                    }
+                }
                 searchOpen.value = false
                 chromeVisible.value = true
             },

@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
+import app.inkuna.android.debug.ParityDigestRunner
 import app.inkuna.android.model.AppSettings
 import app.inkuna.android.reminder.EveningReminder
 import app.inkuna.android.ui.InkunaApp
@@ -13,6 +14,12 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.DEBUG && intent.getBooleanExtra("inkuna.parityDigest", false)) {
+            lifecycleScope.launch {
+                ParityDigestRunner.run(applicationContext)
+            }
+            return
+        }
         enableEdgeToEdge()
         val settings = AppSettings.get(applicationContext)
         // Settings live in the core's database now, and opening it runs

@@ -9,7 +9,7 @@ use crate::{CoreError, ImportOutcome, Library};
 
 /// Imports the CJK fixture and rewinds it to the pre-engine state the
 /// V8 migration leaves behind: `reconciled_at` NULL and a legacy
-/// Readium locator in place. Returns `(dir, library, id)`.
+/// legacy locator in place. Returns `(dir, library, id)`.
 fn unreconciled_book(locator: Option<&str>) -> (tempfile::TempDir, Library, String) {
     let dir = tempfile::tempdir().unwrap();
     let epub = dir.path().join("book.epub");
