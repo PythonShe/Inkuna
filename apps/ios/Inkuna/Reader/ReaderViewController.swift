@@ -532,7 +532,7 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
             .flatMap { index in spine.first { $0.spineIdx == index } }
             .flatMap { entry in
                 readiumPublication.readingOrder.first {
-                    normalizedInterimHref($0.href) == normalizedInterimHref(entry.href)
+                    ChapterHref.normalized($0.href) == ChapterHref.normalized(entry.href)
                 }
             }
         var initialLocation = restoredLink.flatMap { link -> Locator? in
@@ -552,13 +552,6 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
             initialLocation: initialLocation,
             positionsByReadingOrder: positions
         )
-    }
-
-    /// Interim core-spine-to-Readium bridge: resource only, decoded path.
-    private nonisolated static func normalizedInterimHref(_ href: String) -> String {
-        let resource = ChapterHref.splitFragment(href).resource
-        let decoded = resource.removingPercentEncoding ?? resource
-        return String(decoded.drop(while: { $0 == "/" }))
     }
 
     /// Books frequently ship `page-break-inside: avoid` on whole paragraphs

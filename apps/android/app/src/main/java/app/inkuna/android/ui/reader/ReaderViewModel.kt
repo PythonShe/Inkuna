@@ -1,7 +1,6 @@
 package app.inkuna.android.ui.reader
 
 import android.app.Application
-import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory
@@ -12,7 +11,11 @@ import app.inkuna.android.model.LibraryStore
 import app.inkuna.core.Bookshelf
 import app.inkuna.core.Chapter
 import app.inkuna.core.Publication as CorePublication
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -261,10 +264,16 @@ class ReaderViewModel(
         // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
         // Task 5.1). Restore translates the core spine index through
         // `library().spine(id)` to a normalized Readium href, then opens the
-        // matched resource at its start. A missing coordinate, empty map, or
-        // no href match falls back to the stored book-wide progression.
+        // matched resource at its start. A missing coordinate, failed spine
+        // lookup, empty map, or no href match falls back to the stored book-wide progression.
         val spineIndex = core.coordinate?.spineIdx
-        val spine = spineIndex?.let { shelf.library().spine(core.id) } ?: emptyList()
+        val spine = spineIndex?.let {
+            try {
+                shelf.library().spine(core.id)
+            } catch (_: Exception) {
+                emptyList()
+            }
+        } ?: emptyList()
         val chapterTarget = initialChapterHref
             ?.let { href -> Url(href) }
             ?.let { url -> publication.locatorFromLink(Link(href = url)) }
@@ -278,7 +287,6 @@ class ReaderViewModel(
             }
             ?.let { link ->
                 publication.locatorFromLink(Link(href = link.url()))
-                    ?.copyWithLocations(progression = 0.0)
             }
         val initialLocator = chapterTarget
             ?: restoredTarget
@@ -307,8 +315,41 @@ class ReaderViewModel(
     }
 
     /** Interim core-spine-to-Readium bridge: resource only, decoded path. */
-    private fun normalizedInterimHref(href: String): String =
-        Uri.decode(href.substringBefore('#')).trimStart('/')
+    private fun normalizedInterimHref(href: String): String {
+        val resource = href.substringBefore('#').removePrefix("/")
+        return decodePercentEncodingOrNull(resource) ?: resource
+    }
+
+    /** Matches Swift's `removingPercentEncoding`: invalid escapes remain raw. */
+    private fun decodePercentEncodingOrNull(value: String): String? {
+        val decoded = StringBuilder(value.length)
+        var index = 0
+        while (index < value.length) {
+            if (value[index] != '%') {
+                decoded.append(value[index])
+                index += 1
+                continue
+            }
+
+            val bytes = ByteArrayOutputStream()
+            while (index < value.length && value[index] == '%') {
+                val high = value.getOrNull(index + 1)?.digitToIntOrNull(16) ?: return null
+                val low = value.getOrNull(index + 2)?.digitToIntOrNull(16) ?: return null
+                bytes.write((high shl 4) or low)
+                index += 3
+            }
+            val escaped = try {
+                Charsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes.toByteArray()))
+            } catch (_: CharacterCodingException) {
+                return null
+            }
+            decoded.append(escaped)
+        }
+        return decoded.toString()
+    }
 
     /**
      * The TOC entry to mark as "you are here" for [locator].
