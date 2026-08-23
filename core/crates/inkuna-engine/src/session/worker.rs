@@ -103,8 +103,8 @@ fn pick(shared: &Shared, inner: &mut Inner) -> Option<Job> {
         }
     }
     if candidate.is_none() {
-        // Prefetch radius matches the cache: the focus and its ±2
-        // neighbors are exactly what the cache can hold.
+        // Prefetch ±2 while the cache permanently protects the focus
+        // and its ±1 neighbors; the outer pair remains ordinary LRU.
         for d in [0i64, 1, -1, 2, -2] {
             let idx = i64::from(inner.focus) + d;
             if idx >= 0 && idx < spine_len && !inner.cache.contains(idx as u32, generation) {

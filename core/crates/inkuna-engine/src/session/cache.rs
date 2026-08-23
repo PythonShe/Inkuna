@@ -1,13 +1,24 @@
 //! The chapter cache: LRU over complete chapters, keyed
-//! `(spine_idx, generation)`. The current (focused) chapter is never
-//! evicted; in-progress slots are never evicted (the worker is writing
-//! into them).
+//! `(spine_idx, generation)`. The focused chapter and its immediate
+//! spine neighbors are never evicted; in-progress slots are never
+//! evicted (the worker is writing into them).
 
 use crate::display::{PageDisplayList, PageMaps};
 use crate::style::WritingMode;
 
-/// Complete chapters retained beyond the current one.
+/// Complete chapters retained, including the focused working set.
 pub(super) const CACHE_CAPACITY: usize = 5;
+
+/// The focused chapter plus the chapters reachable in one gesture.
+const FOCUS_WORKING_SET: usize = 3;
+
+/// A future smaller cache remains hard-bounded: retain the focus first,
+/// then its next and previous chapter until the capacity is exhausted.
+const PROTECTED_CHAPTERS: usize = if CACHE_CAPACITY < FOCUS_WORKING_SET {
+    CACHE_CAPACITY
+} else {
+    FOCUS_WORKING_SET
+};
 
 /// Sampling stride (in chars) of [`TextIndex::stride_bytes`]: char→byte
 /// resolution costs at most one `CHAR_STRIDE`-char scan — bounded and
@@ -192,8 +203,9 @@ impl Cache {
     }
 
     /// Evicts least-recently-used complete slots beyond
-    /// [`CACHE_CAPACITY`]. `current` and in-progress slots survive.
-    pub fn evict(&mut self, current: u32) {
+    /// [`CACHE_CAPACITY`]. The focused working set and in-progress slots
+    /// survive.
+    pub fn evict(&mut self, focus: u32) {
         loop {
             let done = self
                 .slots
@@ -208,7 +220,8 @@ impl Cache {
                 .iter()
                 .enumerate()
                 .filter(|(_, s)| {
-                    s.spine_idx != current && !matches!(s.state, SlotState::Laying(_))
+                    !in_focus_working_set(s.spine_idx, focus)
+                        && !matches!(s.state, SlotState::Laying(_))
                 })
                 .min_by_key(|(_, s)| s.used)
                 .map(|(i, _)| i);
@@ -225,4 +238,20 @@ impl Cache {
     pub fn clear(&mut self) {
         self.slots.clear();
     }
+}
+
+/// The order gives a smaller future cache a deterministic degradation:
+/// focus, then next chapter, then previous chapter. At the current
+/// capacity all three are protected.
+fn in_focus_working_set(spine_idx: u32, focus: u32) -> bool {
+    let rank = if spine_idx == focus {
+        0
+    } else if spine_idx == focus.saturating_add(1) {
+        1
+    } else if spine_idx.saturating_add(1) == focus {
+        2
+    } else {
+        return false;
+    };
+    rank < PROTECTED_CHAPTERS
 }

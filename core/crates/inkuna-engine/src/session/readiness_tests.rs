@@ -135,6 +135,36 @@ impl LayoutEvents for FirstPageGate {
     fn chapter_failed(&self, _: u64, _: u32) {}
 }
 
+/// Holds the opening chapter at its first published page while the test
+/// queues a whole-book sweep, then forwards every readiness event.
+struct SweepEvents {
+    entered: Sender<()>,
+    release: Mutex<Option<Receiver<()>>>,
+    forward: Sender<Event>,
+}
+
+impl LayoutEvents for SweepEvents {
+    fn first_page_ready(&self, generation: u64, spine_idx: u32) {
+        let _ = self.entered.send(());
+        if let Ok(mut gate) = self.release.lock()
+            && let Some(release) = gate.take()
+        {
+            let _ = release.recv_timeout(TIMEOUT);
+        }
+        let _ = self.forward.send(Event::FirstPage(generation, spine_idx));
+    }
+    fn chapter_ready(&self, generation: u64, spine_idx: u32, page_count: u32) {
+        let _ = self
+            .forward
+            .send(Event::ChapterReady(generation, spine_idx, page_count));
+    }
+    fn chapter_failed(&self, generation: u64, spine_idx: u32) {
+        let _ = self
+            .forward
+            .send(Event::ChapterFailed(generation, spine_idx));
+    }
+}
+
 impl LayoutEvents for FirstPageProbe {
     fn first_page_ready(&self, generation: u64, spine_idx: u32) {
         if let Some(gate) = self.gate.lock().expect("gate lock").take() {
@@ -389,6 +419,78 @@ fn published_page_count_is_zero_after_cache_eviction() {
     );
 
     release_tx.send(()).expect("release worker");
+    session.close();
+}
+
+#[test]
+fn active_chapter_survives_a_whole_book_sweep_after_neighbor_query() {
+    const CHAPTERS: u32 = 9;
+    const ACTIVE: u32 = 4;
+    const NEXT: u32 = ACTIVE + 1;
+
+    let dir = TempDir::new().expect("tempdir");
+    let doc = cjk_doc(40);
+    let docs: Vec<&str> = (0..CHAPTERS).map(|_| doc.as_str()).collect();
+    let path = book(&dir, &docs);
+    let (entered_tx, entered_rx) = channel();
+    let (release_tx, release_rx) = channel();
+    let (event_tx, rx) = channel();
+    let events = Arc::new(SweepEvents {
+        entered: entered_tx,
+        release: Mutex::new(Some(release_rx)),
+        forward: event_tx,
+    });
+    let session = EngineSession::open(
+        &path,
+        registry(),
+        viewport(),
+        LayoutSettings::default(),
+        None,
+        ACTIVE,
+        events,
+    )
+    .expect("session opens");
+
+    entered_rx
+        .recv_timeout(TIMEOUT)
+        .expect("first page callback holds the worker");
+    session
+        .page(ACTIVE, 0)
+        .expect("the reader's active page is available");
+    {
+        let mut inner = session.shared.lock();
+        for spine_idx in 0..CHAPTERS {
+            if spine_idx != ACTIVE && spine_idx != NEXT {
+                inner.queue.push_back(spine_idx);
+            }
+        }
+    }
+    assert!(matches!(
+        session.page(NEXT, 0),
+        Err(EngineError::NotReady)
+    ));
+    release_tx.send(()).expect("release worker");
+
+    let mut complete = 0;
+    while complete < CHAPTERS {
+        match rx.recv_timeout(TIMEOUT).expect("layout event within timeout") {
+            Event::FirstPage(_, _) => {}
+            Event::ChapterReady(_, _, _) => {
+                complete += 1;
+                assert!(
+                    session.published_page_count(ACTIVE) > 0,
+                    "the active chapter stays cached while the sweep completes"
+                );
+            }
+            Event::ChapterFailed(_, spine_idx) => {
+                panic!("CJK fixture chapter {spine_idx} failed unexpectedly")
+            }
+        }
+    }
+
+    session
+        .page(ACTIVE, 0)
+        .expect("the active page remains retrievable after the sweep");
     session.close();
 }
 
