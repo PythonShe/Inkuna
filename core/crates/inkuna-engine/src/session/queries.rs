@@ -1,8 +1,8 @@
 //! The synchronous, cache-only query surface. Contract (documented per
 //! method): `page` / `page_digest` / `accessibility_blocks` /
-//! `page_char_range` succeed as soon as THAT page is published
-//! (progressive — page 0 is available before the chapter completes);
-//! `chapter`, `locate`, `hit_test`, `selection_rects`, `match_rects`,
+//! `page_char_range`, and `locate` succeed as soon as the relevant page
+//! is published (progressive — page 0 is available before the chapter
+//! completes); `chapter`, `hit_test`, `selection_rects`, `match_rects`,
 //! `text_range`, and `word_at` require the COMPLETE chapter. Any cache
 //! miss schedules the chapter at queue front and returns `NotReady` —
 //! never blocks. `is_ready` and `published_page_count` are the total
@@ -157,24 +157,31 @@ impl EngineSession {
         })
     }
 
-    /// The page holding a coordinate. Offsets at or past the laid
-    /// prefix clamp to the last page. Requires the complete chapter.
+    /// The page holding a coordinate. Resolves from the published prefix
+    /// while the chapter is laying; an offset beyond that prefix remains
+    /// `NotReady` until the chapter completes, when it clamps to the last
+    /// page as before.
     pub fn locate(&self, c: Coordinate) -> Result<PageLocation, EngineError> {
-        self.with_chapter(c.spine_idx, true, |data, generation| {
+        self.with_chapter(c.spine_idx, false, |data, generation| {
             if data.pages.is_empty() {
                 return Err(EngineError::NotReady);
             }
-            let mut page_idx = (data.pages.len() - 1) as u32;
             for (i, (_, maps)) in data.pages.iter().enumerate() {
-                if c.char_offset < maps.char_range.end {
-                    page_idx = i as u32;
-                    break;
+                if c.char_offset >= maps.char_range.start && c.char_offset < maps.char_range.end {
+                    return Ok(PageLocation {
+                        generation,
+                        spine_idx: c.spine_idx,
+                        page_idx: i as u32,
+                    });
                 }
+            }
+            if !data.complete {
+                return Err(EngineError::NotReady);
             }
             Ok(PageLocation {
                 generation,
                 spine_idx: c.spine_idx,
-                page_idx,
+                page_idx: (data.pages.len() - 1) as u32,
             })
         })
     }

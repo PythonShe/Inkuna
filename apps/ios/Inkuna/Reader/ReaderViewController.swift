@@ -34,7 +34,6 @@ final class ReaderViewController: UIViewController {
     var pendingEvents: [LayoutEvent] = []
     var layoutChangeInFlight = false
     var generationBeforeLayout: UInt64?
-    var didPresentInitialPage = false
     var didLogFirstRender = false
     var announcePageWhenSettled = false
     var didLogChapterComplete = false

@@ -151,6 +151,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             surface.setOuterOffset(outerHome)
             interactionActive = false
             boundaryDisplacement = 0
+            surface.endPagingInteraction()
         }
     }
 
@@ -242,6 +243,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             // drag-release uses, then commit.
             guard neighborExists(direction: direction) else {
                 interactionActive = false
+                surface.endPagingInteraction()
                 return false
             }
             exitBound = direction > 0 ? innerRange.upperBound : innerRange.lowerBound
@@ -389,7 +391,9 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func captureBaselines() -> Bool {
+        surface.beginPagingInteraction()
         guard let inner = surface.innerMetrics(), let outer = surface.outerMetrics() else {
+            surface.endPagingInteraction()
             return false
         }
         innerRange = inner.range
@@ -566,6 +570,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             surface.setInnerOffset(target)
             lastInnerWritten = target
             interactionActive = false
+            surface.endPagingInteraction()
             return
         }
         spring.start(from: from, velocity: velocity, target: target) { [weak self] position, _ in
@@ -574,7 +579,9 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             self.lastInnerWritten = position
             return true
         } onSettle: { [weak self] in
-            self?.interactionActive = false
+            guard let self else { return }
+            self.interactionActive = false
+            self.surface.endPagingInteraction()
         }
     }
 
@@ -605,12 +612,14 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             interactionActive = false
             boundaryDisplacement = 0
             updateHoldLoop()
+            surface.endPagingInteraction()
         case let .outerCommit(toRight):
             boundaryHaptic.impactOccurred(intensity: 0.7)
             let moved = surface.commitBoundaryCrossing(toRight: toRight)
             interactionActive = false
             boundaryDisplacement = 0
             updateHoldLoop()
+            surface.endPagingInteraction()
             guard moved else {
                 pendingTurnDirection = 0
                 pendingTurnVelocity = 0

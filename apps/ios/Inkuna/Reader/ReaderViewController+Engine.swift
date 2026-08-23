@@ -29,7 +29,12 @@ extension ReaderViewController {
             ReaderFontStore.shared.prime(reader.fontRegistry())
             installCanvas(session: reader)
             if let initialChapter {
-                targetCoordinate = try resolveHref(initialChapter)
+                do {
+                    targetCoordinate = try resolveHref(initialChapter)
+                } catch InkunaError.AnchorNotFound, InkunaError.NotReady {
+                    targetCoordinate = publication.coordinate ?? Coordinate(spineIdx: 0, charOffset: 0)
+                    showLinkNotFollowed()
+                }
             } else {
                 targetCoordinate = publication.coordinate ?? Coordinate(spineIdx: 0, charOffset: 0)
             }
@@ -113,6 +118,9 @@ extension ReaderViewController {
         case let .complete(generation, spineIdx, _):
             guard accept(generation: generation) else { return }
             pagerSurface?.chapterBecameReady(generation: generation, spineIdx: spineIdx)
+            if spineIdx == targetCoordinate?.spineIdx {
+                tryPresentTarget()
+            }
             if spineIdx == targetCoordinate?.spineIdx, !didLogChapterComplete {
                 didLogChapterComplete = true
                 log("chapter_layout_complete_ms", since: openedAt)
@@ -122,7 +130,6 @@ extension ReaderViewController {
             pagerSurface?.chapterFailed(generation: generation, spineIdx: spineIdx)
             if spineIdx == targetCoordinate?.spineIdx {
                 pagerSurface?.display(spineIdx: spineIdx, pageIdx: 0)
-                didPresentInitialPage = true
                 loadingIndicator.stopAnimating()
             }
         }
@@ -140,7 +147,6 @@ extension ReaderViewController {
               let location = try? readerSession.locate(coordinate: targetCoordinate),
               accept(generation: location.generation) else { return }
         pagerSurface.display(spineIdx: location.spineIdx, pageIdx: location.pageIdx)
-        didPresentInitialPage = true
         loadingIndicator.stopAnimating()
         firstPageReadyAt = firstPageReadyAt ?? Date()
         relayoutAnchor = nil
@@ -261,6 +267,9 @@ extension ReaderViewController {
         } catch {
             layoutChangeInFlight = false
             logger.warning("Reader relayout failed: \(error)")
+            let events = pendingEvents
+            pendingEvents.removeAll()
+            events.forEach(process)
         }
     }
 

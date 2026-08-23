@@ -70,7 +70,7 @@ extension ReaderViewController {
     /// progression-to-coordinate lookup, so those rows remain non-jumpable
     /// until the core rebaseline supplies their coordinate.
     func jump(to bookmark: Bookmark) {
-        guard let coordinate = bookmark.coordinate else { return }
+        guard let coordinate = bookmark.coordinate else { showLinkNotFollowed(); return }
         do { try jump(to: coordinate) }
         catch { logger.warning("Bookmark jump failed: \(error)") }
     }

@@ -7,6 +7,8 @@ protocol ReaderPagerSurface: AnyObject {
     var isBusy: Bool { get }
     var hasActiveSelection: Bool { get }
     var isRightToLeft: Bool { get }
+    func beginPagingInteraction()
+    func endPagingInteraction()
     func innerMetrics() -> ReaderPagerStrip?
     func setInnerOffset(_ x: CGFloat)
     func outerMetrics() -> ReaderPagerStrip?

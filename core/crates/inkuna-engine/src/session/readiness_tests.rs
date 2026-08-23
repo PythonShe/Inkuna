@@ -284,6 +284,67 @@ fn published_page_count_answers_zero_instead_of_throwing() {
 }
 
 #[test]
+fn locate_resolves_the_published_prefix_and_waits_for_the_unlaid_tail() {
+    let dir = TempDir::new().expect("tempdir");
+    let doc = cjk_doc(40);
+    let path = book(&dir, &[&doc]);
+    let (entered_tx, entered_rx) = channel();
+    let (release_tx, release_rx) = channel();
+    let gate = Arc::new(FirstPageGate {
+        entered: entered_tx,
+        release: Mutex::new(release_rx),
+    });
+    let session = EngineSession::open(
+        &path,
+        registry(),
+        viewport(),
+        LayoutSettings::default(),
+        None,
+        0,
+        gate,
+    )
+    .expect("session opens");
+
+    entered_rx
+        .recv_timeout(TIMEOUT)
+        .expect("first page callback holds the worker");
+    let first_range = session
+        .page_char_range(0, 0)
+        .expect("first published page has a range");
+    let published = session.locate(crate::text::Coordinate {
+        spine_idx: 0,
+        char_offset: first_range.start,
+    });
+    let unlaid_tail = session.locate(crate::text::Coordinate {
+        spine_idx: 0,
+        char_offset: first_range.end,
+    });
+    release_tx.send(()).expect("release worker");
+    let published = published.expect("a coordinate on page 0 resolves while the chapter is laying");
+    assert_eq!(published.page_idx, 0);
+    assert!(matches!(unlaid_tail, Err(EngineError::NotReady)));
+    while !session.is_ready(0) {
+        std::thread::yield_now();
+    }
+
+    let complete_prefix = session
+        .locate(crate::text::Coordinate {
+            spine_idx: 0,
+            char_offset: first_range.start,
+        })
+        .expect("published-prefix coordinate resolves after completion");
+    let complete_tail = session
+        .locate(crate::text::Coordinate {
+            spine_idx: 0,
+            char_offset: first_range.end,
+        })
+        .expect("unlaid-tail coordinate resolves after completion");
+    assert_eq!(complete_prefix.page_idx, published.page_idx);
+    assert!(complete_tail.page_idx > published.page_idx);
+    session.close();
+}
+
+#[test]
 fn published_page_count_is_zero_after_cache_eviction() {
     let dir = TempDir::new().expect("tempdir");
     let doc = cjk_doc(40);

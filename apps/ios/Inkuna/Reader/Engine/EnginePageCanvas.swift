@@ -92,6 +92,8 @@ final class EnginePageCanvas: UIView {
 
     /// Relayout has no synchronous generation in the current bindings.
     func invalidateAll() {
+        // No display list is admissible until the next engine event latches
+        // its generation through `invalidate(generation:)`.
         latestGeneration = nil
         mounted.values.forEach { $0.view.removeFromSuperview() }
         mounted.removeAll()
@@ -100,7 +102,11 @@ final class EnginePageCanvas: UIView {
 
     func showUnreadablePlaceholder(_ visible: Bool) {
         unreadableLabel.isHidden = !visible
-        if visible { mounted.values.forEach { $0.view.isHidden = true } }
+        if visible {
+            mounted.values.forEach { $0.view.isHidden = true }
+        } else {
+            updatePages()
+        }
     }
 
     func pagePoint(spineIdx: UInt32, pageIdx: UInt32, from point: CGPoint) -> CGPoint? {
@@ -145,9 +151,11 @@ final class EnginePageCanvas: UIView {
             )
             if firstSlot <= lastSlot {
                 for slot in firstSlot ... lastSlot {
-                    let pageIdx = scene.rtl
-                        ? scene.pageCount - UInt32(slot) - 1
-                        : UInt32(slot)
+                    let pageIdx = PageSlot.pageIdx(
+                        for: UInt32(slot),
+                        pageCount: scene.pageCount,
+                        rtl: scene.rtl
+                    )
                     let frame = CGRect(
                         x: CGFloat(slot) * width - scene.innerOffset + scene.outerDisplacement,
                         y: 0,
@@ -182,7 +190,6 @@ final class EnginePageCanvas: UIView {
             let page = mount(key)
             page.view.frame = frame
             page.view.isHidden = unreadableLabel.isHidden == false
-            page.view.setNeedsDisplay()
         }
     }
 
@@ -220,10 +227,11 @@ final class EnginePageCanvas: UIView {
     }
 
     private func displayList(for key: PageKey) -> PageDisplayList? {
+        guard let latestGeneration else { return nil }
         guard let list = try? session.page(spineIdx: key.spineIdx, pageIdx: key.pageIdx) else {
             return nil
         }
-        guard latestGeneration == nil || list.generation == latestGeneration else { return nil }
+        guard list.generation == latestGeneration else { return nil }
         return list
     }
 }
