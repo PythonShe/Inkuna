@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use inkuna_content::{read_resource, resolve_relative, split_fragment};
+use inkuna_content::{resolve_relative, split_fragment, ResourceReader};
 
 use crate::dom::{parse, Document, StylesheetSource, MAX_STYLESHEET_BYTES};
 use crate::style::{cap_sheet_sources, parse_sheet, resolve, Stylesheet};
@@ -21,11 +21,24 @@ use crate::text::project;
 /// for itself and every later resource — deterministic, a function of
 /// the publication alone, with no scheduling dependence. Duplicate
 /// spine hrefs re-use the first extraction's result.
+///
+/// The archive is opened ONCE for the whole spine: this is the
+/// rebaseline hot path, and re-parsing the zip central directory per
+/// resource made it quadratic in the number of entries. An archive that
+/// cannot be opened at all yields `None` for every resource — exactly
+/// what per-resource reads produced before.
 pub fn extract_corpus(
     epub_path: &Path,
     spine: &[String],
     max_total_bytes: usize,
 ) -> Vec<Option<String>> {
+    let mut reader = match ResourceReader::open(epub_path) {
+        Ok(reader) => reader,
+        Err(e) => {
+            log::debug!("corpus: {} unreadable ({e})", epub_path.display());
+            return vec![None; spine.len()];
+        }
+    };
     let mut out: Vec<Option<String>> = Vec::with_capacity(spine.len());
     let mut used = 0usize;
     let mut tripped = false;
@@ -40,7 +53,7 @@ pub fn extract_corpus(
             out.push(out[j].clone());
             continue;
         }
-        match extract_one(epub_path, href) {
+        match extract_one(&mut reader, href) {
             None => out.push(None),
             Some(text) => {
                 if used.saturating_add(text.len()) > max_total_bytes {
@@ -58,8 +71,8 @@ pub fn extract_corpus(
 
 /// One resource → its canonical projection text; any failure degrades
 /// to `None`, never an error.
-fn extract_one(epub_path: &Path, href: &str) -> Option<String> {
-    let bytes = match read_resource(epub_path, href) {
+fn extract_one(reader: &mut ResourceReader, href: &str) -> Option<String> {
+    let bytes = match reader.read(href) {
         Ok(bytes) => bytes,
         Err(e) => {
             log::debug!("corpus: {href} unreadable ({e})");
@@ -73,7 +86,7 @@ fn extract_one(epub_path: &Path, href: &str) -> Option<String> {
             return None;
         }
     };
-    let sheets = chapter_stylesheets(epub_path, href, &doc);
+    let sheets = chapter_stylesheets(reader, href, &doc);
     let styled = resolve(&doc, &sheets);
     Some(project(&styled).text)
 }
@@ -83,9 +96,12 @@ fn extract_one(epub_path: &Path, href: &str) -> Option<String> {
 /// identically by construction: linked sheets read through the
 /// container layer (resolved against the chapter's own path; an
 /// unreadable sheet is skipped, logged), inline bodies verbatim, whole
-/// sheets dropped from the END past [`MAX_STYLESHEET_BYTES`].
+/// sheets dropped from the END past [`MAX_STYLESHEET_BYTES`]. Reads go
+/// through the caller's session-scoped [`ResourceReader`], so a book
+/// whose every chapter links the same sheet pays one archive open, not
+/// one per chapter.
 pub(crate) fn chapter_stylesheets(
-    epub_path: &Path,
+    reader: &mut ResourceReader,
     chapter_href: &str,
     doc: &Document,
 ) -> Vec<Stylesheet> {
@@ -96,7 +112,7 @@ pub(crate) fn chapter_stylesheets(
             StylesheetSource::Linked(href) => {
                 let resolved = resolve_relative(chapter_href, href);
                 let (path, _) = split_fragment(&resolved);
-                match read_resource(epub_path, path) {
+                match reader.read(path) {
                     Ok(bytes) => css.push(String::from_utf8_lossy(&bytes).into_owned()),
                     Err(e) => log::warn!("stylesheet skipped: {path} ({e})"),
                 }

@@ -4,13 +4,14 @@
 //! each chapter runs under `catch_unwind` and a panic caches the
 //! chapter as failed (panics remain forbidden; this is the backstop).
 
+use std::cell::RefCell;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use icu_segmenter::options::WordBreakInvariantOptions;
 use icu_segmenter::{WordSegmenter, WordSegmenterBorrowed};
-use inkuna_content::read_resource;
+use inkuna_content::ResourceReader;
 
 use crate::display::{build_page, DisplayContext};
 use crate::dom::parse;
@@ -36,11 +37,34 @@ struct Job {
 /// segmenter lives here: chapter text indexes (word bounds, the
 /// char→byte stride table) are computed on this thread at publish
 /// time, so queries answer from the cache without O(chapter) work.
+///
+/// The archive handle lives here too: ONE [`ResourceReader`] per
+/// session, reused for the chapter document, its linked stylesheets and
+/// every image measured during pagination. Re-opening the file and
+/// re-parsing the zip central directory per resource put a whole
+/// archive scan inside the ≤ 100 ms open-to-first-page budget. It sits
+/// in a `RefCell` because pagination takes its resource lookup as a
+/// `&dyn Fn`; the worker is single-threaded and the lookup is never
+/// re-entered, so the borrow can never conflict.
 pub(super) fn run(shared: Arc<Shared>) {
     let segmenter = WordSegmenter::new_auto(WordBreakInvariantOptions::default());
+    let reader = match ResourceReader::open(&shared.epub_path) {
+        Ok(reader) => RefCell::new(reader),
+        Err(e) => {
+            // The publication itself is unreadable — every chapter fails
+            // the same way. Drain the queue so each scheduled chapter is
+            // still cached failed and announced, then exit.
+            let detail = e.to_string();
+            while let Some(job) = next_job(&shared) {
+                publish_failed(&shared, &job, detail.clone());
+            }
+            return;
+        }
+    };
     while let Some(job) = next_job(&shared) {
-        let outcome =
-            std::panic::catch_unwind(AssertUnwindSafe(|| lay_chapter(&shared, &job, &segmenter)));
+        let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            lay_chapter(&shared, &job, &segmenter, &reader)
+        }));
         if outcome.is_err() {
             log::error!("layout panicked for spine {}", job.spine_idx);
             publish_failed(&shared, &job, "layout panicked".to_string());
@@ -107,8 +131,13 @@ fn stale(shared: &Shared, job: &Job) -> bool {
 }
 
 /// Lays one chapter out, publishing progressively.
-fn lay_chapter(shared: &Shared, job: &Job, segmenter: &WordSegmenterBorrowed<'static>) {
-    let bytes = match read_resource(&shared.epub_path, &job.href) {
+fn lay_chapter(
+    shared: &Shared,
+    job: &Job,
+    segmenter: &WordSegmenterBorrowed<'static>,
+    reader: &RefCell<ResourceReader>,
+) {
+    let bytes = match reader.borrow_mut().read(&job.href) {
         Ok(bytes) => bytes,
         Err(e) => return publish_failed(shared, job, e.to_string()),
     };
@@ -119,7 +148,7 @@ fn lay_chapter(shared: &Shared, job: &Job, segmenter: &WordSegmenterBorrowed<'st
 
     // THE stylesheet loading rules, shared with corpus extraction so
     // layout and corpus resolve styles identically by construction.
-    let sheets = crate::corpus::chapter_stylesheets(&shared.epub_path, &job.href, &doc);
+    let sheets = crate::corpus::chapter_stylesheets(&mut reader.borrow_mut(), &job.href, &doc);
 
     let styled = resolve(&doc, &sheets);
     let projection = project(&styled);
@@ -155,7 +184,7 @@ fn lay_chapter(shared: &Shared, job: &Job, segmenter: &WordSegmenterBorrowed<'st
         height: Fx::from_pt(job.viewport.height),
     };
     let lang = shared.lang.as_deref();
-    let resources = |href: &str| read_resource(&shared.epub_path, href).ok();
+    let resources = |href: &str| reader.borrow_mut().read(href).ok();
     let input = ChapterInput {
         styled: &styled,
         projection: &projection,
@@ -251,22 +280,42 @@ fn lay_chapter(shared: &Shared, job: &Job, segmenter: &WordSegmenterBorrowed<'st
     }
 }
 
-/// Caches the chapter as failed-closed, scoped to the resource.
+/// Caches the chapter as failed-closed, scoped to the resource, then
+/// announces it with
+/// [`chapter_failed`](super::model::LayoutEvents::chapter_failed).
 ///
-/// Deliberately fires NO [`LayoutEvents`](super::model::LayoutEvents)
-/// callback: the listener trait is a frozen two-method cross-plan
-/// contract. The shell's signal is the query path — once the failure is
-/// cached here, any query on the chapter returns the error immediately
-/// (never `NotReady`).
+/// The event is the ONLY thing that wakes a shell sitting in its loading
+/// state: nothing else follows a failed chapter, so without it a reader
+/// that opened on a bad chapter would wait forever (or have to poll).
+/// It carries no page count and no readiness claim — it means exactly
+/// "every query on this chapter now returns a terminal error instead of
+/// `NotReady`", which is the shell's cue to render its unreadable-chapter
+/// placeholder.
+///
+/// Fired AFTER the slot guard drops (callbacks must never run under the
+/// session lock) and only when the failure actually reached the cache —
+/// an event about a slot the shell cannot then query would send it back
+/// to `NotReady`.
 fn publish_failed(shared: &Shared, job: &Job, detail: String) {
     log::error!("chapter {} failed closed: {detail}", job.spine_idx);
-    let mut inner = shared.lock();
-    if stale(shared, job) {
-        return;
+    let published = {
+        let mut inner = shared.lock();
+        if stale(shared, job) {
+            return;
+        }
+        let published = match inner.cache.state_mut(job.spine_idx, job.generation) {
+            Some(state) => {
+                *state = SlotState::Failed(detail);
+                true
+            }
+            None => false,
+        };
+        let focus = inner.focus;
+        inner.cache.evict(focus);
+        published
+    };
+    // Same closed re-check as the readiness emits above.
+    if published && !shared.closed.load(Ordering::Acquire) {
+        shared.events.chapter_failed(job.generation, job.spine_idx);
     }
-    if let Some(state) = inner.cache.state_mut(job.spine_idx, job.generation) {
-        *state = SlotState::Failed(detail);
-    }
-    let focus = inner.focus;
-    inner.cache.evict(focus);
 }

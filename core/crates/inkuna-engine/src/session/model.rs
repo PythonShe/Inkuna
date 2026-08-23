@@ -63,16 +63,27 @@ pub struct SelectionRect {
 /// the session's lock — callbacks may query the session; calling
 /// `close` from a callback is tolerated but skips the worker join).
 ///
-/// This trait is a FROZEN cross-plan contract: exactly these two
-/// methods, mirrored 1:1 by the FFI. In particular, a chapter that
-/// FAILS layout emits no event at all — shells never wait on an event
-/// for failure. The failure signal is the query path: once the worker
-/// caches the failure, any query on that chapter returns the error
-/// immediately (never `NotReady`), so a shell that saw `NotReady`
-/// re-queries on its own cadence and gets the terminal error.
+/// This trait is a cross-plan contract mirrored 1:1 by the FFI: every
+/// terminal outcome of laying a chapter out has exactly one event, so a
+/// shell that starts in a loading state is always woken — success by
+/// `first_page_ready`/`chapter_ready`, failure by `chapter_failed`.
+/// Shells therefore never poll.
 pub trait LayoutEvents: Send + Sync + 'static {
     /// Page 0 of `spine_idx` is available — the first-paint moment.
     fn first_page_ready(&self, generation: u64, spine_idx: u32);
     /// The chapter finished laying out with `page_count` pages.
     fn chapter_ready(&self, generation: u64, spine_idx: u32, page_count: u32);
+    /// The chapter failed closed: unreadable, unparseable, or a layout
+    /// panic. It carries NO page count and asserts NO readiness — the
+    /// chapter has no queryable page and never will at this generation.
+    /// From here every query on `spine_idx` returns its terminal error
+    /// instead of `NotReady`, which is the shell's cue to render its
+    /// unreadable-chapter placeholder in that slot.
+    ///
+    /// Defaulted to a no-op so recorders that only care about readiness
+    /// (tests, corpus fixtures) stay source-compatible; the FFI adapter
+    /// overrides it, and any listener a shell actually waits on must.
+    fn chapter_failed(&self, generation: u64, spine_idx: u32) {
+        let _ = (generation, spine_idx);
+    }
 }

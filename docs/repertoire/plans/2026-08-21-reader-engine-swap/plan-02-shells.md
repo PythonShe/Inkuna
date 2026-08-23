@@ -80,8 +80,14 @@ Movement 6 is the full parity gate.
     `page_idx` in `SelectionRect` or accept `page_idx` directly).
 - `LayoutListener` (foreign-implemented):
   `on_first_page_ready(generation: u64, spine_idx: u32)`,
-  `on_chapter_ready(generation: u64, spine_idx: u32, page_count: u32)` —
-  may arrive on any thread; shells hop to their main thread.
+  `on_chapter_ready(generation: u64, spine_idx: u32, page_count: u32)`,
+  `on_chapter_failed(generation: u64, spine_idx: u32)` —
+  may arrive on any thread; shells hop to their main thread. Every
+  terminal outcome of laying a chapter out has exactly one event —
+  `on_chapter_failed` is NOT a readiness signal: it means `chapter()` /
+  `page()` on that spine index now throw `UnsupportedContent` instead of
+  `NotReady`, so the shell swaps its loading state for the
+  unreadable-chapter placeholder. Shells never poll for readiness.
 - All geometry in **layout points at 1× scale** (iOS points; Android dp) —
   shells apply screen scale when drawing. All char offsets index the
   canonical text projection.
@@ -673,8 +679,11 @@ end of this movement the iOS reader reads real books on the core engine
       generation, spineIdx, pageIdx }` and hide the loading state — the
       first page shows and is immediately interactive (`isEngageable == true`)
       before neighbors or remaining pages finish layout. `NotReady` from `locate`
-      before that callback → keep the loading state; the callback always
-      follows (or the open throws).
+      before that callback → keep the loading state; exactly one event always
+      follows (or the open throws): `on_first_page_ready` for the target's
+      chapter, or `on_chapter_failed` for it — the latter replaces the loading
+      state with the `reader_chapter_unreadable` placeholder page for that
+      chapter (below). Never poll.
     - **Progress & sessions:** on every `onPageSettled` debounce-write
       (the existing `enqueueCoreWrite` machinery): anchor coordinate = the
       shared probe (`hit_test` at the reading-start corner), `position =
@@ -1335,7 +1344,9 @@ lets `dev/core` merge.
     `UiState.FixedLayoutUnsupported`, centered text + the ever-present
     back button, no retry). `reader_chapter_unreadable` — "This chapter
     can't be displayed." (shown as a centered placeholder page when
-    `chapter()`/`page()` throws `UnsupportedContent` for one spine index;
+    `chapter()`/`page()` throws `UnsupportedContent` for one spine index —
+    `on_chapter_failed(generation, spineIdx)` is what tells the shell to
+    switch, including when the book opened on that chapter;
     the rest of the book stays navigable — the canvas renders the
     placeholder in that chapter's slot, page count 1).
     `reader_chapter_truncated` — "This chapter was too large to display

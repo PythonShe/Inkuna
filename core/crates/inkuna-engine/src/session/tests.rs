@@ -27,6 +27,7 @@ fn registry() -> Arc<FontRegistry> {
 enum Event {
     FirstPage(u64, u32),
     ChapterReady(u64, u32, u32),
+    ChapterFailed(u64, u32),
 }
 
 struct TestEvents(Sender<Event>);
@@ -37,6 +38,9 @@ impl LayoutEvents for TestEvents {
     }
     fn chapter_ready(&self, generation: u64, spine_idx: u32, page_count: u32) {
         let _ = self.0.send(Event::ChapterReady(generation, spine_idx, page_count));
+    }
+    fn chapter_failed(&self, generation: u64, spine_idx: u32) {
+        let _ = self.0.send(Event::ChapterFailed(generation, spine_idx));
     }
 }
 
@@ -58,7 +62,7 @@ fn wait_chapter_ready(rx: &Receiver<Event>, generation: u64, spine_idx: u32) -> 
     });
     match event {
         Event::ChapterReady(_, _, count) => count,
-        Event::FirstPage(..) => 0,
+        _ => 0,
     }
 }
 
@@ -189,6 +193,7 @@ fn update_layout_bumps_generation_and_invalidates() {
         let generation = match event {
             Event::FirstPage(g, _) => g,
             Event::ChapterReady(g, _, _) => g,
+            Event::ChapterFailed(g, _) => g,
         };
         assert_eq!(generation, 1, "stale generation re-observed: {event:?}");
     }
@@ -393,21 +398,20 @@ fn failed_chapter_scoped() {
     let good = cjk_doc(2);
     let path = book(&dir, &[&good, "no root element here at all", &good]);
     let (session, rx) = open(&path, viewport(), 0);
+    // Jobs run in spine order (opening chapter, then its neighbors), so
+    // the failure lands between the two successes.
     wait_chapter_ready(&rx, 0, 0);
+    // The garbage chapter fails closed and SAYS SO: the event is what
+    // takes a shell out of its loading state — no polling anywhere.
+    wait_for(&rx, |e| matches!(e, Event::ChapterFailed(0, 1)));
     wait_chapter_ready(&rx, 0, 2);
     assert!(session.chapter(0).is_ok());
     assert!(session.chapter(2).is_ok());
-    // The garbage chapter fails closed, scoped to itself. Poll: the
-    // failure has no event, so wait for the cache to publish it.
-    let deadline = std::time::Instant::now() + TIMEOUT;
-    loop {
-        match session.chapter(1) {
-            Err(EngineError::UnsupportedContent { .. }) => break,
-            Err(EngineError::NotReady) if std::time::Instant::now() < deadline => {
-                std::thread::sleep(Duration::from_millis(10));
-            }
-            other => panic!("expected UnsupportedContent for garbage chapter, got {other:?}"),
-        }
+    // ...and the event's promise holds: the query path is terminal, not
+    // `NotReady`, from the moment the event arrives.
+    match session.chapter(1) {
+        Err(EngineError::UnsupportedContent { .. }) => {}
+        other => panic!("expected UnsupportedContent for garbage chapter, got {other:?}"),
     }
     match session.page(1, 0) {
         Err(EngineError::UnsupportedContent { .. }) => {}

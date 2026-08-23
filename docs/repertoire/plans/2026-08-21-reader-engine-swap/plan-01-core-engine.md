@@ -1223,6 +1223,9 @@ property / adversarial test corpus.
         fn first_page_ready(&self, generation: u64, spine_idx: u32);
         fn chapter_ready(&self, generation: u64, spine_idx: u32,
                          page_count: u32);
+        // Every terminal outcome has exactly one event, so shells never
+        // poll: a chapter that fails closed announces itself here.
+        fn chapter_failed(&self, generation: u64, spine_idx: u32);
     }
     pub struct EngineSession { /* private */ }
     impl EngineSession {
@@ -1280,9 +1283,13 @@ property / adversarial test corpus.
     `LaidPage`'s `(PageDisplayList, PageMaps)` into the chapter's cache
     slot AS EMITTED, firing `first_page_ready` on page 0 and
     `chapter_ready` on completion. A chapter whose parse fails closed is
-    cached as `Failed(UnsupportedContent)` — `chapter()`/`page()` on it
-    return that error (the shell renders its localized placeholder page;
-    plan 02). Cache (`cache.rs`): LRU, capacity 5 complete chapters
+    cached as `Failed(UnsupportedContent)` and fires `chapter_failed`
+    (after the slot guard drops, under the same closed re-check as the
+    readiness emits) — `chapter()`/`page()` on it then return that error
+    (the shell drops its loading state and renders its localized
+    placeholder page; plan 02). Every terminal outcome of laying a
+    chapter out therefore has exactly one event, so no shell ever polls
+    for a failure. Cache (`cache.rs`): LRU, capacity 5 complete chapters
     (spec §2), keyed `(spine_idx, generation)`; the current chapter is
     never evicted. Generations: `update_layout` bumps a monotonic
     `AtomicU64`, records the new `(viewport, settings)`, clears the
@@ -1326,6 +1333,10 @@ property / adversarial test corpus.
     `is_ready(s)` may still be false, then `chapter_ready` with final
     count; `not_ready_then_ready`: `chapter(2)` before layout →
     `NotReady`, after `chapter_ready(2)` → geometry;
+    `failed_chapter_scoped`: a garbage chapter between two good ones →
+    `chapter_failed(gen, idx)` observed (no polling), and `chapter(idx)`
+    / `page(idx, 0)` then throw `UnsupportedContent` while the rest of
+    the book stays queryable;
     `update_layout_bumps_generation_and_invalidates`: change viewport →
     new geometry has new generation, old generation never re-observed in
     events after the bump; `locate_hit_test_round_trip`: for a grid of
@@ -1734,6 +1745,7 @@ shells compile at the end (6.8).
         fn on_first_page_ready(&self, generation: u64, spine_idx: u32);
         fn on_chapter_ready(&self, generation: u64, spine_idx: u32,
                             page_count: u32);
+        fn on_chapter_failed(&self, generation: u64, spine_idx: u32);
     }
     ```
     (the `ImportProgressListener` precedent; doc: callbacks arrive on

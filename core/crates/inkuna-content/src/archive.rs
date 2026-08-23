@@ -94,13 +94,56 @@ fn read_entry_capped(
 /// going without a cover).
 ///
 /// Cost contract: each call opens the file and re-parses the zip central
-/// directory. That is fine for the occasional read (a cover at import);
-/// a hot path reading many resources — the engine's per-page asset loads
-/// — must not loop over this, and the engine session owns its own
-/// long-lived `ZipArchive` handle for exactly that reason.
+/// directory. That is fine for the occasional read (a cover at import,
+/// a one-off resource fetch from the shells); a hot path reading many
+/// resources — the engine's chapter + stylesheet + per-page asset loads
+/// — must not loop over this and uses [`ResourceReader`] instead, which
+/// pays the central-directory parse once and then reads through the very
+/// same capped path.
 pub fn read_resource(epub_path: &Path, href: &str) -> Result<Vec<u8>, ContentError> {
     let mut archive = zip::ZipArchive::new(File::open(epub_path)?)?;
-    let entry = open_entry(&mut archive, href)?;
+    read_resource_from(&mut archive, href)
+}
+
+/// A session-scoped resource reader: one `ZipArchive` handle held open
+/// across many reads, for callers that pull a stream of resources out of
+/// the same publication (the engine's layout worker, corpus extraction).
+///
+/// It is a cost optimization ONLY: every read goes through the same
+/// [`open_entry`] + [`MAX_RESOURCE_BYTES`] + `check_cap` path as
+/// [`read_resource`], so the single-enforcement-point property of this
+/// module survives — there is no second place where a budget could drift.
+/// Not `Sync`-friendly by design: `read` takes `&mut self`, so callers
+/// that need it from a `Fn` closure wrap it in a `RefCell` (the engine
+/// worker is single-threaded and non-reentrant).
+pub struct ResourceReader {
+    archive: zip::ZipArchive<File>,
+}
+
+impl ResourceReader {
+    /// Opens the archive once. A failure here is the whole publication
+    /// being unreadable, not one resource.
+    pub fn open(epub_path: &Path) -> Result<Self, ContentError> {
+        Ok(Self {
+            archive: zip::ZipArchive::new(File::open(epub_path)?)?,
+        })
+    }
+
+    /// One package-root-relative entry, byte-identical to what
+    /// [`read_resource`] would return for the same href.
+    pub fn read(&mut self, href: &str) -> Result<Vec<u8>, ContentError> {
+        read_resource_from(&mut self.archive, href)
+    }
+}
+
+/// THE bounded binary read. Both [`read_resource`] and
+/// [`ResourceReader::read`] funnel here; nothing else may read a binary
+/// entry.
+fn read_resource_from(
+    archive: &mut zip::ZipArchive<File>,
+    href: &str,
+) -> Result<Vec<u8>, ContentError> {
+    let entry = open_entry(archive, href)?;
     let mut buf = Vec::new();
     entry.take(MAX_RESOURCE_BYTES + 1).read_to_end(&mut buf)?;
     check_cap(buf.len(), MAX_RESOURCE_BYTES, href)?;

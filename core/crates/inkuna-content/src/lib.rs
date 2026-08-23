@@ -2,7 +2,8 @@
 //! entry reads), `META-INF/container.xml`, the OPF package document, the
 //! flattened TOC (EPUB 3 nav doc with NCX fallback), cover art, hrefs, and
 //! per-resource plain text. The container layer serves both import and the
-//! core-owned reader engine, which re-opens archives at read time.
+//! core-owned reader engine, which holds one `ResourceReader` open per
+//! session rather than re-opening the archive per read.
 //!
 //! Hrefs are stored package-root-relative, percent-decoded, without a
 //! leading slash (e.g. `OEBPS/ch01.xhtml`), TOC hrefs keeping their
@@ -22,7 +23,7 @@ mod xml;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 
-pub use archive::{read_resource, MAX_SPINE_ENTRY_BYTES, MAX_TOTAL_TEXT_BYTES};
+pub use archive::{read_resource, ResourceReader, MAX_SPINE_ENTRY_BYTES, MAX_TOTAL_TEXT_BYTES};
 pub use error::ContentError;
 pub use href::{resolve_href, resolve_relative, split_fragment};
 pub use model::{
