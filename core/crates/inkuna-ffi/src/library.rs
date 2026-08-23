@@ -112,6 +112,32 @@ impl From<inkuna_core::Chapter> for Chapter {
     }
 }
 
+/// One spine resource in reading order — the `spine_idx` →
+/// resource-href map that makes a stored `Coordinate` interpretable
+/// without an open `ReaderSession` (naming the current chapter on a Home
+/// or Detail screen).
+///
+/// `href` is package-root-relative and fragment-free: the same string a
+/// `ReaderSession.locate_href` call takes, and the one a `Chapter.href`
+/// matches once its fragment is stripped. Entry `n` always has
+/// `spine_idx == n`, so the list may be indexed directly by a
+/// coordinate's `spine_idx` after a bounds check.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct SpineEntry {
+    /// Reading-order index; exactly what `Coordinate.spine_idx` holds.
+    pub spine_idx: u32,
+    pub href: String,
+}
+
+impl From<inkuna_core::SpineEntry> for SpineEntry {
+    fn from(e: inkuna_core::SpineEntry) -> Self {
+        SpineEntry {
+            spine_idx: e.spine_idx,
+            href: e.href,
+        }
+    }
+}
+
 /// One user-pinned position in a book. Bookmarks are core-owned rows:
 /// they survive re-layout and setting changes because they store a
 /// content coordinate, not a page number.
@@ -228,6 +254,22 @@ impl ShelfLibrary {
     pub async fn chapters(&self, id: String) -> Result<Vec<Chapter>, InkunaError> {
         let library = self.0.clone();
         blocking(move || Ok(library.chapters(&id)?.into_iter().map(Into::into).collect())).await
+    }
+
+    /// The publication's spine in reading order, so a screen with no
+    /// open reader can resolve a stored `Coordinate.spine_idx` to a
+    /// resource href (and from there to a TOC title by matching
+    /// `Chapter.href` minus its fragment).
+    ///
+    /// Deliberately a separate list rather than a field on `Chapter`:
+    /// the TOC-to-spine mapping is lossy both ways — a chapter whose
+    /// href matches no spine resource has no spine index, and one
+    /// chapter may cover several spine items — so a `spineIdx` on
+    /// `Chapter` could not answer this honestly. Throws `NotFound` for
+    /// an unknown id.
+    pub async fn spine(&self, id: String) -> Result<Vec<SpineEntry>, InkunaError> {
+        let library = self.0.clone();
+        blocking(move || Ok(library.spine(&id)?.into_iter().map(Into::into).collect())).await
     }
 
     /// Pins a mark at `coordinate`. Pass `coordinate: None` when the

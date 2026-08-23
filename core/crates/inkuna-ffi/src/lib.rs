@@ -27,7 +27,7 @@ pub use bookshelf::{core_version, Bookshelf};
 pub use error::InkunaError;
 pub use format::Format;
 pub use import::{FdImport, ImportOutcome, ImportProgressListener, ShelfImport};
-pub use library::{Bookmark, Chapter, Publication, Shelf, ShelfLibrary, Sort};
+pub use library::{Bookmark, Chapter, Publication, Shelf, ShelfLibrary, Sort, SpineEntry};
 pub use progress::{ChapterPositionRange, ShelfProgress};
 pub use reader::{
     A11yBlock, A11yRole, ChapterGeometry, CharRange, ColorRole, Coordinate, Decoration,

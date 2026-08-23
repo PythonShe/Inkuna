@@ -50,6 +50,18 @@ pub struct Chapter {
     pub depth: u32,
 }
 
+/// One spine resource in reading order: the mapping a `Coordinate`'s
+/// `spine_idx` needs to name a resource outside a live reader session.
+/// `href` is package-root-relative and fragment-free — the same string
+/// the engine's `locate_href` takes and the same one a `Chapter::href`
+/// matches once its fragment is stripped.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpineEntry {
+    /// Reading-order index; exactly what `Coordinate::spine_idx` holds.
+    pub spine_idx: u32,
+    pub href: String,
+}
+
 /// Library shelves, filtered server-side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shelf {

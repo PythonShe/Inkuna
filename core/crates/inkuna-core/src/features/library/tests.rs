@@ -259,3 +259,87 @@ fn reads_do_not_queue_behind_the_writer() {
         1
     );
 }
+
+/// The spine is the `spine_idx` → resource-href map a stored
+/// `Coordinate` needs when no reader session is open. Indexes are dense
+/// and in reading order, so a coordinate indexes the list directly.
+#[test]
+fn spine_maps_coordinates_to_resource_hrefs() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("moonlight.epub");
+    write_epub_with(
+        &epub,
+        "月光書房",
+        "紫式部",
+        "ja",
+        TocKind::Nav,
+        CoverKind::None,
+    );
+    let library = Library::open(&dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    let spine = library.spine(&publication.id).unwrap();
+    assert_eq!(
+        spine,
+        vec![
+            SpineEntry {
+                spine_idx: 0,
+                href: "OEBPS/text/ch01.xhtml".to_string(),
+            },
+            SpineEntry {
+                spine_idx: 1,
+                href: "OEBPS/text/ch02.xhtml".to_string(),
+            },
+        ]
+    );
+
+    // A stored coordinate now names its resource without a session.
+    let coordinate = inkuna_engine::Coordinate {
+        spine_idx: 1,
+        char_offset: 120,
+    };
+    assert_eq!(
+        spine[coordinate.spine_idx as usize].href,
+        "OEBPS/text/ch02.xhtml"
+    );
+
+    let unknown = library.spine("no-such-book");
+    assert!(matches!(unknown, Err(CoreError::NotFound(_))));
+}
+
+/// Why the map is its own list and not a `spine_idx` field on `Chapter`:
+/// the TOC-to-spine mapping is many-to-one. This fixture's nav doc has
+/// two entries pointing into spine item 0 (one of them fragment-
+/// anchored), so a per-chapter spine index could not round-trip back to
+/// a single chapter.
+#[test]
+fn several_chapters_can_share_one_spine_item() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("moonlight.epub");
+    write_epub_with(
+        &epub,
+        "月光書房",
+        "紫式部",
+        "ja",
+        TocKind::Nav,
+        CoverKind::None,
+    );
+    let library = Library::open(&dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    let spine = library.spine(&publication.id).unwrap();
+    let chapters = library.chapters(&publication.id).unwrap();
+    assert!(chapters.len() > spine.len());
+
+    // Every chapter resolves into the spine by href minus fragment...
+    let resolved: Vec<u32> = chapters
+        .iter()
+        .filter_map(|c| {
+            let base = c.href.split('#').next().unwrap_or(&c.href);
+            spine.iter().find(|e| e.href == base).map(|e| e.spine_idx)
+        })
+        .collect();
+    assert_eq!(resolved.len(), chapters.len(), "all chapters placed");
+    // ...but not one-to-one: spine item 0 carries two of them.
+    assert_eq!(resolved.iter().filter(|&&i| i == 0).count(), 2);
+}

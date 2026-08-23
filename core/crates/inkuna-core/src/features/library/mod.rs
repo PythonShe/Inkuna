@@ -13,5 +13,5 @@ mod store;
 mod tests;
 
 pub(crate) use model::{join_authors, map_publication, PUB_COLUMNS};
-pub use model::{Bookmark, Chapter, Publication, Shelf, Sort};
+pub use model::{Bookmark, Chapter, Publication, Shelf, Sort, SpineEntry};
 pub use store::Library;
