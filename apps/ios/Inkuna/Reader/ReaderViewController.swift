@@ -377,13 +377,27 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         let opened: OpenedBook
         do {
             userStyleBox.write(ReaderUserStyle.current.css())
+            let spineIndex = publication.coordinate?.spineIdx
+            let spine: [SpineEntry]
+            if
+                spineIndex != nil,
+                let bookshelf = try? await LibraryStore.shared.library(),
+                let entries = try? await bookshelf.library().spine(id: publication.id)
+            {
+                spine = entries
+            } else {
+                spine = []
+            }
             // ENGINE-SWAP INTERIM: dies with the Readium open path
-            // (plan-02 Task 2.2). The navigator cannot consume a content
-            // coordinate, and its index space is not the core's, so the
-            // stored progression is the only thing that makes the trip.
+            // (plan-02 Task 2.2). Restore translates the core spine index
+            // through `library().spine(id:)` to a normalized Readium href,
+            // then opens that resource at its start. No match falls back to
+            // the stored book-wide progression.
             opened = try await Self.openBook(
                 path: publication.filePath,
                 progression: publication.progression,
+                spineIndex: spineIndex,
+                spine: spine,
                 style: userStyleBox
             )
         } catch {
@@ -482,6 +496,8 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
     private nonisolated static func openBook(
         path: String,
         progression: Double,
+        spineIndex: UInt32?,
+        spine: [SpineEntry],
         style: ReaderUserStyleBox
     ) async throws -> OpenedBook {
         guard let file = FileURL(path: path, isDirectory: false) else {
@@ -508,18 +524,26 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         let positions = await readiumPublication.positionsByReadingOrder().getOrNil() ?? []
 
         // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
-        // Task 2.2). Restore from the stored book-wide progression alone.
-        // The core's `Coordinate.spineIdx` indexes the *core's* spine —
-        // every itemref of the OPF — while Readium's `readingOrder` drops
-        // `linear="no"` items and resolves manifest fallbacks its own way,
-        // so the two index spaces diverge and one must never be read as
-        // the other. Translating through the resource href would be the
-        // honest bridge, but no FFI exposes a spine index's href without
-        // opening a ReaderSession (`Chapter.idx` is documented as *not* a
-        // spine index), and this path deliberately opens no engine.
-        // Progression is coarser but never names the wrong resource.
-        var initialLocation: Locator?
-        if progression > 0 {
+        // Task 2.2). The core spine index is translated through the spine
+        // map's href, normalized with the Readium reading order, and opened
+        // at the matched resource's start. A missing coordinate, empty map,
+        // or no href match falls back to the stored progression.
+        let restoredLink = spineIndex
+            .flatMap { index in spine.first { $0.spineIdx == index } }
+            .flatMap { entry in
+                readiumPublication.readingOrder.first {
+                    normalizedInterimHref($0.href) == normalizedInterimHref(entry.href)
+                }
+            }
+        var initialLocation = restoredLink.flatMap { link -> Locator? in
+            guard let mediaType = link.mediaType else { return nil }
+            return Locator(
+                href: link.url(),
+                mediaType: mediaType,
+                locations: Locator.Locations(progression: 0)
+            )
+        }
+        if initialLocation == nil, progression > 0 {
             initialLocation = await readiumPublication.locate(progression: progression)
         }
 
@@ -528,6 +552,13 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
             initialLocation: initialLocation,
             positionsByReadingOrder: positions
         )
+    }
+
+    /// Interim core-spine-to-Readium bridge: resource only, decoded path.
+    private nonisolated static func normalizedInterimHref(_ href: String) -> String {
+        let resource = ChapterHref.splitFragment(href).resource
+        let decoded = resource.removingPercentEncoding ?? resource
+        return String(decoded.drop(while: { $0 == "/" }))
     }
 
     /// Books frequently ship `page-break-inside: avoid` on whole paragraphs
@@ -663,13 +694,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
             let totalProgression = locator.locations.totalProgression
         else { return }
         // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
-        // Task 2.2). No coordinate is written: the navigator's reading-order
-        // index is not the core's spine index, and the core's contract is
-        // explicit that a placeholder would clobber a rebaselined
-        // coordinate beyond recovery — the rebaseline nulls the legacy
-        // locator it was converted from, so the first page turn would
-        // destroy the conversion permanently. `progression` carries the
-        // read location, which is all the interim restore consumes.
+        // Task 2.2). Readium has no engine coordinate, so this write keeps
+        // `coordinate: nil`: a chapter-start placeholder would clobber a
+        // rebaselined char offset beyond recovery after its legacy locator
+        // was nulled. `progression` remains the fallback read location.
         enqueueCoreWrite("progress") { [id = publication.id] bookshelf in
             try await bookshelf.progress().updateProgress(
                 id: id,
@@ -951,10 +979,10 @@ final class ReaderViewController: UIViewController, EPUBNavigatorDelegate, Reade
         }
         let progression = locator.locations.totalProgression ?? publication.progression
         // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
-        // Task 2.2). No coordinate, for the same reason progress writes
-        // none — Readium's reading-order index is not the core's spine
-        // index, and a bookmark naming the wrong resource outlives the
-        // interim. `progression` is what a jump to it falls back to.
+        // Task 2.2). Readium has no engine coordinate, so this write keeps
+        // `coordinate: nil`: a chapter-start placeholder would clobber a
+        // rebaselined char offset beyond recovery. `progression` is the
+        // bookmark's fallback jump location.
         bookmarkFeedback.impactOccurred()
         Task { [weak self, id = publication.id, logger] in
             do {

@@ -1,6 +1,7 @@
 package app.inkuna.android.ui.reader
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory
@@ -258,20 +259,29 @@ class ReaderViewModel(
         // the same way a contents-sheet jump is; an unresolvable href falls
         // back to resuming.
         // ENGINE-SWAP INTERIM: dies with the Readium open path (plan-02
-        // Task 5.1). Resume restores from the stored book-wide progression
-        // alone. The core's `Coordinate.spineIdx` indexes the *core's*
-        // spine — every itemref of the OPF — while Readium's `readingOrder`
-        // drops `linear="no"` items and resolves manifest fallbacks its own
-        // way, so the two index spaces diverge and one must never be read
-        // as the other. Translating through the resource href would be the
-        // honest bridge, but no FFI exposes a spine index's href without
-        // opening a ReaderSession (`Chapter.idx` is documented as *not* a
-        // spine index), and this path deliberately opens no engine.
-        // Progression is coarser but never names the wrong resource.
+        // Task 5.1). Restore translates the core spine index through
+        // `library().spine(id)` to a normalized Readium href, then opens the
+        // matched resource at its start. A missing coordinate, empty map, or
+        // no href match falls back to the stored book-wide progression.
+        val spineIndex = core.coordinate?.spineIdx
+        val spine = spineIndex?.let { shelf.library().spine(core.id) } ?: emptyList()
         val chapterTarget = initialChapterHref
             ?.let { href -> Url(href) }
             ?.let { url -> publication.locatorFromLink(Link(href = url)) }
+        val restoredTarget = spineIndex
+            ?.let { index -> spine.firstOrNull { entry -> entry.spineIdx == index }?.href }
+            ?.let { spineHref ->
+                val targetHref = normalizedInterimHref(spineHref)
+                publication.readingOrder.firstOrNull { link ->
+                    normalizedInterimHref(link.href.toString()) == targetHref
+                }
+            }
+            ?.let { link ->
+                publication.locatorFromLink(Link(href = link.url()))
+                    ?.copyWithLocations(progression = 0.0)
+            }
         val initialLocator = chapterTarget
+            ?: restoredTarget
             ?: core.progression.takeIf { it > 0 }?.let { publication.locateProgression(it) }
 
         ReaderBook(
@@ -295,6 +305,10 @@ class ReaderViewModel(
             .indexOfFirst { link -> link.url().normalize().removeFragment() == target }
             .takeIf { it >= 0 }
     }
+
+    /** Interim core-spine-to-Readium bridge: resource only, decoded path. */
+    private fun normalizedInterimHref(href: String): String =
+        Uri.decode(href.substringBefore('#')).trimStart('/')
 
     /**
      * The TOC entry to mark as "you are here" for [locator].
@@ -441,15 +455,12 @@ class ReaderViewModel(
                 lastPersisted = locator
                 runCatching {
                     // ENGINE-SWAP INTERIM: dies with the Readium open path
-                    // (plan-02 Task 5.1). No coordinate is written: the
-                    // navigator's reading-order index is not the core's
-                    // spine index, and the core's contract is explicit that
-                    // a placeholder would clobber a rebaselined coordinate
-                    // beyond recovery — the rebaseline nulls the legacy
-                    // locator it was converted from, so the first page turn
-                    // would destroy the conversion permanently.
-                    // `progression` carries the read location, which is all
-                    // the interim restore consumes.
+                    // (plan-02 Task 5.1). Readium has no engine coordinate,
+                    // so this write keeps `coordinate = null`: a
+                    // chapter-start placeholder would clobber a rebaselined
+                    // char offset beyond recovery after its legacy locator
+                    // was nulled. `progression` remains the fallback read
+                    // location.
                     shelf.progress().updateProgress(
                         publicationId,
                         null,
@@ -550,11 +561,11 @@ class ReaderViewModel(
             writeLock.withLock {
                 runCatching {
                     // ENGINE-SWAP INTERIM: dies with the Readium open path
-                    // (plan-02 Task 5.1). No coordinate, for the same
-                    // reason progress writes none — Readium's reading-order
-                    // index is not the core's spine index, and a bookmark
-                    // naming the wrong resource outlives the interim.
-                    // `progression` is what a jump to it falls back to.
+                    // (plan-02 Task 5.1). Readium has no engine coordinate,
+                    // so this write keeps `coordinate = null`: a
+                    // chapter-start placeholder would clobber a rebaselined
+                    // char offset beyond recovery. `progression` is the
+                    // bookmark's fallback jump location.
                     shelf.library().addBookmark(
                         publicationId,
                         null,
