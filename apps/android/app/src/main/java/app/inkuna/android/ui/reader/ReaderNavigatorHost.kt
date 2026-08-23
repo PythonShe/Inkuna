@@ -128,13 +128,9 @@ fun ReaderNavigatorHost(
         // resource WebView the pager creates; see ReaderWebViewTuner.
         val webViewTuner = fragment.view?.let { ReaderWebViewTuner(it, styleInjector) }
         webViewTuner?.attach()
-        pagerLayout.value?.navigator = fragment
         onNavigator(fragment)
         onDispose {
-            pagerLayout.value?.let { layout ->
-                layout.cancelInteraction()
-                layout.navigator = null
-            }
+            pagerLayout.value?.cancelInteraction()
             onPager(null)
             webViewTuner?.detach()
             onNavigator(null)

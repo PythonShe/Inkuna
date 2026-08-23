@@ -147,6 +147,7 @@ dependencies {
     // Referenced directly by BoundaryDragFollower to fake-drag Readium's
     // resource pager across chapter boundaries.
     implementation("androidx.viewpager:viewpager:1.1.0")
+    implementation("androidx.customview:customview:1.2.0")
     // Document-start JS injection for the reader's own user stylesheet.
     // Capped below 1.17.0 on purpose: from 1.17.0 on,
     // WebViewAssetLoader.AssetsPathHandler builds its WebResourceResponse with

@@ -382,6 +382,16 @@ private fun ReaderContent(
         modifier = hostModifier,
     )
 
+    // Movement 4 keeps Readium alive behind the same pager seam the engine
+    // will use next movement. Binding happens only after both the fragment
+    // and its host layout exist; the surface owns every Readium-specific
+    // WebView and fake-drag detail.
+    LaunchedEffect(navigator, pagerLayout.value) {
+        val nav = navigator ?: return@LaunchedEffect
+        val layout = pagerLayout.value ?: return@LaunchedEffect
+        layout.bind(ReadiumPagerSurface(nav, layout))
+    }
+
     // Chrome leaves the moment a page-turn drag is claimed — before the
     // motion — matching iOS; the locator collect below stays as the
     // fallback for programmatic turns. Under TalkBack a page gesture is
