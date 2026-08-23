@@ -10,13 +10,14 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import app.inkuna.android.R
 import app.inkuna.android.model.BookRow
 import app.inkuna.android.model.LibraryStore
+import app.inkuna.android.ui.reader.ReaderPositions
+import app.inkuna.core.Chapter
+import app.inkuna.core.ChapterPositionRange
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.readium.r2.shared.publication.Locator
-import org.readium.r2.shared.util.Url
 
 /**
  * The detail screen's core-backed state: the publication, its flattened
@@ -40,7 +41,8 @@ class BookDetailViewModel(
 
     data class UiState(
         val book: BookRow? = null,
-        /** Saved synthetic position, when the stored locator carries one. */
+        /** Saved synthetic position, when the book carries a coordinate
+         *  the core can resolve to one. */
         val position: Int? = null,
         val positionCount: Int? = null,
         val chapters: List<DetailChapter> = emptyList(),
@@ -66,14 +68,21 @@ class BookDetailViewModel(
                 val core = bookshelf.library().publication(publicationId)
                 val chapters = bookshelf.library().chapters(publicationId)
 
-                // plan-02: real coordinates from the engine — the stored
-                // position is a content coordinate now; until the engine
-                // reader lands this screen degrades to the book-wide
-                // percentage with no chapter highlight.
-                val locator: Locator? = null
+                // The position line and the chapter highlight both hang on
+                // the stored coordinate; without one there is nothing to
+                // ask the core about, and both degrade rather than guess.
+                val coordinate = core.coordinate
+                val position = coordinate?.let {
+                    ReaderPositions.position(it, publicationId, bookshelf)
+                }
+                val ranges = if (position == null) {
+                    emptyList()
+                } else {
+                    bookshelf.progress().chapterPositionRanges(publicationId)
+                }
                 _state.value = UiState(
                     book = BookRow.from(core, app.getString(R.string.unknown_author)),
-                    position = locator?.locations?.position,
+                    position = position?.toInt(),
                     positionCount = core.positionCount?.toInt(),
                     chapters = chapters.map { chapter ->
                         DetailChapter(
@@ -83,7 +92,7 @@ class BookDetailViewModel(
                             href = chapter.href,
                         )
                     },
-                    currentChapterIndex = currentChapterIndex(chapters.map { it.href }, locator),
+                    currentChapterIndex = currentChapterIndex(chapters, ranges, position),
                 )
             } catch (cancellation: kotlinx.coroutines.CancellationException) {
                 throw cancellation
@@ -99,21 +108,19 @@ class BookDetailViewModel(
     }
 
     /**
-     * The chapter the saved position sits in: the first TOC entry whose
-     * resource matches the stored locator's — the "several entries in one
-     * resource resolve to the first" rule the reader's contents sheet uses.
-     * Unlike the sheet, this screen keeps the book closed, so a position in
-     * a resource carrying no TOC entry of its own cannot be attributed to
-     * the preceding chapter; those books show no highlight rather than a
-     * guessed one. Matching is on normalized URLs, not raw href strings, so
-     * an entry that merely spells the resource differently still counts
-     * (CJK resource names included).
+     * The chapter the saved position sits in, attributed by the core's own
+     * chapter spans rather than by matching hrefs here — the same rule the
+     * reader's contents sheet highlights by. A position no span claims
+     * leaves the list unhighlighted rather than guessed.
      */
-    private fun currentChapterIndex(hrefs: List<String>, locator: Locator?): Int? {
-        val here = locator?.href?.removeFragment()?.normalize() ?: return null
-        return hrefs
-            .indexOfFirst { href -> Url(href)?.removeFragment()?.normalize() == here }
-            .takeIf { it >= 0 }
+    private fun currentChapterIndex(
+        chapters: List<Chapter>,
+        ranges: List<ChapterPositionRange>,
+        position: UInt?,
+    ): Int? {
+        if (position == null) return null
+        val range = ReaderPositions.chapterRange(ranges, position) ?: return null
+        return chapters.indexOfFirst { it.idx == range.chapterIdx }.takeIf { it >= 0 }
     }
 
     companion object {

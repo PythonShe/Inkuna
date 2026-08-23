@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import app.inkuna.android.R
 import app.inkuna.android.model.BookRow
 import app.inkuna.android.model.LibraryStore
+import app.inkuna.android.ui.reader.ReaderPositions
 import app.inkuna.core.Bookshelf
 import app.inkuna.core.Publication
 import app.inkuna.core.Shelf
@@ -78,16 +79,30 @@ class TonightViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * How many synthetic positions the hero has left in the chapter it is
-     * stopped in.
+     * stopped in, for the caption only.
      *
-     * plan-02: real coordinates from the engine — the stored position is a
-     * content coordinate now; deriving its synthetic position is core math
-     * (`positionOf`), wired up with `chapterPositionRanges` when the
-     * engine reader lands. Until then the card falls back to the honest
-     * percentage.
+     * Both halves are core answers: the position the stored coordinate
+     * lands on, and the chapter spans around it. A book with no coordinate
+     * yet — never opened, or a legacy row the rebaseline has not reached —
+     * has no position to caption and degrades to the percentage line, as
+     * does any book whose spans the core cannot produce. Zero or less is
+     * not a caption worth showing.
      */
-    private fun pagesLeftInChapter(bookshelf: Bookshelf, publication: Publication): Int? {
-        return null
+    private suspend fun pagesLeftInChapter(bookshelf: Bookshelf, publication: Publication): Int? {
+        val coordinate = publication.coordinate ?: return null
+        return try {
+            val position = ReaderPositions.position(coordinate, publication.id, bookshelf)
+            val ranges = bookshelf.progress().chapterPositionRanges(publication.id)
+            val containing = ReaderPositions.chapterRange(ranges, position) ?: return null
+            val left = containing.endPosition.toLong() - position.toLong()
+            if (left > 0) left.toInt() else null
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Throwable) {
+            // The shelf itself loaded; only the caption is poorer for it.
+            Log.w(TAG, "The hero's chapter position would not resolve", failure)
+            null
+        }
     }
 
     private companion object {
