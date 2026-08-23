@@ -43,12 +43,24 @@ actor LibraryStore {
             throw LibraryStoreError.noApplicationSupportDirectory
         }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // The reader engine shapes text with the bundled Noto set: the
+        // repo's assets/fonts/, copied into the bundle as a folder
+        // reference. The core checks the directory here at startup rather
+        // than at first reader open, so a bundle that lost it fails loudly
+        // and early — but only the core's own check should be the one that
+        // trips, so an unreadable path is reported as the build problem it
+        // is instead of being handed on for the core to reject.
+        guard let resources = Bundle.main.resourceURL else {
+            throw LibraryStoreError.missingFontDirectory
+        }
+        let fontDirectory = resources.appendingPathComponent("fonts", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: fontDirectory.path) else {
+            throw LibraryStoreError.missingFontDirectory
+        }
         // The core owns everything under this directory: inkuna.db,
         // books/, and covers/. A pre-existing inkuna.db from the old
         // dbPath constructor is adopted by the core's v2 migration.
-        // fontDir is a placeholder until the reader engine's bundled fonts
-        // land (plan 02 wires the real assets/fonts/ bundle directory).
-        let bookshelf = try Bookshelf.open(dataDir: directory.path, fontDir: Bundle.main.bundlePath)
+        let bookshelf = try Bookshelf.open(dataDir: directory.path, fontDir: fontDirectory.path)
         opened = bookshelf
         // Covers imported by older cores are full-resolution originals;
         // normalize them into the core's bounded WebP form off the
@@ -71,4 +83,10 @@ actor LibraryStore {
 enum LibraryStoreError: Error {
     /// The system reported no Application Support directory for the app.
     case noApplicationSupportDirectory
+
+    /// The bundle carries no `fonts/` directory. Never a device condition:
+    /// it means the app was built without the `assets/fonts` folder
+    /// reference, so it surfaces as the retryable library failure rather
+    /// than as a crash inside the core.
+    case missingFontDirectory
 }

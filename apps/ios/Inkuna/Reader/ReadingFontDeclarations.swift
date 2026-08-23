@@ -40,7 +40,12 @@ extension ReadingFont {
         ).eraseToAnyHTMLFontFamilyDeclaration()
     }
 
+    /// The faces live in the bundle's `fonts/` folder reference (the
+    /// repo's `assets/fonts/`, copied wholesale), so the lookup has to name
+    /// the subdirectory — a bundle-root search finds nothing there.
     private static func bundledFont(named name: String) -> FileURL? {
-        Bundle.main.url(forResource: name, withExtension: "ttf").flatMap { FileURL(url: $0) }
+        Bundle.main
+            .url(forResource: name, withExtension: "ttf", subdirectory: "fonts")
+            .flatMap { FileURL(url: $0) }
     }
 }

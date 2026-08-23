@@ -12,9 +12,11 @@ options:
       file: true
       buildPhase: resources
 packages:
-  # Readium renders; the Rust core never does. Pinned exactly: navigator
-  # behavior and the locator contract must not drift under a lockfile-less
-  # regenerated project.
+  # Being removed: the Rust core owns layout now and the shells draw the
+  # glyph runs it emits, so the navigator has no job left. The dependency
+  # survives only until the engine reader replaces the Readium open path;
+  # nothing new may be built on it. Still pinned exactly until then, so the
+  # interim path cannot drift under a lockfile-less regenerated project.
   Readium:
     url: https://github.com/readium/swift-toolkit
     exactVersion: 3.11.0
@@ -36,6 +38,15 @@ targets:
       - path: AppIcon.icon
       - path: Generated
         optional: true
+      # The repo-root font set, the single source of truth shared with the
+      # Android shell and the core's shaper. A folder reference, not a
+      # group: the bundle then holds a real `fonts/` directory that the
+      # core can be pointed at wholesale, and new faces need no project
+      # edit. Every file ships — the CJK .ttc faces included — because the
+      # core picks a face per script at shaping time.
+      - path: ../../assets/fonts
+        type: folder
+        buildPhase: resources
     dependencies:
       - framework: Frameworks/InkunaCore.xcframework
         embed: false
@@ -70,15 +81,19 @@ targets:
         # launches don't flash light (the generated plist can't set it).
         UILaunchScreen:
           UIColorName: LaunchBackground
-        # Bundled Noto variable faces, for the native font previews only —
-        # WKWebView never sees app-registered fonts; the reading surface
-        # gets the same files via @font-face through the navigator's font
-        # declarations. Bare filenames: XcodeGen copies resources flat.
+        # Registration exists for UIKit font previews only — the font
+        # picker draws its samples with these. The reading surface needs
+        # none of it: it draws glyph runs through Core Text from the file
+        # paths in the core's `FontEntry.file_path`, which reads the
+        # bundled `fonts/` directory directly. Only the four Latin faces
+        # the picker offers are listed; the rest of the directory ships
+        # unregistered. Paths are folder-relative — the fonts arrive as a
+        # folder reference, not flattened into the bundle root.
         UIAppFonts:
-          - NotoSerif.ttf
-          - NotoSerif-Italic.ttf
-          - NotoSans.ttf
-          - NotoSans-Italic.ttf
+          - fonts/NotoSerif.ttf
+          - fonts/NotoSerif-Italic.ttf
+          - fonts/NotoSans.ttf
+          - fonts/NotoSans-Italic.ttf
         # App Store validation (90474) rejects a bundle with no declared
         # orientations. iPhone: no upside-down (standard on notched devices).
         # iPad: all four are mandatory for multitasking support.
