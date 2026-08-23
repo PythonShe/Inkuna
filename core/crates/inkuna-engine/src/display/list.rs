@@ -47,9 +47,16 @@ pub struct GlyphRun {
     pub orientation: RunOrientation,
 }
 
+/// What a [`Decoration`]'s filled rect represents. Both draw the same
+/// way — a solid fill of `color_role` over `rect` — so the kind is here
+/// only so a shell can restyle or suppress one class without inferring
+/// it from geometry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecorationKind {
+    /// An `hr` rule, mapped from the paginate-side kind of the same name.
     Rule,
+    /// A link underline: a 1 pt hairline rect emitted once per link
+    /// stretch per line, alongside that stretch's [`LinkRegion`].
     Underline,
 }
 
@@ -89,10 +96,17 @@ pub struct LinkRegion {
     pub target: String,
 }
 
+/// The accessible role of an [`A11yBlock`], for mapping onto the
+/// platform's accessibility element (`UIAccessibilityTraits` /
+/// Compose `Role`). Deliberately coarse — the engine reports a role,
+/// never the source tag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum A11yRole {
+    /// Ordinary body text.
     Body,
+    /// A heading; the `h1`–`h6` level is not carried.
     Heading,
+    /// A block that is itself a link.
     Link,
 }
 

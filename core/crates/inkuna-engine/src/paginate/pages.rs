@@ -21,6 +21,10 @@ use super::shaping;
 /// truncated prefix (`char_range`s cover exactly the emitted pages).
 pub const MAX_PAGES_PER_CHAPTER: u32 = 16_384;
 
+/// A width/height pair in fixed-point layout units — the viewport as
+/// pagination sees it, once [`Fx::from_pt`] has consumed the caller's
+/// float values at the boundary. Always the full page frame: the
+/// margins in `Metrics` are subtracted from it, never baked into it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FxSize {
     pub width: Fx,
@@ -36,12 +40,18 @@ pub struct FxRect {
     pub h: Fx,
 }
 
+/// The non-text rects pagination places into the flow. The display
+/// layer matches on this exhaustively, so adding a variant is meant to
+/// break that build rather than silently ship as a rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecorationKind {
     /// An `hr` rule.
     Rule,
 }
 
+/// A decoration at its resolved position: `rect` is page coordinates,
+/// already inside the margins, and occupies one line advance in the
+/// block axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlacedDecoration {
     pub rect: FxRect,
@@ -68,12 +78,22 @@ pub struct LaidPage {
     pub decorations: Vec<PlacedDecoration>,
 }
 
+/// The summary [`paginate`] returns after walking the whole chapter.
+/// The pages themselves already went out through `emit`, so this
+/// arrives *last* — a caller that needs the running page count earlier
+/// counts `emit` calls instead of waiting for this.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChapterLayoutResult {
+    /// Pages emitted, equal to the number of `emit` calls made.
     pub page_count: u32,
     /// Chars covered by the emitted pages: the projection's `char_len`,
     /// or the retained prefix length when truncated.
     pub char_len: u64,
+    /// The emitted pages cover only a prefix of the chapter — the
+    /// projection was already truncated, a paragraph tripped the line
+    /// cap, or the chapter hit [`MAX_PAGES_PER_CHAPTER`]. This is the
+    /// degradation path, not an error: `paginate` never fails on
+    /// content.
     pub truncated: bool,
 }
 

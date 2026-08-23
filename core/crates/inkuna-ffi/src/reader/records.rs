@@ -131,9 +131,17 @@ impl From<inkuna_core::Rect> for Rect {
     }
 }
 
+/// The block-flow direction the engine laid a chapter out in, decided
+/// per resource from the publisher's `html`/`body` CSS — never from the
+/// reader settings. Page coordinates are the same either way (y grows
+/// downward); what changes is which axis is inline and which way pages
+/// advance, so shells must read it before drawing selection handles or
+/// mapping a swipe to a page turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum WritingMode {
+    /// Horizontal lines stacked top to bottom — the default flow.
     HorizontalTb,
+    /// Vertical columns advancing right to left — CJK tategaki.
     VerticalRl,
 }
 
@@ -244,9 +252,15 @@ impl From<inkuna_core::ColorRole> for ColorRole {
     }
 }
 
+/// How a [`GlyphRun`] must be transformed before it is drawn. Only
+/// vertical writing ever produces anything but `Upright`; the choice is
+/// per run, so one vertical line can mix both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum RunOrientation {
+    /// Draw at the emitted positions with no transform.
     Upright,
+    /// Draw rotated 90° clockwise about *each glyph's own* emitted
+    /// position — Latin text set sideways inside a vertical column.
     SidewaysRotated,
 }
 
@@ -301,9 +315,16 @@ impl From<inkuna_core::ImagePlacement> for ImagePlacement {
     }
 }
 
+/// What a [`Decoration`]'s filled rect represents. Both kinds draw
+/// identically — a solid fill of `color_role` over `rect` — so the kind
+/// exists only so a shell can restyle or suppress one class without
+/// inferring it from geometry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum DecorationKind {
+    /// An `<hr>` horizontal rule.
     Rule,
+    /// The underline the engine draws under a link stretch; there is one
+    /// per link run per line, matching a [`LinkRegion`].
     Underline,
 }
 
@@ -353,10 +374,17 @@ impl From<inkuna_core::LinkRegion> for LinkRegion {
     }
 }
 
+/// The accessible role of an [`A11yBlock`], for mapping onto the
+/// platform's accessibility element (`UIAccessibilityTraits` /
+/// Compose `Role`). Deliberately coarse: the engine reports the role,
+/// not the source tag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum A11yRole {
+    /// Ordinary body text.
     Body,
+    /// A heading; the `h1`–`h6` level is not exposed.
     Heading,
+    /// A block that is itself a link.
     Link,
 }
 

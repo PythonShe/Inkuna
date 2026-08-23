@@ -82,26 +82,50 @@ impl Bookshelf {
         }))
     }
 
+    /// The library facade — publication rows, the flattened TOC, and
+    /// bookmarks. An `Arc` clone of the instance built in
+    /// [`Bookshelf::open`]: no I/O and no second connection, so call it
+    /// per screen rather than caching it. Every facade shares this
+    /// `Bookshelf`'s one database, is safe to use from any thread, and
+    /// keeps that database alive on its own — a facade outliving the
+    /// `Bookshelf` it came from still works.
     pub fn library(&self) -> Arc<ShelfLibrary> {
         self.library_facade.clone()
     }
 
+    /// The import facade — file and file-descriptor imports plus cover
+    /// re-optimization. Same cheap `Arc` clone as [`Bookshelf::library`];
+    /// the copying and conversion work happens inside the awaited
+    /// methods, never here.
     pub fn importer(&self) -> Arc<ShelfImport> {
         self.importer.clone()
     }
 
+    /// The search facade — the exact in-book scan and the tantivy-backed
+    /// library-wide ranked search. Cheap `Arc` clone: the index was
+    /// opened and reconciled against the DB back in [`Bookshelf::open`],
+    /// so this accessor itself never touches disk.
     pub fn search(&self) -> Arc<ShelfSearch> {
         self.search.clone()
     }
 
+    /// The settings facade — the reader's persisted preferences (theme,
+    /// reminder, the Customize values). Cheap `Arc` clone; nothing is
+    /// read or clamped until one of its methods is awaited.
     pub fn settings(&self) -> Arc<ShelfSettings> {
         self.settings.clone()
     }
 
+    /// The progress facade — per-page-turn position writes plus the
+    /// session-free synthetic-position queries that let Home and Detail
+    /// label "page N of M" without opening a reader. Cheap `Arc` clone,
+    /// no I/O.
     pub fn progress(&self) -> Arc<ShelfProgress> {
         self.progress.clone()
     }
 
+    /// The stats facade — reading-session start/end and the overview
+    /// aggregated from those sessions. Cheap `Arc` clone, no I/O.
     pub fn stats(&self) -> Arc<ShelfStats> {
         self.stats.clone()
     }
@@ -202,6 +226,10 @@ pub(crate) async fn blocking<T: Send + 'static>(
         })?
 }
 
+/// The core's own crate version, for About screens and diagnostics. It
+/// moves independently of the iOS and Android app versions the stores
+/// show, so a bug report wants both. Free-standing on purpose: callable
+/// without opening a [`Bookshelf`].
 #[uniffi::export]
 pub fn core_version() -> String {
     inkuna_core::version().to_string()

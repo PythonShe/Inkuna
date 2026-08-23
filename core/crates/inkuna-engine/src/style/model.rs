@@ -12,6 +12,10 @@ pub enum WritingMode {
     VerticalRl,
 }
 
+/// Inline-axis base direction, inherited down the tree. Seeded from the
+/// element's `dir` attribute and overridden by a publisher `direction`
+/// declaration. Orthogonal to [`WritingMode`]: a vertical-rl chapter
+/// still resolves each line's inline direction with this.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Direction {
     #[default]
@@ -19,6 +23,9 @@ pub enum Direction {
     Rtl,
 }
 
+/// Slant, resolved to the two states the bundled roster actually has
+/// faces for. `oblique` folds into `Italic` at parse time; `<em>` sets
+/// it as a UA default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FontStyle {
     #[default]
@@ -34,6 +41,12 @@ pub enum FontWeight {
     Bold,
 }
 
+/// Inline alignment of a paragraph's lines. `Start`/`End` are
+/// direction-relative, not physical: the parser folds `left` into
+/// `Start` and `right` into `End`, and line breaking resolves them
+/// against [`Direction`]. There is no [`Default`] impl on purpose —
+/// `ComputedStyle::default()` picks `Justify` for body text, which is a
+/// reader decision rather than a UA initial value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextAlign {
     Start,
@@ -42,6 +55,9 @@ pub enum TextAlign {
     Justify,
 }
 
+/// Which side of the base text a ruby annotation sits on. `Over` and
+/// `Under` are relative to the line, not the screen: in vertical-rl
+/// writing `Over` is the right of the column and `Under` its left.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RubyPosition {
     #[default]

@@ -6,6 +6,9 @@ use crate::error::InkunaError;
 use crate::format::Format;
 use crate::reader::Coordinate;
 
+/// Which subset of the library a listing covers. Filtering happens in
+/// SQL, so an excluded book is never fetched — pick the shelf that
+/// matches the screen instead of listing `All` and filtering shell-side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum Shelf {
     /// Opened at least once and not finished — "continue reading". A
@@ -14,7 +17,9 @@ pub enum Shelf {
     /// Everything not finished, opened or not: what a library screen lists,
     /// so an imported book is visible immediately.
     Unfinished,
+    /// Explicitly marked finished (the row carries a finish timestamp).
     Finished,
+    /// Every imported book, finished or not.
     All,
 }
 
@@ -29,10 +34,16 @@ impl From<Shelf> for inkuna_core::Shelf {
     }
 }
 
+/// Row order for a listing. Both are descending — newest first — and
+/// both are applied in SQL, so the returned `Vec` is already in display
+/// order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum Sort {
-    /// Tonight's hero is the first row.
+    /// Most recently opened first, so tonight's hero is the first row.
+    /// Never-opened books sort last.
     RecentlyOpened,
+    /// Most recently imported first — import order, independent of
+    /// whether the book has ever been opened.
     RecentlyAdded,
 }
 
@@ -70,13 +81,22 @@ pub struct Publication {
     pub last_opened_at: Option<i64>,
 }
 
+/// One entry of the book's flattened table of contents. The TOC tree is
+/// flattened in document order and `depth` is what remains of its
+/// nesting, so a shell renders the list as-is and indents by `depth`.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct Chapter {
+    /// Stable row id for this entry, unique across the library; not the
+    /// EPUB's own element id.
     pub id: String,
+    /// Position in this flattened list, in document order — an index
+    /// into the `chapters()` result, NOT a spine index. Resolve the
+    /// resource through `href`, never through this.
     pub idx: u32,
     pub title: String,
     /// Package-root-relative engine locate_href target, possibly with fragment.
     pub href: String,
+    /// Nesting level in the original TOC tree; 0 for a top-level entry.
     pub depth: u32,
 }
 
@@ -92,8 +112,12 @@ impl From<inkuna_core::Chapter> for Chapter {
     }
 }
 
+/// One user-pinned position in a book. Bookmarks are core-owned rows:
+/// they survive re-layout and setting changes because they store a
+/// content coordinate, not a page number.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct Bookmark {
+    /// Stable row id — the handle `remove_bookmark` takes.
     pub id: String,
     pub publication_id: String,
     /// The pinned position, or `None` when the row has no stored
@@ -152,6 +176,10 @@ pub struct ShelfLibrary(pub(crate) std::sync::Arc<inkuna_core::Library>);
 
 #[uniffi::export(async_runtime = "tokio")]
 impl ShelfLibrary {
+    /// The `shelf` subset in `sort` order, ready to render: the rows come
+    /// back already ordered, and `file_path`/`cover_path` already
+    /// absolutized against the data dir. An empty library is an empty
+    /// `Vec`, never an error.
     pub async fn list(&self, shelf: Shelf, sort: Sort) -> Result<Vec<Publication>, InkunaError> {
         let library = self.0.clone();
         blocking(move || {
@@ -164,6 +192,9 @@ impl ShelfLibrary {
         .await
     }
 
+    /// One publication by id, with absolutized paths. Throws `NotFound`
+    /// when the row is gone — expect that whenever a stale id survives a
+    /// removal on another screen.
     pub async fn publication(&self, id: String) -> Result<Publication, InkunaError> {
         let library = self.0.clone();
         blocking(move || {
@@ -231,6 +262,9 @@ impl ShelfLibrary {
         .await
     }
 
+    /// Removes one bookmark by its row id. Not idempotent: an id that no
+    /// longer exists throws `NotFound`, so a double-tap or a retry after
+    /// a successful delete must be swallowed shell-side.
     pub async fn remove_bookmark(&self, bookmark_id: String) -> Result<(), InkunaError> {
         let library = self.0.clone();
         blocking(move || Ok(library.remove_bookmark(&bookmark_id)?)).await

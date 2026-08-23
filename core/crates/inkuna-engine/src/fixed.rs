@@ -11,6 +11,9 @@
 pub struct Fx(pub i32);
 
 impl Fx {
+    /// Zero length: the additive identity, and the value every helper
+    /// here degrades to on a degenerate input (NaN points, a zero
+    /// denominator, a zero upem).
     pub const ZERO: Fx = Fx(0);
 
     /// Layout points → fixed units, rounding half away from zero.
@@ -35,10 +38,14 @@ impl Fx {
         self.0 as f32 / 64.0
     }
 
+    /// Sum, clamped to the `i32` range rather than wrapping or
+    /// panicking. This is what the `+` and `+=` operators do.
     pub fn saturating_add(self, o: Fx) -> Fx {
         Fx(self.0.saturating_add(o.0))
     }
 
+    /// Difference, clamped to the `i32` range rather than wrapping or
+    /// panicking. This is what the `-` and `-=` operators do.
     pub fn saturating_sub(self, o: Fx) -> Fx {
         Fx(self.0.saturating_sub(o.0))
     }
