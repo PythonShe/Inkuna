@@ -5,7 +5,8 @@
 //! `chapter`, `locate`, `hit_test`, `selection_rects`, `match_rects`,
 //! `text_range`, and `word_at` require the COMPLETE chapter. Any cache
 //! miss schedules the chapter at queue front and returns `NotReady` —
-//! never blocks.
+//! never blocks. `is_ready` and `published_page_count` are the total
+//! functions here: pure reads with no error case that never schedule.
 
 use std::sync::atomic::Ordering;
 
@@ -71,6 +72,31 @@ impl EngineSession {
             inner.cache.get(spine_idx, generation),
             Some(SlotState::Ready(_))
         )
+    }
+
+    /// How many of the chapter's pages are published RIGHT NOW at the
+    /// current generation: `0` for an unstarted, evicted, failed, or
+    /// out-of-range chapter, rising as the worker emits pages, and equal
+    /// to `ChapterGeometry::page_count` once the chapter completes.
+    ///
+    /// Total-function counterpart to [`Self::chapter`]: pure read — it
+    /// never schedules layout, never moves focus, never blocks past the
+    /// brief session mutex, and has no error case, because `0` is the
+    /// honest answer for a chapter nothing has laid out yet. Shells size
+    /// a progressive pager's scroll range on it without waiting for the
+    /// whole chapter.
+    pub fn published_page_count(&self, spine_idx: u32) -> u32 {
+        if self.closed() || spine_idx >= self.spine_len() {
+            return 0;
+        }
+        let generation = self.shared.generation.load(Ordering::Acquire);
+        let mut inner = self.shared.lock();
+        match inner.cache.get(spine_idx, generation) {
+            Some(SlotState::Ready(data)) | Some(SlotState::Laying(data)) => {
+                data.pages.len() as u32
+            }
+            Some(SlotState::Failed(_)) | None => 0,
+        }
     }
 
     /// The chapter's geometry. Requires the complete chapter.

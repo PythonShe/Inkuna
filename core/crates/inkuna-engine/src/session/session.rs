@@ -196,6 +196,17 @@ impl EngineSession {
         self.shared.spine.len() as u32
     }
 
+    /// The publication's page-progression direction, read from the OPF
+    /// `spine[@page-progression-direction]` at open. Publication-level
+    /// and known before any chapter lays out: it takes no lock, touches
+    /// no cache, and is immediately accurate on page 0 — unlike
+    /// [`EngineSession::chapter`]'s `rtl_progression`, which mirrors the
+    /// same fact but only once a chapter is complete. Stays valid on a
+    /// closed session (the fact does not depend on the worker).
+    pub fn is_rtl(&self) -> bool {
+        self.shared.rtl_progression
+    }
+
     pub(super) fn closed(&self) -> bool {
         self.shared.closed.load(Ordering::Acquire)
     }

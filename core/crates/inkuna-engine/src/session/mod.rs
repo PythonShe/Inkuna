@@ -15,6 +15,8 @@ mod session;
 mod worker;
 
 #[cfg(test)]
+mod readiness_tests;
+#[cfg(test)]
 mod tests;
 
 pub use model::{

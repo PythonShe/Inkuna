@@ -157,6 +157,28 @@ impl ReaderSession {
         self.session.spine_len()
     }
 
+    /// The publication's page-progression direction, from the OPF
+    /// `spine[@page-progression-direction]` read at open. Immediately
+    /// accurate on page 0 — it never waits for a chapter, so a shell
+    /// sets its pager direction at first paint. (`ChapterGeometry`'s
+    /// `rtl_progression` carries the same fact but only once a chapter
+    /// is completely laid out.)
+    pub fn is_rtl(&self) -> bool {
+        self.session.is_rtl()
+    }
+
+    /// How many of the chapter's pages are published right now: `0` for
+    /// an unstarted, evicted, failed, or out-of-range chapter, rising as
+    /// layout emits pages, and equal to `ChapterGeometry.page_count`
+    /// once the chapter completes.
+    ///
+    /// Never throws and never schedules layout — `0` is the honest
+    /// answer for a chapter nothing has laid out yet. Size a progressive
+    /// pager's scroll range on this instead of waiting for `chapter()`.
+    pub fn published_page_count(&self, spine_idx: u32) -> u32 {
+        self.session.published_page_count(spine_idx)
+    }
+
     /// The page's canonical char range.
     pub fn page_char_range(&self, spine_idx: u32, page_idx: u32) -> Result<CharRange, InkunaError> {
         self.session

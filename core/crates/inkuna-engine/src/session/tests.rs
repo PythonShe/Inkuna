@@ -15,7 +15,7 @@ use crate::text::Coordinate;
 
 use super::{CharRange, EngineSession, LayoutEvents, Viewport};
 
-fn registry() -> Arc<FontRegistry> {
+pub(super) fn registry() -> Arc<FontRegistry> {
     static REG: OnceLock<Arc<FontRegistry>> = OnceLock::new();
     Arc::clone(REG.get_or_init(|| {
         let dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"));
@@ -24,13 +24,13 @@ fn registry() -> Arc<FontRegistry> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Event {
+pub(super) enum Event {
     FirstPage(u64, u32),
     ChapterReady(u64, u32, u32),
     ChapterFailed(u64, u32),
 }
 
-struct TestEvents(Sender<Event>);
+pub(super) struct TestEvents(pub(super) Sender<Event>);
 
 impl LayoutEvents for TestEvents {
     fn first_page_ready(&self, generation: u64, spine_idx: u32) {
@@ -44,10 +44,10 @@ impl LayoutEvents for TestEvents {
     }
 }
 
-const TIMEOUT: Duration = Duration::from_secs(60);
+pub(super) const TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Receives events until `pred` matches one, panicking on timeout.
-fn wait_for(rx: &Receiver<Event>, pred: impl Fn(&Event) -> bool) -> Event {
+pub(super) fn wait_for(rx: &Receiver<Event>, pred: impl Fn(&Event) -> bool) -> Event {
     loop {
         let event = rx.recv_timeout(TIMEOUT).expect("layout event within timeout");
         if pred(&event) {
@@ -56,7 +56,7 @@ fn wait_for(rx: &Receiver<Event>, pred: impl Fn(&Event) -> bool) -> Event {
     }
 }
 
-fn wait_chapter_ready(rx: &Receiver<Event>, generation: u64, spine_idx: u32) -> u32 {
+pub(super) fn wait_chapter_ready(rx: &Receiver<Event>, generation: u64, spine_idx: u32) -> u32 {
     let event = wait_for(rx, |e| {
         matches!(e, Event::ChapterReady(g, s, _) if *g == generation && *s == spine_idx)
     });
@@ -66,7 +66,7 @@ fn wait_chapter_ready(rx: &Receiver<Event>, generation: u64, spine_idx: u32) -> 
     }
 }
 
-fn open(
+pub(super) fn open(
     path: &PathBuf,
     viewport: Viewport,
     opening: u32,
@@ -85,14 +85,14 @@ fn open(
     (session, rx)
 }
 
-fn viewport() -> Viewport {
+pub(super) fn viewport() -> Viewport {
     Viewport {
         width: 200.0,
         height: 240.0,
     }
 }
 
-fn cjk_doc(paras: usize) -> String {
+pub(super) fn cjk_doc(paras: usize) -> String {
     let mut body = String::new();
     for _ in 0..paras {
         body.push_str("<p>月光洒在窗台上，屋里一片寂静。他放下手中的书，望向远处的群山。</p>\n");
@@ -116,7 +116,7 @@ fn vertical_doc(paras: usize) -> String {
 }
 
 /// A book of `docs` chapters named ch01.xhtml, ch02.xhtml, …
-fn book(dir: &TempDir, docs: &[&str]) -> PathBuf {
+pub(super) fn book(dir: &TempDir, docs: &[&str]) -> PathBuf {
     let mut builder = EpubBuilder::new();
     let hrefs: Vec<String> = (1..=docs.len()).map(|i| format!("ch{i:02}.xhtml")).collect();
     for (href, doc) in hrefs.iter().zip(docs) {
