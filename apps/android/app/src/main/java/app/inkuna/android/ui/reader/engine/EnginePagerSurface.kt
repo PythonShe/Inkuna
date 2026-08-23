@@ -5,6 +5,7 @@ import app.inkuna.android.ui.reader.ReaderPagerSurface
 import app.inkuna.core.ChapterGeometry
 import app.inkuna.core.InkunaException
 import app.inkuna.core.ReaderSession
+import kotlin.math.roundToInt
 
 sealed interface ChapterReadiness {
     data object Empty : ChapterReadiness
@@ -27,6 +28,7 @@ class EnginePagerSurface(
     private var innerOffset = 0f
     private var outerDisplacement = 0f
     private var scenePageCount = 0u
+    private var interactionPageCount: UInt? = null
     private var lastSettledPage: UInt? = null
 
     var spineIdx: UInt = 0u
@@ -51,6 +53,8 @@ class EnginePagerSurface(
     fun display(spineIdx: UInt, pageIdx: UInt) {
         this.spineIdx = spineIdx
         this.pageIdx = pageIdx
+        interactionPageCount = null
+        primeReadiness(spineIdx)
         val count = pageCountFor(spineIdx)
         innerOffset = PageSlot.offset(pageIdx, count, isRightToLeft, pageWidth)
         outerDisplacement = 0f
@@ -118,29 +122,35 @@ class EnginePagerSurface(
         failedSpines.clear()
         neighborReadiness.clear()
         scenePageCount = 0u
+        interactionPageCount = null
         lastSettledPage = null
         latestGeneration?.let(canvas::invalidate) ?: canvas.invalidateAll()
+    }
+
+    override fun beginPagingInteraction() {
+        val count = pageCountFor(spineIdx)
+        rebaseInnerOffset(count)
+        interactionPageCount = count
+    }
+
+    override fun endPagingInteraction() {
+        interactionPageCount = null
+        setScene()
     }
 
     override fun innerMetrics(): ReaderPagerStrip? {
         val width = pageWidth
         if (width <= 0f) return null
-        val count = pageCountFor(spineIdx)
+        val count = displayedPageCount()
         rebaseInnerOffset(count)
+        val end = (maxOf(1u, count) - 1u).toFloat() * width
         return when (val state = readiness[spineIdx] ?: ChapterReadiness.Empty) {
             is ChapterReadiness.Complete -> {
                 if (state.geometry.generation != latestGeneration) return null
-                ReaderPagerStrip(
-                    innerOffset,
-                    0f..(maxOf(1u, state.geometry.pageCount) - 1u).toFloat() * width,
-                    width,
-                )
+                ReaderPagerStrip(innerOffset, 0f..end, width)
             }
-            is ChapterReadiness.Partial -> {
-                val published = session.publishedPageCount(spineIdx)
-                val end = (maxOf(1u, published) - 1u).toFloat() * width
+            is ChapterReadiness.Partial ->
                 ReaderPagerStrip(innerOffset, 0f..maxOf(innerOffset, end), width)
-            }
             ChapterReadiness.Empty -> if (spineIdx in failedSpines) {
                 ReaderPagerStrip(innerOffset, 0f..0f, width)
             } else {
@@ -154,7 +164,7 @@ class EnginePagerSurface(
         innerOffset = x.coerceIn(metrics.range.start, metrics.range.endInclusive)
         setScene()
         val count = displayedPageCount()
-        val slot = (innerOffset / metrics.pageWidth).toInt().toUInt()
+        val slot = (innerOffset / metrics.pageWidth).roundToInt().toUInt()
         val settled = PageSlot.pageIdx(slot, count, isRightToLeft)
         val settledOffset = PageSlot.offset(settled, count, isRightToLeft, metrics.pageWidth)
         if (kotlin.math.abs(innerOffset - settledOffset) < 0.01f && settled != lastSettledPage) {
@@ -187,13 +197,22 @@ class EnginePagerSurface(
         val neighbor = neighborSpine(toRight) ?: return false
         val key = NeighborKey(neighbor, toRight)
         neighborReadiness[key]?.let { return it }
-        val ready = if (isForward(toRight)) {
-            when (readiness[neighbor]) {
-                is ChapterReadiness.Partial, is ChapterReadiness.Complete -> true
-                ChapterReadiness.Empty, null -> session.publishedPageCount(neighbor) > 0u
+        val ready = when {
+            // A failed chapter occupies one placeholder page; it must stay
+            // crossable in both directions or every chapter beyond it
+            // becomes unreachable by paging.
+            neighbor in failedSpines -> true
+            isForward(toRight) -> {
+                val published = when (readiness[neighbor]) {
+                    is ChapterReadiness.Partial, is ChapterReadiness.Complete -> true
+                    ChapterReadiness.Empty, null -> session.publishedPageCount(neighbor) > 0u
+                }
+                // A cache miss schedules the chapter, so a later layout
+                // event resolves the crossing (mirrors iOS).
+                if (!published) runCatching { session.chapter(neighbor) }
+                published
             }
-        } else {
-            ((readiness[neighbor] as? ChapterReadiness.Complete)?.geometry?.pageCount ?: 0u) > 0u
+            else -> completeGeometry(neighbor) != null
         }
         neighborReadiness[key] = ready
         return ready
@@ -202,21 +221,24 @@ class EnginePagerSurface(
     override fun commitBoundaryCrossing(toRight: Boolean): Boolean {
         val target = neighborSpine(toRight) ?: return false
         if (!neighborIsReady(toRight)) return false
-        val targetPage = if (isForward(toRight)) {
-            0u
-        } else {
-            val geometry = (readiness[target] as? ChapterReadiness.Complete)?.geometry ?: return false
-            if (geometry.pageCount == 0u) return false
-            geometry.pageCount - 1u
+        val targetPage = when {
+            target in failedSpines -> 0u
+            isForward(toRight) -> 0u
+            else -> {
+                val geometry = completeGeometry(target) ?: return false
+                geometry.pageCount - 1u
+            }
         }
         spineIdx = target
         pageIdx = targetPage
         val count = pageCountFor(target)
         innerOffset = PageSlot.offset(targetPage, count, isRightToLeft, pageWidth)
         scenePageCount = count
+        interactionPageCount = count
         outerDisplacement = 0f
         lastSettledPage = targetPage
         neighborReadiness.clear()
+        canvas.showUnreadablePlaceholder(target in failedSpines)
         setScene()
         onPageSettled?.invoke(target, targetPage)
         return true
@@ -234,10 +256,38 @@ class EnginePagerSurface(
         return true
     }
 
+    /**
+     * Learns a spine's readiness from the session cache when no layout
+     * event has taught it yet — a display can land before the event
+     * stream reaches this surface (fresh mount, replayed-out events).
+     * Without a page count the strip would anchor every page at slot 0.
+     */
+    private fun primeReadiness(spineIdx: UInt) {
+        if (readiness[spineIdx] != null || spineIdx in failedSpines) return
+        val published = session.publishedPageCount(spineIdx)
+        if (published > 0u) readiness[spineIdx] = ChapterReadiness.Partial(published)
+    }
+
     private fun pageCountFor(spineIdx: UInt): UInt = when (val state = readiness[spineIdx]) {
         is ChapterReadiness.Complete -> state.geometry.pageCount
         is ChapterReadiness.Partial -> maxOf(state.publishedPages, session.publishedPageCount(spineIdx))
         ChapterReadiness.Empty, null -> 0u
+    }
+
+    /**
+     * Complete geometry with at least one page, healing the readiness map
+     * from the session cache (a replayed event stream may be shorter than
+     * the book). A miss schedules the chapter and answers null.
+     */
+    private fun completeGeometry(spineIdx: UInt): ChapterGeometry? {
+        (readiness[spineIdx] as? ChapterReadiness.Complete)?.geometry
+            ?.takeIf { it.pageCount > 0u }
+            ?.let { return it }
+        val geometry = runCatching { session.chapter(spineIdx) }.getOrNull() ?: return null
+        if (latestGeneration != null && geometry.generation != latestGeneration) return null
+        if (geometry.pageCount == 0u) return null
+        readiness[spineIdx] = ChapterReadiness.Complete(geometry)
+        return geometry
     }
 
     private fun setScene() {
@@ -262,7 +312,22 @@ class EnginePagerSurface(
         scenePageCount = pageCount
     }
 
-    private fun displayedPageCount(): UInt = pageCountFor(spineIdx)
+    /**
+     * The strip's page count. During a paging interaction it is frozen so
+     * layout events cannot remap slots under the finger — except that in
+     * LTR progression newly published pages append past the strip's end
+     * without moving any existing offset, so growth is adopted live and a
+     * drag can reach pages published during it. In RTL, growth would
+     * rebase every offset; it stays deferred to [endPagingInteraction].
+     */
+    private fun displayedPageCount(): UInt {
+        val frozen = interactionPageCount ?: return pageCountFor(spineIdx)
+        if (isRightToLeft) return frozen
+        val live = pageCountFor(spineIdx)
+        if (live <= frozen) return frozen
+        interactionPageCount = live
+        return live
+    }
 
     private fun neighborSpine(toRight: Boolean): UInt? {
         val delta = if (toRight) {
@@ -279,12 +344,13 @@ class EnginePagerSurface(
     private fun neighborEntry(toRight: Boolean): PageNeighbor? {
         val neighbor = neighborSpine(toRight) ?: return null
         if (!neighborIsReady(toRight)) return null
-        val page = if (isForward(toRight)) {
-            0u
-        } else {
-            val geometry = (readiness[neighbor] as? ChapterReadiness.Complete)?.geometry ?: return null
-            if (geometry.pageCount == 0u) return null
-            geometry.pageCount - 1u
+        val page = when {
+            neighbor in failedSpines -> 0u
+            isForward(toRight) -> 0u
+            else -> {
+                val geometry = completeGeometry(neighbor) ?: return null
+                geometry.pageCount - 1u
+            }
         }
         return PageNeighbor(neighbor, page, toRight)
     }

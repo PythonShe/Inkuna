@@ -25,6 +25,14 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     /** Fired when a drag is claimed, before the page begins moving. */
     var onTurnGesture: (() -> Unit)? = null
 
+    /**
+     * Fired when a programmatic turn (edge tap, key, accessibility page
+     * action) meets a boundary whose neighbour exists but has not finished
+     * laying out. The host schedules that chapter and completes the turn
+     * on its ready event; the geometric sign is passed through.
+     */
+    var onBoundaryTurnPending: ((Int) -> Unit)? = null
+
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private val minFlingVelocityPx =
         MIN_FLING_VELOCITY_DP_S * context.resources.displayMetrics.density
@@ -66,6 +74,23 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     private var pickedUpCommit = false
     private var chainTurnSign = 0
     private var chainTurnVelocity = 0f
+
+    /** Whether the surface is bracketed inside begin/endPagingInteraction. */
+    private var surfaceInteractionHeld = false
+
+    private fun beginSurfaceInteraction() {
+        if (!surfaceInteractionHeld) {
+            surface?.beginPagingInteraction()
+            surfaceInteractionHeld = true
+        }
+    }
+
+    private fun endSurfaceInteraction() {
+        if (surfaceInteractionHeld) {
+            surfaceInteractionHeld = false
+            surface?.endPagingInteraction()
+        }
+    }
 
     /** Replaces the renderer surface; the old surface is first returned home. */
     fun bind(surface: ReaderPagerSurface) {
@@ -155,9 +180,11 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             rejected = true
             return
         }
+        beginSurfaceInteraction()
         val inner = currentSurface.innerMetrics()
         val outer = currentSurface.outerMetrics()
         if (inner == null || outer == null || inner.pageWidth <= 0f) {
+            endSurfaceInteraction()
             rejected = true
             return
         }
@@ -193,6 +220,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         val currentSurface = surface ?: run {
             frozen = Settle.NONE
             rejected = true
+            endSurfaceInteraction()
             return
         }
         when (val kind = frozen) {
@@ -202,6 +230,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                 if (inner == null || outer == null) {
                     frozen = Settle.NONE
                     rejected = true
+                    endSurfaceInteraction()
                     return
                 }
                 boundaryPx = outer.offset - outerHome
@@ -212,6 +241,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                 val inner = currentSurface.innerMetrics() ?: run {
                     frozen = Settle.NONE
                     rejected = true
+                    endSurfaceInteraction()
                     return
                 }
                 baseStrip = inner.offset
@@ -221,6 +251,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                 val inner = currentSurface.innerMetrics() ?: run {
                     frozen = Settle.NONE
                     rejected = true
+                    endSurfaceInteraction()
                     return
                 }
                 val outer = currentSurface.outerMetrics()
@@ -240,7 +271,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         when (kind) {
             Settle.INNER -> surface?.innerMetrics()?.let {
                 startInnerSpring(it.offset, frozenVelocity, frozenTarget)
-            }
+            } ?: cancelInteraction()
             Settle.PAGER_COMMIT_PLUS, Settle.PAGER_COMMIT_MINUS, Settle.PAGER_RETURN ->
                 settlePager(frozenTarget, frozenVelocity, kind)
             Settle.RUBBER -> settleRubber()
@@ -252,6 +283,15 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
 
     private fun applyStrip(strip: Float) {
         val currentSurface = surface ?: return
+        // On the engine path a chapter's published page count grows during
+        // layout; adopt mid-gesture growth (the surface only ever reports it
+        // when no offset moves) so the drag reaches pages published under
+        // the finger instead of spilling into a chapter crossing.
+        currentSurface.innerMetrics()?.let { fresh ->
+            if (fresh.pageWidth == innerPitch && fresh.range.endInclusive > innerRange.endInclusive) {
+                innerRange = innerRange.start..fresh.range.endInclusive
+            }
+        }
         val innerTarget = strip.coerceIn(innerRange.start, innerRange.endInclusive)
         val overflow = strip - innerTarget
         currentSurface.setInnerOffset(innerTarget)
@@ -266,6 +306,10 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             currentSurface.setOuterOffset(outerHome + rubberBand(overflow))
         }
     }
+
+    /** Whether a neighbour chapter exists on this side of the outer range. */
+    private fun neighbourExists(sign: Int): Boolean =
+        if (sign > 0) outerRange.endInclusive > outerHome else outerRange.start < outerHome
 
     private fun neighbourReady(sign: Int): Boolean {
         val inRange = if (sign > 0) {
@@ -334,8 +378,8 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     }
 
     private fun settlePager(target: Float, velocity: Float, kind: Settle) {
-        val currentSurface = surface ?: return
-        val from = currentSurface.outerMetrics()?.offset ?: return
+        val currentSurface = surface ?: run { settleDone(); return }
+        val from = currentSurface.outerMetrics()?.offset ?: run { settleDone(); return }
         settle = kind
         val commitDir = when (kind) {
             Settle.PAGER_COMMIT_PLUS -> 1f
@@ -390,7 +434,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     }
 
     private fun settleRubber() {
-        val from = surface?.outerMetrics()?.offset ?: return
+        val from = surface?.outerMetrics()?.offset ?: run { settleDone(); return }
         settle = Settle.RUBBER
         spring.start(
             from = from,
@@ -484,6 +528,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         rubberRaw = 0f
         surface?.setOuterOffset(outerHome)
         reset()
+        endSurfaceInteraction()
     }
 
     private fun reset() {
@@ -525,9 +570,13 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             }
         }
 
-        val inner = currentSurface.innerMetrics() ?: return didAbortSettle
-        val outer = currentSurface.outerMetrics() ?: return didAbortSettle
-        if (inner.pageWidth <= 0f) return didAbortSettle
+        beginSurfaceInteraction()
+        val inner = currentSurface.innerMetrics() ?: run { endSurfaceInteraction(); return didAbortSettle }
+        val outer = currentSurface.outerMetrics() ?: run { endSurfaceInteraction(); return didAbortSettle }
+        if (inner.pageWidth <= 0f) {
+            endSurfaceInteraction()
+            return didAbortSettle
+        }
         onTurnGesture?.invoke()
         innerRange = inner.range
         outerRange = outer.range
@@ -552,6 +601,16 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             )
             return true
         }
+        if (neighbourExists(sign)) {
+            // The neighbour is still laying out: hand the turn to the host,
+            // which schedules the chapter and completes it on readiness.
+            onBoundaryTurnPending?.let { pending ->
+                endSurfaceInteraction()
+                pending(sign)
+                return true
+            }
+        }
+        endSurfaceInteraction()
         return didAbortSettle
     }
 
@@ -564,12 +623,17 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         pickedUpCommit = false
         boundaryPx = 0f
         rubberRaw = 0f
-        if (outerHome != 0f) surface?.setOuterOffset(outerHome)
+        // Close the outer strip against its live geometry — the surface's
+        // home is its current page width by contract — instead of replaying
+        // the home captured at claim, which goes stale when the width
+        // changes (rotation) between claim and cancel.
+        surface?.let { live -> live.outerMetrics()?.let { live.setOuterOffset(it.pageWidth) } }
         dragging = false
         rejected = true
         activePointerId = MotionEvent.INVALID_POINTER_ID
         velocityTracker?.recycle()
         velocityTracker = null
+        endSurfaceInteraction()
     }
 
     // MARK: Frame-rate hints

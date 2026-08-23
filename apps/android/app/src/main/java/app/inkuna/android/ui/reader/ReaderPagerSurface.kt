@@ -12,6 +12,16 @@ interface ReaderPagerSurface {
     val hasActiveSelection: Boolean
     val isRightToLeft: Boolean
 
+    /**
+     * Brackets one paging interaction (a drag, or a programmatic turn's
+     * settle). While bracketed the surface freezes the strip's page count
+     * so a mid-gesture layout event cannot rebase offsets under the
+     * finger; the deferred rebase lands in [endPagingInteraction].
+     * Mirrors the iOS `ReaderPagerSurface` members of the same names.
+     */
+    fun beginPagingInteraction()
+    fun endPagingInteraction()
+
     fun innerMetrics(): ReaderPagerStrip?
     fun setInnerOffset(x: Float)
     fun outerMetrics(): ReaderPagerStrip?

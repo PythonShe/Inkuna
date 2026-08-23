@@ -1,6 +1,5 @@
 package app.inkuna.android.ui.reader
 
-import android.content.Intent
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.BackHandler
@@ -40,8 +39,6 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -68,7 +65,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -132,13 +128,6 @@ fun ReaderScreen(
     }
 }
 
-private class EngineHost(
-    val layout: ReaderPagerLayout,
-    val canvas: EnginePageCanvas,
-    val surface: EnginePagerSurface,
-    val selection: ReaderSelectionController,
-)
-
 @Composable
 private fun ReaderContent(
     viewModel: ReaderViewModel,
@@ -160,11 +149,11 @@ private fun ReaderContent(
     val searchOpen = rememberSaveable { mutableStateOf(false) }
     val anchorState = remember(book) { mutableStateOf<Coordinate?>(null) }
     val hostState = remember(book) { mutableStateOf<EngineHost?>(null) }
-    val pendingEvents = remember(book) { mutableListOf<ReaderViewModel.LayoutEvent>() }
-    var relayoutInFlight by remember(book) { mutableStateOf(false) }
-    var discardGeneration by remember(book) { mutableStateOf<ULong?>(null) }
-    var latestGeneration by remember(book) { mutableStateOf<ULong?>(null) }
-    var pendingJump by remember(book) { mutableStateOf<Coordinate?>(null) }
+    // Generation staleness lives in the retained ViewModel (the sole pin
+    // over the engine's generation); composition state here is only what
+    // dies legitimately with the composition.
+    val pendingJumpState = remember(book) { mutableStateOf<PendingJump?>(null) }
+    var pendingJump by pendingJumpState
     var brightnessPreview by remember { mutableStateOf<Float?>(null) }
     var toastCount by rememberSaveable { mutableIntStateOf(0) }
     var toastShown by rememberSaveable { mutableIntStateOf(0) }
@@ -185,53 +174,78 @@ private fun ReaderContent(
         toastCount += 1
     }
 
-    fun display(location: PageLocation, host: EngineHost) {
+    fun display(location: PageLocation, host: EngineHost, showChrome: Boolean = true) {
         host.selection.clear()
         host.layout.cancelInteraction()
+        val chromeWas = chromeVisible.value
         host.surface.display(location.spineIdx, location.pageIdx)
         anchorState.value = Coordinate(location.spineIdx, book.session.pageCharRange(location.spineIdx, location.pageIdx).start)
         pendingJump = null
-        chromeVisible.value = true
+        chromeVisible.value = if (showChrome) true else chromeWas
     }
 
-    fun attemptJump(coordinate: Coordinate, host: EngineHost, linkToast: Boolean = false) {
+    fun attemptJump(jump: PendingJump, host: EngineHost) {
         host.selection.clear()
         host.layout.cancelInteraction()
+        val spineIdx = jump.coordinate.spineIdx
+        if (jump.toChapterEnd && !book.session.isReady(spineIdx)) {
+            // A deferred backward turn lands on the last page, which only
+            // complete geometry knows; `locate` would clamp to the
+            // published prefix. Park it and schedule the chapter.
+            pendingJump = jump
+            runCatching { book.session.chapter(spineIdx) }
+            return
+        }
         try {
-            display(book.session.locate(coordinate), host)
+            // Read readiness BEFORE locating: a partially laid chapter
+            // clamps `locate` to its published prefix, and readiness is
+            // monotonic within a generation — so a pre-read decides
+            // race-free whether the result can be a clamped page. Checking
+            // after `locate` loses the jump when the chapter completes in
+            // between: the clamped page shows, yet nothing re-presents.
+            val wasReady = runCatching { book.session.isReady(spineIdx) }.getOrDefault(false)
+            display(book.session.locate(jump.coordinate), host, jump.showChrome)
+            // Keep a possibly-clamped jump parked so chapter completion
+            // re-presents it exactly (a user page turn supersedes it via
+            // onPageSettled).
+            if (!wasReady) pendingJump = jump
         } catch (_: InkunaException.NotReady) {
-            pendingJump = coordinate
-            runCatching { book.session.chapter(coordinate.spineIdx) }
+            pendingJump = jump
+            runCatching { book.session.chapter(spineIdx) }
         } catch (_: InkunaException.AnchorNotFound) {
-            if (linkToast) notifyLinkFailed()
+            pendingJump = null
+            if (jump.linkToast) notifyLinkFailed()
         } catch (failure: InkunaException) {
-            if (linkToast) notifyLinkFailed()
+            pendingJump = null
+            if (jump.linkToast) notifyLinkFailed()
         }
     }
 
-    fun presentPending(host: EngineHost) {
-        val coordinate = pendingJump ?: anchorState.value ?: viewModel.currentCoordinate() ?: return
-        attemptJump(coordinate, host, pendingJump != null)
+    fun presentPending(host: EngineHost, spineIdx: UInt) {
+        // Only an event for the parked spine may retry — anything else
+        // would re-jump to the current page on every background chapter.
+        val jump = pendingJump ?: return
+        if (jump.coordinate.spineIdx != spineIdx) return
+        attemptJump(jump, host)
     }
 
     fun handleEvent(event: ReaderViewModel.LayoutEvent, host: EngineHost) {
-        if (eventGeneration(event) == discardGeneration) return
-        latestGeneration = eventGeneration(event)
         when (event) {
             is ReaderViewModel.LayoutEvent.FirstPage -> {
                 host.surface.firstPageBecameReady(event.generation, event.spineIdx)
                 viewModel.onFirstPageReady(event.spineIdx)
-                if (anchorState.value == null) viewModel.resolveInitialLocation()?.let { display(it, host) }
-                presentPending(host)
+                presentPending(host, event.spineIdx)
             }
             is ReaderViewModel.LayoutEvent.Chapter -> {
                 host.surface.chapterBecameReady(event.generation, event.spineIdx)
                 viewModel.onChapterReady(event.spineIdx)
-                presentPending(host)
+                presentPending(host, event.spineIdx)
             }
             is ReaderViewModel.LayoutEvent.Failed -> {
                 host.surface.chapterFailed(event.generation, event.spineIdx)
-                if (pendingJump?.spineIdx == event.spineIdx || anchorState.value?.spineIdx == event.spineIdx) {
+                val jumpSpine = pendingJump?.coordinate?.spineIdx
+                if (jumpSpine == event.spineIdx) pendingJump = null
+                if (jumpSpine == event.spineIdx || anchorState.value?.spineIdx == event.spineIdx) {
                     host.surface.display(event.spineIdx, 0u)
                 }
             }
@@ -242,10 +256,23 @@ private fun ReaderContent(
     if (host != null) {
         LaunchedEffect(book, host) {
             if (viewModel.consumeInitialHrefFailure()) notifyLinkFailed()
-            book.initialLocation?.let { display(it, host) } ?: presentPending(host)
-            viewModel.layoutEvents.collect { event ->
-                if (relayoutInFlight) pendingEvents += event else handleEvent(event, host)
-            }
+            // The canvas must be measured before anything is displayed:
+            // a zero-width strip would anchor every page at slot 0 and pin
+            // the pager unengageable (iOS guarantees this with
+            // layoutIfNeeded before installing its canvas).
+            host.canvas.awaitSized()
+            viewModel.takeInitialLocation()?.let { display(it, host) }
+                ?: run {
+                    if (anchorState.value == null) {
+                        // A rebuilt composition over the retained session:
+                        // restore the current place without stealing focus
+                        // from the saved chrome state.
+                        viewModel.currentCoordinate()?.let {
+                            attemptJump(PendingJump(it, showChrome = false), host)
+                        }
+                    }
+                }
+            viewModel.layoutEvents.collect { event -> handleEvent(event, host) }
         }
     }
 
@@ -253,30 +280,21 @@ private fun ReaderContent(
         val live = hostState.value ?: return
         scope.launch {
             val anchor = anchorState.value ?: viewModel.currentCoordinate()
-            val oldGeneration = latestGeneration
-            relayoutInFlight = true
             live.selection.clear()
             live.layout.cancelInteraction()
-            val updated = try {
-                viewModel.updateAppearance(viewModel.settingsFor(snapshot))
-            } finally {
-                relayoutInFlight = false
-            }
-            if (updated) {
-                discardGeneration = oldGeneration
-                pendingJump = anchor
-                live.surface.layoutInvalidated(0uL)
-            }
-            val buffered = pendingEvents.toList()
-            pendingEvents.clear()
-            buffered.forEach { event ->
-                if (!updated || eventGeneration(event) != oldGeneration) handleEvent(event, live)
+            viewModel.updateAppearance(viewModel.settingsFor(snapshot)) {
+                val current = hostState.value ?: return@updateAppearance
+                // Stand the interaction down again at the reflow itself —
+                // a gesture may have started during the layout call.
+                current.selection.clear()
+                current.layout.cancelInteraction()
+                pendingJump = anchor?.let { PendingJump(it, showChrome = false) }
+                current.surface.layoutInvalidated(0uL)
             }
         }
     }
 
     var appliedTypography by remember(book) { mutableStateOf(false) }
-    var appliedViewport by remember(book) { mutableStateOf(false) }
     LaunchedEffect(
         snapshot.textSizeStep, snapshot.rawReadingFont, snapshot.readingBold, snapshot.lineSpacing,
         snapshot.letterSpacing, snapshot.wordSpacing, snapshot.readingMargins,
@@ -284,7 +302,10 @@ private fun ReaderContent(
         if (appliedTypography) requestRelayout() else appliedTypography = true
     }
     LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp) {
-        if (appliedViewport) requestRelayout() else appliedViewport = true
+        // The session outlives the activity, so compare against the
+        // viewport it actually laid out for — a composition-scoped flag
+        // resets across rotation and would skip the relayout.
+        if (viewModel.needsViewportRelayout()) requestRelayout()
     }
     LaunchedEffect(toastCount) {
         if (toastCount > toastShown) {
@@ -319,6 +340,9 @@ private fun ReaderContent(
                 val engineHost = EngineHost(layout, canvas, surface, selection)
                 surface.onPageSettled = { spineIdx, pageIdx ->
                     selection.clear()
+                    // A settled page supersedes any parked navigation; a
+                    // presenting jump re-parks itself right after this.
+                    pendingJumpState.value = null
                     viewModel.onPageSettled(spineIdx, pageIdx)
                     anchorState.value = runCatching {
                         Coordinate(spineIdx, book.session.pageCharRange(spineIdx, pageIdx).start)
@@ -332,13 +356,30 @@ private fun ReaderContent(
                     if (surface.spineIdx == spineIdx && surface.pageIdx == pageIdx) viewModel.onCurrentPageDrawn()
                 }
                 canvas.onLinkActivated = { spineIdx, pageIdx, x, y ->
-                    handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { coordinate -> attemptJump(coordinate, engineHost, linkToast = true) }, chromeVisible, menuOpen)
+                    handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { coordinate -> attemptJump(PendingJump(coordinate, linkToast = true), engineHost) }, chromeVisible, menuOpen)
                 }
                 canvas.onPageTap = { spineIdx, pageIdx, x, y ->
-                    handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { coordinate -> attemptJump(coordinate, engineHost, linkToast = true) }, chromeVisible, menuOpen)
+                    handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { coordinate -> attemptJump(PendingJump(coordinate, linkToast = true), engineHost) }, chromeVisible, menuOpen)
                 }
                 layout.onTurnGesture = if (touchExploration) null else {
                     { chromeVisible.value = false; menuOpen.value = false }
+                }
+                layout.onBoundaryTurnPending = { sign ->
+                    // A programmatic turn met a chapter still laying out:
+                    // park it as a jump and finish it on that chapter's
+                    // layout event (backward waits for complete geometry).
+                    val forward = (sign > 0) != surface.isRightToLeft
+                    val target = surface.spineIdx.toLong() + if (forward) 1 else -1
+                    if (target in 0 until book.spineCount.toLong()) {
+                        attemptJump(
+                            PendingJump(
+                                coordinate = Coordinate(target.toUInt(), if (forward) 0uL else ULong.MAX_VALUE),
+                                toChapterEnd = !forward,
+                                showChrome = false,
+                            ),
+                            engineHost,
+                        )
+                    }
                 }
                 hostState.value = engineHost
                 layout
@@ -381,7 +422,7 @@ private fun ReaderContent(
             onOpenContents = { contentsSheetOpen = true }, onOpenThemeType = { themeSheetOpen = true },
             onPlaceBookmark = placeBookmark,
             onSelectSearch = { hit ->
-                hit.charOffset?.let { offset -> hostState.value?.let { attemptJump(Coordinate(hit.spineIdx, offset), it) } }
+                hit.charOffset?.let { offset -> hostState.value?.let { attemptJump(PendingJump(Coordinate(hit.spineIdx, offset)), it) } }
                 searchOpen.value = false
                 chromeVisible.value = true
             },
@@ -403,53 +444,11 @@ private fun ReaderContent(
             onSelect = { chapter ->
                 hostState.value?.let { live ->
                     runCatching { book.session.locateHrefParts(chapter.href) }
-                        .onSuccess { attemptJump(it, live, linkToast = true) }
+                        .onSuccess { attemptJump(PendingJump(it, linkToast = true), live) }
                         .onFailure { notifyLinkFailed() }
                 }
             },
             onDismiss = { contentsSheetOpen = false },
         )
-    }
-}
-
-private fun eventGeneration(event: ReaderViewModel.LayoutEvent): ULong = when (event) {
-    is ReaderViewModel.LayoutEvent.FirstPage -> event.generation
-    is ReaderViewModel.LayoutEvent.Chapter -> event.generation
-    is ReaderViewModel.LayoutEvent.Failed -> event.generation
-}
-
-private fun handleCanvasPoint(
-    book: ReaderViewModel.ReaderBook,
-    host: EngineHost,
-    x: Float,
-    y: Float,
-    onLinkFailed: () -> Unit,
-    onInternalLink: (Coordinate) -> Unit,
-    chromeVisible: MutableState<Boolean>,
-    menuOpen: MutableState<Boolean>,
-) {
-    val hit = runCatching {
-        book.session.hitTest(host.surface.spineIdx, host.surface.pageIdx, host.canvas.toLayoutX(x), host.canvas.toLayoutY(y))
-    }.getOrNull()
-    val target = hit?.linkTarget
-    if (target != null) {
-        val uri = target.toUri()
-        if (uri.scheme == "http" || uri.scheme == "https") {
-            runCatching { host.canvas.context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }.onFailure { onLinkFailed() }
-        } else {
-            runCatching { book.session.locateHrefParts(target) }
-                .onSuccess(onInternalLink)
-                .onFailure { onLinkFailed() }
-        }
-        return
-    }
-    val band = maxOf(host.layout.width * 0.3f, 80f)
-    when {
-        x < band -> host.layout.turnBackward()
-        x > host.layout.width - band -> host.layout.turnForward()
-        else -> {
-            menuOpen.value = false
-            chromeVisible.value = !chromeVisible.value
-        }
     }
 }

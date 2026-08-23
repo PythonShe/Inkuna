@@ -61,13 +61,14 @@ class ReaderViewModel(
         val chapters: List<Chapter>,
         val positionRanges: List<ChapterPositionRange>,
         val spineCount: UInt,
-        val initialLocation: PageLocation?,
     )
 
     sealed interface LayoutEvent {
-        data class FirstPage(val generation: ULong, val spineIdx: UInt) : LayoutEvent
-        data class Chapter(val generation: ULong, val spineIdx: UInt, val pageCount: UInt) : LayoutEvent
-        data class Failed(val generation: ULong, val spineIdx: UInt) : LayoutEvent
+        val generation: ULong
+
+        data class FirstPage(override val generation: ULong, val spineIdx: UInt) : LayoutEvent
+        data class Chapter(override val generation: ULong, val spineIdx: UInt, val pageCount: UInt) : LayoutEvent
+        data class Failed(override val generation: ULong, val spineIdx: UInt) : LayoutEvent
     }
 
     data class SearchHit(
@@ -92,7 +93,11 @@ class ReaderViewModel(
     private val stateFlow = MutableStateFlow<UiState>(UiState.Opening)
     val state: StateFlow<UiState> = stateFlow.asStateFlow()
 
-    // Replay bridges callbacks that win the race against AndroidView mounting.
+    // Replay bridges callbacks that win the race against AndroidView
+    // mounting and re-primes a recreated surface after a config change.
+    // Only events of the accepted generation are ever emitted, and the
+    // replay cache is purged on relayout, so a collector can never adopt a
+    // stale generation from it.
     private val _layoutEvents = MutableSharedFlow<LayoutEvent>(replay = 64, extraBufferCapacity = 64)
     val layoutEvents = _layoutEvents
 
@@ -105,8 +110,20 @@ class ReaderViewModel(
     private var lastPersisted: Coordinate? = null
     private var targetCoordinate: Coordinate? = null
     private var currentAnchor: Coordinate? = null
+    private var pendingSettle: Pair<UInt, UInt>? = null
     private var readerSession: ReaderSession? = null
     private var initialHrefFailed = false
+    private var initialLocation: PageLocation? = null
+
+    // The engine's generation is the sole staleness truth; this pin merely
+    // mirrors the latest accepted one, exactly like iOS's layoutGeneration.
+    // It lives here — retained across configuration changes — so a rebuilt
+    // composition can never re-adopt a stale generation.
+    private var layoutGeneration: ULong? = null
+    private var generationBeforeLayout: ULong? = null
+    private var layoutChangeInFlight = false
+    private val pendingLayoutEvents = mutableListOf<LayoutEvent>()
+    private var appliedViewport: Viewport? = null
     private var openedAtMs = 0L
     private var firstPageReadyMs: Long? = null
     private var didLogFirstRender = false
@@ -148,8 +165,10 @@ class ReaderViewModel(
         val publication = library.publication(publicationId)
         val chapters = library.chapters(publicationId)
         val positionRanges = shelf.progress().chapterPositionRanges(publicationId)
-        val session = shelf.openReader(publicationId, viewport(), layoutSettings(AppSettings.get(app).snapshot.value), listener())
+        val openViewport = viewport()
+        val session = shelf.openReader(publicationId, openViewport, layoutSettings(AppSettings.get(app).snapshot.value), listener())
         readerSession = session
+        appliedViewport = openViewport
         val restoredCoordinate = publication.coordinate
             ?: coordinateForProgression(publication.progression, session)
 
@@ -162,14 +181,13 @@ class ReaderViewModel(
             targetCoordinate = restoredCoordinate
         }
 
-        val initialLocation = targetCoordinate?.let { runCatching { session.locate(it) }.getOrNull() }
+        initialLocation = targetCoordinate?.let { runCatching { session.locate(it) }.getOrNull() }
         ReaderBook(
             session = session,
             publication = publication,
             chapters = chapters,
             positionRanges = positionRanges,
             spineCount = session.spineCount(),
-            initialLocation = initialLocation,
         )
     }
 
@@ -188,12 +206,31 @@ class ReaderViewModel(
     }
 
     private fun postLayoutEvent(event: LayoutEvent) {
-        viewModelScope.launch(Dispatchers.Main.immediate) { _layoutEvents.emit(event) }
+        viewModelScope.launch(Dispatchers.Main.immediate) {
+            if (layoutChangeInFlight) {
+                // Mirrors iOS `receive`: stale-generation events die here;
+                // fresh ones wait until the surface has been invalidated.
+                if (event.generation != generationBeforeLayout) pendingLayoutEvents += event
+                return@launch
+            }
+            if (acceptGeneration(event.generation)) _layoutEvents.emit(event)
+        }
     }
 
-    fun resolveInitialLocation(): PageLocation? = targetCoordinate?.let { coordinate ->
-        runCatching { session().locate(coordinate) }.getOrNull()
+    /** Mirrors iOS `accept`: pins the latest generation, drops the rest. */
+    private fun acceptGeneration(generation: ULong): Boolean {
+        val pin = layoutGeneration
+        if (pin != null) {
+            if (generation != pin) return false
+        } else if (generation == generationBeforeLayout) {
+            return false
+        }
+        layoutGeneration = generation
+        return true
     }
+
+    /** The open-time restore location; consumed exactly once per open. */
+    fun takeInitialLocation(): PageLocation? = initialLocation.also { initialLocation = null }
 
     fun consumeInitialHrefFailure(): Boolean = initialHrefFailed.also { initialHrefFailed = false }
 
@@ -203,7 +240,16 @@ class ReaderViewModel(
         val session = runCatching { session() }.getOrNull() ?: return
         val coordinate = runCatching {
             Coordinate(spineIdx, session.pageCharRange(spineIdx, pageIdx).start)
-        }.getOrNull() ?: return
+        }.getOrNull()
+        if (coordinate == null) {
+            // The engine may have evicted this chapter (LRU beyond the
+            // cache capacity while the rest of the book laid out); the
+            // miss just re-scheduled it, so finish this settle on the
+            // chapter's next layout event instead of dropping the anchor.
+            pendingSettle = spineIdx to pageIdx
+            return
+        }
+        pendingSettle = null
         currentAnchor = coordinate
         targetCoordinate = coordinate
         viewModelScope.launch(Dispatchers.Default) {
@@ -236,7 +282,15 @@ class ReaderViewModel(
         }
     }
 
+    private fun retryPendingSettle(spineIdx: UInt) {
+        val (spine, page) = pendingSettle ?: return
+        if (spine != spineIdx) return
+        pendingSettle = null
+        onPageSettled(spine, page)
+    }
+
     fun onFirstPageReady(spineIdx: UInt) {
+        retryPendingSettle(spineIdx)
         if (spineIdx == targetCoordinate?.spineIdx && firstPageReadyMs == null) {
             firstPageReadyMs = SystemClock.uptimeMillis()
             logPerf("open_to_first_page_ready_ms", openedAtMs)
@@ -244,6 +298,7 @@ class ReaderViewModel(
     }
 
     fun onChapterReady(spineIdx: UInt) {
+        retryPendingSettle(spineIdx)
         if (spineIdx == targetCoordinate?.spineIdx && !didLogChapterComplete) {
             didLogChapterComplete = true
             logPerf("chapter_layout_complete_ms", openedAtMs)
@@ -257,12 +312,48 @@ class ReaderViewModel(
         ReaderPerf.tapUptimeMs.takeIf { it > 0L }?.let { logPerf("tap_to_first_page_ms", it) }
     }
 
-    suspend fun updateAppearance(settings: ReaderLayoutSettings): Boolean = withContext(Dispatchers.Default) {
-        val session = session()
-        currentAnchor = currentCoordinate()
-        return@withContext runCatching { session.updateLayout(viewport(), settings) }
-            .onFailure { Log.w(TAG, "reader relayout failed", it) }
-            .isSuccess
+    /**
+     * Relayouts the session; mirrors iOS `relayout`. [onApplied] runs on
+     * success — after the generation pin is released, before the buffered
+     * new-generation events flush — so the caller invalidates its surface
+     * in exactly the window iOS does.
+     */
+    suspend fun updateAppearance(settings: ReaderLayoutSettings, onApplied: () -> Unit): Boolean =
+        withContext(Dispatchers.Main.immediate) {
+            val session = session()
+            currentAnchor = currentCoordinate()
+            // The relayout re-anchor supersedes any settle waiting on the
+            // old generation's page numbering.
+            pendingSettle = null
+            generationBeforeLayout = layoutGeneration
+            layoutChangeInFlight = true
+            val target = viewport()
+            val updated = withContext(Dispatchers.Default) {
+                runCatching { session.updateLayout(target, settings) }
+                    .onFailure { Log.w(TAG, "reader relayout failed", it) }
+                    .isSuccess
+            }
+            if (updated) {
+                layoutGeneration = null
+                appliedViewport = target
+                _layoutEvents.resetReplayCache()
+                onApplied()
+            }
+            layoutChangeInFlight = false
+            val buffered = pendingLayoutEvents.toList()
+            pendingLayoutEvents.clear()
+            buffered.forEach { if (acceptGeneration(it.generation)) _layoutEvents.emit(it) }
+            updated
+        }
+
+    /**
+     * Whether the window no longer matches the viewport the session laid
+     * out for — true after a rotation recreated the activity while this
+     * retained session kept the old geometry.
+     */
+    fun needsViewportRelayout(): Boolean {
+        val applied = appliedViewport ?: return false
+        return viewport() != applied
     }
 
     suspend fun search(query: String): SearchOutcome {
