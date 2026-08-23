@@ -26,6 +26,9 @@ impl Library {
     /// canonical is reported by [`BookSearchResults::canonical`] rather
     /// than left to the caller to remember — a `false` result's offsets
     /// address a legacy-extractor body and must not reach the engine.
+    /// The flag fails safe rather than being exact: `true` is never
+    /// reported for a legacy body, while a book the rebaseline stamps
+    /// while this call is scanning may still report `false`.
     /// Matches partial words ("cat" in
     /// "category") and single CJK chars by construction; any length
     /// floor is a shell UI policy, not the core's. Returns up to `limit`
@@ -38,16 +41,17 @@ impl Library {
         limit: u32,
     ) -> Result<BookSearchResults, CoreError> {
         let needle = fold_query(query.trim());
-        // The canonicality flag is read on the same reader connection as
-        // the bodies, so it describes exactly the text that was scanned.
-        let (rows, canonical): (Vec<(u32, String, String)>, bool) = self.readers.with(|conn| {
-            let mut stmt = conn.prepare_cached(
-                "SELECT r.spine_idx, r.href, t.body FROM resources r
-                 JOIN resource_text t ON t.resource_id = r.id
-                 WHERE r.publication_id = ?1 ORDER BY r.spine_idx",
-            )?;
-            let rows = stmt.query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
-            let rows: Vec<(u32, String, String)> = rows.collect::<Result<_, _>>()?;
+        // The canonicality flag is read BEFORE the bodies, deliberately.
+        // Both reads share one pooled reader connection but not one
+        // transaction (`ReaderPool::with` opens none), and the V8
+        // rebaseline commits from its own writer connection, so a commit
+        // can land between them. Reading the flag first pins the skew to
+        // the fail-safe direction: at worst `false` is reported for
+        // bodies that had just become canonical, and the caller merely
+        // declines coordinates it could have used. The reverse order
+        // would report `true` for legacy-body offsets — exactly what the
+        // flag exists to prevent.
+        let (canonical, rows): (bool, Vec<(u32, String, String)>) = self.readers.with(|conn| {
             let canonical: bool = conn
                 .query_row(
                     "SELECT reconciled_at IS NOT NULL FROM publications WHERE id = ?1",
@@ -59,7 +63,14 @@ impl Library {
                     rusqlite::Error::QueryReturnedNoRows => Ok(false),
                     other => Err(other),
                 })?;
-            Ok((rows, canonical))
+            let mut stmt = conn.prepare_cached(
+                "SELECT r.spine_idx, r.href, t.body FROM resources r
+                 JOIN resource_text t ON t.resource_id = r.id
+                 WHERE r.publication_id = ?1 ORDER BY r.spine_idx",
+            )?;
+            let rows = stmt.query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+            let rows: Vec<(u32, String, String)> = rows.collect::<Result<_, _>>()?;
+            Ok((canonical, rows))
         })?;
         if rows.is_empty() {
             // Distinguish "book with no text" from "no such book".

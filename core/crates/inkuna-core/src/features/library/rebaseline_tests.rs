@@ -373,11 +373,16 @@ fn unreadable_file_keeps_existing_corpus_and_stamps_defaults() {
     assert_eq!(texts_after, texts_before);
 }
 
+/// `(0, 0)` is a genuine book-start reading position, not the deleted
+/// plan-01 placeholder: the coordinate columns mean "unset" only when
+/// NULL, so a reader sitting at the first character of a book keeps that
+/// position even though the legacy locator has not been consumed yet.
 #[test]
-fn stub_publication_and_bookmark_coordinates_yield_to_legacy_locators() {
+fn book_start_coordinates_survive_legacy_locators() {
     let (_dir, library, id) = unreconciled_book(Some(
         r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":0.5}}"#,
     ));
+    let bookmark_locator = r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":0.5}}"#;
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
@@ -389,9 +394,52 @@ fn stub_publication_and_bookmark_coordinates_yield_to_legacy_locators() {
             "INSERT INTO bookmarks
                  (id, publication_id, locator, position_spine_idx, position_char_offset,
                   progression, created_at)
-             VALUES ('bm-stub', ?1,
+             VALUES ('bm-start', ?1, ?2, 0, 0, 0.0, 100)",
+            rusqlite::params![&id, bookmark_locator],
+        )
+        .unwrap();
+    }
+
+    run(&library);
+
+    // The reading position is untouched; only the now-consumed locator is
+    // cleared, so the stale conversion can never come back.
+    let (spine_idx, char_offset, locator, reconciled_at) = publication_row(&library, &id);
+    assert_eq!((spine_idx, char_offset), (Some(0), Some(0)));
+    assert_eq!(locator, None);
+    assert!(reconciled_at.is_some());
+    // The bookmark keeps its coordinate too. Its legacy locator string is
+    // simply left in place — the row was never selected for conversion —
+    // which is inert: `reconciled_at` stops the pass from looking again,
+    // and bookmark reads use the coordinate.
+    let bookmark: (String, i64, i64) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT locator, position_spine_idx, position_char_offset FROM bookmarks WHERE id = 'bm-start'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(bookmark, (bookmark_locator.to_string(), 0, 0));
+}
+
+/// A legacy bookmark — non-empty locator, NULL coordinate — still gets
+/// converted; `IS NULL` alone is the whole set of rows needing it.
+#[test]
+fn legacy_bookmark_with_no_coordinate_is_converted() {
+    let (_dir, library, id) = unreconciled_book(None);
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "INSERT INTO bookmarks
+                 (id, publication_id, locator, position_spine_idx, position_char_offset,
+                  progression, created_at)
+             VALUES ('bm-legacy', ?1,
                      '{\"href\":\"OEBPS/text/ch02.xhtml\",\"locations\":{\"progression\":0.5}}',
-                     0, 0, 0.5, 100)",
+                     NULL, NULL, 0.5, 100)",
             [&id],
         )
         .unwrap();
@@ -399,16 +447,13 @@ fn stub_publication_and_bookmark_coordinates_yield_to_legacy_locators() {
 
     run(&library);
 
-    let (_, publication_offset, locator, _) = publication_row(&library, &id);
     let expected = ((0.5 * projection_len(&library, &id, 1) as f64) as u64)
         .min(projection_len(&library, &id, 1) - 1) as i64;
-    assert_eq!(publication_offset, Some(expected));
-    assert_eq!(locator, None);
     let bookmark: (String, i64, i64) = library
         .readers
         .with(|conn| {
             conn.query_row(
-                "SELECT locator, position_spine_idx, position_char_offset FROM bookmarks WHERE id = 'bm-stub'",
+                "SELECT locator, position_spine_idx, position_char_offset FROM bookmarks WHERE id = 'bm-legacy'",
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )

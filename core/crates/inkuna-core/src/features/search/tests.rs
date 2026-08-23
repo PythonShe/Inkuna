@@ -358,6 +358,8 @@ fn search_offset_equals_projection_offset() {
         fn chapter_ready(&self, generation: u64, spine_idx: u32, _page_count: u32) {
             let _ = self.0.send((generation, spine_idx));
         }
+        // This recorder asserts on readiness only, never on failures.
+        fn chapter_failed(&self, _generation: u64, _spine_idx: u32) {}
     }
 
     fn registry() -> Arc<FontRegistry> {

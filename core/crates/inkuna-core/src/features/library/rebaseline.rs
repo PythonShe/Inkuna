@@ -213,12 +213,13 @@ fn rebaseline_book(
     };
 
     // 3. The publication's Readium locator becomes a content coordinate
-    // — but only while the coordinate columns are still NULL or contain
-    // the plan-01 `(0, 0)` placeholder. A book read while this pass was
-    // pending already has a fresh non-zero coordinate
-    // from `update_progress`, and the stale legacy locator must never
-    // overwrite it: then the conversion is skipped and only the consumed
-    // locator is NULLed.
+    // — but only while the coordinate columns are still NULL, which is
+    // the only "unset" there is: `update_progress` writes the columns
+    // solely from a real engine coordinate and leaves them alone
+    // otherwise. A book read while this pass was pending therefore holds
+    // a genuine coordinate — book start `(0, 0)` included — that the
+    // stale legacy locator must never overwrite: then the conversion is
+    // skipped and only the consumed locator is NULLed.
     let locator: Option<String> = tx.query_row(
         "SELECT locator FROM publications WHERE id = ?1",
         [id],
@@ -229,8 +230,7 @@ fn rebaseline_book(
         let converted = tx.execute(
             "UPDATE publications
              SET position_spine_idx = ?1, position_char_offset = ?2, locator = NULL
-             WHERE id = ?3 AND (position_spine_idx IS NULL
-                                OR (position_spine_idx = 0 AND position_char_offset = 0))",
+             WHERE id = ?3 AND position_spine_idx IS NULL",
             rusqlite::params![spine_idx, char_offset as i64, id],
         )?;
         if converted == 0 {
@@ -240,17 +240,16 @@ fn rebaseline_book(
 
     // 4. Every legacy bookmark, same conversion; the column is NOT NULL,
     // so a consumed locator becomes ''. A row already carrying a
-    // coordinate is a post-migration bookmark (written with `locator`
-    // '') and is skipped — except `(0, 0)`, the plan-01 shell placeholder,
-    // which yields to a non-empty legacy locator. Re-converting an empty
-    // locator would "parse-fail" it into (0, 0), so empty locators are
-    // never converted.
+    // coordinate — `(0, 0)` included, which is a genuine book-start pin,
+    // not a placeholder — was written by `add_bookmark` from a real
+    // engine coordinate and is skipped. Re-converting an empty locator
+    // would "parse-fail" it into (0, 0), so empty locators are never
+    // converted.
     let bookmarks: Vec<(String, String)> = {
         let mut stmt = tx.prepare_cached(
             "SELECT id, locator FROM bookmarks
              WHERE publication_id = ?1 AND locator <> ''
-               AND (position_spine_idx IS NULL
-                    OR (position_spine_idx = 0 AND position_char_offset = 0))",
+               AND position_spine_idx IS NULL",
         )?;
         let rows = stmt.query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))?;
         rows.collect::<Result<_, _>>()?
