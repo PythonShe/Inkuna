@@ -11,8 +11,11 @@ final class PageView: UIView {
     }
 
     var imageProvider: PageImageProvider?
+    var onDidDraw: ((UInt32, UInt32) -> Void)?
 
     private var displayList: PageDisplayList?
+    private var spineIdx: UInt32?
+    private var pageIdx: UInt32?
 
     override init(frame: CGRect) {
         theme = .paper
@@ -26,8 +29,10 @@ final class PageView: UIView {
         configure()
     }
 
-    func present(_ list: PageDisplayList?, spineIdx _: UInt32, pageIdx _: UInt32, session _: ReaderSession) {
+    func present(_ list: PageDisplayList?, spineIdx: UInt32, pageIdx: UInt32, session _: ReaderSession) {
         displayList = list
+        self.spineIdx = spineIdx
+        self.pageIdx = pageIdx
         accessibilityElements = []
 
         guard let list else {
@@ -60,6 +65,9 @@ final class PageView: UIView {
         drawDecorations(displayList.decorations, in: context)
 
         context.restoreGState()
+        if let spineIdx, let pageIdx {
+            onDidDraw?(spineIdx, pageIdx)
+        }
     }
 
     private func configure() {

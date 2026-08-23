@@ -22,7 +22,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
     /// Runs one query against the core. `nil` means the search could not
     /// be run at all (the panel then shows its empty state).
     private let search: @MainActor (String) async -> BookSearchResults?
-    /// The hit's Readium position, for the "p. N" line; `nil` hides it.
+    /// The hit's core synthetic position, for the "p. N" line; `nil` hides it.
     private let positionForHit: @MainActor (BookSearchHit) -> Int?
 
     private let glass = InkGlassView(cornerRadius: InkRadius.lg)
@@ -31,6 +31,9 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
     private let resultsScroll = UIScrollView()
     private let resultsStack = UIStackView()
     private let emptyLabel = InkLabel()
+    /// Search snippets are safe without canonical offsets, but their rows
+    /// must not feed legacy offsets into a reader session.
+    private var resultsAreCanonical = false
 
     /// The debounce-plus-search in flight; every edit cancels it.
     private var searchTask: Task<Void, Never>?
@@ -238,6 +241,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         // The failure stand-in carries no hits, so it claims no canonical
         // offsets either: nothing here may be fed to a reader session.
         let results = maybeResults ?? BookSearchResults(hits: [], total: 0, canonical: false)
+        resultsAreCanonical = results.canonical
         clearResults()
         let visibleHits = results.hits.prefix(Self.renderLimit)
         for hit in visibleHits {
@@ -310,7 +314,7 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
 
         // The page line only shows when there is an honest position for it.
         var pageText: String?
-        if let position = positionForHit(hit) {
+        if resultsAreCanonical, let position = positionForHit(hit) {
             let pageFormat = NSLocalizedString("reader_chapter_page", comment: "")
             let text = String.localizedStringWithFormat(pageFormat, Int64(position))
             let whereLabel = InkLabel()
@@ -322,7 +326,10 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
             pageText = text
         }
 
-        let row = ResultRowControl { [weak self] in self?.onJump?(hit) }
+        let row = ResultRowControl { [weak self] in
+            guard self?.resultsAreCanonical == true else { return }
+            self?.onJump?(hit)
+        }
         row.layer.cornerRadius = InkRadius.sm
         row.addSubview(content)
         NSLayoutConstraint.activate([
@@ -335,7 +342,8 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
         let spoken = hit.snippetPre + hit.snippetMatch + hit.snippetPost
         row.isAccessibilityElement = true
         row.accessibilityLabel = pageText.map { "\(spoken), \($0)" } ?? spoken
-        row.accessibilityTraits = .button
+        row.isUserInteractionEnabled = resultsAreCanonical
+        row.accessibilityTraits = resultsAreCanonical ? .button : .staticText
         return row
     }
 

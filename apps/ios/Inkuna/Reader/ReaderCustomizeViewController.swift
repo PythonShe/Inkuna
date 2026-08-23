@@ -1,16 +1,15 @@
 import UIKit
 
 /// The Customize panel — level 2 of the Theme & type sheet. A live
-/// preview on the reading surface, the font roster, the bold toggle, and
-/// the four layout sliders; everything applies through the reader's own
-/// stylesheet, previewing per step and committing on release.
+/// preview, the two bundled font faces, the bold toggle, and the four
+/// layout sliders. The engine reflows on each committed value.
 final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     /// A slider touch landed: the reader captures its reflow anchor and
     /// opens the live session (progress writes pause).
     var onSessionBegin: ((ReaderUserStyle) -> Void)?
-    /// Live, uncommitted style — CSS only, no persistence.
+    /// Live, uncommitted style for the preview only.
     var onPreview: ((ReaderUserStyle) -> Void)?
-    /// Committed — the reader persists and applies with a final re-land.
+    /// Committed — the reader persists and relays out from its anchor.
     var onCommit: ((ReaderUserStyle) -> Void)?
     /// Close (not back): dismiss the whole sheet to the reader.
     var onClose: (() -> Void)?
@@ -184,7 +183,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         stack.setCustomSpacing(InkSpacing.space5, after: card)
     }
 
-    /// The five faces, current one checked. Rebuilt on every pick so the
+    /// The two bundled faces, current one checked. Rebuilt on every pick so the
     /// checkmark and the row's readout can never disagree. Per-item
     /// specimens are deliberately absent: `UIMenu` renders plain titles
     /// only, and the preview card already shows the face in use.
@@ -202,7 +201,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     }
 
     /// Always commits, even for the face already shown: a stored id this
-    /// build does not know reads back as `.publisher`, and an explicit
+    /// build does not know reads back as `.notoSerif`, and an explicit
     /// pick is the one thing allowed to overwrite it.
     private func pickFont(_ font: ReadingFont) {
         selectionFeedback.selectionChanged()
@@ -335,8 +334,8 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     private func resetToDefaults() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         style = ReaderUserStyle(
-            font: .publisher,
-            fontID: ReadingFont.publisher.rawValue,
+            font: .notoSerif,
+            fontID: ReadingFont.notoSerif.rawValue,
             bold: false,
             lineSpacing: 1.65,
             letterSpacing: 0,

@@ -1,77 +1,9 @@
+// dies in Task 3.2
 import ObjectiveC
-import ReadiumNavigator
+@preconcurrency import ReadiumNavigator
 import ReadiumShared
 import UIKit
 import WebKit
-
-/// What the pager needs from whatever renders the book: two horizontal
-/// strips (the pages inside the current resource, and the resources
-/// themselves), a way to silence the renderer's own gestures, and a hook
-/// to commit a resource crossing the pager has already animated.
-///
-/// `ReaderPager` speaks only this protocol. `ReadiumPagerSurface` is the
-/// one implementation today and dies with the Readium navigator when the
-/// custom reader frontend lands — the pager, its physics, and its feel
-/// carry over unchanged.
-@MainActor
-protocol ReaderPagerSurface: AnyObject {
-    /// True when the reader is paginated along x and the strips resolve.
-    /// False disengages the pager entirely (scroll mode, fixed layout,
-    /// or a hierarchy this surface no longer recognizes — the fail-open
-    /// path that leaves the renderer's native handling in charge).
-    var isEngageable: Bool { get }
-    /// True while the renderer runs its own move (a jump, a preference
-    /// reload, a resource load). The pager never captures baselines from
-    /// a busy renderer.
-    var isBusy: Bool { get }
-    /// True while text is selected — horizontal drags then belong to the
-    /// selection handles, never to page turns.
-    var hasActiveSelection: Bool { get }
-    /// Whether the publication reads right-to-left. The pager itself is
-    /// purely geometric; this only maps "forward" for keys and taps.
-    var isRightToLeft: Bool { get }
-
-    /// Disables the renderer's own horizontal gesture handling.
-    /// Idempotent, and safe to call often — the pager re-enforces it on
-    /// every navigation change because the renderer creates new views as
-    /// it preloads.
-    func suppressNativeGestures()
-    /// Re-enables native handling when the pager disengages.
-    func restoreNativeGestures()
-
-    /// The current resource's page strip, resolved live. Nil while no
-    /// resource is on screen or its geometry is degenerate.
-    func innerMetrics() -> ReaderPagerStrip?
-    func setInnerOffset(_ x: CGFloat)
-    /// The resource strip, resolved live.
-    func outerMetrics() -> ReaderPagerStrip?
-    func setOuterOffset(_ x: CGFloat)
-
-    /// Whether the neighboring resource on that side is loaded and
-    /// showable. The renderer keeps still-loading preloads transparent;
-    /// sliding one in would drag a blank sheet across the screen, so an
-    /// unready neighbor reads as "no neighbor" (rubber band, honest snap).
-    func neighborIsReady(toRight: Bool) -> Bool
-
-    /// Commits a resource crossing the pager has already animated to its
-    /// exact landing offset: the renderer updates its own bookkeeping
-    /// (index, preloads, locator) without moving anything on screen.
-    /// Returns as soon as the renderer's move resolves — fast, so the
-    /// pager can lift its gesture gate immediately.
-    func commitBoundaryCrossing(toRight: Bool) async -> Bool
-    /// Confirms the last `commitBoundaryCrossing` actually landed. May
-    /// take a while to resolve (the renderer refreshes its location
-    /// asynchronously); the pager runs it after the gate is lifted and
-    /// only a refusal has any consequence.
-    func verifyBoundaryCommit() async -> Bool
-}
-
-/// One horizontal strip: where it sits, how far it goes, and its page.
-struct ReaderPagerStrip {
-    var offset: CGFloat
-    var range: ClosedRange<CGFloat>
-    var pageWidth: CGFloat
-}
 
 /// The Readium-backed surface. Everything Readium-shaped lives here — the
 /// hierarchy walking, the pan-recognizer suppression, the `goLeft`/
@@ -132,37 +64,6 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
         navigator?.presentation.readingProgression == .rtl
     }
 
-    // MARK: Gesture suppression
-
-    func suppressNativeGestures() {
-        setNativeGestures(enabled: false)
-    }
-
-    func restoreNativeGestures() {
-        setNativeGestures(enabled: true)
-    }
-
-    /// Both halves matter. The pan recognizers are what a finger drives;
-    /// `isScrollEnabled` is what *VoiceOver* drives — a scroll view with
-    /// scrolling enabled answers the three-finger swipe itself, paging by
-    /// raw content offset with no locator behind it, and it sits below the
-    /// reader in the accessibility hierarchy, so it would swallow the
-    /// gesture before the pager ever heard of it. Programmatic movement is
-    /// unaffected: `contentOffset` writes (ours) and `setContentOffset`
-    /// (Readium's own paging, and WebKit's for a JS `scrollLeft`) all work
-    /// on a scroll view whose user scrolling is off.
-    private func setNativeGestures(enabled: Bool) {
-        guard let navigator else { return }
-        if let outer = outerScrollView() {
-            outer.panGestureRecognizer.isEnabled = enabled
-            outer.isScrollEnabled = enabled
-        }
-        for webView in allWebViews(in: navigator.view) {
-            webView.scrollView.panGestureRecognizer.isEnabled = enabled
-            webView.scrollView.isScrollEnabled = enabled
-        }
-    }
-
     // MARK: Strips
 
     func innerMetrics() -> ReaderPagerStrip? {
@@ -218,80 +119,19 @@ final class ReadiumPagerSurface: ReaderPagerSurface {
 
     // MARK: Commit
 
-    /// The current location's href captured just before the last commit —
-    /// what the verification poll measures change against.
-    private var hrefBeforeCommit: AnyURL?
-    /// A moved commit whose verification has not resolved yet. While one
-    /// is outstanding, `currentLocation` may still describe the resource
-    /// *before* that commit, so a capture taken now is untrustworthy.
-    private var verificationUnresolved = false
-    /// The last capture was taken during an outstanding verification.
-    private var captureWasStale = false
-
-    func commitBoundaryCrossing(toRight: Bool) async -> Bool {
-        guard let navigator else { return false }
-        let now = navigator.currentLocation?.href
-        // The doubt clears on evidence, never by assumption: the location
-        // having moved off the previous commit's origin proves that
-        // commit's refresh landed, so this capture reads the live truth.
-        if verificationUnresolved, now != hrefBeforeCommit {
-            verificationUnresolved = false
-        }
-        captureWasStale = verificationUnresolved
-        hrefBeforeCommit = now
+    /// Temporary adapter only. The engine surface replaces this in Task 2.3;
+    /// use the visible-neighbor check as an honest synchronous best effort
+    /// while asking Readium to perform the corresponding navigation.
+    func commitBoundaryCrossing(toRight: Bool) -> Bool {
+        guard let navigator, neighborIsReady(toRight: toRight) else { return false }
         let options = NavigatorGoOptions(animated: false)
-        let moved = toRight
-            ? await navigator.goRight(options: options)
-            : await navigator.goLeft(options: options)
-        if moved {
-            verificationUnresolved = true
+        Task { @MainActor [weak navigator] in
+            guard let navigator else { return }
+            _ = toRight
+                ? await navigator.goRight(options: options)
+                : await navigator.goLeft(options: options)
         }
-        return moved
-    }
-
-    func verifyBoundaryCommit() async -> Bool {
-        // The commit's no-op path is not guaranteed: when a resource's
-        // content width overruns its column grid (wide table, oversized
-        // image), the *old* spread's within-resource attempt can pass its
-        // clamp guard and swallow the move without ever touching the
-        // pagination index — which the next layout pass then snaps a full
-        // chapter backward. So the move is verified, not assumed.
-        //
-        // `currentLocation` cannot be read straight away: the navigator
-        // refreshes it through a debounced job (0.1 s idle poll + a JS
-        // round-trip) that lands *after* `goRight` returns, so the
-        // immediate value is routinely stale even for a genuine commit.
-        // A resource crossing always changes the href (reflowable spreads
-        // are strictly single-resource), so poll for that change; a
-        // swallow never produces one, and only that rare path pays the
-        // full timeout.
-        guard let navigator else { return false }
-        if captureWasStale {
-            // The capture raced an earlier commit's unresolved refresh: a
-            // swallowed move could "confirm" on the *earlier* commit's
-            // href change. Verifying against a value known to be stale is
-            // worse than not verifying — report landed and leave the
-            // renderer's own layout as the backstop, exactly the pre-
-            // verification behavior, and only under rapid back-to-back
-            // crossings. The unresolved flag stands until a capture sees
-            // the location move — evidence, not assumption.
-            return true
-        }
-        let before = hrefBeforeCommit
-        for _ in 0 ..< 20 {
-            // A cancelled poll leaves `verificationUnresolved` standing,
-            // so the next capture knows it cannot be trusted.
-            if Task.isCancelled { return false }
-            if let now = navigator.currentLocation?.href, now != before {
-                verificationUnresolved = false
-                return true
-            }
-            try? await Task.sleep(for: .milliseconds(50))
-        }
-        // Timed out: no crossing happened, so the location was never
-        // going to change — the capture for the next commit is clean.
-        verificationUnresolved = false
-        return false
+        return true
     }
 
     // MARK: Hierarchy

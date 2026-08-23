@@ -1,7 +1,7 @@
 import UIKit
 
-// The UniFFI bindings are compiled into this target, so `Publication` below
-// is the core's record.
+// The UniFFI bindings are compiled into this target. Progress comes from the
+// core's persisted content coordinate and synthetic-position model.
 
 /// The Tonight (home) tab: pick up where you left off, filter chips, and
 /// the nightstand shelf.

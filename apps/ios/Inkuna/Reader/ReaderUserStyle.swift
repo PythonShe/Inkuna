@@ -117,23 +117,6 @@ struct ReaderUserStyle: Equatable {
             )
         }
 
-        // Font family: the ReadiumCSS-after selector set, including the
-        // :not([lang]) guards that keep inline foreign-language runs on
-        // their own face. `.publisher` emits nothing at all.
-        if let stack = font.cssStack {
-            rules.append("html{font-family:\(stack)!important}")
-            rules.append(
-                "html body,html p,html li,html div,html dt,html dd"
-                    + "{font-family:inherit!important}"
-            )
-            rules.append(
-                "html i:not([lang]):not([xml\\:lang]),html em:not([lang]):not([xml\\:lang]),"
-                    + "html cite:not([lang]):not([xml\\:lang]),html b:not([lang]):not([xml\\:lang]),"
-                    + "html strong:not([lang]):not([xml\\:lang]),html span:not([lang]):not([xml\\:lang])"
-                    + "{font-family:inherit!important}"
-            )
-        }
-
         return rules.joined()
     }
 

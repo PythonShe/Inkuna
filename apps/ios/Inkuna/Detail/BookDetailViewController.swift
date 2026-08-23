@@ -1,8 +1,8 @@
 import os
 import UIKit
 
-// The UniFFI bindings are compiled into this target, so `Publication` below
-// is the core's record.
+// The UniFFI bindings are compiled into this target. Saved progress is a core
+// content coordinate projected into synthetic positions by `ReaderPositions`.
 
 /// Book detail: the cover held at arm's length, progress, and the core's
 /// table of contents with the saved position's chapter inked in accent.
@@ -199,15 +199,8 @@ final class BookDetailViewController: UIViewController {
     /// resolve to a position, and knows its count — book-wide percentage
     /// alone otherwise. Never a fictional page number.
     ///
-    /// ENGINE-SWAP INTERIM: this does NOT match the reader's own page-info
-    /// line, which is still Readium-computed while the reader opens through
-    /// Readium (plan-02 Task 2.2) — different N and different M for the
-    /// same book. Only books whose coordinate came from the core's
-    /// rebaseline show a page number here at all; the reader writes no
-    /// coordinate during the interim, so a freshly-read book degrades to
-    /// the percentage rather than showing a number that disagrees with its
-    /// own percentage. The two lines converge when the reader moves onto
-    /// the core engine.
+    /// The reader and this screen use the same core-derived position space,
+    /// so the saved coordinate, page-info line, and chapter highlight agree.
     private func positionText() -> String {
         let percent = Int((publication.progression * 100).rounded())
         if

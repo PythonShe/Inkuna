@@ -3,9 +3,8 @@ import UIKit
 /// The reader's own pager: every horizontal page turn — within a resource
 /// and across resource (chapter) boundaries — is driven here, on our
 /// gesture pipeline and our physics, instead of the renderer's. The
-/// renderer keeps rendering, preloading, and bookkeeping; its native
-/// horizontal gestures are suppressed through the surface, so a boundary
-/// crossing tracks the finger and settles exactly like an inner turn.
+/// renderer keeps rendering, preloading, and bookkeeping; a boundary crossing
+/// tracks the finger and settles exactly like an inner turn.
 ///
 /// The model is one continuous strip. A drag accumulates into a raw strip
 /// coordinate; the resource's inner pages consume it first, and whatever
@@ -59,10 +58,6 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     private var boundaryDisplacement: CGFloat = 0
     /// A strip has been captured and not yet released to rest.
     private var interactionActive = false
-    /// The gesture began while the renderer was busy; baselines are
-    /// captured on the first quiet frame so a flick landing right after
-    /// a commit is honored instead of dropped.
-    private var awaitingBaseline = false
     private var lastTranslationX: CGFloat = 0
 
     // MARK: Animation state
@@ -85,28 +80,14 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         var velocity: CGFloat
     }
     private var frozen: FrozenSpring?
-    /// Re-asserts the displaced outer offset every frame while a
-    /// boundary interaction holds without a running spring: the
-    /// renderer's layout pass snaps the outer strip back to its own
-    /// index alignment whenever something (a landing preload) invalidates
-    /// it, and per-frame re-writes make that at worst a one-frame flicker.
-    private let holdLoop = ReaderPagerFrameLoop()
-    /// The commit handed to the surface; gates fresh gestures for the
-    /// few frames the renderer's bookkeeping needs.
-    private var committing = false
-    private var commitTask: Task<Void, Never>?
-    /// A turn owed to a flick the commit machinery would otherwise
-    /// swallow — a second flick over an adopted commit flight, or one
-    /// that began and ended inside the commit gate. Fired once, the
-    /// moment the gate lifts. 0 means none.
+    /// A same-direction flick that adopts a boundary flight asks for one
+    /// additional page after the first crossing settles.
     private var pendingTurnDirection: CGFloat = 0
-    /// The queuing flick's content velocity — the pending turn rides it
-    /// so it moves like the flick that asked for it, not a tap.
     private var pendingTurnVelocity: CGFloat = 0
-    /// The live gesture picked an in-flight boundary commit off its
-    /// spring — a turn the reader has already been shown, whose strip
-    /// (clamped to one resource) cannot express a further page.
     private var adoptedCommitFlight = false
+    /// Re-asserts the displaced outer offset every frame while a boundary
+    /// interaction holds without a running spring.
+    private let holdLoop = ReaderPagerFrameLoop()
 
     private let boundaryHaptic = UIImpactFeedbackGenerator(style: .soft)
 
@@ -150,10 +131,8 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     /// preference changes, and at gesture start.
     func engageIfNeeded() {
         if surface.isEngageable {
-            surface.suppressNativeGestures()
             pan?.isEnabled = true
         } else {
-            surface.restoreNativeGestures()
             pan?.isEnabled = false
         }
     }
@@ -164,17 +143,9 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     func cancelInteraction() {
         spring.cancel()
         holdLoop.stop()
-        // A commit caught mid-flight is invalidated, not awaited: its
-        // continuation must never write offsets or re-suppress gestures
-        // over whatever re-layout triggered this cancel, and a commit
-        // that never resolves must not leave `committing` blocking every
-        // future turn.
-        commitTask?.cancel()
-        commitTask = nil
-        committing = false
         frozen = nil
-        awaitingBaseline = false
         pendingTurnDirection = 0
+        pendingTurnVelocity = 0
         adoptedCommitFlight = false
         if interactionActive {
             surface.setOuterOffset(outerHome)
@@ -215,7 +186,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func turn(direction: CGFloat, velocity: CGFloat = 0) -> Bool {
-        guard surface.isEngageable, !committing, !surface.isBusy else { return false }
+        guard surface.isEngageable, !surface.isBusy else { return false }
         engageIfNeeded()
         onPageTurnGesture?()
 
@@ -296,18 +267,10 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard gestureRecognizer === pan else { return true }
-        // A commit in flight does not refuse recognition: the gesture is
-        // funneled into the awaiting-baseline path below, so a flick
-        // landing during the commit's bookkeeping window is honored
-        // instead of silently dropped.
         guard surface.isEngageable else { return false }
         // Horizontal drags belong to the selection handles while text is
         // selected.
         guard !surface.hasActiveSelection else { return false }
-        // A freshly preloaded spread arrives with its native pan enabled;
-        // suppressing here — before recognition — keeps this very touch
-        // from being claimed natively.
-        surface.suppressNativeGestures()
         guard let view = gestureRecognizer.view else { return false }
         let velocity = pan?.velocity(in: view) ?? .zero
         return abs(velocity.x) > abs(velocity.y)
@@ -373,29 +336,13 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             let frozenRole = frozen?.role
             frozen = nil
             spring.cancel()
-            // A fresh gesture supersedes any turn still queued behind a
-            // commit gate: whatever this drag decides is newer intent.
             pendingTurnDirection = 0
             adoptedCommitFlight = false
-            // A commit still holds `interactionActive`, so it must gate
-            // unconditionally: falling through would re-adopt the
-            // mid-commit strip — the *previous* resource's baselines —
-            // and a second flick would double-commit through them.
-            if committing || (surface.isBusy && !interactionActive) {
-                // Landing right on a commit or jump: honor the gesture by
-                // deferring the baseline to the first quiet frame instead
-                // of dropping the flick — the old pipeline's second
-                // failure shape.
-                awaitingBaseline = true
-                lastTranslationX = recognizer.translation(in: view).x
-                return
-            }
-            let adoptsBoundary = interactionActive && abs(boundaryDisplacement) > 0.5
             guard adoptOrCaptureBaselines() else {
                 recognizer.state = .cancelled
                 return
             }
-            if adoptsBoundary, case .outerCommit = frozenRole {
+            if interactionActive, abs(boundaryDisplacement) > 0.5, case .outerCommit = frozenRole {
                 adoptedCommitFlight = true
             }
             // Applying from zero hands the slop distance to the page too,
@@ -403,39 +350,9 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             lastTranslationX = 0
             applyTranslation(recognizer.translation(in: view).x)
         case .changed:
-            if awaitingBaseline {
-                guard !surface.isBusy, !committing else {
-                    lastTranslationX = recognizer.translation(in: view).x
-                    return
-                }
-                awaitingBaseline = false
-                guard adoptOrCaptureBaselines() else {
-                    recognizer.state = .cancelled
-                    return
-                }
-                lastTranslationX = recognizer.translation(in: view).x
-            }
             guard interactionActive else { return }
             applyTranslation(recognizer.translation(in: view).x)
         case .ended, .cancelled, .failed:
-            // A lift while still awaiting must not release: the live
-            // strip state belongs to whatever the gesture was waiting
-            // out, not to this gesture. But a flick that began *and*
-            // ended inside the commit gate is a real turn the reader
-            // asked for — queue it for the moment the gate lifts
-            // instead of silently dropping it.
-            let wasAwaiting = awaitingBaseline
-            awaitingBaseline = false
-            if wasAwaiting {
-                if recognizer.state == .ended, committing {
-                    let fingerVelocity = recognizer.velocity(in: view).x
-                    if abs(fingerVelocity) >= ReaderPagerRules.flingVelocity {
-                        pendingTurnDirection = fingerVelocity < 0 ? 1 : -1
-                        pendingTurnVelocity = -fingerVelocity
-                    }
-                }
-                return
-            }
             guard interactionActive else { return }
             let fingerVelocity = recognizer.state == .ended
                 ? recognizer.velocity(in: view).x
@@ -580,11 +497,6 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
                     pageWidth: pageWidth
                 )
             let forward = boundaryDisplacement > 0
-            // A second same-direction flick over an adopted commit
-            // flight is a demand for one more page — the strip is
-            // clamped to one resource per gesture, so the extra travel
-            // would otherwise vanish into the rubber band. Queue exactly
-            // one chained turn for the moment the commit gate lifts.
             if commits, adoptedCommitFlight,
                abs(velocity) >= ReaderPagerRules.flingVelocity,
                (velocity > 0) == forward {
@@ -675,27 +587,8 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             outerSpringSettled()
             return
         }
-        // A commit is done the instant its displacement arrives —
-        // crossing counts. Waiting for the spring's residual velocity to
-        // bleed to rest would hold the reveal at full displacement while
-        // the reader's next swipe freezes and re-energizes the flight,
-        // landing a fast reader's commit seconds late or never; it also
-        // keeps the strip from overshooting past the neighbor's slot.
-        let commitDirection: CGFloat? = switch role {
-        case let .outerCommit(toRight): toRight ? 1 : -1
-        case .inner, .outerReturn: nil
-        }
         spring.start(from: from, velocity: velocity, target: target) { [weak self] position, _ in
             guard let self else { return false }
-            // Landing within 3 pt: the spring's asymptotic tail below
-            // that is invisible dead time.
-            if let direction = commitDirection, (position - target) * direction >= -3 {
-                self.spring.cancel()
-                self.surface.setOuterOffset(target)
-                self.boundaryDisplacement = target - self.outerHome
-                self.outerSpringSettled()
-                return false
-            }
             self.surface.setOuterOffset(position)
             self.boundaryDisplacement = position - self.outerHome
             return true
@@ -713,55 +606,22 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             boundaryDisplacement = 0
             updateHoldLoop()
         case let .outerCommit(toRight):
-            committing = true
             boundaryHaptic.impactOccurred(intensity: 0.7)
-            commitTask?.cancel()
-            commitTask = Task { [weak self] in
-                guard let self else { return }
-                let moved = await self.surface.commitBoundaryCrossing(toRight: toRight)
-                // Invalidated by `cancelInteraction()`: the state below was
-                // already reset there, and the screen belongs to whatever
-                // re-layout triggered the cancel.
-                guard !Task.isCancelled else { return }
-                // The renderer's bookkeeping is done the moment the move
-                // resolves, so the gate lifts here — the very next tap or
-                // flick after a chapter crossing is honored, and only the
-                // verification rides on behind it.
-                self.committing = false
-                self.interactionActive = false
-                self.boundaryDisplacement = 0
-                self.updateHoldLoop()
-                guard moved else {
-                    // The renderer refused (a raced jump owns the reader
-                    // now): put the strip back on its committed origin,
-                    // drop any turn queued behind this commit, and let
-                    // the renderer's own move land.
-                    self.pendingTurnDirection = 0
-                    self.surface.setOuterOffset(self.outerHome)
-                    return
-                }
-                // The commit shifted the preload window; new spreads
-                // arrive with native gestures enabled.
-                self.surface.suppressNativeGestures()
-                // The turn a swallowed-window flick queued behind this
-                // commit runs now, right as the gate lifts.
-                if self.pendingTurnDirection != 0 {
-                    let direction = self.pendingTurnDirection
-                    let velocity = self.pendingTurnVelocity
-                    self.pendingTurnDirection = 0
-                    self.pendingTurnVelocity = 0
-                    _ = self.turn(direction: direction, velocity: velocity)
-                }
-                let landed = await self.surface.verifyBoundaryCommit()
-                guard !Task.isCancelled, !landed else { return }
-                // The rare swallowed commit. The renderer's own layout
-                // already snaps its strip back to the unmoved index; the
-                // explicit write only makes that deterministic — and only
-                // while nothing newer owns the screen.
-                if !self.interactionActive, !self.spring.isRunning, self.frozen == nil, !self.committing {
-                    self.surface.setOuterOffset(self.outerHome)
-                }
+            let moved = surface.commitBoundaryCrossing(toRight: toRight)
+            interactionActive = false
+            boundaryDisplacement = 0
+            updateHoldLoop()
+            guard moved else {
+                pendingTurnDirection = 0
+                pendingTurnVelocity = 0
+                return
             }
+            guard pendingTurnDirection != 0 else { return }
+            let direction = pendingTurnDirection
+            let velocity = pendingTurnVelocity
+            pendingTurnDirection = 0
+            pendingTurnVelocity = 0
+            _ = turn(direction: direction, velocity: velocity)
         }
     }
 
@@ -773,15 +633,13 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     private func updateHoldLoop() {
         let shouldHold = interactionActive &&
             abs(boundaryDisplacement) > 0.5 &&
-            !spring.isRunning &&
-            !committing
+            !spring.isRunning
         if shouldHold, !holdLoop.isRunning {
             holdLoop.start { [weak self] _ in
                 guard let self,
                       self.interactionActive,
                       abs(self.boundaryDisplacement) > 0.5,
-                      !self.spring.isRunning,
-                      !self.committing
+                      !self.spring.isRunning
                 else { return false }
                 self.surface.setOuterOffset(self.outerHome + self.boundaryDisplacement)
                 return true

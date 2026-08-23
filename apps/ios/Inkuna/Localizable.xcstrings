@@ -6280,6 +6280,25 @@
         }
       }
     },
+    "reader_chapter_unreadable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "es": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "fr": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "it": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "ru": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "th": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "de": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "id": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } },
+        "pt": { "stringUnit": { "state": "translated", "value": "This chapter can’t be displayed." } }
+      }
+    },
     "reader_retry": {
       "extractionState": "manual",
       "localizations": {
