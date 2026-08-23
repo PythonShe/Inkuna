@@ -11,15 +11,6 @@ options:
     icon:
       file: true
       buildPhase: resources
-packages:
-  # Being removed: the Rust core owns layout now and the shells draw the
-  # glyph runs it emits, so the navigator has no job left. The dependency
-  # survives only until the engine reader replaces the Readium open path;
-  # nothing new may be built on it. Still pinned exactly until then, so the
-  # interim path cannot drift under a lockfile-less regenerated project.
-  Readium:
-    url: https://github.com/readium/swift-toolkit
-    exactVersion: 3.11.0
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -50,14 +41,6 @@ targets:
     dependencies:
       - framework: Frameworks/InkunaCore.xcframework
         embed: false
-      # Only the products the reader consumes. ReadiumAdapterGCDWebServer is
-      # deliberately absent: since 3.x the EPUB navigator no longer needs an
-      # HTTP server (its httpServer initializer is deprecated in 3.11.0).
-      - package: Readium
-        products:
-          - ReadiumShared
-          - ReadiumStreamer
-          - ReadiumNavigator
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.inkuna.ios

@@ -2,7 +2,7 @@ import UIKit
 
 /// The Customize panel's live specimen: a clipped slice of the reading
 /// surface — theme colors, current text size — re-rendered with every
-/// uncommitted style so the reader sees the typography before the page
+/// Customize change so the reader sees the typography before the page
 /// behind the sheet has finished reflowing. Margins are deliberately not
 /// applied; the card is about type, not geometry.
 final class ReaderPreviewCard: UIView {
@@ -12,14 +12,12 @@ final class ReaderPreviewCard: UIView {
 
     private let theme: ReadingTheme
     private let textSize: ReadingTextSize
-    private var style: ReaderUserStyle
     private let label = InkLabel()
 
-    init(theme: ReadingTheme, textSize: ReadingTextSize, phrase: String, style: ReaderUserStyle) {
+    init(theme: ReadingTheme, textSize: ReadingTextSize, phrase: String) {
         self.theme = theme
         self.textSize = textSize
         self.phrase = phrase
-        self.style = style
         super.init(frame: .zero)
 
         backgroundColor = theme.background
@@ -46,35 +44,33 @@ final class ReaderPreviewCard: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    func apply(_ style: ReaderUserStyle) {
-        self.style = style
-        render()
-    }
+    func apply() { render() }
 
     private func render() {
+        let settings = AppSettings.shared
         let size = textSize.pointSize
         let paragraph = NSMutableParagraphStyle()
         // Exact CSS line-height semantics, not a multiple of the font's
         // own leading.
-        paragraph.minimumLineHeight = size * style.lineSpacing
-        paragraph.maximumLineHeight = size * style.lineSpacing
+        paragraph.minimumLineHeight = size * settings.lineSpacing
+        paragraph.maximumLineHeight = size * settings.lineSpacing
         paragraph.lineBreakMode = .byTruncatingTail
 
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: style.font.previewFont(size: size, bold: style.bold),
+            .font: settings.readingFont.previewFont(size: size, bold: settings.readingBold),
             .foregroundColor: theme.foreground,
             .paragraphStyle: paragraph,
-            .kern: size * style.letterSpacing,
+            .kern: size * settings.letterSpacing,
         ]
         let rendered = NSMutableAttributedString(string: phrase, attributes: attributes)
         // UIKit has no word-spacing attribute: extra kern on the space
         // separators only — which also makes it the correct no-op for
         // unspaced CJK text, exactly like the CSS property.
-        if style.wordSpacing > 0 {
+        if settings.wordSpacing > 0 {
             for range in phrase.ranges(of: " ") {
                 rendered.addAttribute(
                     .kern,
-                    value: size * (style.letterSpacing + style.wordSpacing),
+                    value: size * (settings.letterSpacing + settings.wordSpacing),
                     range: NSRange(range, in: phrase)
                 )
             }

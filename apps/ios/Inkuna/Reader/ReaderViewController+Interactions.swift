@@ -3,6 +3,10 @@ import UIKit
 extension ReaderViewController {
     func handleCanvasTap(_ point: CGPoint) {
         takeKeyCommandChain()
+        if let selectionController, selectionController.isActive {
+            if !selectionController.containsSelection(at: point) { selectionController.clear() }
+            return
+        }
         if let searchPanel, searchPanel.alpha > 0 { hideSearch(); return }
         if menuVisible { setMenu(visible: false); return }
         guard let readerSession, let surface = pagerSurface,
@@ -51,6 +55,7 @@ extension ReaderViewController {
         guard let readerSession, let surface = pagerSurface else { return }
         let location = try readerSession.locate(coordinate: coordinate)
         guard accept(generation: location.generation) else { return }
+        selectionController?.clear()
         pager?.cancelInteraction()
         surface.display(spineIdx: location.spineIdx, pageIdx: location.pageIdx)
     }
@@ -166,14 +171,11 @@ extension ReaderViewController {
         let panel = ReaderCustomizeViewController(
             theme: settings.readingTheme,
             textSize: settings.textSize,
-            style: .current,
             fallbackPhrase: String(localized: "reader_preview_fallback", defaultValue: "The quiet hours belong to the reader."),
             phraseProvider: { nil }
         )
-        panel.onSessionBegin = { [weak self] _ in self?.relayoutAnchor = self?.currentAnchor() }
-        panel.onPreview = { _ in }
-        panel.onCommit = { [weak self] style in
-            style.persist()
+        panel.onSessionBegin = { [weak self] in self?.relayoutAnchor = self?.currentAnchor() }
+        panel.onCommit = { [weak self] in
             Task { @MainActor in await self?.relayout(anchor: self?.relayoutAnchor) }
         }
         panel.onClose = { [weak self] in self?.presentedViewController?.dismiss(animated: true) }
@@ -182,6 +184,7 @@ extension ReaderViewController {
 
     func applyTheme(_ theme: ReadingTheme) {
         canvas?.theme = theme
+        selectionController?.updateTheme()
         InkMotion.runQuiet {
             self.view.backgroundColor = theme.background
             self.pageInfoLabel.textColor = theme.dimmedForeground

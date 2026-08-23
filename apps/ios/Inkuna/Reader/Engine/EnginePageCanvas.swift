@@ -42,6 +42,8 @@ final class EnginePageCanvas: UIView {
 
     var onTap: ((CGPoint) -> Void)?
     var onPageDrawn: ((UInt32, UInt32) -> Void)?
+    var selectionCopyHandler: (() -> Void)?
+    var canCopySelection = false
     var isLaidOut: Bool { bounds.width > 0 && bounds.height > 0 }
 
     init(session: ReaderSession, theme: ReadingTheme) {
@@ -105,6 +107,17 @@ final class EnginePageCanvas: UIView {
         let key = PageKey(spineIdx: spineIdx, pageIdx: pageIdx)
         guard let page = mounted[key], !page.view.isHidden else { return nil }
         return CGPoint(x: point.x - page.view.frame.minX, y: point.y - page.view.frame.minY)
+    }
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(copy(_:)) { return canCopySelection }
+        return super.canPerformAction(action, withSender: sender)
+    }
+
+    override func copy(_ sender: Any?) {
+        selectionCopyHandler?()
     }
 
     override func layoutSubviews() {

@@ -25,6 +25,7 @@ final class ReaderViewController: UIViewController {
     var canvas: EnginePageCanvas?
     var pagerSurface: EnginePagerSurface?
     var pager: ReaderPager?
+    var selectionController: ReaderSelectionController?
     var chapters: [Chapter] = []
     var chapterRanges: [ChapterPositionRange] = []
     var layoutGeneration: UInt64?
@@ -105,7 +106,10 @@ final class ReaderViewController: UIViewController {
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         endSession()
-        if isMovingFromParent || isBeingDismissed { openTask?.cancel() }
+        if isMovingFromParent || isBeingDismissed {
+            selectionController?.clear()
+            openTask?.cancel()
+        }
     }
 
     override func viewSafeAreaInsetsDidChange() {

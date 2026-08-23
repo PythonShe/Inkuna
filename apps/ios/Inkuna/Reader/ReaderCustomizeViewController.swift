@@ -6,18 +6,15 @@ import UIKit
 final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     /// A slider touch landed: the reader captures its reflow anchor and
     /// opens the live session (progress writes pause).
-    var onSessionBegin: ((ReaderUserStyle) -> Void)?
-    /// Live, uncommitted style for the preview only.
-    var onPreview: ((ReaderUserStyle) -> Void)?
-    /// Committed — the reader persists and relays out from its anchor.
-    var onCommit: ((ReaderUserStyle) -> Void)?
+    var onSessionBegin: (() -> Void)?
+    /// Committed — the reader relays out from its anchor.
+    var onCommit: (() -> Void)?
     /// Close (not back): dismiss the whole sheet to the reader.
     var onClose: (() -> Void)?
 
     var sheetDetents: [UISheetPresentationController.Detent] { [.large()] }
     var preferredDetentIdentifier: UISheetPresentationController.Detent.Identifier? { .large }
 
-    private var style: ReaderUserStyle
     private let theme: ReadingTheme
     private let textSize: ReadingTextSize
     private let fallbackPhrase: String
@@ -33,13 +30,11 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     init(
         theme: ReadingTheme,
         textSize: ReadingTextSize,
-        style: ReaderUserStyle,
         fallbackPhrase: String,
         phraseProvider: @escaping () async -> String?
     ) {
         self.theme = theme
         self.textSize = textSize
-        self.style = style
         self.fallbackPhrase = fallbackPhrase
         self.phraseProvider = phraseProvider
         super.init(nibName: nil, bundle: nil)
@@ -116,8 +111,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         let card = ReaderPreviewCard(
             theme: theme,
             textSize: textSize,
-            phrase: fallbackPhrase,
-            style: style
+            phrase: fallbackPhrase
         )
         previewCard = card
         stack.addArrangedSubview(card)
@@ -131,7 +125,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         // the platform picker, so the roster no longer pushes the panel
         // around and its items are natively focusable for VoiceOver.
         let valueLabel = InkLabel()
-        valueLabel.text = style.font.displayName
+        valueLabel.text = AppSettings.shared.readingFont.displayName
         valueLabel.font = InkFont.caption
         valueLabel.textColor = InkColor.textTertiary
         fontValueLabel = valueLabel
@@ -158,17 +152,17 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         )
         fontRow.accessibilityLabel = fontTitle
         self.fontRow = fontRow
-        setFontDisplay(style.font)
+        setFontDisplay(AppSettings.shared.readingFont)
 
         // Bold text.
         let boldToggle = UISwitch()
         boldToggle.onTintColor = InkColor.accentFill
-        boldToggle.isOn = style.bold
+        boldToggle.isOn = AppSettings.shared.readingBold
         boldToggle.accessibilityLabel = String(localized: "a11y_bold_text", defaultValue: "Bold text")
         boldToggle.addAction(UIAction { [weak self] action in
             guard let self, let toggle = action.sender as? UISwitch else { return }
             self.selectionFeedback.selectionChanged()
-            self.style.bold = toggle.isOn
+            AppSettings.shared.readingBold = toggle.isOn
             self.commitStyle()
         }, for: .valueChanged)
         boldSwitch = boldToggle
@@ -188,7 +182,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     /// specimens are deliberately absent: `UIMenu` renders plain titles
     /// only, and the preview card already shows the face in use.
     private func fontMenu() -> UIMenu {
-        let current = style.font
+        let current = AppSettings.shared.readingFont
         let actions = ReadingFont.allCases.map { font in
             UIAction(
                 title: font.displayName,
@@ -205,8 +199,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     /// pick is the one thing allowed to overwrite it.
     private func pickFont(_ font: ReadingFont) {
         selectionFeedback.selectionChanged()
-        style.font = font
-        style.fontID = font.rawValue
+        AppSettings.shared.readingFontID = font.rawValue
         setFontDisplay(font)
         commitStyle()
     }
@@ -224,7 +217,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
 
         let marginsFormat = NSLocalizedString("reader_margins_value", comment: "")
 
-        let configs: [(InkStepSlider.Config, Double, WritableKeyPath<ReaderUserStyle, Double>?)] = [
+        let configs: [(InkStepSlider.Config, Double, LayoutValue)] = [
             (
                 InkStepSlider.Config(
                     range: 1.30 ... 2.10,
@@ -233,8 +226,8 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
                     a11yLabel: String(localized: "a11y_line_spacing", defaultValue: "Line spacing"),
                     format: { lineFormatter.string(from: NSNumber(value: $0)) ?? "\($0)" }
                 ),
-                style.lineSpacing,
-                \ReaderUserStyle.lineSpacing
+                AppSettings.shared.lineSpacing,
+                .lineSpacing
             ),
             (
                 InkStepSlider.Config(
@@ -244,8 +237,8 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
                     a11yLabel: String(localized: "a11y_letter_spacing", defaultValue: "Letter spacing"),
                     format: { percentFormatter.string(from: NSNumber(value: $0)) ?? "\($0)" }
                 ),
-                style.letterSpacing,
-                \ReaderUserStyle.letterSpacing
+                AppSettings.shared.letterSpacing,
+                .letterSpacing
             ),
             (
                 InkStepSlider.Config(
@@ -255,8 +248,8 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
                     a11yLabel: String(localized: "a11y_word_spacing", defaultValue: "Word spacing"),
                     format: { percentFormatter.string(from: NSNumber(value: $0)) ?? "\($0)" }
                 ),
-                style.wordSpacing,
-                \ReaderUserStyle.wordSpacing
+                AppSettings.shared.wordSpacing,
+                .wordSpacing
             ),
             (
                 InkStepSlider.Config(
@@ -266,26 +259,25 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
                     a11yLabel: String(localized: "a11y_margins", defaultValue: "Page margins"),
                     format: { String.localizedStringWithFormat(marginsFormat, Int($0.rounded())) }
                 ),
-                Double(style.margins),
-                nil // margins is Int; handled in the closure below
+                Double(AppSettings.shared.readingMargins),
+                .margins
             ),
         ]
 
-        for (config, initial, keyPath) in configs {
+        for (config, initial, layoutValue) in configs {
             let slider = InkStepSlider(config: config, value: initial)
             slider.onTouchDown = { [weak self] in
                 guard let self else { return }
-                self.onSessionBegin?(self.style)
+                self.onSessionBegin?()
             }
             slider.onPreview = { [weak self] value in
                 guard let self else { return }
-                self.update(keyPath, to: value)
-                self.previewCard?.apply(self.style)
-                self.onPreview?(self.style)
+                self.update(layoutValue, to: value)
+                self.previewCard?.apply()
             }
             slider.onCommit = { [weak self] value in
                 guard let self else { return }
-                self.update(keyPath, to: value)
+                self.update(layoutValue, to: value)
                 self.commitStyle()
             }
             sliders.append(slider)
@@ -309,11 +301,23 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
 
     // MARK: Behavior
 
-    private func update(_ keyPath: WritableKeyPath<ReaderUserStyle, Double>?, to value: Double) {
-        if let keyPath {
-            style[keyPath: keyPath] = value
-        } else {
-            style.margins = Int(value.rounded())
+    private enum LayoutValue {
+        case lineSpacing
+        case letterSpacing
+        case wordSpacing
+        case margins
+    }
+
+    private func update(_ layoutValue: LayoutValue, to value: Double) {
+        switch layoutValue {
+        case .lineSpacing:
+            AppSettings.shared.lineSpacing = value
+        case .letterSpacing:
+            AppSettings.shared.letterSpacing = value
+        case .wordSpacing:
+            AppSettings.shared.wordSpacing = value
+        case .margins:
+            AppSettings.shared.readingMargins = Int(value.rounded())
         }
     }
 
@@ -325,27 +329,24 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         fontRow?.menu = fontMenu()
     }
 
-    /// Persist + apply, and refresh the preview card.
+    /// Refresh the preview card, then reflow from the saved settings.
     private func commitStyle() {
-        previewCard?.apply(style)
-        onCommit?(style)
+        previewCard?.apply()
+        onCommit?()
     }
 
     private func resetToDefaults() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        style = ReaderUserStyle(
-            font: .notoSerif,
-            fontID: ReadingFont.notoSerif.rawValue,
-            bold: false,
-            lineSpacing: 1.65,
-            letterSpacing: 0,
-            wordSpacing: 0,
-            margins: 26
-        )
+        AppSettings.shared.resetReadingCustomization()
         // Rebuild the controls to the fresh values in place.
         boldSwitch?.setOn(false, animated: true)
-        setFontDisplay(style.font)
-        let values: [Double] = [style.lineSpacing, style.letterSpacing, style.wordSpacing, Double(style.margins)]
+        setFontDisplay(AppSettings.shared.readingFont)
+        let values: [Double] = [
+            AppSettings.shared.lineSpacing,
+            AppSettings.shared.letterSpacing,
+            AppSettings.shared.wordSpacing,
+            Double(AppSettings.shared.readingMargins),
+        ]
         for (slider, value) in zip(sliders, values) {
             slider.setValue(value)
         }

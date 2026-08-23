@@ -73,9 +73,16 @@ extension ReaderViewController {
         let surface = EnginePagerSurface(session: session, canvas: canvas)
         surface.spineCount = session.spineCount()
         surface.onPageSettled = { [weak self] spineIdx, pageIdx in
+            self?.selectionController?.clear()
             self?.pageSettled(spineIdx: spineIdx, pageIdx: pageIdx)
         }
         pagerSurface = surface
+        selectionController = ReaderSelectionController(
+            session: session,
+            canvas: canvas,
+            surface: surface,
+            presenter: self
+        )
         let pager = ReaderPager(surface: surface, view: canvas)
         pager.onPageTurnGesture = { [weak self] in
             guard !UIAccessibility.isVoiceOverRunning else { return }
@@ -142,9 +149,14 @@ extension ReaderViewController {
     func resolveHref(_ chapter: Chapter) throws -> Coordinate { try resolveHref(chapter.href) }
 
     func resolveHref(_ href: String) throws -> Coordinate {
-        let parts = ChapterHref.splitFragment(href)
         guard let readerSession else { throw InkunaError.NotReady(detail: "Reader is not open") }
-        return try readerSession.locateHref(href: parts.resource, fragment: parts.fragment)
+        guard let hashIndex = href.firstIndex(of: "#") else {
+            return try readerSession.locateHref(href: href, fragment: nil)
+        }
+        return try readerSession.locateHref(
+            href: String(href[..<hashIndex]),
+            fragment: String(href[href.index(after: hashIndex)...])
+        )
     }
 
     func viewport() -> Viewport {
@@ -232,6 +244,7 @@ extension ReaderViewController {
 
     func relayout(anchor: Coordinate?) async {
         guard let readerSession else { return }
+        selectionController?.clear()
         pager?.cancelInteraction()
         relayoutAnchor = anchor ?? currentAnchor()
         generationBeforeLayout = layoutGeneration
