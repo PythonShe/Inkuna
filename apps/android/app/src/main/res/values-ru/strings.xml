@@ -132,4 +132,5 @@
     </plurals>
     <string name="reader_share_selection">Поделиться</string>
     <string name="reader_web_search">Искать в интернете</string>
+    <string name="reader_chapter_unreadable">Не удалось отобразить эту главу.</string>
 </resources>

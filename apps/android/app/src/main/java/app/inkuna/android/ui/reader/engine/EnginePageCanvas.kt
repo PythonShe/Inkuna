@@ -12,6 +12,7 @@ import app.inkuna.core.ReaderSession
 import app.inkuna.core.InkunaException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlin.math.floor
@@ -61,7 +62,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
         var use: ULong,
     )
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var scope = newScope()
     private val mounted = mutableMapOf<PageKey, MountedPage>()
     private var session: ReaderSession? = null
     private var imageLoader: PageImageLoader? = null
@@ -111,7 +112,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
 
     internal fun attach(session: ReaderSession) {
         this.session = session
-        imageLoader = PageImageLoader(session, scope)
+        imageLoader = PageImageLoader(session) { scope }
         updatePages()
     }
 
@@ -125,12 +126,17 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
     internal fun showUnreadablePlaceholder(show: Boolean) {
         val placeholder = unreadableView ?: TextView(context).also { view ->
             view.gravity = Gravity.CENTER
-            view.text = context.getString(app.inkuna.android.R.string.reader_page_failed)
+            view.text = context.getString(app.inkuna.android.R.string.reader_chapter_unreadable)
             addView(view, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
             unreadableView = view
         }
         placeholder.setTextColor(palette.secondary)
         placeholder.visibility = if (show) View.VISIBLE else View.GONE
+        if (show) {
+            mounted.values.forEach { it.view.visibility = View.INVISIBLE }
+        } else {
+            updatePages()
+        }
         selectionOverlay?.let(::bringChildToFront)
     }
 
@@ -141,9 +147,6 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
     private fun receivePageTouch(spineIdx: UInt, pageIdx: UInt, event: MotionEvent): Boolean {
         gestureSpineIdx = spineIdx
         gesturePageIdx = pageIdx
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            selectionController?.clearOnTapOutside(event.x, event.y)
-        }
         gestures.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_CANCEL) gestures.onTouchEvent(event)
         return true
@@ -185,6 +188,11 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
     override fun onDetachedFromWindow() {
         scope.cancel()
         super.onDetachedFromWindow()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (scope.coroutineContext[Job]?.isActive != true) scope = newScope()
     }
 
     private fun updatePages() {
@@ -232,7 +240,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
             page.view.layout(0, 0, width, pageHeight)
             page.view.translationX = x
             page.view.translationY = 0f
-            page.view.visibility = View.VISIBLE
+            page.view.visibility = if (unreadableView?.visibility == View.VISIBLE) View.INVISIBLE else View.VISIBLE
         }
         selectionOverlay?.let(::bringChildToFront)
     }
@@ -290,4 +298,6 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
     private companion object {
         const val PAGE_POOL_SIZE = 6
     }
+
+    private fun newScope() = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 }

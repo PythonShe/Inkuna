@@ -35,6 +35,8 @@ class ReaderSelectionController(
 
     private enum class Handle { START, END }
 
+    private data class HandleDrag(val anchor: ULong)
+
     private var active: ActiveSelection? = null
         set(value) {
             field = value
@@ -42,7 +44,7 @@ class ReaderSelectionController(
             if (value == null) SelectionModeTracker.finished()
             else SelectionModeTracker.started()
         }
-    private var dragging: Handle? = null
+    private var dragging: HandleDrag? = null
     private var actionMode: ActionMode? = null
     private val overlay = SelectionOverlay(canvas.context) { handle, event, x, y ->
         when (event) {
@@ -93,23 +95,22 @@ class ReaderSelectionController(
 
     fun containsSelection(x: Float, y: Float): Boolean = overlay.containsHighlight(x, y)
 
-    fun clearOnTapOutside(x: Float, y: Float) {
-        if (isActive && !overlay.containsHighlight(x, y)) clear()
-    }
-
     fun updatePalette(accent: Int) {
         if (isActive) overlay.updateAccent(accent)
     }
 
     private fun beginHandleDrag(handle: Handle) {
-        dragging = handle
+        val selection = active ?: return
+        dragging = HandleDrag(
+            anchor = if (handle == Handle.START) selection.range.end else selection.range.start,
+        )
         actionMode?.finish()
         actionMode = null
     }
 
     private fun updateHandle(x: Float, y: Float) {
         val selection = active ?: return
-        val handle = dragging ?: return
+        val drag = dragging ?: return
         try {
             val hit = session.hitTest(
                 selection.spineIdx,
@@ -119,9 +120,8 @@ class ReaderSelectionController(
             )
             if (hit.coordinate.spineIdx != selection.spineIdx) return
             val boundary = hit.coordinate.charOffset.coerceIn(selection.pageRange.start, selection.pageRange.end)
-            val anchor = if (handle == Handle.START) selection.range.end else selection.range.start
-            if (boundary == anchor) return
-            val range = CharRange(minOf(boundary, anchor), maxOf(boundary, anchor))
+            if (boundary == drag.anchor) return
+            val range = CharRange(minOf(boundary, drag.anchor), maxOf(boundary, drag.anchor))
             val rects = session.selectionRects(selection.spineIdx, range)
             if (rects.isEmpty()) return
             selection.range = range

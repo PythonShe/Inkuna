@@ -126,4 +126,5 @@
     </plurals>
     <string name="reader_share_selection">Condividi</string>
     <string name="reader_web_search">Cerca sul web</string>
+    <string name="reader_chapter_unreadable">Impossibile visualizzare questo capitolo.</string>
 </resources>

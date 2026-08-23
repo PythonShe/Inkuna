@@ -113,4 +113,5 @@
     </plurals>
     <string name="reader_share_selection">Bagikan</string>
     <string name="reader_web_search">Cari di web</string>
+    <string name="reader_chapter_unreadable">Bab ini tidak dapat ditampilkan.</string>
 </resources>

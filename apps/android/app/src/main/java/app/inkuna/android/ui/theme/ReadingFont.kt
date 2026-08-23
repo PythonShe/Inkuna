@@ -19,8 +19,11 @@ enum class ReadingFont(val id: String, @param:StringRes val nameRes: Int) {
         val DEFAULT = NOTO_SERIF
 
         /** Normalizes historical shell-only font ids to the engine roster. */
-        fun normalize(stored: String): ReadingFont =
-            if (stored.equals("system-sans", ignoreCase = true)) NOTO_SANS else NOTO_SERIF
+        fun normalize(stored: String): ReadingFont = when (stored.trim().lowercase()) {
+            NOTO_SANS.id, "system-sans" -> NOTO_SANS
+            NOTO_SERIF.id -> NOTO_SERIF
+            else -> NOTO_SERIF
+        }
 
         fun from(id: String): ReadingFont = normalize(id)
     }

@@ -123,4 +123,5 @@
     </plurals>
     <string name="reader_share_selection">分享</string>
     <string name="reader_web_search">搜尋網頁</string>
+    <string name="reader_chapter_unreadable">無法顯示此章節。</string>
 </resources>

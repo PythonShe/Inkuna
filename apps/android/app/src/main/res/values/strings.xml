@@ -129,4 +129,5 @@
         <item quantity="one">%d result</item>
         <item quantity="other">%d results</item>
     </plurals>
+    <string name="reader_chapter_unreadable">This chapter can\'t be displayed.</string>
 </resources>

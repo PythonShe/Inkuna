@@ -123,4 +123,5 @@
     </plurals>
     <string name="reader_share_selection">Chia sẻ</string>
     <string name="reader_web_search">Tìm kiếm trên web</string>
+    <string name="reader_chapter_unreadable">Không thể hiển thị chương này.</string>
 </resources>

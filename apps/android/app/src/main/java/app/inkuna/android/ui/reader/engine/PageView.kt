@@ -71,7 +71,7 @@ class PageView(context: Context) : View(context) {
         this.spineIdx = spineIdx
         this.pageIdx = pageIdx
         this.session = session
-        accessibilityHelper.invalidateRoot()
+        accessibilityHelper.onPageContentChanged()
         invalidate()
     }
 

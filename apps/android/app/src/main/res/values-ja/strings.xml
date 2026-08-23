@@ -123,4 +123,5 @@
     </plurals>
     <string name="reader_share_selection">共有</string>
     <string name="reader_web_search">Webを検索</string>
+    <string name="reader_chapter_unreadable">この章は表示できません。</string>
 </resources>

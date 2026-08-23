@@ -123,4 +123,5 @@
     </plurals>
     <string name="reader_share_selection">แชร์</string>
     <string name="reader_web_search">ค้นหาเว็บ</string>
+    <string name="reader_chapter_unreadable">ไม่สามารถแสดงบทนี้ได้</string>
 </resources>

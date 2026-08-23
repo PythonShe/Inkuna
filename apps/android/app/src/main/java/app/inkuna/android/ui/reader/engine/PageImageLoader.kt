@@ -12,7 +12,7 @@ import kotlinx.coroutines.withContext
 /** Caches decoded page images and shares one resource request per href. */
 class PageImageLoader(
     private val session: ReaderSession,
-    private val scope: CoroutineScope,
+    private val scope: () -> CoroutineScope,
 ) {
     private val cache = object : LruCache<String, Bitmap>(CACHE_BYTES) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.allocationByteCount
@@ -29,7 +29,7 @@ class PageImageLoader(
             if (!inFlight.add(href)) return null
         }
 
-        scope.launch(Dispatchers.Default) {
+        scope().launch(Dispatchers.Default) {
             val bitmap = runCatching {
                 val bytes = session.resource(href)
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -37,8 +37,17 @@ class PageImageLoader(
             withContext(Dispatchers.Main.immediate) {
                 finish(href, bitmap)
             }
+        }.invokeOnCompletion { cause ->
+            if (cause != null) abandon(href)
         }
         return null
+    }
+
+    private fun abandon(href: String) {
+        synchronized(this) {
+            inFlight.remove(href)
+            callbacks.remove(href)
+        }
     }
 
     private fun finish(href: String, bitmap: Bitmap?) {

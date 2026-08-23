@@ -123,4 +123,5 @@
     </plurals>
     <string name="reader_share_selection">공유</string>
     <string name="reader_web_search">웹 검색</string>
+    <string name="reader_chapter_unreadable">이 장을 표시할 수 없습니다.</string>
 </resources>

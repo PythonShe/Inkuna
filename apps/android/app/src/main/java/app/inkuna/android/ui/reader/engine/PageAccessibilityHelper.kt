@@ -16,6 +16,10 @@ import kotlin.math.roundToInt
 class PageAccessibilityHelper(
     private val pageView: PageView,
 ) : ExploreByTouchHelper(pageView) {
+    fun onPageContentChanged() {
+        invalidateRoot()
+    }
+
     override fun getVirtualViewAt(x: Float, y: Float): Int {
         val density = pageView.resources.displayMetrics.density
         val pageX = x / density
@@ -34,7 +38,13 @@ class PageAccessibilityHelper(
         virtualViewId: Int,
         node: AccessibilityNodeInfoCompat,
     ) {
-        val block = pageView.accessibilityBlocks().getOrNull(virtualViewId) ?: return
+        val block = pageView.accessibilityBlocks().getOrNull(virtualViewId)
+        if (block == null) {
+            node.contentDescription = ""
+            node.setBoundsInParent(Rect())
+            node.isVisibleToUser = false
+            return
+        }
         node.text = localizedText(block.text, block.lang)
         node.setBoundsInParent(bounds(block))
         node.isVisibleToUser = true
