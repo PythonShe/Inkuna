@@ -35,6 +35,9 @@ edition = "2024"
 rust-version = "1.98"
 license = "AGPL-3.0-only"
 
+[workspace.dependencies]
+memmap2 = "0.9.11"
+
 # Release profile is what CI and the build-core scripts ship (--release):
 # full optimization, single codegen unit for best cross-crate inlining,
 # fat LTO, debuginfo stripped. Panics stay unwinding so UniFFI can catch

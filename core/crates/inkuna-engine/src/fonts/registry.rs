@@ -1,5 +1,5 @@
-//! Loads the bundled font set eagerly and issues the stable face ids
-//! everything downstream (shaping, display lists, the FFI) speaks in.
+//! Maps the bundled font set and issues the stable face ids everything
+//! downstream (shaping, display lists, the FFI) speaks in.
 //!
 //! Id order is FIXED and documented here — stable across platforms
 //! because the file set is fixed:
@@ -22,10 +22,13 @@
 //! collection. The Sans OTCs also carry Mono faces at indices 5–9,
 //! which the registry never references.
 
+use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 
+use memmap2::Mmap;
 use read_fonts::tables::os2::SelectionFlags;
+use read_fonts::types::NameId;
 use read_fonts::{FontRef, TableProvider};
 
 use crate::error::EngineError;
@@ -49,16 +52,18 @@ pub struct FontEntry {
     /// Absolute path under the registry's font dir.
     pub file_path: String,
     pub collection_index: u32,
+    /// PostScript name read from the selected face's `name` table.
+    pub post_script_name: String,
     pub axes: Vec<FontAxis>,
 }
 
-/// A parsed, memory-resident face. harfrust's `FontRef` borrows the
-/// bytes, so shaping call sites rebuild it from `data` +
+/// A parsed, memory-mapped face. harfrust's `FontRef` borrows the
+/// mapped bytes, so shaping call sites rebuild it from `data` +
 /// `collection_index` per shape (cheap; revisit with `self_cell` only
 /// if profiling demands).
 #[derive(Debug, Clone)]
 pub struct LoadedFace {
-    pub data: Arc<Vec<u8>>,
+    pub data: Arc<Mmap>,
     pub upem: u16,
     pub ascender: i32,
     pub descender: i32,
@@ -137,21 +142,21 @@ pub struct FontRegistry {
 }
 
 impl FontRegistry {
-    /// Reads and parses EVERY manifest face eagerly, so per-face
-    /// failure after a successful load is impossible by construction.
-    /// Load once per process, off the UI thread.
+    /// Maps and parses EVERY manifest face, so per-face failure after a
+    /// successful load is impossible by construction. The OS faults map
+    /// pages in only as parsing and shaping touch them. Load once per
+    /// process, off the UI thread.
     pub fn load(font_dir: &Path) -> Result<Arc<FontRegistry>, EngineError> {
         let mut entries = Vec::with_capacity(MANIFEST.len());
         let mut faces = Vec::with_capacity(MANIFEST.len());
-        // Font bytes cached per file: the four OTCs each back eight ids.
-        let mut cache: Vec<(&'static str, Arc<Vec<u8>>)> = Vec::new();
+        // Maps cached per file: the four OTCs each back eight ids.
+        let mut cache: Vec<(&'static str, Arc<Mmap>)> = Vec::new();
         for (id, spec) in MANIFEST.iter().enumerate() {
             let path = font_dir.join(spec.file);
             let data = match cache.iter().find(|(name, _)| *name == spec.file) {
                 Some((_, data)) => Arc::clone(data),
                 None => {
-                    let bytes = std::fs::read(&path).map_err(|e| missing(spec.file, &e))?;
-                    let data = Arc::new(bytes);
+                    let data = Arc::new(map_font(&path, spec.file)?);
                     cache.push((spec.file, Arc::clone(&data)));
                     data
                 }
@@ -163,6 +168,9 @@ impl FontRegistry {
             if upem == 0 {
                 return Err(missing(spec.file, &"units_per_em is 0"));
             }
+            let post_script_name = post_script_name(&font)
+                .map_err(|e| missing(spec.file, &e))?
+                .ok_or_else(|| missing(spec.file, &"PostScript name is missing"))?;
             let abs = std::path::absolute(&path)
                 .map_err(|e| missing(spec.file, &e))?
                 .to_string_lossy()
@@ -171,6 +179,7 @@ impl FontRegistry {
                 id: id as u32,
                 file_path: abs,
                 collection_index: spec.collection_index,
+                post_script_name,
                 axes: Vec::new(),
             });
             faces.push(LoadedFace {
@@ -248,6 +257,28 @@ impl FontRegistry {
     pub fn symbols(&self) -> u32 {
         SYMBOLS_ID
     }
+}
+
+fn map_font(path: &Path, name: &str) -> Result<Mmap, EngineError> {
+    let file = File::open(path).map_err(|e| missing(name, &e))?;
+    // SAFETY: iOS maps read-only app-bundle resources and Android maps read-only
+    // extracted assets in noBackupFilesDir, so the mapped font file cannot mutate.
+    unsafe { Mmap::map(&file) }.map_err(|e| missing(name, &e))
+}
+
+fn post_script_name(font: &FontRef<'_>) -> Result<Option<String>, read_fonts::ReadError> {
+    let names = font.name()?;
+    let data = names.string_data();
+    let Some(record) = names
+        .name_record()
+        .into_iter()
+        .filter(|record| record.name_id() == NameId::POSTSCRIPT_NAME)
+        .next()
+    else {
+        return Ok(None);
+    };
+    let name = record.string(data)?.to_string();
+    Ok((!name.is_empty()).then_some(name))
 }
 
 /// Matches ttf-parser's default-instance horizontal metric selection:

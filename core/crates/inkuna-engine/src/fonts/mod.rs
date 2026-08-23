@@ -1,4 +1,4 @@
-//! The bundled font set as the engine sees it: eager, validated load of
+//! The bundled font set as the engine sees it: validated memory maps of
 //! `assets/fonts/`, stable registry ids, and the reading/CJK/symbols
 //! selection the shaper drives.
 

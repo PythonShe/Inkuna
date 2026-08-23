@@ -466,13 +466,15 @@ impl From<inkuna_core::FontAxis> for FontAxis {
 }
 
 /// One registry face; shells rebuild platform fonts from `file_path` +
-/// `collection_index`.
+/// `collection_index` and verify the selected face against
+/// `post_script_name`.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct FontEntry {
     pub id: u32,
     /// Absolute path under the registry's font dir.
     pub file_path: String,
     pub collection_index: u32,
+    pub post_script_name: String,
     pub axes: Vec<FontAxis>,
 }
 
@@ -482,6 +484,7 @@ impl From<inkuna_core::FontEntry> for FontEntry {
             id: e.id,
             file_path: e.file_path,
             collection_index: e.collection_index,
+            post_script_name: e.post_script_name,
             axes: e.axes.into_iter().map(Into::into).collect(),
         }
     }

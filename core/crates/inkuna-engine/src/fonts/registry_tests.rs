@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use read_fonts::types::NameId;
 use read_fonts::{FontRef, TableProvider};
 
 use super::FontRegistry;
@@ -40,6 +41,43 @@ fn loads_repo_font_set() {
         );
         assert!(entry.axes.is_empty());
     }
+}
+
+fn parsed_post_script_name(reg: &FontRegistry, id: u32) -> String {
+    let face = reg.face(id);
+    let font = match FontRef::from_index(&face.data, face.collection_index) {
+        Ok(font) => font,
+        Err(e) => panic!("face {id} must parse: {e}"),
+    };
+    let names = match font.name() {
+        Ok(names) => names,
+        Err(e) => panic!("face {id} must have a name table: {e}"),
+    };
+    let data = names.string_data();
+    match names
+        .name_record()
+        .into_iter()
+        .find(|record| record.name_id() == NameId::POSTSCRIPT_NAME)
+        .and_then(|record| record.string(data).ok())
+    {
+        Some(name) => name.to_string(),
+        None => panic!("face {id} must have a readable PostScript name"),
+    }
+}
+
+#[test]
+fn entries_expose_post_script_identity_from_the_selected_face() {
+    let reg = registry();
+    let entries = reg.entries();
+
+    let latin = &entries[0];
+    assert_eq!(latin.post_script_name, "NotoSerif-Regular");
+    assert_eq!(latin.post_script_name, parsed_post_script_name(&reg, latin.id));
+
+    let cjk = &entries[10];
+    assert_eq!(cjk.collection_index, 3, "Traditional Chinese in the OTC");
+    assert_eq!(cjk.post_script_name, "NotoSerifCJKtc-Regular");
+    assert_eq!(cjk.post_script_name, parsed_post_script_name(&reg, cjk.id));
 }
 
 #[test]

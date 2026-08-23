@@ -27,6 +27,7 @@ harfrust = "0.13.1"
 read-fonts = "0.43.2"
 thiserror = "2"
 log = "0.4"
+memmap2.workspace = true
 tempfile = { version = "3", optional = true }
 unicode-bidi = "0.3"
 unicode-script = "0.5"

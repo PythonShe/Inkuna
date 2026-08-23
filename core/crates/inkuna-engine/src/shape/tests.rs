@@ -46,6 +46,60 @@ fn all_clusters(runs: &[ShapedRun]) -> Vec<u32> {
     clusters
 }
 
+fn glyph_snapshot(runs: &[ShapedRun]) -> Vec<(u32, Vec<(u16, u32, Fx, Fx, Fx)>)> {
+    runs.iter()
+        .map(|run| {
+            (
+                run.font_id,
+                run.glyphs
+                    .iter()
+                    .map(|glyph| {
+                        (
+                            glyph.glyph_id,
+                            glyph.cluster,
+                            glyph.advance,
+                            glyph.offset_x,
+                            glyph.offset_y,
+                        )
+                    })
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn shaping_output_stays_stable_for_latin_and_cjk() {
+    let fonts = registry();
+    let latin = glyph_snapshot(&shape_text("Inkuna", &ctx(fonts)));
+    let cjk = glyph_snapshot(&shape_text("漢字", &ctx(fonts)));
+
+    assert_eq!(
+        latin,
+        vec![(
+            0,
+            vec![
+                (44, 0, Fx(376), Fx::ZERO, Fx::ZERO),
+                (81, 1, Fx(660), Fx::ZERO, Fx::ZERO),
+                (78, 2, Fx(599), Fx::ZERO, Fx::ZERO),
+                (88, 3, Fx(650), Fx::ZERO, Fx::ZERO),
+                (81, 4, Fx(660), Fx::ZERO, Fx::ZERO),
+                (68, 5, Fx(577), Fx::ZERO, Fx::ZERO),
+            ],
+        )]
+    );
+    assert_eq!(
+        cjk,
+        vec![(
+            8,
+            vec![
+                (58864, 0, Fx(1024), Fx::ZERO, Fx::ZERO),
+                (15349, 1, Fx(1024), Fx::ZERO, Fx::ZERO),
+            ],
+        )]
+    );
+}
+
 #[test]
 fn latin_shapes_with_reading_face() {
     let fonts = registry();

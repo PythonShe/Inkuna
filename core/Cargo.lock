@@ -1370,6 +1370,7 @@ dependencies = [
  "imagesize",
  "inkuna-content",
  "log",
+ "memmap2",
  "quick-xml",
  "read-fonts",
  "tempfile",
