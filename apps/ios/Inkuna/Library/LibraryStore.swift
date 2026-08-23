@@ -54,7 +54,11 @@ actor LibraryStore {
             throw LibraryStoreError.missingFontDirectory
         }
         let fontDirectory = resources.appendingPathComponent("fonts", isDirectory: true)
-        guard FileManager.default.fileExists(atPath: fontDirectory.path) else {
+        var isDirectory: ObjCBool = false
+        guard
+            FileManager.default.fileExists(atPath: fontDirectory.path, isDirectory: &isDirectory),
+            isDirectory.boolValue
+        else {
             throw LibraryStoreError.missingFontDirectory
         }
         // The core owns everything under this directory: inkuna.db,

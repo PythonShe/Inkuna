@@ -194,10 +194,20 @@ final class BookDetailViewController: UIViewController {
 
     // MARK: Position line
 
-    /// The honest position line, mirroring the reader: "p. N of M" only
-    /// when the core knows both the position the stored coordinate lands
-    /// on and the book's count — book-wide percentage alone otherwise.
-    /// Never a fictional page number.
+    /// The honest position line, entirely in the core's position space:
+    /// "p. N of M" only when the book carries a coordinate the core can
+    /// resolve to a position, and knows its count — book-wide percentage
+    /// alone otherwise. Never a fictional page number.
+    ///
+    /// ENGINE-SWAP INTERIM: this does NOT match the reader's own page-info
+    /// line, which is still Readium-computed while the reader opens through
+    /// Readium (plan-02 Task 2.2) — different N and different M for the
+    /// same book. Only books whose coordinate came from the core's
+    /// rebaseline show a page number here at all; the reader writes no
+    /// coordinate during the interim, so a freshly-read book degrades to
+    /// the percentage rather than showing a number that disagrees with its
+    /// own percentage. The two lines converge when the reader moves onto
+    /// the core engine.
     private func positionText() -> String {
         let percent = Int((publication.progression * 100).rounded())
         if
