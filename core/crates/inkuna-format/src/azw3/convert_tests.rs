@@ -180,3 +180,32 @@ fn position_parser_accepts_the_full_ten_digit_base32_offset_space() {
         Some(1)
     );
 }
+
+/// `strip_css_threats` is a single forward pass, so deleting one `@import`
+/// can splice its neighbours into a fresh one: `@im` + `port "https://evil";`
+/// re-forms `@import "https://evil";`. Nothing inside that pass catches the
+/// re-formed rule — what closes the hole is `sanitize_css` running the strip
+/// **twice**, once over the raw input and once over the unescaped result, so
+/// the second pass consumes what the first spliced together. This test pins
+/// that composition: collapse `sanitize_css` to a single strip and the remote
+/// import survives verbatim.
+#[test]
+fn css_sanitizer_kills_an_import_reformed_by_its_own_splice() {
+    let spliced = sanitize_css("@im@import;port \"https://evil\";");
+    assert!(
+        !spliced.to_ascii_lowercase().contains("@import"),
+        "splice re-formed a live @import: {spliced:?}"
+    );
+    assert!(
+        !spliced.contains("evil"),
+        "remote target survived: {spliced:?}"
+    );
+
+    // Mixed case, because the splice is found case-insensitively too.
+    let mixed = sanitize_css("@im@IMPORT;port url(\"https://evil\");");
+    assert!(
+        !mixed.to_ascii_lowercase().contains("@import"),
+        "mixed-case splice re-formed a live @import: {mixed:?}"
+    );
+    assert!(!mixed.contains("evil"), "remote target survived: {mixed:?}");
+}
