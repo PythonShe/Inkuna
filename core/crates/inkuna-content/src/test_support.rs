@@ -207,6 +207,7 @@ pub struct EpubBuilder {
     toc: Vec<(String, String, u32)>,
     rtl: bool,
     pre_paginated: bool,
+    itemref_properties: Option<String>,
 }
 
 impl Default for EpubBuilder {
@@ -224,6 +225,7 @@ impl EpubBuilder {
             toc: Vec::new(),
             rtl: false,
             pre_paginated: false,
+            itemref_properties: None,
         }
     }
 
@@ -265,9 +267,19 @@ impl EpubBuilder {
         self
     }
 
-    /// Declares `rendition:layout` as `pre-paginated`.
+    /// Declares a package-level `<meta property="rendition:layout">`
+    /// of `pre-paginated`.
     pub fn pre_paginated(mut self) -> Self {
         self.pre_paginated = true;
+        self
+    }
+
+    /// Puts `properties` on EVERY `<itemref>` — the per-resource
+    /// `rendition:layout-pre-paginated` / `rendition:layout-reflowable`
+    /// overrides, which the format gives precedence over the
+    /// package-level meta.
+    pub fn itemref_properties(mut self, properties: &str) -> Self {
+        self.itemref_properties = Some(properties.to_string());
         self
     }
 
@@ -313,7 +325,11 @@ impl EpubBuilder {
                 .iter()
                 .position(|(h, _, _)| h == href)
                 .unwrap_or_else(|| panic!("spine href {href} was never declared as a resource"));
-            itemrefs.push_str(&format!(r#"<itemref idref="r{at}"/>"#));
+            let properties = match &self.itemref_properties {
+                Some(p) => format!(r#" properties="{}""#, xml_escape(p)),
+                None => String::new(),
+            };
+            itemrefs.push_str(&format!(r#"<itemref idref="r{at}"{properties}/>"#));
         }
         let progression = if self.rtl {
             r#" page-progression-direction="rtl""#

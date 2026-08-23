@@ -64,18 +64,54 @@ impl OpfItem {
     }
 }
 
+/// One `<itemref>` of the spine. `properties` is retained because an
+/// itemref may override the package's `rendition:layout` for its own
+/// resource (`rendition:layout-pre-paginated` /
+/// `rendition:layout-reflowable`), which the format gives precedence
+/// over the package-level `<meta>`.
+#[derive(Debug)]
+pub(crate) struct OpfItemref {
+    pub(crate) idref: String,
+    properties: String,
+}
+
+impl OpfItemref {
+    fn has_property(&self, name: &str) -> bool {
+        self.properties.split_ascii_whitespace().any(|p| p == name)
+    }
+
+    /// This itemref's own layout, or `None` when it declares neither
+    /// override and so inherits the package default. An itemref
+    /// declaring BOTH is contradictory; pre-paginated wins, matching the
+    /// conservative reading everywhere else in this module (a book we
+    /// wrongly call fixed degrades to "not yet supported", which is
+    /// recoverable; one we wrongly call reflowable paginates garbage).
+    fn declared_layout(&self) -> Option<RenditionLayout> {
+        if self.has_property("rendition:layout-pre-paginated") {
+            Some(RenditionLayout::PrePaginated)
+        } else if self.has_property("rendition:layout-reflowable") {
+            Some(RenditionLayout::Reflowable)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct Opf {
     pub(crate) metadata: EpubMetadata,
     pub(crate) items: Vec<OpfItem>,
-    pub(crate) spine_idrefs: Vec<String>,
+    pub(crate) spine_idrefs: Vec<OpfItemref>,
     /// The spine's `toc` attribute (NCX manifest id), EPUB 2 style.
     pub(crate) spine_toc: Option<String>,
     /// `<meta name="cover" content="…">`, EPUB 2 style.
     pub(crate) cover_meta: Option<String>,
-    /// `<meta property="rendition:layout">`; stays [`RenditionLayout::Reflowable`]
-    /// unless the first such meta reads exactly `pre-paginated` — a
-    /// malformed value is never an error, it takes the default.
+    /// The publication's EFFECTIVE layout, resolved by
+    /// [`effective_layout`] once the whole OPF is walked: the
+    /// package-level `<meta property="rendition:layout">` default
+    /// (`pre-paginated` exactly, or the reflowable default — a malformed
+    /// value is never an error) as overridden per resource by the
+    /// itemrefs' own `rendition:layout-*` properties.
     pub(crate) rendition_layout: RenditionLayout,
     /// The spine's `page-progression-direction="rtl"`; absent or any
     /// other value is `false`.
@@ -148,6 +184,9 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
     let mut acc_truncated = false;
     // Only the first `rendition:layout` meta decides the layout.
     let mut rendition_seen = false;
+    // The package-level default, resolved against the itemrefs' own
+    // overrides into `opf.rendition_layout` after the walk.
+    let mut package_layout = RenditionLayout::Reflowable;
     loop {
         let event = reader.read_event_into(&mut buf);
         match &event {
@@ -179,7 +218,11 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
                         if let Some(idref) = attr_value(e, b"idref") {
                             opf.spine_itemrefs_seen += 1;
                             if opf.spine_idrefs.len() < MAX_SPINE_ITEMS {
-                                opf.spine_idrefs.push(idref);
+                                opf.spine_idrefs.push(OpfItemref {
+                                    idref,
+                                    properties: attr_value(e, b"properties")
+                                        .unwrap_or_default(),
+                                });
                             }
                         }
                     }
@@ -193,12 +236,14 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
                             opf.cover_meta = attr_value(e, b"content");
                         } else if !is_empty
                             && attr_value(e, b"property").as_deref() == Some("rendition:layout")
-                            // Only the publication-level meta decides the
-                            // book's layout: a `refines` meta overrides a
-                            // single itemref (a spread's fixed insert in a
-                            // reflowable book), and reading it here would
-                            // let a per-itemref override placed first set
-                            // the whole book pre-paginated.
+                            // Only an unrefined meta sets the package
+                            // DEFAULT: a `refines` meta overrides a single
+                            // itemref (a spread's fixed insert in a
+                            // reflowable book), and folding it in here
+                            // would let one resource's override decide the
+                            // whole book. Per-itemref overrides are read
+                            // from the itemrefs' own `properties` and
+                            // resolved in `effective_layout`.
                             && attr_value(e, b"refines").is_none()
                         {
                             current = Some("rendition:layout");
@@ -250,7 +295,7 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
                             "rendition:layout" if !rendition_seen => {
                                 rendition_seen = true;
                                 if text == "pre-paginated" {
-                                    opf.rendition_layout = RenditionLayout::PrePaginated;
+                                    package_layout = RenditionLayout::PrePaginated;
                                 }
                             }
                             _ => {}
@@ -277,7 +322,36 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
         }
         buf.clear();
     }
+    opf.rendition_layout = effective_layout(package_layout, &opf.spine_idrefs);
     Ok(opf)
+}
+
+/// The publication's layout: `package_layout` as overridden per resource
+/// by each itemref's own `rendition:layout-*` property.
+///
+/// A publication counts as pre-paginated only when EVERY spine item
+/// effectively is. Per the format an itemref's `properties` override the
+/// package default for that resource alone, so a reflowable book with a
+/// single fixed insert (a map, a spread) is still a reflowable book and
+/// must keep opening in the engine — the reason the package-level walk
+/// also ignores `refines` metas. The converse holds too: a package
+/// declaring `pre-paginated` whose itemrefs all opt back into
+/// `rendition:layout-reflowable` is reflowable.
+///
+/// An empty spine has nothing to override anything, so it takes the
+/// package default unchanged.
+fn effective_layout(package_layout: RenditionLayout, spine: &[OpfItemref]) -> RenditionLayout {
+    if spine.is_empty() {
+        return package_layout;
+    }
+    let all_fixed = spine.iter().all(|itemref| {
+        itemref.declared_layout().unwrap_or(package_layout) == RenditionLayout::PrePaginated
+    });
+    if all_fixed {
+        RenditionLayout::PrePaginated
+    } else {
+        RenditionLayout::Reflowable
+    }
 }
 
 #[cfg(test)]

@@ -94,7 +94,7 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
     let spine: Vec<SpineItem> = opf
         .spine_idrefs
         .iter()
-        .filter_map(|idref| item_by_id(idref))
+        .filter_map(|itemref| item_by_id(&itemref.idref))
         .filter_map(|item| {
             let resolved = resolve(&item.href);
             if resolved.len() > MAX_HREF_BYTES {

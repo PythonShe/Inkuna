@@ -204,6 +204,109 @@ fn refined_rendition_meta_does_not_set_book_layout() {
     );
 }
 
+/// Per the format an `<itemref>`'s `properties` override the package
+/// default for that resource. A book whose itemrefs ALL declare
+/// `rendition:layout-pre-paginated` is fixed-layout even though it
+/// carries no package-level `rendition:layout` meta at all.
+#[test]
+fn itemref_properties_alone_make_a_book_prepaginated() {
+    let opf = parse_opf(
+        r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">絵本</dc:title></metadata>
+  <manifest>
+    <item id="p1" href="p1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="p2" href="p2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="p1" properties="rendition:layout-pre-paginated"/>
+    <itemref idref="p2" properties="page-spread-left rendition:layout-pre-paginated"/>
+  </spine>
+</package>"#,
+    )
+    .unwrap();
+    assert_eq!(opf.rendition_layout, RenditionLayout::PrePaginated);
+}
+
+/// The override is per resource, so one fixed insert — a map, a spread —
+/// does NOT make a reflowable book fixed-layout. It must keep opening in
+/// the engine.
+#[test]
+fn one_fixed_itemref_does_not_make_the_book_prepaginated() {
+    let opf = parse_opf(
+        r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <manifest>
+    <item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="map" href="map.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="c2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="c1"/>
+    <itemref idref="map" properties="rendition:layout-pre-paginated"/>
+    <itemref idref="c2"/>
+  </spine>
+</package>"#,
+    )
+    .unwrap();
+    assert_eq!(opf.rendition_layout, RenditionLayout::Reflowable);
+}
+
+/// The override runs the other way too: a package declaring
+/// `pre-paginated` whose itemrefs all opt back into
+/// `rendition:layout-reflowable` is a reflowable book — and so is one
+/// where only SOME itemrefs opt back, because a single reflowable
+/// resource means the engine has something to paginate and the fixed
+/// items degrade one by one instead of the whole book being refused.
+#[test]
+fn itemrefs_can_override_a_prepaginated_package_back_to_reflowable() {
+    let all_reflowable = parse_opf(
+        r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata><meta property="rendition:layout">pre-paginated</meta></metadata>
+  <manifest>
+    <item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="c2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="c1" properties="rendition:layout-reflowable"/>
+    <itemref idref="c2" properties="rendition:layout-reflowable"/>
+  </spine>
+</package>"#,
+    )
+    .unwrap();
+    assert_eq!(all_reflowable.rendition_layout, RenditionLayout::Reflowable);
+
+    let some_inherit = parse_opf(
+        r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata><meta property="rendition:layout">pre-paginated</meta></metadata>
+  <manifest>
+    <item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="c2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="c1" properties="rendition:layout-reflowable"/>
+    <itemref idref="c2"/>
+  </spine>
+</package>"#,
+    )
+    .unwrap();
+    assert_eq!(some_inherit.rendition_layout, RenditionLayout::Reflowable);
+}
+
+/// A package-level `pre-paginated` with itemrefs that declare nothing
+/// still reads as fixed-layout — the pre-existing behavior the per-item
+/// resolution must not regress.
+#[test]
+fn package_prepaginated_survives_plain_itemrefs() {
+    let opf = parse_opf(
+        r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata><meta property="rendition:layout">pre-paginated</meta></metadata>
+  <manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#,
+    )
+    .unwrap();
+    assert_eq!(opf.rendition_layout, RenditionLayout::PrePaginated);
+}
+
 #[test]
 fn page_progression_rtl_detected() {
     let rtl = parse_opf(

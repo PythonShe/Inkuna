@@ -79,8 +79,12 @@ pub struct EpubPackage {
     /// whose resolved href exceeds `MAX_HREF_BYTES` are dropped, like the
     /// spine's — capped by `MAX_MANIFEST_ITEMS` at the parse.
     pub manifest: Vec<ManifestItem>,
-    /// `<meta property="rendition:layout">`; [`RenditionLayout::Reflowable`]
-    /// unless the OPF explicitly declares `pre-paginated`.
+    /// The publication's EFFECTIVE layout: the package-level
+    /// `<meta property="rendition:layout">` default as overridden per
+    /// resource by the itemrefs' own `rendition:layout-*` properties.
+    /// [`RenditionLayout::PrePaginated`] only when EVERY spine item is
+    /// effectively pre-paginated, so a reflowable book carrying a single
+    /// fixed insert still reads as reflowable.
     pub rendition_layout: RenditionLayout,
     /// The spine's `page-progression-direction="rtl"` attribute; absent
     /// or any other value is `false`.
