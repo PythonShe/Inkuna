@@ -1,8 +1,12 @@
 package app.inkuna.android.ui.reader.engine
 
 import android.content.Context
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.TextView
+import android.view.Gravity
 import app.inkuna.core.PageDisplayList
 import app.inkuna.core.ReaderSession
 import app.inkuna.core.InkunaException
@@ -64,15 +68,41 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
     private var scene: PageScene? = null
     private var latestGeneration: ULong? = null
     private var useCounter = 0uL
+    private var unreadableView: TextView? = null
+    private var selectionOverlay: View? = null
+    internal var selectionController: ReaderSelectionController? = null
+    private var gestureSpineIdx = 0u
+    private var gesturePageIdx = 0u
+    private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(event: MotionEvent) = true
+
+        override fun onSingleTapUp(event: MotionEvent): Boolean {
+            if (scene == null) return false
+            if (selectionController?.isActive == true) {
+                if (!selectionController!!.containsSelection(event.x, event.y)) selectionController?.clear()
+            } else {
+                onPageTap?.invoke(gestureSpineIdx, gesturePageIdx, event.x, event.y)
+            }
+            return true
+        }
+
+        override fun onLongPress(event: MotionEvent) {
+            selectionController?.beginAt(gestureSpineIdx, gesturePageIdx, event.x, event.y)
+        }
+    })
 
     var palette: PagePalette = PagePalette.from(app.inkuna.android.ui.theme.ReadingTheme.Paper)
         set(value) {
             field = value
             mounted.values.forEach { it.view.palette = value }
             setBackgroundColor(value.background)
+            unreadableView?.setTextColor(value.secondary)
+            selectionController?.updatePalette(value.link)
         }
 
     var onLinkActivated: ((spineIdx: UInt, pageIdx: UInt, x: Float, y: Float) -> Unit)? = null
+    var onPageTap: ((spineIdx: UInt, pageIdx: UInt, x: Float, y: Float) -> Unit)? = null
+    var onPageDrawn: ((spineIdx: UInt, pageIdx: UInt) -> Unit)? = null
 
     init {
         setBackgroundColor(palette.background)
@@ -83,6 +113,40 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
         this.session = session
         imageLoader = PageImageLoader(session, scope)
         updatePages()
+    }
+
+    internal fun installSelectionOverlay(overlay: View) {
+        selectionOverlay?.let(::removeView)
+        selectionOverlay = overlay
+        addView(overlay, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        bringChildToFront(overlay)
+    }
+
+    internal fun showUnreadablePlaceholder(show: Boolean) {
+        val placeholder = unreadableView ?: TextView(context).also { view ->
+            view.gravity = Gravity.CENTER
+            view.text = context.getString(app.inkuna.android.R.string.reader_page_failed)
+            addView(view, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+            unreadableView = view
+        }
+        placeholder.setTextColor(palette.secondary)
+        placeholder.visibility = if (show) View.VISIBLE else View.GONE
+        selectionOverlay?.let(::bringChildToFront)
+    }
+
+    internal fun toLayoutX(x: Float): Double = (x / resources.displayMetrics.density).toDouble()
+
+    internal fun toLayoutY(y: Float): Double = (y / resources.displayMetrics.density).toDouble()
+
+    private fun receivePageTouch(spineIdx: UInt, pageIdx: UInt, event: MotionEvent): Boolean {
+        gestureSpineIdx = spineIdx
+        gesturePageIdx = pageIdx
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            selectionController?.clearOnTapOutside(event.x, event.y)
+        }
+        gestures.onTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_CANCEL) gestures.onTouchEvent(event)
+        return true
     }
 
     fun setScene(scene: PageScene) {
@@ -170,6 +234,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
             page.view.translationY = 0f
             page.view.visibility = View.VISIBLE
         }
+        selectionOverlay?.let(::bringChildToFront)
     }
 
     private fun mount(key: PageKey): MountedPage {
@@ -197,6 +262,8 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
         view.onLinkActivated = { spineIdx, pageIdx, x, y ->
             onLinkActivated?.invoke(spineIdx, pageIdx, x, y)
         }
+        view.setOnTouchListener { _, event -> receivePageTouch(key.spineIdx, key.pageIdx, event) }
+        view.onPageDrawn = { spineIdx, pageIdx -> onPageDrawn?.invoke(spineIdx, pageIdx) }
         val list = displayListFor(key)
         view.present(
             list,

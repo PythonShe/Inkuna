@@ -124,4 +124,6 @@
         <item quantity="one">%d résultat</item>
         <item quantity="other">%d résultats</item>
     </plurals>
+    <string name="reader_share_selection">Partager</string>
+    <string name="reader_web_search">Rechercher sur le Web</string>
 </resources>

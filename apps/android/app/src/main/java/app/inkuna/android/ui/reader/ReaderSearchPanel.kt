@@ -252,7 +252,7 @@ fun ReaderSearchPanel(
                     ) {
                         items(
                             outcome.hits,
-                            key = { hit -> "${hit.spineIndex}:${hit.charOffset}" },
+                            key = { hit -> "${hit.spineIdx}:${hit.charOffset}" },
                         ) { hit ->
                             SearchResultRow(hit = hit, onClick = { onSelect(hit) })
                         }

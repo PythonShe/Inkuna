@@ -130,4 +130,6 @@
         <item quantity="many">%d результатов</item>
         <item quantity="other">%d результатов</item>
     </plurals>
+    <string name="reader_share_selection">Поделиться</string>
+    <string name="reader_web_search">Искать в интернете</string>
 </resources>

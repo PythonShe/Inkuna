@@ -17,8 +17,7 @@ import kotlin.math.roundToInt
  * The reader's renderer-neutral page-turn controller.
  *
  * It owns the touch pipeline and spring physics; a [ReaderPagerSurface]
- * supplies the two strips it moves. The temporary Readium surface carries
- * the old WebView and fake-drag workarounds until Movement 5 removes it.
+ * supplies the two strips it moves.
  */
 class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     var surface: ReaderPagerSurface? = null
@@ -555,12 +554,6 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         }
         return didAbortSettle
     }
-
-    // MARK: Readium-only bridge until Movement 5
-
-    fun currentWebView() = (surface as? ReadiumPagerSurface)?.currentWebView()
-
-    fun recalibrate() = (surface as? ReadiumPagerSurface)?.recalibrate()
 
     /** Cancels every in-flight interaction for teardown, jumps, and reflow. */
     fun cancelInteraction() {

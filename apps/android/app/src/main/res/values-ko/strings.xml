@@ -121,4 +121,6 @@
     <plurals name="a11y_result_count">
         <item quantity="other">%d개의 결과</item>
     </plurals>
+    <string name="reader_share_selection">공유</string>
+    <string name="reader_web_search">웹 검색</string>
 </resources>

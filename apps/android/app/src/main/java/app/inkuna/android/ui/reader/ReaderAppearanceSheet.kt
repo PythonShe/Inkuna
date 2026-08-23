@@ -33,7 +33,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -83,14 +82,12 @@ import kotlin.math.roundToInt
  * The Customize panel — level 2 of the Theme & type sheet. A live preview
  * on the reading surface, the font roster with own-typeface specimens,
  * the bold toggle, and the four layout sliders; everything applies
- * through the reader's own stylesheet, previewing per step and
- * committing on release.
+ * through the engine after each committed setting change.
  */
 @Composable
 internal fun CustomizePanel(
     snapshot: AppSettings.Snapshot,
     settings: AppSettings,
-    appearance: ReaderAppearanceController,
     onBack: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -103,20 +100,14 @@ internal fun CustomizePanel(
 
     val fallback = stringResource(R.string.reader_preview_fallback)
     val resetLabel = stringResource(R.string.a11y_reset_defaults)
-    var phrase by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { phrase = appearance.currentPhrase() ?: fallback }
 
     fun commit(next: ReaderTypeDraft, write: () -> Unit) {
         draft = next
         write()
     }
 
-    // Slider releases must close the anchor session themselves: a commit of
-    // the value already stored never re-emits the snapshot, so the
-    // applyCommitted path would leave the anchor stranded.
     fun commitSlider(next: ReaderTypeDraft, write: () -> Unit) {
         commit(next, write)
-        appearance.endPreview()
     }
 
     Column(
@@ -137,7 +128,7 @@ internal fun CustomizePanel(
         ) {
             Spacer(Modifier.height(InkSpace.s4))
             AppearancePreviewCard(
-                phrase = phrase ?: fallback,
+                phrase = fallback,
                 theme = snapshot.readingTheme,
                 textSizeSp = AppSettings.TEXT_SIZE_STEPS[snapshot.textSizeStep],
                 draft = draft,
@@ -177,10 +168,9 @@ internal fun CustomizePanel(
                 value = draft.lineSpacing,
                 range = AppSettings.MIN_LINE_SPACING..AppSettings.MAX_LINE_SPACING,
                 step = 0.05f,
-                onBegin = { appearance.beginPreview() },
+                onBegin = {},
                 onPreview = { value ->
                     draft = draft.copy(lineSpacing = value)
-                    appearance.preview(draft)
                 },
                 onCommit = { value ->
                     commitSlider(draft.copy(lineSpacing = value)) { settings.setLineSpacing(value) }
@@ -194,10 +184,9 @@ internal fun CustomizePanel(
                 value = draft.letterSpacing,
                 range = 0f..AppSettings.MAX_LETTER_SPACING,
                 step = 0.005f,
-                onBegin = { appearance.beginPreview() },
+                onBegin = {},
                 onPreview = { value ->
                     draft = draft.copy(letterSpacing = value)
-                    appearance.preview(draft)
                 },
                 onCommit = { value ->
                     commitSlider(draft.copy(letterSpacing = value)) { settings.setLetterSpacing(value) }
@@ -211,10 +200,9 @@ internal fun CustomizePanel(
                 value = draft.wordSpacing,
                 range = 0f..AppSettings.MAX_WORD_SPACING,
                 step = 0.025f,
-                onBegin = { appearance.beginPreview() },
+                onBegin = {},
                 onPreview = { value ->
                     draft = draft.copy(wordSpacing = value)
-                    appearance.preview(draft)
                 },
                 onCommit = { value ->
                     commitSlider(draft.copy(wordSpacing = value)) { settings.setWordSpacing(value) }
@@ -228,10 +216,9 @@ internal fun CustomizePanel(
                 value = draft.margins.toFloat(),
                 range = AppSettings.MIN_READING_MARGINS.toFloat()..AppSettings.MAX_READING_MARGINS.toFloat(),
                 step = 2f,
-                onBegin = { appearance.beginPreview() },
+                onBegin = {},
                 onPreview = { value ->
                     draft = draft.copy(margins = value.roundToInt())
-                    appearance.preview(draft)
                 },
                 onCommit = { value ->
                     commitSlider(draft.copy(margins = value.roundToInt())) {

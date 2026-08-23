@@ -34,10 +34,9 @@ import kotlinx.coroutines.launch
  * from a mail client, opened from a browser download.
  *
  * It is a separate activity rather than a branch inside `MainActivity` for
- * two reasons: `MainActivity` is a `FragmentActivity` hosting the Readium
- * navigator and has its own lifecycle to protect, and an inbound import
- * should be able to run and get out of the way without disturbing whatever
- * the reader was doing. The window is a transparent scrim plus the ordinary
+ * two reasons: its import lifecycle stays isolated from the library shell,
+ * and an inbound import should be able to run and get out of the way without
+ * disturbing whatever the reader was doing. The window is a transparent scrim plus the ordinary
  * import sheet, so it reads as a system-level "adding this book".
  *
  * The URI grant that comes with the intent lives only as long as this

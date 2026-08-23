@@ -47,6 +47,7 @@ class PageView(context: Context) : View(context) {
 
     /** Set by the canvas; Accessibility links enter the same page-local path. */
     var onLinkActivated: ((spineIdx: UInt, pageIdx: UInt, x: Float, y: Float) -> Unit)? = null
+    var onPageDrawn: ((spineIdx: UInt, pageIdx: UInt) -> Unit)? = null
 
     private val density = resources.displayMetrics.density
     private val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -87,6 +88,7 @@ class PageView(context: Context) : View(context) {
         drawGlyphRuns(canvas)
         drawDecorations(canvas, list.decorations)
         canvas.restore()
+        onPageDrawn?.invoke(spineIdx, pageIdx)
     }
 
     internal fun accessibilityBlocks(): List<A11yBlock> = displayList?.a11y.orEmpty()

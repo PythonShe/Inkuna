@@ -34,7 +34,6 @@ class EnginePagerSurface(
     var pageIdx: UInt = 0u
         private set
     var spineCount: UInt = session.spineCount()
-        private set
     var onPageSettled: ((UInt, UInt) -> Unit)? = null
     var selectionActive: Boolean = false
 
@@ -58,6 +57,7 @@ class EnginePagerSurface(
         scenePageCount = count
         lastSettledPage = pageIdx
         neighborReadiness.clear()
+        canvas.showUnreadablePlaceholder(spineIdx in failedSpines)
         setScene()
         onPageSettled?.invoke(spineIdx, pageIdx)
     }
@@ -72,6 +72,7 @@ class EnginePagerSurface(
         neighborReadiness.clear()
         if (spineIdx == this.spineIdx) {
             pendingGeneration = false
+            canvas.showUnreadablePlaceholder(false)
             canvas.invalidate(generation)
             setScene()
         }
@@ -92,6 +93,7 @@ class EnginePagerSurface(
         neighborReadiness.clear()
         if (spineIdx == this.spineIdx) {
             pendingGeneration = false
+            canvas.showUnreadablePlaceholder(false)
             canvas.invalidate(generation)
             setScene()
         }
@@ -104,6 +106,7 @@ class EnginePagerSurface(
         neighborReadiness.clear()
         if (spineIdx == this.spineIdx) {
             pendingGeneration = false
+            canvas.showUnreadablePlaceholder(true)
             setScene()
         }
     }

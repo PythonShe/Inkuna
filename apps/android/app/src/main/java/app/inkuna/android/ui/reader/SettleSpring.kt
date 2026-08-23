@@ -8,7 +8,7 @@ import kotlin.math.abs
  * callbacks on the [Choreographer]. Critical damping is the page-turn
  * feel: the fastest settle with no overshoot, and interruptible at any
  * frame because true position and velocity are integrated, not sampled
- * off a curve. Nothing here knows about Readium — this physics layer
+ * off a curve. Nothing here knows about the renderer — this physics layer
  * carries over unchanged when the rendering stack is replaced, and its
  * constants are shared with the iOS shell so the two readers feel like
  * one product.

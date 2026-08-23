@@ -121,4 +121,6 @@
     <plurals name="a11y_result_count">
         <item quantity="other">%d kết quả</item>
     </plurals>
+    <string name="reader_share_selection">Chia sẻ</string>
+    <string name="reader_web_search">Tìm kiếm trên web</string>
 </resources>

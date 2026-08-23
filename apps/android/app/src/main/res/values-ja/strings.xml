@@ -121,4 +121,6 @@
     <plurals name="a11y_result_count">
         <item quantity="other">%d 件の結果</item>
     </plurals>
+    <string name="reader_share_selection">共有</string>
+    <string name="reader_web_search">Webを検索</string>
 </resources>

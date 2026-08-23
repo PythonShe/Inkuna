@@ -131,8 +131,8 @@ fun BookDetailScreen(
             // never a fictional page number.
             //
             // ENGINE-SWAP INTERIM: this does NOT match the reader's own
-            // page-info line, which is still Readium-computed while the
-            // reader opens through Readium (plan-02 Task 5.1) — different N
+            // page-info line, which is core-computed from the canonical
+            // projection — different N
             // and different M for the same book. Only books whose
             // coordinate came from the core's rebaseline show a page number
             // here at all; the reader writes no coordinate during the

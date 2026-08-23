@@ -98,6 +98,8 @@
     <string name="reader_page_failed">This page couldn\'t be shown.</string>
     <string name="reader_bookmark_empty">Nothing to bookmark yet.</string>
     <string name="reader_bookmark_save_failed">The bookmark couldn\'t be saved.</string>
+    <string name="reader_share_selection">Share</string>
+    <string name="reader_web_search">Search the web</string>
 
     
     <string name="a11y_back">Back</string>

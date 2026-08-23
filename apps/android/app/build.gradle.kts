@@ -31,8 +31,8 @@ val inkunaAbis = (findProperty("inkunaAbis") as String? ?: "arm64-v8a,x86_64")
  * A sync into a private staging directory, not an assets source directory
  * on repo `assets/` itself: that directory also holds `assets/brand/`,
  * which has no business in the APK. The `fonts` segment below is what
- * makes the packaged path `assets/fonts/…`, which the reading-font stack
- * and Readium's asset loader already spell.
+ * makes the packaged path `assets/fonts/…`, which the reader font store
+ * already uses.
  */
 val coreFontAssets: Provider<Directory> = layout.buildDirectory.dir("generated/inkunaFonts")
 
@@ -126,9 +126,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        // Readium's AARs declare java.time/NIO usage that needs desugaring
-        // on device even at minSdk 33.
-        isCoreLibraryDesugaringEnabled = true
     }
 }
 
@@ -141,34 +138,13 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.navigation:navigation-compose:2.9.8")
     implementation("androidx.datastore:datastore-preferences:1.2.1")
-    // The reader hosts Readium's fragment-based EPUB navigator in Compose
-    // and drives the core contract from a ViewModel.
-    implementation("androidx.fragment:fragment-ktx:1.9.0")
-    // Referenced directly by BoundaryDragFollower to fake-drag Readium's
-    // resource pager across chapter boundaries.
-    implementation("androidx.viewpager:viewpager:1.1.0")
     implementation("androidx.customview:customview:1.2.0")
-    // Document-start JS injection for the reader's own user stylesheet.
-    // Capped below 1.17.0 on purpose: from 1.17.0 on,
-    // WebViewAssetLoader.AssetsPathHandler builds its WebResourceResponse with
-    // the shared immutable Map.of("Cache-Control", …) header map, and Readium
-    // 3.3.0's WebViewServer.allowCors() puts "Access-Control-Allow-Origin"
-    // into that map in place (WebViewServer.kt:263). Every served asset — our
-    // bundled Noto fonts included — then throws UnsupportedOperationException
-    // on the main thread the moment a book opens. `strictly` so a transitive
-    // bump cannot reintroduce it; lift once Readium copies the headers first.
-    implementation("androidx.webkit:webkit") { version { strictly("1.16.0") } }
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     // The evening reminder: WorkManager survives reboots without a boot
     // receiver, so the daily nudge is one self-chaining worker.
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
-    // Readium renders and paginates; the Rust core owns storage, metadata,
-    // and progress behind the FFI and never renders.
-    implementation("org.readium.kotlin-toolkit:readium-shared:3.3.0")
-    implementation("org.readium.kotlin-toolkit:readium-streamer:3.3.0")
-    implementation("org.readium.kotlin-toolkit:readium-navigator:3.3.0")
     // UniFFI-generated bindings load the Rust core through JNA.
     implementation("net.java.dev.jna:jna:5.19.1@aar")
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    testImplementation("junit:junit:4.13.2")
 }
