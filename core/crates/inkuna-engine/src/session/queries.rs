@@ -61,15 +61,15 @@ impl EngineSession {
     }
 
     /// Whether the chapter is completely laid out at the current
-    /// generation. Pure read — never schedules.
+    /// generation. Pure read — never schedules or changes cache recency.
     pub fn is_ready(&self, spine_idx: u32) -> bool {
         if self.closed() {
             return false;
         }
         let generation = self.shared.generation.load(Ordering::Acquire);
-        let mut inner = self.shared.lock();
+        let inner = self.shared.lock();
         matches!(
-            inner.cache.get(spine_idx, generation),
+            inner.cache.peek(spine_idx, generation),
             Some(SlotState::Ready(_))
         )
     }
@@ -80,18 +80,18 @@ impl EngineSession {
     /// to `ChapterGeometry::page_count` once the chapter completes.
     ///
     /// Total-function counterpart to [`Self::chapter`]: pure read — it
-    /// never schedules layout, never moves focus, never blocks past the
-    /// brief session mutex, and has no error case, because `0` is the
-    /// honest answer for a chapter nothing has laid out yet. Shells size
-    /// a progressive pager's scroll range on it without waiting for the
-    /// whole chapter.
+    /// never schedules layout, never moves focus or cache recency, never
+    /// blocks past the brief session mutex, and has no error case, because
+    /// `0` is the honest answer for a chapter nothing has laid out yet.
+    /// Shells size a progressive pager's scroll range on it without
+    /// waiting for the whole chapter.
     pub fn published_page_count(&self, spine_idx: u32) -> u32 {
         if self.closed() || spine_idx >= self.spine_len() {
             return 0;
         }
         let generation = self.shared.generation.load(Ordering::Acquire);
-        let mut inner = self.shared.lock();
-        match inner.cache.get(spine_idx, generation) {
+        let inner = self.shared.lock();
+        match inner.cache.peek(spine_idx, generation) {
             Some(SlotState::Ready(data)) | Some(SlotState::Laying(data)) => {
                 data.pages.len() as u32
             }
@@ -197,7 +197,7 @@ impl EngineSession {
             .shared
             .spine
             .iter()
-            .position(|h| h == path)
+            .position(|item| item.href == path)
             .ok_or_else(|| EngineError::AnchorNotFound {
                 detail: href.to_string(),
             })? as u32;

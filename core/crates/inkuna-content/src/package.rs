@@ -10,7 +10,8 @@ use crate::cover::image_extension;
 use crate::href::{parent_dir, resolve_href};
 use crate::model::{Cover, EpubPackage, ManifestItem, SpineItem};
 use crate::opf::{
-    parse_opf, OpfItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_METADATA_VALUE_BYTES, MAX_SPINE_ITEMS,
+    effective_layout, parse_opf, OpfItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_METADATA_VALUE_BYTES,
+    MAX_SPINE_ITEMS,
 };
 use crate::toc::{parse_nav, parse_ncx};
 use crate::ContentError;
@@ -94,8 +95,8 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
     let spine: Vec<SpineItem> = opf
         .spine_idrefs
         .iter()
-        .filter_map(|itemref| item_by_id(&itemref.idref))
-        .filter_map(|item| {
+        .filter_map(|itemref| item_by_id(&itemref.idref).map(|item| (itemref, item)))
+        .filter_map(|(itemref, item)| {
             let resolved = resolve(&item.href);
             if resolved.len() > MAX_HREF_BYTES {
                 oversized_spine_hrefs += 1;
@@ -110,6 +111,9 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
             Some(SpineItem {
                 href: resolved,
                 media_type: declared_media_type(&item.media_type),
+                layout: itemref
+                    .declared_layout()
+                    .unwrap_or_else(|| opf.package_layout.unwrap_or_default()),
             })
         })
         .collect();
@@ -209,11 +213,13 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
         );
     }
 
+    let rendition_layout = effective_layout(opf.package_layout, &spine);
+
     Ok(EpubPackage {
         metadata: opf.metadata,
         spine,
         manifest,
-        rendition_layout: opf.rendition_layout,
+        rendition_layout,
         page_progression_rtl: opf.page_progression_rtl,
         toc,
         cover,

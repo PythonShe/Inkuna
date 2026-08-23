@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 
-use inkuna_content::{read_package, read_resource, RenditionLayout};
+use inkuna_content::{RenditionLayout, SpineItem, read_package, read_resource};
 
 use crate::error::EngineError;
 use crate::fonts::FontRegistry;
@@ -41,8 +41,8 @@ pub(super) struct Shared {
     pub events: Arc<dyn LayoutEvents>,
     pub epub_path: PathBuf,
     pub fonts: Arc<FontRegistry>,
-    /// Spine hrefs in reading order, package-root-relative.
-    pub spine: Vec<String>,
+    /// Retained spine items in reading order, package-root-relative.
+    pub spine: Vec<SpineItem>,
     pub rtl_progression: bool,
     /// Publication language for shaping (the `open` parameter, falling
     /// back to the package's `dc:language`).
@@ -86,7 +86,7 @@ impl EngineSession {
                 detail: "fixed-layout".to_string(),
             });
         }
-        let spine: Vec<String> = package.spine.iter().map(|s| s.href.clone()).collect();
+        let spine = package.spine;
         let focus = opening_chapter.min(spine.len().saturating_sub(1) as u32);
         let mut queue = VecDeque::new();
         if !spine.is_empty() {

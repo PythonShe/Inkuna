@@ -15,6 +15,9 @@ mod session;
 mod worker;
 
 #[cfg(test)]
+#[path = "cache_tests.rs"]
+mod cache_tests;
+#[cfg(test)]
 mod readiness_tests;
 #[cfg(test)]
 mod tests;

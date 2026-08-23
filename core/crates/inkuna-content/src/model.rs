@@ -39,12 +39,16 @@ pub struct Cover {
 }
 
 /// One spine entry in reading order: the resolved href of the resource
-/// its `itemref` points at, plus the media type the manifest declares
-/// for it (`None` when the manifest item carries no `media-type`).
+/// its `itemref` points at, the media type the manifest declares for it
+/// (`None` when the manifest item carries no `media-type`), and its
+/// resolved rendition layout.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpineItem {
     pub href: String,
     pub media_type: Option<String>,
+    /// The itemref's `rendition:layout-*` property when declared,
+    /// otherwise the package-level default (or reflowable when absent).
+    pub layout: RenditionLayout,
 }
 
 /// One manifest entry: the resolved href and declared media type of any
@@ -79,12 +83,10 @@ pub struct EpubPackage {
     /// whose resolved href exceeds `MAX_HREF_BYTES` are dropped, like the
     /// spine's — capped by `MAX_MANIFEST_ITEMS` at the parse.
     pub manifest: Vec<ManifestItem>,
-    /// The publication's EFFECTIVE layout: the package-level
-    /// `<meta property="rendition:layout">` default as overridden per
-    /// resource by the itemrefs' own `rendition:layout-*` properties.
-    /// [`RenditionLayout::PrePaginated`] only when EVERY spine item is
-    /// effectively pre-paginated, so a reflowable book carrying a single
-    /// fixed insert still reads as reflowable.
+    /// The publication layout used to choose a reader: an explicit
+    /// package-level `<meta property="rendition:layout">` controls it;
+    /// without one, it is pre-paginated only when every retained spine
+    /// item is pre-paginated.
     pub rendition_layout: RenditionLayout,
     /// The spine's `page-progression-direction="rtl"` attribute; absent
     /// or any other value is `false`.

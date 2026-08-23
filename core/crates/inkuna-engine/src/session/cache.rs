@@ -146,6 +146,14 @@ pub(super) struct Cache {
 }
 
 impl Cache {
+    /// Looks a chapter up without changing its eviction recency.
+    pub fn peek(&self, spine_idx: u32, generation: u64) -> Option<&SlotState> {
+        self.slots
+            .iter()
+            .find(|s| s.spine_idx == spine_idx && s.generation == generation)
+            .map(|s| &s.state)
+    }
+
     /// Looks a chapter up, marking it most-recently-used.
     pub fn get(&mut self, spine_idx: u32, generation: u64) -> Option<&SlotState> {
         self.tick += 1;

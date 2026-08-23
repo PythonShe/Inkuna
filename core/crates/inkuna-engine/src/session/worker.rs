@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use icu_segmenter::options::WordBreakInvariantOptions;
 use icu_segmenter::{WordSegmenter, WordSegmenterBorrowed};
-use inkuna_content::ResourceReader;
+use inkuna_content::{RenditionLayout, ResourceReader};
 
 use crate::display::{build_page, DisplayContext};
 use crate::dom::parse;
@@ -29,6 +29,7 @@ struct Job {
     spine_idx: u32,
     generation: u64,
     href: String,
+    layout: RenditionLayout,
     viewport: Viewport,
     settings: LayoutSettings,
 }
@@ -117,7 +118,8 @@ fn pick(shared: &Shared, inner: &mut Inner) -> Option<Job> {
     Some(Job {
         spine_idx,
         generation,
-        href: shared.spine[spine_idx as usize].clone(),
+        href: shared.spine[spine_idx as usize].href.clone(),
+        layout: shared.spine[spine_idx as usize].layout,
         viewport: inner.viewport,
         settings: inner.settings.clone(),
     })
@@ -137,6 +139,9 @@ fn lay_chapter(
     segmenter: &WordSegmenterBorrowed<'static>,
     reader: &RefCell<ResourceReader>,
 ) {
+    if job.layout == RenditionLayout::PrePaginated {
+        return publish_failed(shared, job, "fixed-layout".to_string());
+    }
     let bytes = match reader.borrow_mut().read(&job.href) {
         Ok(bytes) => bytes,
         Err(e) => return publish_failed(shared, job, e.to_string()),

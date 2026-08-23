@@ -117,6 +117,24 @@ struct FirstPageProbe {
     forward: Sender<Event>,
 }
 
+/// Holds the worker at its first callback, leaving the cache stable while a
+/// query test prepares the remaining completed slots.
+struct FirstPageGate {
+    entered: Sender<()>,
+    release: Mutex<Receiver<()>>,
+}
+
+impl LayoutEvents for FirstPageGate {
+    fn first_page_ready(&self, _: u64, _: u32) {
+        let _ = self.entered.send(());
+        if let Ok(release) = self.release.lock() {
+            let _ = release.recv_timeout(TIMEOUT);
+        }
+    }
+    fn chapter_ready(&self, _: u64, _: u32, _: u32) {}
+    fn chapter_failed(&self, _: u64, _: u32) {}
+}
+
 impl LayoutEvents for FirstPageProbe {
     fn first_page_ready(&self, generation: u64, spine_idx: u32) {
         if let Some(gate) = self.gate.lock().expect("gate lock").take() {
@@ -263,6 +281,54 @@ fn published_page_count_answers_zero_instead_of_throwing() {
         0,
         "a closed session publishes nothing"
     );
+}
+
+#[test]
+fn published_page_count_is_zero_after_cache_eviction() {
+    let dir = TempDir::new().expect("tempdir");
+    let doc = cjk_doc(40);
+    let docs: Vec<&str> = (0..7).map(|_| doc.as_str()).collect();
+    let path = book(&dir, &docs);
+    let (entered_tx, entered_rx) = channel();
+    let (release_tx, release_rx) = channel();
+    let gate = Arc::new(FirstPageGate {
+        entered: entered_tx,
+        release: Mutex::new(release_rx),
+    });
+    let session = EngineSession::open(
+        &path,
+        registry(),
+        viewport(),
+        LayoutSettings::default(),
+        None,
+        0,
+        gate,
+    )
+    .expect("session opens");
+
+    entered_rx
+        .recv_timeout(TIMEOUT)
+        .expect("first page callback holds the worker");
+    {
+        let mut inner = session.shared.lock();
+        for spine_idx in 1..=6 {
+            inner.cache.insert_laying(spine_idx, 0);
+            let Some(state) = inner.cache.state_mut(spine_idx, 0) else {
+                panic!("inserted cache slot is present");
+            };
+            *state = super::cache::SlotState::Failed("失敗".to_string());
+        }
+        inner.cache.evict(0);
+    }
+
+    assert_eq!(
+        session.published_page_count(1),
+        0,
+        "an evicted chapter has no published pages"
+    );
+
+    release_tx.send(()).expect("release worker");
+    session.close();
 }
 
 /// A book made fixed-layout only by its itemrefs' own

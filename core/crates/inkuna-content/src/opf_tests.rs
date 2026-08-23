@@ -79,10 +79,12 @@ fn spine_items_carry_media_types() {
             crate::SpineItem {
                 href: "OEBPS/text/ch01.xhtml".into(),
                 media_type: Some("application/xhtml+xml".into()),
+                layout: RenditionLayout::Reflowable,
             },
             crate::SpineItem {
                 href: "OEBPS/text/ch02.xhtml".into(),
                 media_type: None,
+                layout: RenditionLayout::Reflowable,
             },
         ]
     );
@@ -105,6 +107,44 @@ fn spine_items_carry_media_types() {
     );
     assert_eq!(package.rendition_layout, RenditionLayout::Reflowable);
     assert!(!package.page_progression_rtl);
+}
+
+/// The publication-level layout vote happens after the spine has dropped
+/// dangling and duplicate itemrefs, so only resources the engine can lay
+/// out participate.
+#[test]
+fn filtered_spine_items_alone_vote_for_fixed_layout() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("filtered-spine-layout.epub");
+    crate::test_support::write_epub_parts(
+        &path,
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>選別</dc:title></metadata>
+  <manifest>
+    <item id="p1" href="p1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="p2" href="p2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="p1" properties="rendition:layout-pre-paginated"/>
+    <itemref idref="missing"/>
+    <itemref idref="p2" properties="rendition:layout-pre-paginated"/>
+    <itemref idref="p1"/>
+  </spine>
+</package>"#,
+        &[
+            ("p1.xhtml", "<html><body><p>一</p></body></html>"),
+            ("p2.xhtml", "<html><body><p>二</p></body></html>"),
+        ],
+    );
+
+    let package = crate::read_package(&path).unwrap();
+    assert_eq!(package.spine.len(), 2);
+    assert!(package
+        .spine
+        .iter()
+        .all(|item| item.layout == RenditionLayout::PrePaginated));
+    assert_eq!(package.rendition_layout, RenditionLayout::PrePaginated);
 }
 
 /// The href cap holds on the *resolved* manifest href too: an item whose
@@ -156,7 +196,7 @@ fn rendition_prepaginated_detected() {
 </package>"#,
     )
     .unwrap();
-    assert_eq!(opf.rendition_layout, RenditionLayout::PrePaginated);
+    assert_eq!(opf.package_layout, Some(RenditionLayout::PrePaginated));
 }
 
 /// A malformed or unknown `rendition:layout` value is never an error —
@@ -170,7 +210,19 @@ fn unknown_rendition_value_is_reflowable() {
 </package>"#,
     )
     .unwrap();
-    assert_eq!(opf.rendition_layout, RenditionLayout::Reflowable);
+    assert_eq!(opf.package_layout, Some(RenditionLayout::Reflowable));
+}
+
+#[test]
+fn empty_rendition_value_is_an_explicit_reflowable_default() {
+    let opf = parse_opf(
+        r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata><meta property="rendition:layout"/></metadata>
+  <manifest/><spine/>
+</package>"#,
+    )
+    .unwrap();
+    assert_eq!(opf.package_layout, Some(RenditionLayout::Reflowable));
 }
 
 /// `rendition:layout` is publication-level only when un-refined: a
@@ -186,7 +238,7 @@ fn refined_rendition_meta_does_not_set_book_layout() {
 </package>"##,
     )
     .unwrap();
-    assert_eq!(refined_only.rendition_layout, RenditionLayout::Reflowable);
+    assert_eq!(refined_only.package_layout, None);
 
     let refined_then_publication = parse_opf(
         r##"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
@@ -199,17 +251,16 @@ fn refined_rendition_meta_does_not_set_book_layout() {
     )
     .unwrap();
     assert_eq!(
-        refined_then_publication.rendition_layout,
-        RenditionLayout::PrePaginated
+        refined_then_publication.package_layout,
+        Some(RenditionLayout::PrePaginated)
     );
 }
 
-/// Per the format an `<itemref>`'s `properties` override the package
-/// default for that resource. A book whose itemrefs ALL declare
-/// `rendition:layout-pre-paginated` is fixed-layout even though it
-/// carries no package-level `rendition:layout` meta at all.
+/// Itemref properties are not package declarations: without an unrefined
+/// rendition meta, the package default remains absent and each retained
+/// spine item resolves its own layout later.
 #[test]
-fn itemref_properties_alone_make_a_book_prepaginated() {
+fn itemref_properties_do_not_create_a_package_layout_default() {
     let opf = parse_opf(
         r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
   <metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">絵本</dc:title></metadata>
@@ -224,14 +275,13 @@ fn itemref_properties_alone_make_a_book_prepaginated() {
 </package>"#,
     )
     .unwrap();
-    assert_eq!(opf.rendition_layout, RenditionLayout::PrePaginated);
+    assert_eq!(opf.package_layout, None);
 }
 
-/// The override is per resource, so one fixed insert — a map, a spread —
-/// does NOT make a reflowable book fixed-layout. It must keep opening in
-/// the engine.
+/// A fixed itemref remains an item-level declaration when the package has
+/// no rendition meta; the retained spine resolves the publication vote.
 #[test]
-fn one_fixed_itemref_does_not_make_the_book_prepaginated() {
+fn one_fixed_itemref_does_not_create_a_package_layout_default() {
     let opf = parse_opf(
         r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
   <manifest>
@@ -247,17 +297,13 @@ fn one_fixed_itemref_does_not_make_the_book_prepaginated() {
 </package>"#,
     )
     .unwrap();
-    assert_eq!(opf.rendition_layout, RenditionLayout::Reflowable);
+    assert_eq!(opf.package_layout, None);
 }
 
-/// The override runs the other way too: a package declaring
-/// `pre-paginated` whose itemrefs all opt back into
-/// `rendition:layout-reflowable` is a reflowable book — and so is one
-/// where only SOME itemrefs opt back, because a single reflowable
-/// resource means the engine has something to paginate and the fixed
-/// items degrade one by one instead of the whole book being refused.
+/// A package-level declaration is publication-level: itemref properties
+/// still resolve per resource, but cannot change the reader chosen at open.
 #[test]
-fn itemrefs_can_override_a_prepaginated_package_back_to_reflowable() {
+fn itemrefs_do_not_override_a_prepaginated_package_layout() {
     let all_reflowable = parse_opf(
         r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
   <metadata><meta property="rendition:layout">pre-paginated</meta></metadata>
@@ -272,7 +318,10 @@ fn itemrefs_can_override_a_prepaginated_package_back_to_reflowable() {
 </package>"#,
     )
     .unwrap();
-    assert_eq!(all_reflowable.rendition_layout, RenditionLayout::Reflowable);
+    assert_eq!(
+        all_reflowable.package_layout,
+        Some(RenditionLayout::PrePaginated)
+    );
 
     let some_inherit = parse_opf(
         r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
@@ -288,7 +337,10 @@ fn itemrefs_can_override_a_prepaginated_package_back_to_reflowable() {
 </package>"#,
     )
     .unwrap();
-    assert_eq!(some_inherit.rendition_layout, RenditionLayout::Reflowable);
+    assert_eq!(
+        some_inherit.package_layout,
+        Some(RenditionLayout::PrePaginated)
+    );
 }
 
 /// A package-level `pre-paginated` with itemrefs that declare nothing
@@ -304,7 +356,7 @@ fn package_prepaginated_survives_plain_itemrefs() {
 </package>"#,
     )
     .unwrap();
-    assert_eq!(opf.rendition_layout, RenditionLayout::PrePaginated);
+    assert_eq!(opf.package_layout, Some(RenditionLayout::PrePaginated));
 }
 
 #[test]

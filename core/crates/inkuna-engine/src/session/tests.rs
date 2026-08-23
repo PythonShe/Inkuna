@@ -3,7 +3,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use inkuna_content::test_support::EpubBuilder;
+use inkuna_content::test_support::{EpubBuilder, write_epub_parts};
 use tempfile::TempDir;
 
 use crate::error::EngineError;
@@ -390,6 +390,88 @@ fn fixed_layout_rejected_at_open() {
         }
         other => panic!("expected UnsupportedContent, got {:?}", other.map(|_| ())),
     }
+}
+
+#[test]
+fn declared_fixed_layout_is_not_downgraded_by_a_reflowable_itemref() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("declared-fixed.epub");
+    write_epub_parts(
+        &path,
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>固定本</dc:title>
+    <meta property="rendition:layout">pre-paginated</meta>
+  </metadata>
+  <manifest>
+    <item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>
+    <item id="page" href="page.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="cover" properties="rendition:layout-reflowable"/>
+    <itemref idref="page"/>
+  </spine>
+</package>"#,
+        &[
+            ("cover.xhtml", "<html><body><p>表紙</p></body></html>"),
+            ("page.xhtml", "<html><body><p>本文</p></body></html>"),
+        ],
+    );
+    let (tx, _rx) = channel();
+
+    match EngineSession::open(
+        &path,
+        registry(),
+        viewport(),
+        LayoutSettings::default(),
+        None,
+        0,
+        Arc::new(TestEvents(tx)),
+    ) {
+        Err(EngineError::UnsupportedContent { detail }) => assert_eq!(detail, "fixed-layout"),
+        other => panic!("expected UnsupportedContent, got {:?}", other.map(|_| ())),
+    }
+}
+
+#[test]
+fn fixed_spine_item_fails_without_refusing_a_reflowable_publication() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("mixed-layout.epub");
+    write_epub_parts(
+        &path,
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>混在</dc:title></metadata>
+  <manifest>
+    <item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="map" href="map.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="c2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="c1"/>
+    <itemref idref="map" properties="rendition:layout-pre-paginated"/>
+    <itemref idref="c2"/>
+  </spine>
+</package>"#,
+        &[
+            ("c1.xhtml", "<html><body><p>第一章</p></body></html>"),
+            ("map.xhtml", "<html><body><p>地図</p></body></html>"),
+            ("c2.xhtml", "<html><body><p>第二章</p></body></html>"),
+        ],
+    );
+    let (session, rx) = open(&path, viewport(), 0);
+
+    wait_chapter_ready(&rx, 0, 0);
+    let event = rx.recv_timeout(TIMEOUT).expect("fixed item result");
+    assert!(matches!(event, Event::ChapterFailed(0, 1)), "{event:?}");
+    wait_chapter_ready(&rx, 0, 2);
+    assert!(session.chapter(0).is_ok());
+    assert!(matches!(
+        session.chapter(1),
+        Err(EngineError::UnsupportedContent { .. })
+    ));
+    assert!(session.chapter(2).is_ok());
 }
 
 #[test]
