@@ -1,7 +1,7 @@
 use super::{project, Projection};
 use crate::dom::parse;
 use crate::style::{parse_sheet, resolve};
-use crate::test_support::{CJK_HORIZONTAL_DOC, CJK_VERTICAL_RUBY_DOC};
+use crate::test_support::{CJK_HORIZONTAL_DOC, CJK_RUBY_RP_DOC, CJK_VERTICAL_RUBY_DOC};
 
 /// Parses, resolves against the given sheets, projects.
 fn projected(xhtml: &str, css: &[&str]) -> Projection {
@@ -29,12 +29,26 @@ fn excludes_rt_includes_base() {
     assert!(!projection.text.contains("そら"));
 
     // Contiguous spans: 東京 / の / 空 / は高かった。
-    let ranges: Vec<_> = projection.spans.iter().map(|s| s.char_range.clone()).collect();
+    let ranges: Vec<_> = projection
+        .spans
+        .iter()
+        .map(|s| s.char_range.clone())
+        .collect();
     assert_eq!(ranges, vec![0..2, 2..3, 3..4, 4..10]);
     for span in &projection.spans {
         assert_eq!(span.node_char_start, 0);
     }
     assert_eq!(projection.char_len, 10);
+}
+
+#[test]
+fn excludes_rp_without_shifting_following_anchor() {
+    let projection = projected(CJK_RUBY_RP_DOC, &[]);
+    assert_eq!(projection.text, "漢");
+    assert!(!projection.text.contains('('));
+    assert!(!projection.text.contains(')'));
+    assert!(!projection.text.contains("かん"));
+    assert_eq!(projection.anchors, vec![("after".to_string(), 1)]);
 }
 
 #[test]
@@ -70,10 +84,7 @@ fn soft_hyphen_dropped() {
 
 #[test]
 fn offsets_are_scalar_counts() {
-    let projection = projected(
-        "<html><body><p>𠀋a <em>𠀋</em>b</p></body></html>",
-        &[],
-    );
+    let projection = projected("<html><body><p>𠀋a <em>𠀋</em>b</p></body></html>", &[]);
     assert_eq!(projection.text, "𠀋a 𠀋b");
     // 5 scalars, though the bytes say otherwise.
     assert_eq!(projection.char_len, 5);

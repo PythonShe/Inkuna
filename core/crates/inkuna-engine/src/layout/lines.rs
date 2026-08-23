@@ -102,6 +102,8 @@ pub struct Line {
     /// Used inline extent (width horizontal, height vertical) — the
     /// justified width for justified lines, the natural width otherwise.
     pub inline_extent: Fx,
+    /// Alignment offset from the placed line's inline origin.
+    pub align_shift: Fx,
     pub ascent: Fx,
     pub descent: Fx,
     /// Extra block extent ruby annotations need on the over side.
@@ -135,6 +137,7 @@ pub fn break_paragraph(p: &ShapedParagraph<'_>, width: Fx, opts: &LineOptions) -
             runs: Vec::new(),
             char_range: p.char_range.clone(),
             inline_extent: Fx::ZERO,
+            align_shift: Fx::ZERO,
             ascent: Fx::ZERO,
             descent: Fx::ZERO,
             ruby_over_extent: Fx::ZERO,

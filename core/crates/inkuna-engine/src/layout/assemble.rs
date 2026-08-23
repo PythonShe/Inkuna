@@ -54,7 +54,10 @@ pub(super) fn build_line(
     reorder_visual(&mut items);
 
     if align == TextAlign::Justify && !ragged {
-        let natural = items.iter().map(item_extent).fold(Fx::ZERO, Fx::saturating_add);
+        let natural = items
+            .iter()
+            .map(item_extent)
+            .fold(Fx::ZERO, Fx::saturating_add);
         let deficit = width - natural;
         if deficit > Fx::ZERO {
             justify::stretch(&mut items, deficit, chars, p.char_range.start);
@@ -108,6 +111,7 @@ pub(super) fn build_line(
         runs,
         char_range: p.char_range.start + local.start..p.char_range.start + local.end,
         inline_extent,
+        align_shift: shift,
         ascent,
         descent,
         ruby_over_extent,
@@ -150,7 +154,11 @@ fn slice_items(p: &ShapedParagraph<'_>, local: &Range<u64>, trailing: &Range<u64
                             let mut run = run.clone();
                             for g in &mut run.glyphs {
                                 let at = seg.char_start
-                                    + if own_clusters { u64::from(g.cluster) } else { 0 };
+                                    + if own_clusters {
+                                        u64::from(g.cluster)
+                                    } else {
+                                        0
+                                    };
                                 g.cluster = clamp_u32(abs + at);
                             }
                             WorkRun {
@@ -378,10 +386,7 @@ fn face_metrics(fonts: &FontRegistry, cache: &mut MetricsCache, font_id: u32) ->
             i32::from(parsed.ascender()),
             i32::from(parsed.descender()).saturating_neg(),
         ),
-        Err(_) => (
-            i32::from(face.upem) * 3 / 4,
-            i32::from(face.upem) / 4,
-        ),
+        Err(_) => (i32::from(face.upem) * 3 / 4, i32::from(face.upem) / 4),
     };
     cache.0.push((font_id, asc, desc, face.upem));
     (asc, desc, face.upem)

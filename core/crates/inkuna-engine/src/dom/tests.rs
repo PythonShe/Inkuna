@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use super::{
     parse, Document, ElementName, NodeId, NodeKind, StylesheetSource, MAX_DEPTH, MAX_DOM_NODES,
     MAX_STYLESHEET_BYTES, MAX_TEXT_BYTES,
@@ -56,7 +58,10 @@ fn recovers_unclosed_inline() {
     let doc = parse(MALFORMED_DOC.as_bytes()).unwrap();
     let emphases = find_all(&doc, &ElementName::Em);
     assert_eq!(emphases.len(), 1);
-    assert_eq!(subtree_text(&doc, emphases[0]), "unclosed emphasis runs on.");
+    assert_eq!(
+        subtree_text(&doc, emphases[0]),
+        "unclosed emphasis runs on."
+    );
     // The stray & survives as literal text.
     assert!(subtree_text(&doc, doc.root).contains("Fish & chips."));
 }
@@ -83,7 +88,10 @@ fn skips_script_scans_head() {
     let text = subtree_text(&doc, doc.root);
     assert!(text.contains("kept"));
     assert!(!text.contains("dropped"));
-    assert!(!text.contains("HeadTitle"), "head title text leaked: {text}");
+    assert!(
+        !text.contains("HeadTitle"),
+        "head title text leaked: {text}"
+    );
 }
 
 #[test]
@@ -129,7 +137,10 @@ fn html_void_tags_in_head_never_swallow_body() {
 
     assert!(!doc.truncated);
     let text = subtree_text(&doc, doc.root);
-    assert!(text.contains("body text"), "body swallowed by head: {text:?}");
+    assert!(
+        text.contains("body text"),
+        "body swallowed by head: {text:?}"
+    );
     assert!(!text.contains('T'), "head title leaked: {text:?}");
     // The HTML-style <link> is still scanned as a stylesheet source.
     assert_eq!(
@@ -143,10 +154,9 @@ fn html_void_tags_in_head_never_swallow_body() {
 fn unclosed_style_recovers_at_head_end() {
     // </head> while <style> is still open: the captured CSS is kept and
     // the body parses normally.
-    let doc = parse(
-        br#"<html><head><style>p { color: red }</head><body><p>after</p></body></html>"#,
-    )
-    .unwrap();
+    let doc =
+        parse(br#"<html><head><style>p { color: red }</head><body><p>after</p></body></html>"#)
+            .unwrap();
 
     assert_eq!(
         doc.stylesheets,
@@ -165,7 +175,9 @@ fn unclosed_style_recovers_at_body_start() {
 
     assert_eq!(
         doc.stylesheets,
-        vec![StylesheetSource::Inline("em { font-style: normal }".to_string())]
+        vec![StylesheetSource::Inline(
+            "em { font-style: normal }".to_string()
+        )]
     );
     assert!(subtree_text(&doc, doc.root).contains("kept"));
 }
@@ -211,6 +223,23 @@ fn depth_budget_flattens_and_relocates_ids() {
     assert_eq!(id, "deep");
     assert_eq!(doc.element(*node).unwrap().name, ElementName::Div);
     assert!(subtree_text(&doc, *node).contains("bottom"));
+}
+
+#[test]
+fn open_element_budget_truncates_deep_nesting_promptly() {
+    let mut xhtml = String::from("<html><body>");
+    for _ in 0..200_000 {
+        xhtml.push_str("<div>");
+    }
+    xhtml.push_str("</body></html>");
+
+    let started = Instant::now();
+    let doc = parse(xhtml.as_bytes()).unwrap();
+    assert!(doc.truncated);
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "open-element budget must stop deeply nested input promptly"
+    );
 }
 
 #[test]

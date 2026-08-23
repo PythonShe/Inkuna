@@ -15,11 +15,7 @@ use super::list::{rect, A11yBlock, A11yRole};
 
 /// Builds the page's a11y blocks. A block split across pages
 /// contributes only its on-page lines' text.
-pub(super) fn blocks(
-    page: &LaidPage,
-    ctx: &DisplayContext<'_>,
-    vertical: bool,
-) -> Vec<A11yBlock> {
+pub(super) fn blocks(page: &LaidPage, ctx: &DisplayContext<'_>, vertical: bool) -> Vec<A11yBlock> {
     let doc = ctx.styled.doc;
     let pr = &page.char_range;
 
@@ -130,15 +126,15 @@ fn block_rect(page: &LaidPage, vertical: bool, range: Range<u64>) -> Option<supe
         let (x0, y0, x1, y1) = if vertical {
             (
                 pl.x - line.descent - line.ruby_under_extent,
-                pl.y,
+                pl.y + line.align_shift,
                 pl.x + line.ascent + line.ruby_over_extent,
-                pl.y + line.inline_extent,
+                pl.y + line.align_shift + line.inline_extent,
             )
         } else {
             (
-                pl.x,
+                pl.x + line.align_shift,
                 pl.y - line.ascent - line.ruby_over_extent,
-                pl.x + line.inline_extent,
+                pl.x + line.align_shift + line.inline_extent,
                 pl.y + line.descent + line.ruby_under_extent,
             )
         };

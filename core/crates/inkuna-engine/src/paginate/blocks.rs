@@ -26,7 +26,9 @@ pub(super) enum BlockKind {
     Rule,
     /// An `img`/`image` with its verbatim `src`; placement lands with
     /// the images task, collection here preserves document order.
-    Image { src: String },
+    Image {
+        src: String,
+    },
 }
 
 /// A paragraph block's identity and resolved style facts.
@@ -170,7 +172,11 @@ fn meta(
         // pre/code: never justified, `Start` align. Interior whitespace
         // renders collapsed in v1 because the canonical projection
         // already collapsed it.
-        align: if pre { TextAlign::Start } else { style.text_align },
+        align: if pre {
+            TextAlign::Start
+        } else {
+            style.text_align
+        },
         base_rtl: style.direction == Direction::Rtl,
         heading,
         quote_depth,
@@ -256,7 +262,7 @@ pub(crate) fn nearest_block(doc: &Document, node: NodeId) -> NodeId {
 }
 
 /// Document-order walk mirroring the projector's exclusions
-/// (display:none, `rt`), advancing a span pointer on projected text
+/// (display:none, `rt`, `rp`), advancing a span pointer on projected text
 /// nodes and pinning each hr/img to the next span's start offset.
 fn walk_specials(
     styled: &StyledDocument<'_>,
@@ -273,15 +279,20 @@ fn walk_specials(
             }
         }
         NodeKind::Element(data) => {
-            if styled.styles[id.0 as usize].display_none || data.name == ElementName::Rt {
+            if styled.styles[id.0 as usize].display_none
+                || matches!(data.name, ElementName::Rt | ElementName::Rp)
+            {
                 return;
             }
             match data.name {
                 ElementName::Img | ElementName::Image => {
                     if let Some(href) = &data.href {
-                        out.push((offset(proj, *ptr), BlockKind::Image {
-                            src: href.to_string(),
-                        }));
+                        out.push((
+                            offset(proj, *ptr),
+                            BlockKind::Image {
+                                src: href.to_string(),
+                            },
+                        ));
                     }
                 }
                 ElementName::Hr => out.push((offset(proj, *ptr), BlockKind::Rule)),
@@ -296,5 +307,7 @@ fn walk_specials(
 }
 
 fn offset(proj: &Projection, ptr: usize) -> u64 {
-    proj.spans.get(ptr).map_or(proj.char_len, |s| s.char_range.start)
+    proj.spans
+        .get(ptr)
+        .map_or(proj.char_len, |s| s.char_range.start)
 }

@@ -19,7 +19,10 @@ use crate::shape::RunOrientation;
 fn registry() -> &'static FontRegistry {
     static REG: OnceLock<Arc<FontRegistry>> = OnceLock::new();
     REG.get_or_init(|| {
-        let dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"));
+        let dir = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../assets/fonts"
+        ));
         FontRegistry::load(dir).expect("repo font set must load")
     })
 }
@@ -108,11 +111,12 @@ fn link_regions_and_color() {
     assert_eq!(underline.color_role, ColorRole::Link);
     // The underline sits inside the link region's inline stretch.
     assert!(underline.rect.x >= region.rect.x - 0.01);
-    assert!(
-        underline.rect.x + underline.rect.width <= region.rect.x + region.rect.width + 0.01
-    );
+    assert!(underline.rect.x + underline.rect.width <= region.rect.x + region.rect.width + 0.01);
     // Non-link text stays Text.
-    assert!(list.glyph_runs.iter().any(|r| r.color_role == ColorRole::Text));
+    assert!(list
+        .glyph_runs
+        .iter()
+        .any(|r| r.color_role == ColorRole::Text));
 }
 
 #[test]
@@ -155,6 +159,21 @@ fn a11y_blocks_ordered_with_lang() {
     // Reading order: blocks descend the page.
     assert!(list.a11y[0].rect.y < list.a11y[1].rect.y);
     assert!(list.a11y[1].rect.y < list.a11y[2].rect.y);
+}
+
+#[test]
+fn centered_heading_a11y_rect_starts_at_first_glyph() {
+    let doc = r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title>
+<style>h1 { text-align: center; }</style></head>
+<body><h1>Centered</h1></body></html>"#;
+    let pages = build(doc, 390.0, 664.0);
+    let (list, _) = &pages[0];
+    assert!(!list.glyph_runs.is_empty(), "heading emits a glyph run");
+    assert_eq!(list.a11y.len(), 1);
+    assert!(
+        (list.a11y[0].rect.x - f64::from(list.glyph_runs[0].positions[0])).abs() < 0.01,
+        "a11y rect must start at the first aligned glyph"
+    );
 }
 
 #[test]
@@ -242,7 +261,9 @@ fn digest_stable_across_calls() {
     let b = page_digest(&list);
     assert_eq!(a, b);
     assert_eq!(a.len(), 64);
-    assert!(a.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    assert!(a
+        .chars()
+        .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
 }
 
 #[test]

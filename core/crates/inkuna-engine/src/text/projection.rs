@@ -91,11 +91,7 @@ pub fn project(styled: &StyledDocument<'_>) -> Projection {
         ..
     } = p;
     // Ids whose elements projected nothing more anchor at the end.
-    anchors.extend(
-        pending_anchors
-            .into_iter()
-            .map(|id| (id, out_chars)),
-    );
+    anchors.extend(pending_anchors.into_iter().map(|id| (id, out_chars)));
     Projection {
         text: out,
         char_len: out_chars,
@@ -133,7 +129,7 @@ impl Projector<'_, '_> {
             NodeKind::Element(data) => {
                 self.collect_ids(id);
                 if self.styled.styles[id.0 as usize].display_none
-                    || data.name == ElementName::Rt
+                    || matches!(data.name, ElementName::Rt | ElementName::Rp)
                 {
                     // Excluded subtree: its ids still anchor (at the
                     // next projected char), its text never projects.

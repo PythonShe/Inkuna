@@ -21,6 +21,8 @@ pub const MAX_ATTR_BYTES: usize = 4_096;
 pub const MAX_STYLESHEET_BYTES: usize = 1_048_576;
 /// Elements deeper than this flatten into their ancestor at this depth.
 pub const MAX_DEPTH: usize = 256;
+/// Open elements retained for recovery while parsing one resource.
+pub const MAX_OPEN_ELEMENTS: usize = 4_096;
 
 /// Upper bound on recoverable parse errors before the tree so far is kept
 /// as-is; guards against a pathological byte stream that errors forever.
@@ -203,6 +205,10 @@ impl Builder {
 
         // A normal element. Budget first, placement second.
         if self.nodes.len() >= MAX_DOM_NODES {
+            self.truncated = true;
+            return true;
+        }
+        if self.stack.len() >= MAX_OPEN_ELEMENTS {
             self.truncated = true;
             return true;
         }

@@ -45,6 +45,13 @@ pub const CJK_VERTICAL_RUBY_DOC: &str = r#"<html xmlns="http://www.w3.org/1999/x
 <p><ruby>東京<rt>とうきょう</rt></ruby>の<ruby>空<rt>そら</rt></ruby>は高かった。</p>
 </body></html>"#;
 
+/// Japanese ruby with EPUB fallback parentheses. The `rp` text must not
+/// contribute to canonical text or shift the following anchor offset.
+pub const CJK_RUBY_RP_DOC: &str = r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>ルビ</title></head>
+<body>
+<p><ruby>漢<rp>(</rp><rt>かん</rt><rp>)</rp></ruby><span id="after"></span></p>
+</body></html>"#;
+
 /// Hebrew text with `dir="rtl"`.
 pub const RTL_DOC: &str = r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>עברית</title></head>
 <body dir="rtl">
