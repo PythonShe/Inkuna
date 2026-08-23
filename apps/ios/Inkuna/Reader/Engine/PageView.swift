@@ -26,23 +26,17 @@ final class PageView: UIView {
         configure()
     }
 
-    func present(_ list: PageDisplayList?, spineIdx: UInt32, pageIdx: UInt32, session: ReaderSession) {
+    func present(_ list: PageDisplayList?, spineIdx _: UInt32, pageIdx _: UInt32, session _: ReaderSession) {
         displayList = list
         accessibilityElements = []
 
-        guard list != nil else {
+        guard let list else {
             setNeedsDisplay()
             return
         }
 
-        do {
-            accessibilityElements = try session.accessibilityBlocks(spineIdx: spineIdx, pageIdx: pageIdx).map {
-                accessibilityElement(for: $0)
-            }
-        } catch InkunaError.NotReady {
-            // The caller presents again after the engine has cached this page.
-        } catch {
-            // A page without accessibility blocks remains readable visually.
+        accessibilityElements = list.a11y.map {
+            accessibilityElement(for: $0)
         }
 
         setNeedsDisplay()
@@ -90,15 +84,12 @@ final class PageView: UIView {
 
             switch run.orientation {
             case .upright:
-                drawGlyphs(run, with: font, in: context, rebaseAt: nil)
+                context.textMatrix = .identity
+                drawGlyphs(run, with: font, in: context)
             case .sidewaysRotated:
-                let firstPosition = run.positions[0]
-                let firstBaseline = run.positions[1]
-                context.saveGState()
-                context.translateBy(x: CGFloat(firstPosition), y: bounds.height - CGFloat(firstBaseline))
-                context.rotate(by: -.pi / 2)
-                drawGlyphs(run, with: font, in: context, rebaseAt: (firstPosition, firstBaseline))
-                context.restoreGState()
+                context.textMatrix = CGAffineTransform(rotationAngle: -.pi / 2)
+                drawGlyphs(run, with: font, in: context)
+                context.textMatrix = .identity
             }
         }
     }
@@ -106,14 +97,11 @@ final class PageView: UIView {
     private func drawGlyphs(
         _ run: GlyphRun,
         with font: CTFont,
-        in context: CGContext,
-        rebaseAt origin: (Float, Float)?
+        in context: CGContext
     ) {
         let glyphs = run.glyphIds.map { CGGlyph($0) }
         let points = stride(from: 0, to: run.positions.count, by: 2).map { index in
-            let x = run.positions[index] - (origin?.0 ?? 0)
-            let y = run.positions[index + 1] - (origin?.1 ?? 0)
-            return CGPoint(x: CGFloat(x), y: origin == nil ? bounds.height - CGFloat(y) : -CGFloat(y))
+            CGPoint(x: CGFloat(run.positions[index]), y: bounds.height - CGFloat(run.positions[index + 1]))
         }
 
         glyphs.withUnsafeBufferPointer { glyphBuffer in
@@ -166,7 +154,7 @@ final class PageView: UIView {
         context.fill(rect)
         context.setStrokeColor(secondary.withAlphaComponent(0.20).cgColor)
         context.setLineWidth(1)
-        context.stroke(rect)
+        context.stroke(rect.insetBy(dx: 0.5, dy: 0.5))
     }
 
     private func accessibilityElement(for block: A11yBlock) -> UIAccessibilityElement {
