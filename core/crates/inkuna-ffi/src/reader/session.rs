@@ -157,6 +157,19 @@ impl ReaderSession {
         self.session.spine_len()
     }
 
+    /// The engine's current layout generation. Compare layout callbacks to
+    /// this value; it is the sole authority when relayouts overlap.
+    pub fn generation(&self) -> u64 {
+        self.session.generation()
+    }
+
+    /// Stops the layout worker and releases its cache. This can wait for a
+    /// chapter already being paginated, so shells must call it off their UI
+    /// thread during reader teardown. Idempotent.
+    pub fn shutdown(&self) {
+        self.session.close();
+    }
+
     /// The publication's page-progression direction, from the OPF
     /// `spine[@page-progression-direction]` read at open. Immediately
     /// accurate on page 0 — it never waits for a chapter, so a shell

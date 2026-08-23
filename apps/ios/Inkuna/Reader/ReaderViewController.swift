@@ -50,14 +50,12 @@ final class ReaderViewController: UIViewController {
     var selectionController: ReaderSelectionController?
     var chapters: [Chapter] = []
     var chapterRanges: [ChapterPositionRange] = []
-    var layoutGeneration: UInt64?
     var targetCoordinate: Coordinate?
     var pendingJump: PendingJump?
     var notedTruncatedChapters: Set<UInt32> = []
     var relayoutAnchor: Coordinate?
     var pendingEvents: [LayoutEvent] = []
     var layoutChangeInFlight = false
-    var generationBeforeLayout: UInt64?
     var didLogFirstRender = false
     var announcePageWhenSettled = false
     var didLogChapterComplete = false
@@ -66,6 +64,7 @@ final class ReaderViewController: UIViewController {
     let session = ReadingSessionBox()
     var coreWriteChain: Task<Void, Never>?
     var openTask: Task<Void, Never>?
+    var relayoutTask: Task<Void, Never>?
     var canvasTop: NSLayoutConstraint?
     var canvasBottom: NSLayoutConstraint?
     let logger = Logger(subsystem: "app.inkuna.ios", category: "reader")
@@ -104,6 +103,7 @@ final class ReaderViewController: UIViewController {
 
     deinit {
         openTask?.cancel()
+        relayoutTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -132,6 +132,26 @@ final class ReaderViewController: UIViewController {
         if isMovingFromParent || isBeingDismissed {
             selectionController?.clear()
             openTask?.cancel()
+            releaseReaderEngineOffMain()
+        }
+    }
+
+    /// UniFFI releases the Rust session synchronously; its `Drop` joins the
+    /// layout worker. Move the last shell reference to a detached task so a
+    /// pop never waits on a mid-chapter pagination job on UIKit's main actor.
+    func releaseReaderEngineOffMain() {
+        layoutRelay = nil
+        relayoutTask?.cancel()
+        pager?.cancelInteraction()
+        selectionController = nil
+        pager = nil
+        pagerSurface = nil
+        canvas?.removeFromSuperview()
+        canvas = nil
+        guard let session = readerSession else { return }
+        readerSession = nil
+        Task.detached(priority: .utility) {
+            session.shutdown()
         }
     }
 

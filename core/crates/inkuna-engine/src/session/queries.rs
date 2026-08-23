@@ -28,6 +28,7 @@ impl EngineSession {
         &self,
         spine_idx: u32,
         need_complete: bool,
+        move_focus: bool,
         f: impl FnOnce(&ChapterData, u64) -> Result<T, EngineError>,
     ) -> Result<T, EngineError> {
         if self.closed() {
@@ -40,7 +41,9 @@ impl EngineSession {
         }
         let generation = self.shared.generation.load(Ordering::Acquire);
         let mut inner = self.shared.lock();
-        inner.focus = spine_idx;
+        if move_focus {
+            inner.focus = spine_idx;
+        }
         let result = match inner.cache.get(spine_idx, generation) {
             Some(SlotState::Ready(data)) => f(data, generation),
             Some(SlotState::Laying(data)) if !need_complete => f(data, generation),
@@ -54,8 +57,8 @@ impl EngineSession {
             }
         };
         drop(inner);
-        // Wake the worker: a scheduled miss, or a focus change that
-        // opens new neighbor prefetch work.
+        // Wake the worker: a scheduled miss, or a reader action that
+        // moved focus and opened new neighbor prefetch work.
         self.shared.work.notify_all();
         result
     }
@@ -99,10 +102,12 @@ impl EngineSession {
         }
     }
 
-    /// The chapter's geometry. Requires the complete chapter.
+    /// The chapter's geometry. Requires the complete chapter, but never
+    /// moves reader focus: layout callbacks use it to observe a completed
+    /// background chapter without redirecting prefetch or cache protection.
     pub fn chapter(&self, spine_idx: u32) -> Result<ChapterGeometry, EngineError> {
         let rtl = self.shared.rtl_progression;
-        self.with_chapter(spine_idx, true, |data, generation| {
+        self.with_chapter(spine_idx, true, false, |data, generation| {
             Ok(ChapterGeometry {
                 generation,
                 page_count: data.pages.len() as u32,
@@ -120,14 +125,14 @@ impl EngineSession {
     /// One page's display list. Progressive: succeeds as soon as THAT
     /// page is published.
     pub fn page(&self, spine_idx: u32, page_idx: u32) -> Result<PageDisplayList, EngineError> {
-        self.with_chapter(spine_idx, false, |data, _| {
+        self.with_chapter(spine_idx, false, true, |data, _| {
             page_of(data, page_idx).map(|(list, _)| list.clone())
         })
     }
 
     /// The page's canonical digest. Progressive, like [`Self::page`].
     pub fn page_digest(&self, spine_idx: u32, page_idx: u32) -> Result<String, EngineError> {
-        self.with_chapter(spine_idx, false, |data, _| {
+        self.with_chapter(spine_idx, false, true, |data, _| {
             page_of(data, page_idx).map(|(list, _)| crate::display::page_digest(list))
         })
     }
@@ -138,7 +143,7 @@ impl EngineSession {
         spine_idx: u32,
         page_idx: u32,
     ) -> Result<Vec<A11yBlock>, EngineError> {
-        self.with_chapter(spine_idx, false, |data, _| {
+        self.with_chapter(spine_idx, false, true, |data, _| {
             page_of(data, page_idx).map(|(list, _)| list.a11y.clone())
         })
     }
@@ -149,7 +154,7 @@ impl EngineSession {
         spine_idx: u32,
         page_idx: u32,
     ) -> Result<CharRange, EngineError> {
-        self.with_chapter(spine_idx, false, |data, _| {
+        self.with_chapter(spine_idx, false, true, |data, _| {
             page_of(data, page_idx).map(|(_, maps)| CharRange {
                 start: maps.char_range.start,
                 end: maps.char_range.end,
@@ -162,7 +167,7 @@ impl EngineSession {
     /// `NotReady` until the chapter completes, when it clamps to the last
     /// page as before.
     pub fn locate(&self, c: Coordinate) -> Result<PageLocation, EngineError> {
-        self.with_chapter(c.spine_idx, false, |data, generation| {
+        self.with_chapter(c.spine_idx, false, true, |data, generation| {
             if data.pages.is_empty() {
                 return Err(EngineError::NotReady);
             }
@@ -214,7 +219,7 @@ impl EngineSession {
                 spine_idx,
                 char_offset: 0,
             }),
-            Some(frag) => self.with_chapter(spine_idx, true, |data, _| {
+            Some(frag) => self.with_chapter(spine_idx, true, true, |data, _| {
                 data.anchors
                     .iter()
                     .find(|(id, _)| id == frag)
@@ -240,7 +245,7 @@ impl EngineSession {
         x: f64,
         y: f64,
     ) -> Result<HitResult, EngineError> {
-        self.with_chapter(spine_idx, true, |data, _| {
+        self.with_chapter(spine_idx, true, false, |data, _| {
             let (list, maps) = page_of(data, page_idx)?;
             let vertical = data.writing_mode == WritingMode::VerticalRl;
             let (fx, fy) = (Fx::from_pt(x), Fx::from_pt(y));
@@ -283,7 +288,7 @@ impl EngineSession {
         spine_idx: u32,
         range: CharRange,
     ) -> Result<Vec<SelectionRect>, EngineError> {
-        self.with_chapter(spine_idx, true, |data, _| {
+        self.with_chapter(spine_idx, true, false, |data, _| {
             if range.start >= range.end {
                 return Ok(Vec::new());
             }
@@ -367,7 +372,7 @@ impl EngineSession {
     /// computed once, at layout publish time, never per call. Requires
     /// the complete chapter.
     pub fn word_at(&self, c: Coordinate) -> Result<CharRange, EngineError> {
-        self.with_chapter(c.spine_idx, true, |data, _| {
+        self.with_chapter(c.spine_idx, true, false, |data, _| {
             let total = data.index.chars;
             if total == 0 {
                 return Ok(CharRange { start: 0, end: 0 });
@@ -388,7 +393,7 @@ impl EngineSession {
     /// table (bounded scan, no per-call allocation). Requires the
     /// complete chapter.
     pub fn text_range(&self, spine_idx: u32, range: CharRange) -> Result<String, EngineError> {
-        self.with_chapter(spine_idx, true, |data, _| {
+        self.with_chapter(spine_idx, true, false, |data, _| {
             let total = data.index.chars;
             let start = range.start.min(total);
             let end = range.end.clamp(start, total);

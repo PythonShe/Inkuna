@@ -135,8 +135,8 @@ impl LayoutEvents for FirstPageGate {
     fn chapter_failed(&self, _: u64, _: u32) {}
 }
 
-/// Holds the opening chapter at its first published page while the test
-/// queues a whole-book sweep, then forwards every readiness event.
+/// Holds the opening chapter at its first published page while a test drives
+/// an explicit sweep through the public cache-only query surface.
 struct SweepEvents {
     entered: Sender<()>,
     release: Mutex<Option<Receiver<()>>>,
@@ -423,10 +423,9 @@ fn published_page_count_is_zero_after_cache_eviction() {
 }
 
 #[test]
-fn active_chapter_survives_a_whole_book_sweep_after_neighbor_query() {
-    const CHAPTERS: u32 = 9;
-    const ACTIVE: u32 = 4;
-    const NEXT: u32 = ACTIVE + 1;
+fn chapter_ready_queries_do_not_move_focus_from_the_active_chapter() {
+    const CHAPTERS: u32 = 12;
+    const ACTIVE: u32 = 5;
 
     let dir = TempDir::new().expect("tempdir");
     let doc = cjk_doc(40);
@@ -457,30 +456,34 @@ fn active_chapter_survives_a_whole_book_sweep_after_neighbor_query() {
     session
         .page(ACTIVE, 0)
         .expect("the reader's active page is available");
-    {
-        let mut inner = session.shared.lock();
-        for spine_idx in 0..CHAPTERS {
-            if spine_idx != ACTIVE && spine_idx != NEXT {
-                inner.queue.push_back(spine_idx);
-            }
+    for spine_idx in 0..CHAPTERS {
+        if spine_idx != ACTIVE {
+            assert!(matches!(
+                session.chapter(spine_idx),
+                Err(EngineError::NotReady)
+            ));
         }
     }
-    assert!(matches!(
-        session.page(NEXT, 0),
-        Err(EngineError::NotReady)
-    ));
+    // The sweep is intentionally scheduled, but reading position stays
+    // ACTIVE before the worker is released to complete background work.
+    session
+        .page(ACTIVE, 0)
+        .expect("the active page remains the reader's focus");
     release_tx.send(()).expect("release worker");
 
+    // This is the actual shell callback path: each completed chapter is
+    // re-queried for its geometry. Under the old focus-moving query, those
+    // background callbacks move focus away from ACTIVE, defeating its cache
+    // protection while the sweep completes.
     let mut complete = 0;
     while complete < CHAPTERS {
         match rx.recv_timeout(TIMEOUT).expect("layout event within timeout") {
             Event::FirstPage(_, _) => {}
-            Event::ChapterReady(_, _, _) => {
+            Event::ChapterReady(_, spine_idx, _) => {
                 complete += 1;
-                assert!(
-                    session.published_page_count(ACTIVE) > 0,
-                    "the active chapter stays cached while the sweep completes"
-                );
+                session
+                    .chapter(spine_idx)
+                    .expect("chapter-ready geometry is cache-resident");
             }
             Event::ChapterFailed(_, spine_idx) => {
                 panic!("CJK fixture chapter {spine_idx} failed unexpectedly")
@@ -488,9 +491,10 @@ fn active_chapter_survives_a_whole_book_sweep_after_neighbor_query() {
         }
     }
 
-    session
-        .page(ACTIVE, 0)
-        .expect("the active page remains retrievable after the sweep");
+    assert!(
+        session.page(ACTIVE, 0).is_ok(),
+        "background chapter-ready queries must not evict the active CJK chapter"
+    );
     session.close();
 }
 

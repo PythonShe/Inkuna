@@ -28,6 +28,7 @@ import app.inkuna.core.ReaderSession
 import app.inkuna.core.Viewport
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -66,6 +67,9 @@ class ReaderViewModel(
     sealed interface LayoutEvent {
         val generation: ULong
 
+        data object Invalidated : LayoutEvent {
+            override val generation: ULong = 0uL
+        }
         data class FirstPage(override val generation: ULong, val spineIdx: UInt) : LayoutEvent
         data class Chapter(override val generation: ULong, val spineIdx: UInt, val pageCount: UInt) : LayoutEvent
         data class Failed(override val generation: ULong, val spineIdx: UInt) : LayoutEvent
@@ -105,6 +109,7 @@ class ReaderViewModel(
     private var openJob: Job? = null
     private var sessionId: String? = null
     private val writeLock = Mutex()
+    private val relayoutLock = Mutex()
     private var writeTail: Job? = null
     private val pendingProgress = MutableStateFlow<PendingProgress?>(null)
     private var lastPersisted: Coordinate? = null
@@ -112,15 +117,14 @@ class ReaderViewModel(
     private var currentAnchor: Coordinate? = null
     private var pendingSettle: Pair<UInt, UInt>? = null
     private var readerSession: ReaderSession? = null
+    @Volatile private var readerClosed = false
+    private val pendingStartupEvents = mutableListOf<LayoutEvent>()
     private var initialHrefFailed = false
     private var initialLocation: PageLocation? = null
 
-    // The engine's generation is the sole staleness truth; this pin merely
-    // mirrors the latest accepted one, exactly like iOS's layoutGeneration.
-    // It lives here — retained across configuration changes — so a rebuilt
-    // composition can never re-adopt a stale generation.
-    private var layoutGeneration: ULong? = null
-    private var generationBeforeLayout: ULong? = null
+    // Relayout buffers callbacks until the surface has invalidated its old
+    // display lists. Each event is then compared to the engine's current
+    // generation, never to a shell-maintained generation mirror.
     private var layoutChangeInFlight = false
     private val pendingLayoutEvents = mutableListOf<LayoutEvent>()
     private var appliedViewport: Viewport? = null
@@ -167,7 +171,12 @@ class ReaderViewModel(
         val positionRanges = shelf.progress().chapterPositionRanges(publicationId)
         val openViewport = viewport()
         val session = shelf.openReader(publicationId, openViewport, layoutSettings(AppSettings.get(app).snapshot.value), listener())
-        readerSession = session
+        withContext(Dispatchers.Main.immediate) {
+            readerSession = session
+            val startupEvents = pendingStartupEvents.toList()
+            pendingStartupEvents.clear()
+            startupEvents.forEach { if (acceptGeneration(it.generation)) _layoutEvents.emit(it) }
+        }
         appliedViewport = openViewport
         val restoredCoordinate = publication.coordinate
             ?: coordinateForProgression(publication.progression, session)
@@ -206,28 +215,27 @@ class ReaderViewModel(
     }
 
     private fun postLayoutEvent(event: LayoutEvent) {
+        if (readerClosed) return
         viewModelScope.launch(Dispatchers.Main.immediate) {
+            if (readerClosed) return@launch
+            if (readerSession == null) {
+                pendingStartupEvents += event
+                return@launch
+            }
             if (layoutChangeInFlight) {
-                // Mirrors iOS `receive`: stale-generation events die here;
-                // fresh ones wait until the surface has been invalidated.
-                if (event.generation != generationBeforeLayout) pendingLayoutEvents += event
+                // The engine generation is sampled after the relayout ends;
+                // this keeps a callback queued before a second relayout from
+                // pinning the shell to the prior generation.
+                pendingLayoutEvents += event
                 return@launch
             }
             if (acceptGeneration(event.generation)) _layoutEvents.emit(event)
         }
     }
 
-    /** Mirrors iOS `accept`: pins the latest generation, drops the rest. */
-    private fun acceptGeneration(generation: ULong): Boolean {
-        val pin = layoutGeneration
-        if (pin != null) {
-            if (generation != pin) return false
-        } else if (generation == generationBeforeLayout) {
-            return false
-        }
-        layoutGeneration = generation
-        return true
-    }
+    /** The engine, not a shell-side counter, decides whether an event is live. */
+    private fun acceptGeneration(generation: ULong): Boolean =
+        !readerClosed && readerSession?.generation() == generation
 
     /** The open-time restore location; consumed exactly once per open. */
     fun takeInitialLocation(): PageLocation? = initialLocation.also { initialLocation = null }
@@ -312,37 +320,42 @@ class ReaderViewModel(
         ReaderPerf.tapUptimeMs.takeIf { it > 0L }?.let { logPerf("tap_to_first_page_ms", it) }
     }
 
-    /**
-     * Relayouts the session; mirrors iOS `relayout`. [onApplied] runs on
-     * success — after the generation pin is released, before the buffered
-     * new-generation events flush — so the caller invalidates its surface
-     * in exactly the window iOS does.
-     */
-    suspend fun updateAppearance(settings: ReaderLayoutSettings, onApplied: () -> Unit): Boolean =
+    /** Runs on the retained ViewModel scope, not a composition-scoped job. */
+    fun requestAppearanceUpdate(settings: ReaderLayoutSettings) {
+        if (readerClosed) return
+        viewModelScope.launch { relayoutLock.withLock { updateAppearance(settings) } }
+    }
+
+    /** Relayouts, then emits an invalidation before draining live callbacks. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun updateAppearance(settings: ReaderLayoutSettings): Boolean =
         withContext(Dispatchers.Main.immediate) {
-            val session = session()
+            val session = readerSession ?: return@withContext false
             currentAnchor = currentCoordinate()
             // The relayout re-anchor supersedes any settle waiting on the
             // old generation's page numbering.
             pendingSettle = null
-            generationBeforeLayout = layoutGeneration
             layoutChangeInFlight = true
-            val target = viewport()
-            val updated = withContext(Dispatchers.Default) {
-                runCatching { session.updateLayout(target, settings) }
-                    .onFailure { Log.w(TAG, "reader relayout failed", it) }
-                    .isSuccess
-            }
-            if (updated) {
-                layoutGeneration = null
+            var updated = false
+            try {
+                val target = viewport()
+                withContext(Dispatchers.Default) { session.updateLayout(target, settings) }
+                updated = true
                 appliedViewport = target
                 _layoutEvents.resetReplayCache()
-                onApplied()
+                _layoutEvents.emit(LayoutEvent.Invalidated)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                Log.w(TAG, "reader relayout failed", failure)
+            } finally {
+                withContext(NonCancellable) {
+                    layoutChangeInFlight = false
+                    val buffered = pendingLayoutEvents.toList()
+                    pendingLayoutEvents.clear()
+                    buffered.forEach { if (acceptGeneration(it.generation)) _layoutEvents.emit(it) }
+                }
             }
-            layoutChangeInFlight = false
-            val buffered = pendingLayoutEvents.toList()
-            pendingLayoutEvents.clear()
-            buffered.forEach { if (acceptGeneration(it.generation)) _layoutEvents.emit(it) }
             updated
         }
 
@@ -473,8 +486,20 @@ class ReaderViewModel(
     }
 
     override fun onCleared() {
+        readerClosed = true
+        val closingSession = readerSession
+        readerSession = null
+        layoutChangeInFlight = false
+        pendingStartupEvents.clear()
+        pendingLayoutEvents.clear()
         onReaderHidden()
         openJob?.cancel()
+        if (closingSession != null) {
+            LibraryStore.writes.launch {
+                runCatching { closingSession.close() }
+                    .onFailure { Log.w(TAG, "closing reader session failed", it) }
+            }
+        }
         super.onCleared()
     }
 

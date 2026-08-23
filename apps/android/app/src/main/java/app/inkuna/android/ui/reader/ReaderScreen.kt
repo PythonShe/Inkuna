@@ -43,7 +43,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -86,7 +85,6 @@ import app.inkuna.core.InkunaException
 import app.inkuna.core.PageLocation
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun ReaderScreen(
@@ -147,7 +145,6 @@ private fun ReaderContent(
 ) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
     val chromeVisible = rememberSaveable { mutableStateOf(true) }
     val menuOpen = rememberSaveable { mutableStateOf(false) }
     var themeSheetOpen by rememberSaveable { mutableStateOf(false) }
@@ -263,6 +260,12 @@ private fun ReaderContent(
 
     fun handleEvent(event: ReaderViewModel.LayoutEvent, host: EngineHost) {
         when (event) {
+            ReaderViewModel.LayoutEvent.Invalidated -> {
+                host.selection.clear()
+                host.layout.cancelInteraction()
+                pendingJump = viewModel.currentCoordinate()?.let { PendingJump(it, showChrome = false) }
+                host.surface.layoutInvalidated(0uL)
+            }
             is ReaderViewModel.LayoutEvent.FirstPage -> {
                 host.surface.firstPageBecameReady(event.generation, event.spineIdx)
                 viewModel.onFirstPageReady(event.spineIdx)
@@ -317,20 +320,9 @@ private fun ReaderContent(
 
     fun requestRelayout() {
         val live = hostState.value ?: return
-        scope.launch {
-            val anchor = anchorState.value ?: viewModel.currentCoordinate()
-            live.selection.clear()
-            live.layout.cancelInteraction()
-            viewModel.updateAppearance(viewModel.settingsFor(snapshot)) {
-                val current = hostState.value ?: return@updateAppearance
-                // Stand the interaction down again at the reflow itself —
-                // a gesture may have started during the layout call.
-                current.selection.clear()
-                current.layout.cancelInteraction()
-                pendingJump = anchor?.let { PendingJump(it, showChrome = false) }
-                current.surface.layoutInvalidated(0uL)
-            }
-        }
+        live.selection.clear()
+        live.layout.cancelInteraction()
+        viewModel.requestAppearanceUpdate(viewModel.settingsFor(snapshot))
     }
 
     var appliedTypography by remember(book) { mutableStateOf(false) }

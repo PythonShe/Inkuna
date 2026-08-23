@@ -108,11 +108,11 @@ extension ReaderViewController {
     }
 
     func receive(_ event: LayoutEvent) {
-        if layoutChangeInFlight, event.generation == generationBeforeLayout { return }
         guard pagerSurface != nil, !layoutChangeInFlight else {
             pendingEvents.append(event)
             return
         }
+        guard accept(generation: event.generation) else { return }
         process(event)
     }
 
@@ -171,10 +171,7 @@ extension ReaderViewController {
     }
 
     func accept(generation: UInt64) -> Bool {
-        if let layoutGeneration, generation != layoutGeneration { return false }
-        if layoutGeneration == nil, generation == generationBeforeLayout { return false }
-        layoutGeneration = generation
-        return true
+        readerSession?.generation() == generation
     }
 
     func tryPresentTarget() {
@@ -284,15 +281,24 @@ extension ReaderViewController {
     }
 
     func relayout(anchor: Coordinate?) async {
+        let previous = relayoutTask
+        let next = Task { @MainActor [weak self] in
+            await previous?.value
+            guard let self, !Task.isCancelled else { return }
+            await self.performRelayout(anchor: anchor)
+        }
+        relayoutTask = next
+        await next.value
+    }
+
+    private func performRelayout(anchor: Coordinate?) async {
         guard let readerSession else { return }
         selectionController?.clear()
         pager?.cancelInteraction()
         relayoutAnchor = anchor ?? currentAnchor()
-        generationBeforeLayout = layoutGeneration
         layoutChangeInFlight = true
         do {
             try await readerSession.updateLayout(viewport: viewport(), settings: layoutSettings())
-            layoutGeneration = nil
             targetCoordinate = relayoutAnchor ?? targetCoordinate
             pagerSurface?.layoutInvalidated(generation: 0)
             layoutChangeInFlight = false

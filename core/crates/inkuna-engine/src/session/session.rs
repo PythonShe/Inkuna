@@ -196,6 +196,13 @@ impl EngineSession {
         self.shared.spine.len() as u32
     }
 
+    /// The engine's current layout generation. Shells compare callback
+    /// generations to this authoritative value instead of maintaining a
+    /// parallel counter across overlapping relayouts.
+    pub fn generation(&self) -> u64 {
+        self.shared.generation.load(Ordering::Acquire)
+    }
+
     /// The publication's page-progression direction, read from the OPF
     /// `spine[@page-progression-direction]` at open. Publication-level
     /// and known before any chapter lays out: it takes no lock, touches

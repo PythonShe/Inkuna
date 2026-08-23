@@ -13,12 +13,10 @@ License: AGPL-3.0. Website: `inkuna.app`.
 | `scripts/` | Build scripts | bash | Core cross-builds + UniFFI bindings generation |
 | `website/` | Inkuna Website | Astro (static output) + pnpm | Marketing site for `inkuna.app`, built with Astro and deployed via Cloudflare Pages |
 
-Reader boundary (ADR amendment 2026-08-21, superseding "the core never
-renders"): the Rust core owns layout — XHTML parsing, styling, text shaping
-with bundled fonts, line breaking, pagination — and emits per-page glyph-run
-display lists; the shells own drawing (Core Text / `Canvas.drawGlyphs`) and
-all interaction. Readium is being removed from both shells; see
-`docs/repertoire/specs/2026-08-21-reader-engine-swap-spec.md`.
+Reader boundary: the Rust core owns layout — XHTML parsing, styling, text
+shaping with bundled fonts, line breaking, pagination — and emits per-page
+glyph-run display lists; the shells own drawing (Core Text /
+`Canvas.drawGlyphs`) and all interaction.
 
 ## Stack Policy
 
