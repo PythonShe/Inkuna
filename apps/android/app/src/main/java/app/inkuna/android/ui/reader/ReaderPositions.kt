@@ -46,8 +46,10 @@ object ReaderPositions {
      *
      * Ranges are 1-based and inclusive, and several may contain one
      * position when a resource carries nested TOC entries — positions are
-     * resource-granular and cannot split inside one. The innermost
-     * (greatest start) wins.
+     * resource-granular and cannot split inside one. The innermost wins:
+     * greatest start, then greatest [ChapterPositionRange.chapterIdx] on
+     * ties — fragment-anchored entries sharing a resource have identical
+     * starts (and ends), and the child follows its parent in TOC order.
      *
      * The set is sparse: the core emits one range per TOC chapter, keyed
      * by [ChapterPositionRange.chapterIdx], and never one per spine
@@ -59,5 +61,5 @@ object ReaderPositions {
     fun chapterRange(ranges: List<ChapterPositionRange>, position: UInt): ChapterPositionRange? =
         ranges
             .filter { it.startPosition <= position && position <= it.endPosition }
-            .maxByOrNull { it.startPosition }
+            .maxWithOrNull(compareBy({ it.startPosition }, { it.chapterIdx }))
 }
