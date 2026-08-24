@@ -26,18 +26,49 @@ pub(super) fn map_font(path: &Path, name: &str) -> Result<Mmap, EngineError> {
 pub(super) fn post_script_name(
     font: &FontRef<'_>,
 ) -> Result<Option<String>, read_fonts::ReadError> {
-    let names = font.name()?;
+    Ok(name_value(font, NameId::POSTSCRIPT_NAME))
+}
+
+/// Preference order for `name`-table records: Windows Unicode BMP
+/// (platform 3, encoding 1), then Windows full Unicode (3, 10), then
+/// Mac Roman (1, 0), then anything decodable — matching the shells'
+/// name-table parsers, so publisher PostScript/family names come out
+/// unmangled instead of whichever record happens to be first.
+fn name_record_rank(platform: u16, encoding: u16) -> u8 {
+    match (platform, encoding) {
+        (3, 1) => 0,
+        (3, 10) => 1,
+        (1, 0) => 2,
+        _ => 3,
+    }
+}
+
+/// The best non-empty string for a name id, by
+/// [`name_record_rank`]'s platform/encoding preference.
+pub(super) fn name_value(font: &FontRef<'_>, id: NameId) -> Option<String> {
+    let names = font.name().ok()?;
     let data = names.string_data();
-    let Some(record) = names
-        .name_record()
-        .into_iter()
-        .filter(|record| record.name_id() == NameId::POSTSCRIPT_NAME)
-        .next()
-    else {
-        return Ok(None);
-    };
-    let name = record.string(data)?.to_string();
-    Ok((!name.is_empty()).then_some(name))
+    let mut best: Option<(u8, String)> = None;
+    for record in names.name_record() {
+        if record.name_id() != id {
+            continue;
+        }
+        let rank = name_record_rank(record.platform_id(), record.encoding_id());
+        if best.as_ref().is_some_and(|(b, _)| *b <= rank) {
+            continue;
+        }
+        if let Ok(value) = record.string(data) {
+            let value = value.to_string();
+            if !value.is_empty() {
+                let done = rank == 0;
+                best = Some((rank, value));
+                if done {
+                    break;
+                }
+            }
+        }
+    }
+    best.map(|(_, value)| value)
 }
 
 /// Matches ttf-parser's default-instance horizontal metric selection:

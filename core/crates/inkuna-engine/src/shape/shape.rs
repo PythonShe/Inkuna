@@ -1,6 +1,9 @@
 //! Turns itemized text into positioned glyph runs via harfrust, with
-//! the explicit fallback chain: reading face → script fallback (Hebrew
-//! clusters only) → CJK face → symbols → the reading face's `.notdef`.
+//! the explicit fallback chain: the resolved reading chain (the whole
+//! `font-family` stack under the publisher reading font, with
+//! `unicode-range` gating per face; a single face otherwise) → script
+//! fallback (Hebrew clusters only) → CJK face → symbols → the first
+//! reading face's `.notdef`.
 //! Visible text is never dropped — only
 //! control/default-ignorable characters emit no glyphs (see
 //! [`shape_text`]). Missing-glyph detection is cluster-granular, so
@@ -12,7 +15,7 @@
 use unicode_script::{Script, UnicodeScript};
 
 use crate::fixed::Fx;
-use crate::fonts::FontRegistry;
+use crate::fonts::{FontRegistry, ReadingChain};
 use crate::settings::FontFamily;
 use crate::style::{FamilyName, FontStyle, FontWeight};
 
@@ -78,14 +81,20 @@ pub struct ShapeContext<'a> {
     pub base_rtl: bool,
 }
 
-/// The fallback chain, in order. `Hebrew` is the script-fallback
-/// stage: only clusters whose characters are Hebrew script enter it
-/// (see [`Stage::next`]); everything else falls from `Reading`
-/// straight to `Cjk`. `Notdef` re-shapes with the reading face and
-/// accepts glyph 0 — the terminal stage.
+/// The fallback chain, in order. `Reading(i)` walks the resolved
+/// reading chain — under the publisher reading font that is the
+/// element's whole `font-family` stack (a subsetted or incomplete face
+/// hands uncovered clusters to the NEXT stack entry, not straight to
+/// the bundled fallbacks), ending at the stack's generic→Noto
+/// resolution; every other family resolves to a single-face chain.
+/// `Hebrew` is the script-fallback stage: only clusters whose
+/// characters are Hebrew script enter it (see [`Stage::next`]);
+/// everything else falls from the chain's last face straight to `Cjk`.
+/// `Notdef` re-shapes with the chain's FIRST face and accepts glyph 0
+/// — the terminal stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stage {
-    Reading,
+    Reading(usize),
     Hebrew,
     Cjk,
     Symbols,
@@ -95,40 +104,35 @@ enum Stage {
 impl Stage {
     /// The next stage for a missing cluster group; `hebrew` is whether
     /// the group's characters are Hebrew script (the only script-aware
-    /// fork in the chain today).
-    fn next(self, hebrew: bool) -> Option<Stage> {
+    /// fork in the chain today), `chain_len` the resolved reading
+    /// chain's face count.
+    fn next(self, hebrew: bool, chain_len: usize) -> Option<Stage> {
         match self {
-            Stage::Reading if hebrew => Some(Stage::Hebrew),
-            Stage::Reading | Stage::Hebrew => Some(Stage::Cjk),
+            Stage::Reading(at) if at + 1 < chain_len => Some(Stage::Reading(at + 1)),
+            Stage::Reading(_) if hebrew => Some(Stage::Hebrew),
+            Stage::Reading(_) | Stage::Hebrew => Some(Stage::Cjk),
             Stage::Cjk => Some(Stage::Symbols),
             Stage::Symbols => Some(Stage::Notdef),
             Stage::Notdef => None,
         }
     }
 
-    fn font_id(self, ctx: &ShapeContext) -> u32 {
+    fn font_id(self, ctx: &ShapeContext, chain: &ReadingChain) -> u32 {
         match self {
-            Stage::Reading | Stage::Notdef => {
-                // Under the publisher reading font, the element's
-                // `font-family` stack picks the face; the terminal
-                // `.notdef` stage re-shapes with the SAME face so the
-                // missing-glyph box matches the surrounding text.
-                if ctx.family == FontFamily::Publisher && !ctx.families.is_empty() {
-                    ctx.fonts
-                        .select_stack(ctx.families, ctx.font_style, ctx.font_weight)
-                } else {
-                    ctx.fonts
-                        .select(ctx.family, ctx.font_style, ctx.font_weight)
-                }
-            }
-            // Serif/sans per family, bold per weight; no Hebrew italics
-            // exist — the registry maps italic requests to regular.
-            // Fallback stages always shape with the bundled Notos:
-            // system/publisher faces only ever replace the Reading stage.
-            Stage::Hebrew => ctx.fonts.hebrew(ctx.family.is_serif(), ctx.font_weight),
-            Stage::Cjk => ctx
-                .fonts
-                .cjk(ctx.lang, ctx.family.is_serif(), ctx.font_weight),
+            Stage::Reading(at) => chain.faces[at].font_id,
+            // The terminal `.notdef` stage re-shapes with the chain's
+            // first face so the missing-glyph box matches the
+            // surrounding text.
+            Stage::Notdef => chain.faces[0].font_id,
+            // Serif/sans per the resolved chain (under Publisher, the
+            // stack's generic keyword decides — a sans stack gets the
+            // sans CJK/Hebrew Notos), bold per weight; no Hebrew
+            // italics exist — the registry maps italic requests to
+            // regular. Fallback stages always shape with the bundled
+            // Notos: system/publisher faces only ever serve the
+            // Reading stages.
+            Stage::Hebrew => ctx.fonts.hebrew(chain.serif, ctx.font_weight),
+            Stage::Cjk => ctx.fonts.cjk(ctx.lang, chain.serif, ctx.font_weight),
             Stage::Symbols => ctx.fonts.symbols(),
         }
     }
@@ -156,6 +160,11 @@ pub(super) struct RawGlyph {
 /// offsets simply have no glyph.
 pub fn shape_text(text: &str, ctx: &ShapeContext) -> Vec<ShapedRun> {
     let chars: Vec<char> = text.chars().collect();
+    // The resolved Reading-stage chain, computed once per paragraph
+    // group: a deterministic function of the context alone.
+    let chain = ctx
+        .fonts
+        .reading_chain(ctx.family, ctx.families, ctx.font_style, ctx.font_weight);
     let mut runs = Vec::new();
     let mut start_char = 0usize;
     for item in itemize(text, ctx.base_rtl) {
@@ -165,8 +174,9 @@ pub fn shape_text(text: &str, ctx: &ShapeContext) -> Vec<ShapedRun> {
             slice,
             start_char,
             &item,
-            Stage::Reading,
+            Stage::Reading(0),
             ctx,
+            &chain,
             &chars,
             &mut runs,
         );
@@ -184,13 +194,14 @@ fn shape_slice(
     item: &Item,
     stage: Stage,
     ctx: &ShapeContext,
+    chain: &ReadingChain,
     chars: &[char],
     runs: &mut Vec<ShapedRun>,
 ) {
     if slice.is_empty() {
         return;
     }
-    let font_id = stage.font_id(ctx);
+    let font_id = stage.font_id(ctx, chain);
     let (raw, orientation) = super::vertical::shape_once(slice, start_char, font_id, item, ctx);
     if raw.is_empty() {
         return;
@@ -214,6 +225,29 @@ fn shape_slice(
     clusters.sort_unstable_by_key(|(c, _)| *c);
 
     let end_char = (start_char + slice.chars().count()) as u32;
+
+    // `unicode-range` gating: a Reading-stage publisher face only
+    // claims clusters whose codepoints all sit inside its declared
+    // ranges — everything else counts as missing and walks on down the
+    // chain, even when the face happens to carry a glyph.
+    if let Stage::Reading(at) = stage {
+        let face = &chain.faces[at];
+        if face.ranges.is_some() {
+            for idx in 0..clusters.len() {
+                let span_start = clusters[idx].0 as usize;
+                let span_end = clusters
+                    .get(idx + 1)
+                    .map_or(end_char as usize, |(c, _)| *c as usize);
+                let unclaimed = chars[span_start..span_end]
+                    .iter()
+                    .any(|c| !is_ignorable(*c) && !face.claims(*c));
+                if unclaimed {
+                    clusters[idx].1 = true;
+                }
+            }
+        }
+    }
+
     let terminal = stage == Stage::Notdef;
     if terminal || clusters.iter().all(|(_, missing)| !missing) {
         push_run(
@@ -243,13 +277,14 @@ fn shape_slice(
             let hebrew = chars[group_start as usize..group_end as usize]
                 .iter()
                 .any(|c| c.script() == Script::Hebrew);
-            if let Some(next) = stage.next(hebrew) {
+            if let Some(next) = stage.next(hebrew, chain.faces.len()) {
                 shape_slice(
                     &slice[rel_start..rel_end],
                     group_start as usize,
                     item,
                     next,
                     ctx,
+                    chain,
                     chars,
                     runs,
                 );

@@ -21,6 +21,12 @@ pub struct FontFaceRule {
     /// declaring stylesheet; `local(...)` entries are dropped — there is
     /// no local font database to consult).
     pub sources: Vec<String>,
+    /// The `unicode-range` descriptor as sorted, merged inclusive
+    /// codepoint ranges; `None` (absent or unparseable descriptor) means
+    /// the face claims every codepoint, per CSS. A subsetted face's
+    /// declared ranges gate which clusters it may claim during the
+    /// per-cluster stack walk at shaping.
+    pub unicode_ranges: Option<Vec<(u32, u32)>>,
 }
 
 /// Parses one `@font-face` block's descriptors. `None` when the rule
@@ -33,6 +39,7 @@ pub(super) fn parse_font_face_block(parser: &mut Parser<'_, '_>) -> Option<FontF
         FontWeight::NORMAL.value(),
     );
     let mut sources: Vec<String> = Vec::new();
+    let mut unicode_ranges: Option<Vec<(u32, u32)>> = None;
     loop {
         let property = match parser.next() {
             Ok(Token::Ident(name)) => name.to_ascii_lowercase(),
@@ -66,6 +73,17 @@ pub(super) fn parse_font_face_block(parser: &mut Parser<'_, '_>) -> Option<FontF
                     sources = parsed;
                 }
             }
+            "unicode-range" => {
+                // `U+…` tokens shatter under the CSS tokenizer (`4E00`
+                // reads as scientific notation), so the descriptor is
+                // parsed from its raw source text instead.
+                let start = parser.position();
+                consume_rest(parser);
+                let raw = parser.slice_from(start);
+                if let Some(parsed) = parse_unicode_ranges(raw) {
+                    unicode_ranges = Some(parsed);
+                }
+            }
             _ => consume_rest(parser),
         }
     }
@@ -78,7 +96,70 @@ pub(super) fn parse_font_face_block(parser: &mut Parser<'_, '_>) -> Option<FontF
         style,
         weight,
         sources,
+        unicode_ranges,
     })
+}
+
+/// Parses a raw `unicode-range` descriptor value — `U+XXXX`,
+/// `U+XXXX-YYYY`, `U+XX??` wildcards, comma-separated, ASCII
+/// case-insensitive — into sorted, merged inclusive ranges. `None` when
+/// any component is malformed (the whole descriptor is then ignored,
+/// i.e. the face claims all codepoints — CSS's invalid-descriptor
+/// behavior) or when no component is present.
+fn parse_unicode_ranges(raw: &str) -> Option<Vec<(u32, u32)>> {
+    let raw = raw.trim_end_matches(';');
+    let mut ranges: Vec<(u32, u32)> = Vec::new();
+    for part in raw.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let body = part
+            .strip_prefix(['u', 'U'])
+            .and_then(|rest| rest.strip_prefix('+'))?;
+        let (start, end) = if let Some((lo, hi)) = body.split_once('-') {
+            (parse_hex(lo)?, parse_hex(hi)?)
+        } else if body.contains('?') {
+            // Wildcards fill low digits: `U+30??` = U+3000–U+30FF. `?`
+            // must only trail the fixed digits.
+            let fixed_len = body.find('?').unwrap_or(0);
+            if body[fixed_len..].chars().any(|c| c != '?') {
+                return None;
+            }
+            let lo: String = body.chars().map(|c| if c == '?' { '0' } else { c }).collect();
+            let hi: String = body.chars().map(|c| if c == '?' { 'F' } else { c }).collect();
+            (parse_hex(&lo)?, parse_hex(&hi)?)
+        } else {
+            let v = parse_hex(body)?;
+            (v, v)
+        };
+        if start > end || end > 0x0010_FFFF {
+            return None;
+        }
+        ranges.push((start, end));
+    }
+    if ranges.is_empty() {
+        return None;
+    }
+    ranges.sort_unstable();
+    let mut merged: Vec<(u32, u32)> = Vec::with_capacity(ranges.len());
+    for (start, end) in ranges {
+        match merged.last_mut() {
+            Some((_, last_end)) if start <= last_end.saturating_add(1) => {
+                *last_end = (*last_end).max(end);
+            }
+            _ => merged.push((start, end)),
+        }
+    }
+    Some(merged)
+}
+
+/// One 1–6 digit hex codepoint component.
+fn parse_hex(digits: &str) -> Option<u32> {
+    if digits.is_empty() || digits.len() > 6 || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    u32::from_str_radix(digits, 16).ok()
 }
 
 /// Consumes to (and including) the next top-level `;`, skipping nested

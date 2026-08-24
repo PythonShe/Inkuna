@@ -658,3 +658,46 @@ fn image_href_normalized() {
     assert_eq!(img.href, "OEBPS/images/a b.png");
     assert_eq!(img.frame.w, Fx::from_pt(50.0));
 }
+
+/// C4: the reader's bold toggle maps to weight 700 across scripts — a
+/// toggled paragraph mixing Latin and CJK selects the static Bold
+/// faces on BOTH (NotoSerif-Bold id 2, NotoSerifCJK SC Bold id 9),
+/// never the wght-600 Latin instance beside 700 CJK.
+#[test]
+fn bold_toggle_is_weight_700_across_latin_and_cjk() {
+    let doc = r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>b</title></head>
+<body><p>Bold 粗体 text</p></body></html>"#;
+    let (pages, _, _) = run_typo(
+        doc,
+        viewport(300.0, 400.0),
+        "OEBPS/ch01.xhtml",
+        &|_| None,
+        &|t| t.bold_base = true,
+    );
+    let font_ids: Vec<u32> = pages
+        .iter()
+        .flat_map(|p| &p.lines)
+        .flat_map(|l| &l.line.runs)
+        .map(|r| r.run.font_id)
+        .collect();
+    assert!(
+        font_ids.contains(&2),
+        "Latin must select the static NotoSerif Bold (id 2), got {font_ids:?}"
+    );
+    assert!(
+        font_ids.contains(&9),
+        "CJK must select the Serif CJK SC Bold (id 9), got {font_ids:?}"
+    );
+    assert!(
+        font_ids.iter().all(|id| matches!(id, 2 | 9)),
+        "no run may shape at another weight (e.g. the wght-600 Latin \
+         instance), got {font_ids:?}"
+    );
+    for run in pages.iter().flat_map(|p| &p.lines).flat_map(|l| &l.line.runs) {
+        assert_eq!(
+            run.run.style.font_weight,
+            crate::style::FontWeight::BOLD,
+            "the bold toggle must carry CSS bold (700) into the display style"
+        );
+    }
+}

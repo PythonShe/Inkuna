@@ -9,7 +9,10 @@
 //!   (`ReadingTextSize.pointSize`) and
 //!   `apps/android/app/src/main/java/app/inkuna/android/model/AppSettings.kt`
 //!   (`TEXT_SIZE_STEPS`) — the shells agree exactly.
-//! - spacing/margin ranges and the weight-600 bold semantic:
+//! - spacing/margin ranges (the shells' WebView era rendered the bold
+//!   toggle at weight 600; the engine deliberately maps it to 700 so
+//!   Latin and the static CJK/Hebrew Bold faces agree — see
+//!   `Typography::bold_base`):
 //!   `apps/ios/Inkuna/Reader/ReaderUserStyle.swift`,
 //!   `apps/ios/Inkuna/Model/AppSettings.swift`, and
 //!   `apps/android/app/src/main/java/app/inkuna/android/ui/reader/ReaderUserCss.kt` —
@@ -68,10 +71,12 @@ pub enum FontFamily {
 
 impl FontFamily {
     /// Whether the family is serif-flavored — what the CJK/Hebrew
-    /// fallback stages key their serif/sans split on. `Publisher`
-    /// counts as serif: its terminal fallback is NotoSerif, and the
-    /// fallback stages deliberately stay the bundled Notos regardless
-    /// of which embedded face shapes the Reading stage.
+    /// fallback stages key their serif/sans split on for the
+    /// settings-owned families. `Publisher` defaults to serif (its
+    /// terminal fallback is NotoSerif), but under a `font-family`
+    /// stack the resolved reading chain overrides this with the
+    /// stack's generic keyword — `…, sans-serif` gets the sans
+    /// CJK/Hebrew Notos (see `FontRegistry::reading_chain`).
     pub fn is_serif(self) -> bool {
         !matches!(self, FontFamily::SystemSans | FontFamily::NotoSans)
     }
@@ -199,8 +204,10 @@ pub struct Typography {
     pub heading_scale: [f64; 6],
     /// Ruby size over base size as an exact ratio, e.g. `(1, 2)`.
     pub ruby_scale: (u32, u32),
-    /// The reader's bold toggle: body text renders at weight 600, while
-    /// publisher emphasis stays heavier (transcribed semantic).
+    /// The reader's bold toggle: body text renders at weight 700 —
+    /// CSS `bold`, matching the static CJK/Hebrew Bold faces so one
+    /// toggled paragraph never mixes weights across scripts — while
+    /// publisher emphasis heavier than 700 stays heavier.
     pub bold_base: bool,
 }
 

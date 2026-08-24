@@ -543,6 +543,7 @@ fn word_gaps_sane_with_publisher_face() {
         family: "PubBody".to_string(),
         italic: false,
         weight: (100, 900),
+        unicode_ranges: None,
     };
     let fonts = FontRegistry::with_publisher(&base, std::slice::from_ref(&spec));
     let families = [crate::style::FamilyName::Named("PubBody".to_string())];
@@ -562,4 +563,146 @@ fn word_gaps_sane_with_publisher_face() {
         );
         assert_sane_spaces(&runs, text, &format!("publisher face {weight}"));
     }
+}
+
+/// C1: a publisher face that won the stack's first entry but lacks
+/// coverage must hand missing clusters to the NEXT stack entry, not
+/// straight to the bundled CJK fallback. The first face is the Hebrew
+/// Noto (no Greek); the second covers Greek.
+#[test]
+fn uncovered_cluster_walks_to_next_stack_entry() {
+    let dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"));
+    let base = FontRegistry::load(dir).expect("registry loads");
+    let specs = [
+        crate::fonts::PublisherFaceSpec {
+            file_path: dir.join("NotoSerifHebrew-Regular.ttf"),
+            family: "HebOnly".to_string(),
+            italic: false,
+            weight: (400, 400),
+            unicode_ranges: None,
+        },
+        crate::fonts::PublisherFaceSpec {
+            file_path: dir.join("NotoSans.ttf"),
+            family: "FullBody".to_string(),
+            italic: false,
+            weight: (100, 900),
+            unicode_ranges: None,
+        },
+    ];
+    let fonts = FontRegistry::with_publisher(&base, &specs);
+    // Static Hebrew face: one id at the block base; NotoSans variable:
+    // nine instance ids right after it.
+    let first_id = base.next_free_id();
+    let second_ids = (first_id + 1)..(first_id + 10);
+    let families = [
+        crate::style::FamilyName::Named("HebOnly".to_string()),
+        crate::style::FamilyName::Named("FullBody".to_string()),
+    ];
+    let c = ShapeContext {
+        family: FontFamily::Publisher,
+        families: &families,
+        ..ctx(&fonts)
+    };
+    let runs = shape_text("Ω", &c);
+    assert_eq!(runs.len(), 1);
+    assert!(
+        second_ids.contains(&runs[0].font_id),
+        "Greek must shape with the stack's second face, got id {}",
+        runs[0].font_id
+    );
+    // Sanity: text the first face covers stays on the first face.
+    let runs = shape_text("שלום", &c);
+    assert!(runs.iter().all(|r| r.font_id == first_id));
+}
+
+/// C3: a subsetted face's declared `unicode-range` gates what it may
+/// claim — codepoints outside the ranges walk to the next stack entry
+/// even though the face carries their glyphs.
+#[test]
+fn unicode_range_gates_publisher_face_claims() {
+    let dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"));
+    let base = FontRegistry::load(dir).expect("registry loads");
+    let specs = [
+        crate::fonts::PublisherFaceSpec {
+            file_path: dir.join("NotoSerif.ttf"),
+            family: "CapsOnly".to_string(),
+            italic: false,
+            weight: (100, 900),
+            // A–Z only, though the file covers far more.
+            unicode_ranges: Some(vec![(0x41, 0x5A)]),
+        },
+        crate::fonts::PublisherFaceSpec {
+            file_path: dir.join("NotoSans.ttf"),
+            family: "FullBody".to_string(),
+            italic: false,
+            weight: (100, 900),
+            unicode_ranges: None,
+        },
+    ];
+    let fonts = FontRegistry::with_publisher(&base, &specs);
+    let first_ids = base.next_free_id()..(base.next_free_id() + 9);
+    let second_ids = first_ids.end..(first_ids.end + 9);
+    let families = [
+        crate::style::FamilyName::Named("CapsOnly".to_string()),
+        crate::style::FamilyName::Named("FullBody".to_string()),
+    ];
+    let c = ShapeContext {
+        family: FontFamily::Publisher,
+        families: &families,
+        ..ctx(&fonts)
+    };
+    let runs = shape_text("AB ab", &c);
+    let of = |cluster: u32| {
+        runs.iter()
+            .find(|r| r.glyphs.iter().any(|g| g.cluster == cluster))
+            .map(|r| r.font_id)
+            .expect("cluster shaped")
+    };
+    for caps in [0u32, 1] {
+        assert!(
+            first_ids.contains(&of(caps)),
+            "A–Z inside the declared range must stay on the subsetted face"
+        );
+    }
+    for outside in [2u32, 3, 4] {
+        assert!(
+            second_ids.contains(&of(outside)),
+            "codepoints outside the declared range must walk to the next \
+             stack entry, got id {}",
+            of(outside)
+        );
+    }
+}
+
+/// C2: under the publisher reading font, the CJK and Hebrew fallback
+/// serif-ness follows the stack's generic keyword — `…, sans-serif`
+/// gets the sans Notos, `…, serif` (and no generic) the serif ones.
+#[test]
+fn stack_generic_drives_cjk_and_hebrew_fallback_flavor() {
+    let fonts = registry();
+    let sans_stack = [
+        crate::style::FamilyName::Named("NoSuchFamily".to_string()),
+        crate::style::FamilyName::SansSerif,
+    ];
+    let serif_stack = [
+        crate::style::FamilyName::Named("NoSuchFamily".to_string()),
+        crate::style::FamilyName::Serif,
+    ];
+    let no_generic = [crate::style::FamilyName::Named("NoSuchFamily".to_string())];
+    let shape_one = |families: &[crate::style::FamilyName], text: &str| {
+        let c = ShapeContext {
+            family: FontFamily::Publisher,
+            families,
+            ..ctx(fonts)
+        };
+        let runs = shape_text(text, &c);
+        assert_eq!(runs.len(), 1);
+        runs[0].font_id
+    };
+    // Sans CJK SC Regular is id 16, serif 8; sans Hebrew Regular 26, serif 24.
+    assert_eq!(shape_one(&sans_stack, "中"), 16);
+    assert_eq!(shape_one(&serif_stack, "中"), 8);
+    assert_eq!(shape_one(&no_generic, "中"), 8);
+    assert_eq!(shape_one(&sans_stack, "ש"), 26);
+    assert_eq!(shape_one(&serif_stack, "ש"), 24);
 }

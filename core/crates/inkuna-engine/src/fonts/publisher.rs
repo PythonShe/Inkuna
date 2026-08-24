@@ -37,24 +37,33 @@ pub struct PublisherFaceSpec {
     /// Inclusive weight range the face serves (a single weight is
     /// `(w, w)`).
     pub weight: (u16, u16),
+    /// The declared `unicode-range` as sorted inclusive codepoint
+    /// ranges; `None` = the face claims every codepoint. Shaping's
+    /// per-cluster stack walk skips this face for codepoints outside
+    /// the set.
+    pub unicode_ranges: Option<Vec<(u32, u32)>>,
 }
 
 /// The nine standard CSS weights a variable publisher face is instanced
 /// at (those inside its declared range), mirroring the system block.
 const INSTANCE_WEIGHTS: [u16; 9] = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
-/// One selectable slot: the weight range it serves and its face id.
-#[derive(Debug, Clone, Copy)]
+/// One selectable slot: the weight range it serves, its face id, and
+/// the unicode-range set it claims (`None` = all codepoints).
+#[derive(Debug, Clone)]
 struct Slot {
     min: u16,
     max: u16,
     id: u32,
+    ranges: Option<Arc<[(u32, u32)]>>,
 }
 
 /// One declared family's faces, split by slant.
 #[derive(Debug, Default)]
 struct Family {
-    /// The family name, Unicode-lowercased for case-insensitive match.
+    /// The family name, ASCII-lowercased at registration — CSS family
+    /// matching is ASCII-case-insensitive, and folding here keeps
+    /// `select()` (the shaping path) allocation-free.
     folded: String,
     upright: Vec<Slot>,
     italic: Vec<Slot>,
@@ -69,23 +78,38 @@ pub(super) struct PublisherFamilies {
 }
 
 impl PublisherFamilies {
-    /// The face id for a named family + style + weight, or `None` when
-    /// no such family was registered (the caller walks on down the
-    /// stack). Style prefers its own slant and synthesizes from the
-    /// other; weight follows the css-fonts-4 rule over slot ranges.
-    pub(super) fn select(&self, name: &str, style: FontStyle, weight: u16) -> Option<u32> {
-        let folded = name.to_lowercase();
-        let family = self.families.iter().find(|f| f.folded == folded)?;
+    /// The face id and claimed unicode ranges for a named family +
+    /// style + weight, or `None` when no such family was registered
+    /// (the caller walks on down the stack). Names match
+    /// ASCII-case-insensitively (the CSS rule; no allocation on this
+    /// shaping-path call). Style prefers its own slant and synthesizes
+    /// from the other; weight follows the css-fonts-4 rule over slot
+    /// ranges.
+    pub(super) fn select(
+        &self,
+        name: &str,
+        style: FontStyle,
+        weight: u16,
+    ) -> Option<(u32, Option<Arc<[(u32, u32)]>>)> {
+        let family = self
+            .families
+            .iter()
+            .find(|f| f.folded.eq_ignore_ascii_case(name))?;
         let (preferred, other) = match style {
             FontStyle::Italic => (&family.italic, &family.upright),
             FontStyle::Normal => (&family.upright, &family.italic),
         };
         let slots = if preferred.is_empty() { other } else { preferred };
-        select_slot(slots, weight)
+        let id = select_slot(slots, weight)?;
+        let ranges = slots
+            .iter()
+            .find(|slot| slot.id == id)
+            .and_then(|slot| slot.ranges.clone());
+        Some((id, ranges))
     }
 
     fn push(&mut self, family: &str, italic: bool, slot: Slot) {
-        let folded = family.to_lowercase();
+        let folded = family.to_ascii_lowercase();
         let entry = match self.families.iter_mut().find(|f| f.folded == folded) {
             Some(entry) => entry,
             None => {
@@ -193,6 +217,10 @@ fn load_one(
         .to_string_lossy()
         .into_owned();
 
+    let unicode_ranges: Option<Arc<[(u32, u32)]>> = spec
+        .unicode_ranges
+        .as_ref()
+        .map(|ranges| Arc::from(ranges.as_slice()));
     let mut push = |axes: Vec<FontAxis>, slot_range: (u16, u16)| {
         let id = entries.len() as u32;
         entries.push(FontEntry {
@@ -219,6 +247,7 @@ fn load_one(
                 min: slot_range.0,
                 max: slot_range.1,
                 id,
+                ranges: unicode_ranges.clone(),
             },
         );
     };

@@ -36,12 +36,14 @@ fn specs() -> Vec<PublisherFaceSpec> {
             family: "Pub Serif".to_string(),
             italic: false,
             weight: (100, 900),
+            unicode_ranges: None,
         },
         PublisherFaceSpec {
             file_path: repo_font("NotoSerifHebrew-Regular.ttf"),
             family: "Pub Static".to_string(),
             italic: false,
             weight: (300, 700),
+            unicode_ranges: None,
         },
     ]
 }
@@ -180,6 +182,7 @@ fn unloadable_specs_skip_without_failing() {
             family: "Ghost".to_string(),
             italic: false,
             weight: (400, 400),
+            unicode_ranges: None,
         },
     );
     let derived = FontRegistry::with_publisher(&base, &specs);

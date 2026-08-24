@@ -11,5 +11,7 @@ mod system;
 
 pub use extract::extract_publisher_fonts;
 pub use publisher::PublisherFaceSpec;
-pub use registry::{FontAxis, FontEntry, FontRegistry, LoadedFace, FIRST_DYNAMIC_ID};
+pub use registry::{
+    ChainFace, FontAxis, FontEntry, FontRegistry, LoadedFace, ReadingChain, FIRST_DYNAMIC_ID,
+};
 pub use system::{SystemFontFace, SystemFontRole, SystemFontWarning};

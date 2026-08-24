@@ -26,6 +26,7 @@ use read_fonts::{FontRef, TableProvider};
 
 use crate::style::{parse_sheet, FontStyle};
 
+use super::face::name_value;
 use super::publisher::PublisherFaceSpec;
 
 /// Upper bound on registered publisher faces per publication. Real
@@ -37,6 +38,13 @@ const MAX_PUBLISHER_FACES: usize = 32;
 /// publication — WOFF2 can inflate well past its archive size, so the
 /// per-resource read cap alone does not bound the cache dir.
 const MAX_TOTAL_FONT_BYTES: usize = 64 * 1024 * 1024;
+
+/// Per-face cap enforced BEFORE decompression, on both the compressed
+/// container size and the WOFF header's declared `totalSfntSize` —
+/// WOFF2 allows ~100× expansion, so a small archive entry could
+/// otherwise allocate gigabytes before the post-decompression budget
+/// ever sees it. Real embedded faces are a few MiB at most.
+const MAX_FACE_BYTES: usize = 32 * 1024 * 1024;
 
 /// Discovers, deobfuscates, decompresses, validates, and extracts the
 /// publication's embedded faces into `cache_dir`, returning the specs
@@ -55,6 +63,12 @@ pub fn extract_publisher_fonts(
     };
     let obfuscations = read_obfuscations(epub_path);
     let unique_identifier = package.metadata.unique_identifier.as_deref();
+    // A crash between tmp write and rename in an earlier session leaves
+    // `<hash>.tmp` behind forever otherwise (the orphan sweep removes
+    // whole dirs, not stray files, and the budget never counts them).
+    // Safe here: the FFI holds one live session per book, so nothing is
+    // concurrently mid-write in this book's cache dir.
+    sweep_stale_tmp(cache_dir);
 
     let mut extractor = Extractor {
         reader: &mut reader,
@@ -92,12 +106,19 @@ pub fn extract_publisher_fonts(
             for source in &rule.sources {
                 let href = resolve_source(&item.href, source);
                 if let Some(file_path) = extractor.extract(&href) {
-                    rule_hrefs.insert(href);
+                    // EVERY href of the consumed rule is claimed — the
+                    // losing alternates (`url(x.woff2), url(x.ttf)`)
+                    // must not resurface in pass 2 as duplicate faces
+                    // burning the face cap.
+                    for claimed in &rule.sources {
+                        rule_hrefs.insert(resolve_source(&item.href, claimed));
+                    }
                     specs.push(PublisherFaceSpec {
                         file_path,
                         family: rule.family.clone(),
                         italic: rule.style == FontStyle::Italic,
                         weight: rule.weight,
+                        unicode_ranges: rule.unicode_ranges.clone(),
                     });
                     break;
                 }
@@ -127,6 +148,9 @@ pub fn extract_publisher_fonts(
                 family,
                 italic,
                 weight: (weight, weight),
+                // Manifest-only faces declare no unicode-range: they
+                // claim every codepoint their cmap covers.
+                unicode_ranges: None,
             }),
             None => log::warn!(
                 "publisher fonts: {} has no usable family name; skipped",
@@ -191,21 +215,49 @@ impl Extractor<'_> {
             }
         }
         // WOFF containers decompress to sfnt; raw sfnt passes through.
+        // Both bounds are checked BEFORE wuff allocates anything: the
+        // compressed container size and the header's declared
+        // `totalSfntSize` (offset 16, big-endian, in both WOFF formats)
+        // — the post-decompression budget stays the final arbiter.
         let bytes = match &bytes[..bytes.len().min(4)] {
-            b"wOFF" => match wuff::decompress_woff1(&bytes) {
-                Ok(sfnt) => sfnt,
-                Err(e) => {
-                    log::warn!("publisher fonts: {href} failed WOFF decompression ({e:?})");
+            woff @ (b"wOFF" | b"wOF2") => {
+                if bytes.len() > MAX_FACE_BYTES {
+                    log::warn!(
+                        "publisher fonts: {href} skipped (compressed font exceeds the \
+                         per-face cap of {MAX_FACE_BYTES} bytes)"
+                    );
                     return None;
                 }
-            },
-            b"wOF2" => match wuff::decompress_woff2(&bytes) {
-                Ok(sfnt) => sfnt,
-                Err(e) => {
-                    log::warn!("publisher fonts: {href} failed WOFF2 decompression ({e:?})");
-                    return None;
+                let declared = bytes
+                    .get(16..20)
+                    .map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize);
+                match declared {
+                    Some(size) if size <= MAX_FACE_BYTES => {}
+                    Some(_) => {
+                        log::warn!(
+                            "publisher fonts: {href} skipped (declared sfnt size exceeds \
+                             the per-face cap of {MAX_FACE_BYTES} bytes)"
+                        );
+                        return None;
+                    }
+                    None => {
+                        log::warn!("publisher fonts: {href} skipped (truncated WOFF header)");
+                        return None;
+                    }
                 }
-            },
+                let decompressed = if woff == b"wOFF" {
+                    wuff::decompress_woff1(&bytes)
+                } else {
+                    wuff::decompress_woff2(&bytes)
+                };
+                match decompressed {
+                    Ok(sfnt) => sfnt,
+                    Err(e) => {
+                        log::warn!("publisher fonts: {href} failed WOFF decompression ({e:?})");
+                        return None;
+                    }
+                }
+            }
             _ => bytes,
         };
         // Validate BEFORE writing: only parseable faces enter the cache.
@@ -222,9 +274,9 @@ impl Extractor<'_> {
         }
         self.total_bytes += bytes.len();
 
-        let extension = match &bytes[..4] {
-            b"OTTO" => "otf",
-            b"ttcf" => "ttc",
+        let extension = match bytes.get(..4) {
+            Some(b"OTTO") => "otf",
+            Some(b"ttcf") => "ttc",
             _ => "ttf",
         };
         let hash = blake3::hash(&bytes);
@@ -259,6 +311,21 @@ fn validate_font(bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+/// Removes stale `*.tmp` files a crashed earlier extraction left in
+/// the book's cache dir. Missing dir or unremovable files are fine —
+/// extraction proceeds regardless.
+fn sweep_stale_tmp(dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "tmp") {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
 /// Write-then-rename so a concurrent open never maps a half-written
 /// file (the registry mmaps these).
 fn write_atomic(dir: &Path, path: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -285,24 +352,6 @@ fn introspect(path: &Path) -> Option<(String, bool, u16)> {
         Err(_) => (false, 400),
     };
     Some((family, italic, weight))
-}
-
-/// The first non-empty string for a name id.
-fn name_value(font: &FontRef<'_>, id: NameId) -> Option<String> {
-    let names = font.name().ok()?;
-    let data = names.string_data();
-    for record in names.name_record() {
-        if record.name_id() != id {
-            continue;
-        }
-        if let Ok(value) = record.string(data) {
-            let value = value.to_string();
-            if !value.is_empty() {
-                return Some(value);
-            }
-        }
-    }
-    None
 }
 
 #[cfg(test)]

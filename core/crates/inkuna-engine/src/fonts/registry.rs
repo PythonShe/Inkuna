@@ -97,6 +97,38 @@ pub struct FontEntry {
     pub axes: Vec<FontAxis>,
 }
 
+/// One Reading-stage candidate face: its registry id plus the
+/// unicode-range set it claims (`None` = every codepoint — bundled and
+/// system faces, and publisher faces without a `unicode-range`
+/// descriptor).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChainFace {
+    pub font_id: u32,
+    pub ranges: Option<Arc<[(u32, u32)]>>,
+}
+
+impl ChainFace {
+    /// Whether the face claims `c` under its declared unicode ranges.
+    pub fn claims(&self, c: char) -> bool {
+        match &self.ranges {
+            None => true,
+            Some(ranges) => {
+                let cp = c as u32;
+                ranges.iter().any(|(start, end)| *start <= cp && cp <= *end)
+            }
+        }
+    }
+}
+
+/// The resolved Reading-stage fallback chain (see
+/// [`FontRegistry::reading_chain`]): at least one face, in try order,
+/// plus the serif-ness the bundled CJK/Hebrew fallback stages key on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReadingChain {
+    pub faces: Vec<ChainFace>,
+    pub serif: bool,
+}
+
 /// A parsed, memory-mapped face. harfrust's `FontRef` borrows the
 /// mapped bytes, so shaping call sites rebuild it from `data` +
 /// `collection_index` per shape (cheap; revisit with `self_cell` only
@@ -361,32 +393,97 @@ impl FontRegistry {
         })
     }
 
-    /// The reading-face id for a `font-family` stack under the
-    /// `publisher` reading font, walking the stack in author order:
-    /// a named family registered from the publication wins; a generic
-    /// `serif`/`sans-serif` resolves to the bundled Noto equivalent;
+    /// The Reading-stage fallback chain for a family + `font-family`
+    /// stack: the ordered faces shaping tries per cluster before the
+    /// script/CJK/symbols stages, plus the serif-ness those bundled
+    /// fallback stages key on.
+    ///
+    /// Every non-`Publisher` family (and `Publisher` with no stack)
+    /// yields a single-face chain — its `select` resolution — with the
+    /// family's own serif-ness. Under `Publisher` with a stack, the
+    /// chain walks the stack in author order: each named family
+    /// registered from the publication contributes its matched face
+    /// (with its declared unicode ranges, so a subsetted face only
+    /// claims its own codepoints); the first generic
+    /// `serif`/`sans-serif` terminates the chain at the bundled Noto
+    /// equivalent and decides the CJK/Hebrew fallback serif-ness;
     /// `monospace` (no bundled mono roster) and unknown names walk on.
-    /// A stack that matches nothing — and the empty stack — falls back
-    /// to NotoSerif, the reader's default reading face.
+    /// A stack with no generic ends at NotoSerif and defaults the
+    /// fallbacks to serif.
+    pub fn reading_chain(
+        &self,
+        family: FontFamily,
+        stack: &[FamilyName],
+        style: FontStyle,
+        weight: FontWeight,
+    ) -> ReadingChain {
+        if family != FontFamily::Publisher || stack.is_empty() {
+            return ReadingChain {
+                faces: vec![ChainFace {
+                    font_id: self.select(family, style, weight),
+                    ranges: None,
+                }],
+                serif: family.is_serif(),
+            };
+        }
+        let mut faces: Vec<ChainFace> = Vec::new();
+        let push = |faces: &mut Vec<ChainFace>, face: ChainFace| {
+            if !faces
+                .iter()
+                .any(|f| f.font_id == face.font_id && f.ranges == face.ranges)
+            {
+                faces.push(face);
+            }
+        };
+        let mut serif = true;
+        let mut generic_hit = false;
+        for name in stack {
+            match name {
+                FamilyName::Named(named) => {
+                    if let Some((id, ranges)) = self.publisher.select(named, style, weight.value())
+                    {
+                        push(&mut faces, ChainFace {
+                            font_id: id,
+                            ranges,
+                        });
+                    }
+                }
+                FamilyName::Serif | FamilyName::SansSerif => {
+                    serif = matches!(name, FamilyName::Serif);
+                    let noto = if serif {
+                        FontFamily::NotoSerif
+                    } else {
+                        FontFamily::NotoSans
+                    };
+                    push(&mut faces, ChainFace {
+                        font_id: self.select(noto, style, weight),
+                        ranges: None,
+                    });
+                    generic_hit = true;
+                    break;
+                }
+                FamilyName::Monospace => {}
+            }
+        }
+        if !generic_hit {
+            push(&mut faces, ChainFace {
+                font_id: self.select(FontFamily::NotoSerif, style, weight),
+                ranges: None,
+            });
+        }
+        ReadingChain { faces, serif }
+    }
+
+    /// The first face of the `Publisher` reading chain for a stack —
+    /// the face the Reading stage tries first. Kept as the simple
+    /// entry point for callers that need one id, not the whole chain.
     pub fn select_stack(
         &self,
         stack: &[FamilyName],
         style: FontStyle,
         weight: FontWeight,
     ) -> u32 {
-        for name in stack {
-            match name {
-                FamilyName::Named(named) => {
-                    if let Some(id) = self.publisher.select(named, style, weight.value()) {
-                        return id;
-                    }
-                }
-                FamilyName::Serif => return self.select(FontFamily::NotoSerif, style, weight),
-                FamilyName::SansSerif => return self.select(FontFamily::NotoSans, style, weight),
-                FamilyName::Monospace => {}
-            }
-        }
-        self.select(FontFamily::NotoSerif, style, weight)
+        self.reading_chain(FontFamily::Publisher, stack, style, weight).faces[0].font_id
     }
 
     /// The full face table, for the FFI. Never forces byte loads —

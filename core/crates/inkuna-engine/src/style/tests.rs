@@ -441,12 +441,14 @@ p { font-style: italic }
                     "../fonts/pub.woff2".to_string(),
                     "fonts/pub.ttf".to_string()
                 ],
+                unicode_ranges: None,
             },
             FontFaceRule {
                 family: "Solo".to_string(),
                 style: FontStyle::Normal,
                 weight: (400, 400),
                 sources: vec!["solo.otf".to_string()],
+                unicode_ranges: None,
             },
         ],
         "rules without a family or without any url source drop"
@@ -481,4 +483,45 @@ fn font_face_weight_forms() {
     );
     let weights: Vec<(u16, u16)> = sheet.font_faces().iter().map(|r| r.weight).collect();
     assert_eq!(weights, vec![(700, 700), (250, 250), (300, 700)]);
+}
+
+/// C3: `unicode-range` descriptors parse into sorted, merged inclusive
+/// ranges — single codepoints, ranges, `?` wildcards, comma lists,
+/// case-insensitively; a malformed descriptor is ignored whole (the
+/// face then claims every codepoint, CSS's invalid-descriptor rule).
+#[test]
+fn font_face_unicode_range_parses_and_merges() {
+    let sheet = parse_sheet(
+        r#"@font-face {
+            font-family: Subset;
+            src: url(subset.woff2);
+            unicode-range: u+61, U+41-5A, U+30??, U+55-60;
+        }"#,
+    );
+    assert_eq!(
+        sheet.font_faces()[0].unicode_ranges,
+        // 41-5A and 55-60 overlap and merge; 61 is adjacent and merges too.
+        Some(vec![(0x41, 0x61), (0x3000, 0x30FF)])
+    );
+
+    let absent = parse_sheet(r#"@font-face { font-family: A; src: url(a.ttf); }"#);
+    assert_eq!(absent.font_faces()[0].unicode_ranges, None);
+
+    for bad in [
+        "unicode-range: U+GGGG;",
+        "unicode-range: U+110000;",
+        "unicode-range: U+5A-41;",
+        "unicode-range: U+1?2?;",
+        "unicode-range: 41-5A;",
+    ] {
+        let css = format!(
+            "@font-face {{ font-family: B; src: url(b.ttf); {bad} }}"
+        );
+        let sheet = parse_sheet(&css);
+        assert_eq!(
+            sheet.font_faces()[0].unicode_ranges,
+            None,
+            "malformed descriptor {bad:?} must be ignored whole"
+        );
+    }
 }

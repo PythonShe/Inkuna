@@ -371,3 +371,79 @@ fn wrap_woff1_stored(sfnt: &[u8]) -> Vec<u8> {
     out.extend_from_slice(&data);
     out
 }
+
+/// C5: WOFF containers are bounded BEFORE decompression — a header
+/// declaring a multi-gigabyte `totalSfntSize` (WOFF2 permits ~100×
+/// expansion) is rejected without ever calling the decoder, as is a
+/// compressed payload over the per-face cap.
+#[test]
+fn oversized_declared_sfnt_is_rejected_before_decompression() {
+    // A minimal WOFF2 header: signature, flavor, length, numTables,
+    // reserved, then totalSfntSize declaring ~2 GiB.
+    let mut woff2 = Vec::new();
+    woff2.extend_from_slice(b"wOF2");
+    woff2.extend_from_slice(&0x0001_0000u32.to_be_bytes()); // flavor
+    woff2.extend_from_slice(&48u32.to_be_bytes()); // length
+    woff2.extend_from_slice(&1u16.to_be_bytes()); // numTables
+    woff2.extend_from_slice(&0u16.to_be_bytes()); // reserved
+    woff2.extend_from_slice(&0x7FFF_FFFFu32.to_be_bytes()); // totalSfntSize
+    woff2.resize(48, 0);
+
+    let dir = TempDir::new().unwrap();
+    let specs = extract(&dir, font_book(&woff2));
+    assert!(
+        specs.is_empty(),
+        "a declared sfnt size over the per-face cap must be rejected"
+    );
+    // A truncated WOFF header (no declared size at all) is rejected too.
+    let dir = TempDir::new().unwrap();
+    let specs = extract(&dir, font_book(b"wOF2\x00"));
+    assert!(specs.is_empty());
+}
+
+/// C6: every href of a consumed @font-face rule is claimed — the
+/// losing `src` alternates must not re-register in pass 2 as duplicate
+/// manifest-only faces.
+#[test]
+fn losing_src_alternates_do_not_duplicate_in_pass_two() {
+    const ALT_CSS: &str = r#"
+@font-face {
+  font-family: "Pub Face";
+  src: url(fonts/pub.woff2) format("woff2"), url(fonts/pub.ttf);
+}
+"#;
+    // fonts/pub.woff2 is bogus (fails extraction) so fonts/pub.ttf wins;
+    // both are manifest font items.
+    let builder = EpubBuilder::new()
+        .resource("ch01.xhtml", "application/xhtml+xml", CHAPTER.as_bytes())
+        .resource("styles.css", "text/css", ALT_CSS.as_bytes())
+        .resource("fonts/pub.woff2", "font/woff2", b"not a font")
+        .resource("fonts/pub.ttf", "font/ttf", &font_bytes())
+        .spine(&["ch01.xhtml"]);
+    let dir = TempDir::new().unwrap();
+    let specs = extract(&dir, builder);
+    assert_eq!(
+        specs.len(),
+        1,
+        "the rule's alternates must not resurface as pass-2 faces: {specs:?}"
+    );
+    assert_eq!(specs[0].family, "Pub Face");
+}
+
+/// C11: stale `<hash>.tmp` files from a crashed earlier extraction are
+/// swept at the next extraction start.
+#[test]
+fn stale_tmp_files_are_swept() {
+    let dir = TempDir::new().unwrap();
+    let cache = dir.path().join("pubfonts");
+    std::fs::create_dir_all(&cache).unwrap();
+    let stale = cache.join("deadbeefdeadbeefdeadbeefdeadbeef.tmp");
+    std::fs::write(&stale, b"half-written").unwrap();
+
+    let epub = dir.path().join("book.epub");
+    font_book(&font_bytes()).write(&epub);
+    let package = read_package(&epub).expect("package parses");
+    let specs = extract_publisher_fonts(&epub, &package, &cache);
+    assert_eq!(specs.len(), 1);
+    assert!(!stale.exists(), "stale tmp files must be swept");
+}
