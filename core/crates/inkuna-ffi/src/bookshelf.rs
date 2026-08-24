@@ -236,10 +236,20 @@ impl Bookshelf {
             // `position_of`/`position_count` from without touching the DB.
             let ranges = library.position_ranges(&id)?;
 
-            // Last-open-wins, before the new open so two workers never
-            // lay out concurrently.
-            let mut slot = active.lock().unwrap();
-            if let Some(previous) = slot.upgrade() {
+            // Last-open-wins with a NARROW critical section: only the
+            // slot swaps happen under the lock — closing the previous
+            // session and the (font-extracting) engine open below must
+            // never hold it, so a panic in either cannot poison the
+            // mutex; poisoning is recovered regardless (the Weak slot
+            // cannot be left inconsistent by a mid-swap panic), so a
+            // single bad open never bricks every later one.
+            let previous = {
+                let mut slot = active
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                std::mem::replace(&mut *slot, Weak::new()).upgrade()
+            };
+            if let Some(previous) = previous {
                 previous.close();
             }
             // The per-book cache dir the session extracts the book's
@@ -260,8 +270,18 @@ impl Bookshelf {
                 Arc::new(ListenerAdapter(listener)),
             )
             .map_err(|e| InkunaError::from(inkuna_core::CoreError::from(e)))?;
-            *slot = Arc::downgrade(&session);
-            drop(slot);
+            // Store the new session; if a concurrent open stored its own
+            // between our two lock scopes, the LAST store wins and the
+            // displaced session is closed — one live reader either way.
+            let displaced = {
+                let mut slot = active
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                std::mem::replace(&mut *slot, Arc::downgrade(&session)).upgrade()
+            };
+            if let Some(displaced) = displaced {
+                displaced.close();
+            }
 
             // The session's own registry: base blocks plus this book's
             // publisher block — what `font_registry()` must serve so the
