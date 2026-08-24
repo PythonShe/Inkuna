@@ -198,6 +198,7 @@ extension ReaderViewController {
         do {
             try attemptJump(jump)
         } catch {
+            logger.warning("Jump to spine \(jump.coordinate.spineIdx, privacy: .public) offset \(jump.coordinate.charOffset, privacy: .public) failed: \(error)")
             pendingJump = nil
             if jump.linkToast { showLinkNotFollowed() }
         }
