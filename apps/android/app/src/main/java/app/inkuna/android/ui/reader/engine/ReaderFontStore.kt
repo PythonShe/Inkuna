@@ -18,11 +18,11 @@ import kotlinx.coroutines.withContext
 object ReaderFontStore {
     private const val TAG = "InkunaReaderFonts"
 
-    @Volatile
-    private var fonts: Map<UInt, Font> = emptyMap()
+    /** The one atomic publication: a complete map bound to the session it serves. */
+    private class Primed(val owner: Any, val registry: List<FontEntry>, val fonts: Map<UInt, Font>)
 
     @Volatile
-    private var primedRegistry: List<FontEntry>? = null
+    private var primed: Primed? = null
 
     private val gate = Mutex()
 
@@ -31,25 +31,39 @@ object ReaderFontStore {
     /** Bumps once per completed build, so mounted pages can redraw when the faces land. */
     val revision: StateFlow<Int> = _revision.asStateFlow()
 
-    /** Whether a build has completed — true even for one that rejected every face. */
-    val isPrimed: Boolean get() = primedRegistry != null
+    /**
+     * Whether a build for [owner]'s session has completed — true even for
+     * one that rejected every face.
+     */
+    fun isPrimed(owner: Any?): Boolean = owner != null && primed?.owner === owner
 
     /**
      * Replaces the whole immutable registry at once, so drawing threads only
-     * ever observe a complete font map.
+     * ever observe a complete font map — and binds it to the session it was
+     * built for. Publisher ids sit in a per-session block after the shared
+     * base blocks, so id 60 in one book's registry can be a different face
+     * in another's: a still-mounted canvas for the previous book must read
+     * nothing here, never the next book's face under a colliding id.
      *
      * The build is blocking disk I/O — one native `Font.Builder` plus a
      * `name`-table walk per entry, over ~40 MB `.ttc` collections — so it
      * runs off the main thread and must never sit inside the
-     * open-to-first-page budget. An unchanged registry short-circuits, so
-     * the work does not repeat on every rotation.
+     * open-to-first-page budget. An unchanged registry short-circuits the
+     * rebuild (re-keying only), so the work does not repeat on every
+     * rotation or same-book reopen.
      */
-    suspend fun prime(registry: List<FontEntry>) {
+    suspend fun prime(registry: List<FontEntry>, owner: Any) {
         gate.withLock {
-            if (registry == primedRegistry) return@withLock
+            val current = primed
+            if (current != null && registry == current.registry) {
+                if (current.owner !== owner) {
+                    primed = Primed(owner, current.registry, current.fonts)
+                    _revision.value += 1
+                }
+                return@withLock
+            }
             val rebuilt = withContext(Dispatchers.IO) { build(registry) }
-            fonts = rebuilt
-            primedRegistry = registry
+            primed = Primed(owner, registry, rebuilt)
             _revision.value += 1
         }
     }
@@ -89,7 +103,9 @@ object ReaderFontStore {
         }
     }
 
-    fun font(id: UInt): Font? = fonts[id]
+    /** A face by display-list id, only for the session the map was built for. */
+    fun font(id: UInt, owner: Any?): Font? =
+        primed?.takeIf { owner != null && it.owner === owner }?.fonts?.get(id)
 
     /** Android's Font API exposes the file and TTC index but not name ID 6. */
     private object PostScriptName {

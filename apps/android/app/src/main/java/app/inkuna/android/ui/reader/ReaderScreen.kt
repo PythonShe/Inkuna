@@ -130,7 +130,7 @@ fun ReaderScreen(
             ReaderViewModel.UiState.Failed -> ReaderOpenFailed(
                 foreground,
                 stringResource(R.string.reader_open_failed),
-                { viewModel.open(viewport) },
+                { viewModel.open(viewport, userRetry = true) },
                 Modifier.align(Alignment.Center),
             )
             ReaderViewModel.UiState.FixedLayoutUnsupported -> ReaderOpenFailed(

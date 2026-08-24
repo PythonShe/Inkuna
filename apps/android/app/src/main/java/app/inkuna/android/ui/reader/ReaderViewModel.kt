@@ -150,9 +150,16 @@ class ReaderViewModel(
      * Opens the session for the reader surface's measured viewport, which
      * the screen supplies — the activity window can be a split-screen or
      * freeform pane, so no display-level metric may stand in for it.
+     *
+     * Terminal states are guarded: `LaunchedEffect(viewport)` re-runs this
+     * on every rotation, and re-opening from Ready or NoReadableContent
+     * would stack a second core session on the retained one. Only an
+     * explicit [userRetry] — the failure screen's button — re-enters from
+     * Failed.
      */
-    fun open(viewport: Viewport) {
-        if (openJob?.isActive == true || stateFlow.value is UiState.Ready) return
+    fun open(viewport: Viewport, userRetry: Boolean = false) {
+        if (openJob?.isActive == true) return
+        if (stateFlow.value !is UiState.Opening && !(userRetry && stateFlow.value is UiState.Failed)) return
         stateFlow.value = UiState.Opening
         openJob = viewModelScope.launch {
             try {
@@ -184,39 +191,59 @@ class ReaderViewModel(
         val chapters = library.chapters(publicationId)
         val positionRanges = shelf.progress().chapterPositionRanges(publicationId)
         val session = shelf.openReader(publicationId, openViewport, layoutSettings(AppSettings.get(app).snapshot.value), listener())
-        // Faces build off the main thread beside the first layout; inline,
-        // ~29 file parses would sit inside the open-to-first-page budget.
-        runCatching { session.fontRegistry() }.getOrNull()?.takeIf { it.isNotEmpty() }
-            ?.let { registry -> viewModelScope.launch { ReaderFontStore.prime(registry) } }
-        withContext(Dispatchers.Main.immediate) {
-            readerSession = session
-            val startupEvents = pendingStartupEvents.toList()
-            pendingStartupEvents.clear()
-            startupEvents.forEach { if (acceptGeneration(it.generation)) _layoutEvents.emit(it) }
-        }
-        appliedViewport = openViewport
-        val restoredCoordinate = publication.coordinate
-            ?: coordinateForProgression(publication.progression, session)
+        // Until the Main hop below stores the session, onCleared sees null
+        // and can never close it — a cancellation in that window (the
+        // registry marshal alone crosses the FFI with dozens of records)
+        // would orphan the session and its layout worker until JNA
+        // finalization. So this scope owns the close until the store lands.
+        var stored = false
+        try {
+            // Faces build off the main thread beside the first layout; inline,
+            // ~29 file parses would sit inside the open-to-first-page budget.
+            runCatching { session.fontRegistry() }.getOrNull()?.takeIf { it.isNotEmpty() }
+                ?.let { registry -> viewModelScope.launch { ReaderFontStore.prime(registry, session) } }
+            withContext(Dispatchers.Main.immediate) {
+                readerSession = session
+                stored = true
+                val startupEvents = pendingStartupEvents.toList()
+                pendingStartupEvents.clear()
+                startupEvents.forEach { if (acceptGeneration(it.generation)) _layoutEvents.emit(it) }
+            }
+            appliedViewport = openViewport
+            val restoredCoordinate = publication.coordinate
+                ?: coordinateForProgression(publication.progression, session)
 
-        // A fragment whose chapter has not laid out yet resolves to that
-        // chapter's start now and carries the fragment for the readiness
-        // event to refine; only a genuinely absent target reports a failure.
-        val initial = initialChapterHref?.let { href ->
-            runCatching { session.resolveJump(href, linkToast = true) }
-                .onFailure { initialHrefFailed = it is InkunaException.AnchorNotFound || it is InkunaException.NotReady }
-                .getOrNull()
-        }
-        initialJump = initial?.takeIf { it.anchor != null }
-        targetCoordinate = initial?.coordinate ?: restoredCoordinate
+            // A fragment whose chapter has not laid out yet resolves to that
+            // chapter's start now and carries the fragment for the readiness
+            // event to refine; only a genuinely absent target reports a failure.
+            val initial = initialChapterHref?.let { href ->
+                runCatching { session.resolveJump(href, linkToast = true) }
+                    .onFailure { initialHrefFailed = it is InkunaException.AnchorNotFound || it is InkunaException.NotReady }
+                    .getOrNull()
+            }
+            initialJump = initial?.takeIf { it.anchor != null }
+            targetCoordinate = initial?.coordinate ?: restoredCoordinate
 
-        initialLocation = targetCoordinate?.let { runCatching { session.locate(it) }.getOrNull() }
-        ReaderBook(
-            session = session,
-            publication = publication,
-            chapters = chapters,
-            positionRanges = positionRanges,
-            spineCount = session.spineCount(),
-        )
+            initialLocation = targetCoordinate?.let { runCatching { session.locate(it) }.getOrNull() }
+            ReaderBook(
+                session = session,
+                publication = publication,
+                chapters = chapters,
+                positionRanges = positionRanges,
+                spineCount = session.spineCount(),
+            )
+        } catch (failure: Throwable) {
+            // Cancellation and failure alike: once stored, onCleared owns
+            // the close; before that, this abandoned session is closed on
+            // the same application-scoped writer onCleared uses.
+            if (!stored) {
+                LibraryStore.writes.launch {
+                    runCatching { session.close() }
+                        .onFailure { Log.w(TAG, "closing abandoned reader session failed", it) }
+                }
+            }
+            throw failure
+        }
     }
 
     private fun listener() = object : LayoutListener {

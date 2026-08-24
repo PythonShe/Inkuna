@@ -90,7 +90,7 @@ class PageView(context: Context) : View(context) {
         canvas.restore()
         // A page whose runs were dropped for want of faces has not really
         // rendered; the store's revision brings us back here once it has.
-        if (renderedRuns.isEmpty() || ReaderFontStore.isPrimed) onPageDrawn?.invoke(spineIdx, pageIdx)
+        if (renderedRuns.isEmpty() || ReaderFontStore.isPrimed(session)) onPageDrawn?.invoke(spineIdx, pageIdx)
     }
 
     internal fun accessibilityBlocks(): List<A11yBlock> = displayList?.a11y.orEmpty()
@@ -113,7 +113,7 @@ class PageView(context: Context) : View(context) {
 
     private fun drawGlyphRuns(canvas: Canvas) {
         renderedRuns.forEach { run ->
-            val font = ReaderFontStore.font(run.fontId) ?: return@forEach
+            val font = ReaderFontStore.font(run.fontId, session) ?: return@forEach
             glyphPaint.textSize = run.size
             glyphPaint.color = colorFor(run.colorRole)
             when (run.orientation) {

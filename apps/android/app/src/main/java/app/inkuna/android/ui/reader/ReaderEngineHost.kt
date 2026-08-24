@@ -86,7 +86,7 @@ internal fun publisherReadingFamily(
     val dominant = glyphCounts.entries
         .sortedWith(compareByDescending<Map.Entry<UInt, Int>> { it.value }.thenBy { it.key })
         .firstOrNull()?.key ?: return null
-    val font = ReaderFontStore.font(dominant) ?: return null
+    val font = ReaderFontStore.font(dominant, session) ?: return null
     return ComposeFontFamily(
         Typeface.CustomFallbackBuilder(PlatformFontFamily.Builder(font).build()).build(),
     )
