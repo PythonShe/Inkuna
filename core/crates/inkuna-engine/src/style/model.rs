@@ -2,7 +2,23 @@
 //! reader's typography is settings-owned, so publisher CSS only steers
 //! structure (visibility, direction, writing mode) and emphasis.
 
+use std::sync::Arc;
+
 use crate::dom::Document;
+
+use super::sheet::FamilyName;
+
+/// Interned id of a node's `font-family` stack in its document's
+/// [`StyledDocument::families`] table. Interning keeps [`ComputedStyle`]
+/// `Copy` while stacks stay arbitrarily long; id 0 is always the empty
+/// stack (no `font-family` declared or inherited).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FamilyListId(pub(crate) u16);
+
+impl FamilyListId {
+    /// The initial value: no stack.
+    pub const NONE: FamilyListId = FamilyListId(0);
+}
 
 /// Per-resource writing mode, read only from `html`/`body` rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -129,6 +145,10 @@ pub struct ComputedStyle {
     pub direction: Direction,
     pub font_style: FontStyle,
     pub font_weight: FontWeight,
+    /// The inherited `font-family` stack, interned per document. Only
+    /// consulted when the reading font is `publisher`; every other
+    /// setting owns the typography and ignores it.
+    pub font_family: FamilyListId,
     pub text_align: TextAlign,
     pub ruby_position: RubyPosition,
 }
@@ -142,6 +162,7 @@ impl Default for ComputedStyle {
             direction: Direction::Ltr,
             font_style: FontStyle::Normal,
             font_weight: FontWeight::NORMAL,
+            font_family: FamilyListId::NONE,
             text_align: TextAlign::Justify,
             ruby_position: RubyPosition::Over,
         }
@@ -154,4 +175,18 @@ pub struct StyledDocument<'d> {
     pub doc: &'d Document,
     pub styles: Vec<ComputedStyle>,
     pub writing_mode: WritingMode,
+    /// The interned `font-family` stacks [`FamilyListId`] indexes into;
+    /// index 0 is always the empty stack.
+    pub families: Vec<Arc<[FamilyName]>>,
+}
+
+impl StyledDocument<'_> {
+    /// The stack behind an id; an out-of-table id (impossible from this
+    /// document's own resolve) is the empty stack.
+    pub fn family_stack(&self, id: FamilyListId) -> &[FamilyName] {
+        self.families
+            .get(id.0 as usize)
+            .map(|stack| stack.as_ref())
+            .unwrap_or(&[])
+    }
 }

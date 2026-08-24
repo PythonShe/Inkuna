@@ -329,3 +329,156 @@ fn font_weight_relative_table() {
     assert!(!FontWeight::new(599).is_bold());
     assert!(FontWeight::new(600).is_bold());
 }
+
+// --- font-family + @font-face (package B2) ---------------------------
+
+use super::{FamilyName, FontFaceRule};
+
+fn stack_of<'s>(styled: &'s StyledDocument<'_>, id: NodeId) -> &'s [FamilyName] {
+    styled.family_stack(style_of(styled, id).font_family)
+}
+
+#[test]
+fn font_family_stacks_parse_inherit_and_intern() {
+    let doc = parse(
+        br#"<html><body>
+<div class="serif"><p>inherits <em style="font-family: 'Custom Face', sans-serif">inline</em></p></div>
+</body></html>"#,
+    )
+    .unwrap();
+    let styled = styled(
+        &doc,
+        &[".serif { font-family: Crimson Text, serif }"],
+    );
+
+    // The rule's stack: unquoted multi-ident name + generic keyword.
+    let p = find(&doc, &ElementName::P);
+    assert_eq!(
+        stack_of(&styled, p),
+        &[
+            FamilyName::Named("Crimson Text".to_string()),
+            FamilyName::Serif
+        ]
+    );
+    // The div's stack inherited into p, so both share one interned id.
+    let div = find(&doc, &ElementName::Div);
+    assert_eq!(
+        style_of(&styled, div).font_family,
+        style_of(&styled, p).font_family
+    );
+
+    // The inline style overrides with a quoted name + generic.
+    let em = find(&doc, &ElementName::Em);
+    assert_eq!(
+        stack_of(&styled, em),
+        &[
+            FamilyName::Named("Custom Face".to_string()),
+            FamilyName::SansSerif
+        ]
+    );
+
+    // Table: empty stack at 0, plus the two distinct stacks.
+    assert_eq!(styled.families.len(), 3);
+    assert!(styled.family_stack(Default::default()).is_empty());
+}
+
+#[test]
+fn font_family_generics_fold_case_insensitively() {
+    let doc = parse(br#"<html><body><p>x</p></body></html>"#).unwrap();
+    let styled = styled(&doc, &["p { font-family: SERIF, Sans-Serif, MONOSPACE }"]);
+    let p = find(&doc, &ElementName::P);
+    assert_eq!(
+        stack_of(&styled, p),
+        &[
+            FamilyName::Serif,
+            FamilyName::SansSerif,
+            FamilyName::Monospace
+        ]
+    );
+}
+
+/// An invalid value drops the whole declaration, browser-style, and a
+/// quoted generic stays a NAME (CSS: quoting removes keyword meaning).
+#[test]
+fn font_family_invalid_values_drop_and_quoted_generics_stay_named() {
+    let doc = parse(br#"<html><body><p>x</p></body></html>"#).unwrap();
+    let styled_bad = styled(&doc, &["p { font-family: 12px, serif }"]);
+    let p = find(&doc, &ElementName::P);
+    assert!(stack_of(&styled_bad, p).is_empty());
+
+    let styled_quoted = styled(&doc, &[r#"p { font-family: "serif" }"#]);
+    assert_eq!(
+        stack_of(&styled_quoted, p),
+        &[FamilyName::Named("serif".to_string())]
+    );
+}
+
+#[test]
+fn font_face_rules_parse_family_style_weight_and_sources() {
+    let sheet = parse_sheet(
+        r#"
+@font-face {
+  font-family: "Publisher Serif";
+  font-style: italic;
+  font-weight: 300 700;
+  src: local("Skip Me"), url(../fonts/pub.woff2) format("woff2"),
+       url("fonts/pub.ttf");
+}
+@font-face { font-family: Solo; src: url(solo.otf); }
+@font-face { src: url(nameless.ttf); }
+@font-face { font-family: NoSrc; }
+p { font-style: italic }
+"#,
+    );
+    assert_eq!(
+        sheet.font_faces(),
+        &[
+            FontFaceRule {
+                family: "Publisher Serif".to_string(),
+                style: FontStyle::Italic,
+                weight: (300, 700),
+                sources: vec![
+                    "../fonts/pub.woff2".to_string(),
+                    "fonts/pub.ttf".to_string()
+                ],
+            },
+            FontFaceRule {
+                family: "Solo".to_string(),
+                style: FontStyle::Normal,
+                weight: (400, 400),
+                sources: vec!["solo.otf".to_string()],
+            },
+        ],
+        "rules without a family or without any url source drop"
+    );
+    // The qualified rule after the at-rules still parsed.
+    assert_eq!(sheet.rules.len(), 1);
+}
+
+/// `@media`-wrapped rules stay skipped wholesale (including any
+/// `@font-face` inside), and an unknown at-rule never poisons what
+/// follows it.
+#[test]
+fn other_at_rules_still_skip_around_font_face() {
+    let sheet = parse_sheet(
+        r#"
+@charset "utf-8";
+@media print { @font-face { font-family: Hidden; src: url(h.ttf); } }
+@font-face { font-family: Kept; src: url(k.ttf); }
+"#,
+    );
+    assert_eq!(sheet.font_faces().len(), 1);
+    assert_eq!(sheet.font_faces()[0].family, "Kept");
+}
+
+/// A single @font-face weight is a degenerate range; keywords map.
+#[test]
+fn font_face_weight_forms() {
+    let sheet = parse_sheet(
+        r#"@font-face { font-family: A; font-weight: bold; src: url(a.ttf); }
+@font-face { font-family: B; font-weight: 250; src: url(b.ttf); }
+@font-face { font-family: C; font-weight: 700 300; src: url(c.ttf); }"#,
+    );
+    let weights: Vec<(u16, u16)> = sheet.font_faces().iter().map(|r| r.weight).collect();
+    assert_eq!(weights, vec![(700, 700), (250, 250), (300, 700)]);
+}

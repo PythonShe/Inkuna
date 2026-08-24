@@ -4,8 +4,11 @@
 //! skipped, never an error: the engine's look is settings-owned, and a
 //! sheet it cannot read simply styles nothing.
 
+use std::sync::Arc;
+
 use cssparser::{ParseError, Parser, ParserInput, Token};
 
+use super::fontface::{parse_font_face_block, FontFaceRule};
 use super::model::{Direction, FontStyle, FontWeight, RubyPosition, TextAlign, WritingMode};
 use crate::dom::ElementName;
 
@@ -13,6 +16,28 @@ use crate::dom::ElementName;
 #[derive(Debug, Default)]
 pub struct Stylesheet {
     pub(crate) rules: Vec<Rule>,
+    /// The sheet's `@font-face` rules, in source order — the publisher
+    /// font loader consumes these; the cascade never sees them.
+    pub(crate) font_faces: Vec<FontFaceRule>,
+}
+
+impl Stylesheet {
+    /// The sheet's `@font-face` rules, in source order.
+    pub fn font_faces(&self) -> &[FontFaceRule] {
+        &self.font_faces
+    }
+}
+
+/// One name in a `font-family` stack, in author order. Generic keywords
+/// are folded at parse time; every other name — quoted or not — stays a
+/// [`FamilyName::Named`] matched case-insensitively against `@font-face`
+/// families later.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FamilyName {
+    Named(String),
+    Serif,
+    SansSerif,
+    Monospace,
 }
 
 /// A retained `(selector, honored declarations)` pair.
@@ -39,8 +64,13 @@ pub(crate) enum SimpleSelector {
 }
 
 /// One honored declaration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Declaration {
+    /// The element's `font-family` stack. Only consulted when the
+    /// reader's font setting is `publisher`; every other setting owns
+    /// the typography and ignores it. `Arc` because one rule's stack is
+    /// shared by every element it matches.
+    FontFamily(Arc<[FamilyName]>),
     /// Only meaningful on `html`/`body` rules; the cascade ignores it
     /// elsewhere.
     WritingMode(WritingMode),
@@ -82,20 +112,29 @@ pub fn parse_sheet(css: &str) -> Stylesheet {
     // A simple selector was just completed; another part token without
     // whitespace in between would form an unsupported compound.
     let mut after_part = false;
-    // Inside an at-rule's prelude: drop everything to its `;` or block.
-    let mut in_at_rule = false;
+    // Inside an at-rule's prelude: `Some(is_font_face)`. A `@font-face`
+    // block is descended into for its descriptors; every other at-rule
+    // (`@media` included, so conditional `@font-face` is not collected)
+    // drops to its `;` or is skipped block-wholesale.
+    let mut at_rule: Option<bool> = None;
 
     loop {
         let token = match parser.next_including_whitespace() {
             Ok(token) => token.clone(),
             Err(_) => break, // end of input
         };
-        if in_at_rule {
+        if let Some(is_font_face) = at_rule {
             match token {
-                // The block token is skipped wholesale because nothing
-                // descends into it.
                 Token::Semicolon | Token::CurlyBracketBlock => {
-                    in_at_rule = false;
+                    if is_font_face && matches!(token, Token::CurlyBracketBlock) {
+                        let parsed = parser.parse_nested_block(|block| {
+                            Ok::<_, ParseError<'_, ()>>(parse_font_face_block(block))
+                        });
+                        if let Ok(Some(rule)) = parsed {
+                            sheet.font_faces.push(rule);
+                        }
+                    }
+                    at_rule = None;
                     selectors.clear();
                     current = fresh_selector();
                     after_part = false;
@@ -128,8 +167,8 @@ pub fn parse_sheet(css: &str) -> Stylesheet {
                 current = fresh_selector();
                 after_part = false;
             }
-            Token::AtKeyword(_) => {
-                in_at_rule = true;
+            Token::AtKeyword(name) => {
+                at_rule = Some(name.eq_ignore_ascii_case("font-face"));
             }
             Token::Ident(name) => {
                 push_part(
@@ -235,6 +274,14 @@ fn parse_declarations_inner<'i>(
             consume_declaration_rest(parser);
             continue;
         }
+        // `font-family` is the one list-valued property honored; its
+        // parser consumes the whole declaration itself.
+        if property == "font-family" {
+            if let Some(stack) = parse_family_list(parser) {
+                declarations.push(Declaration::FontFamily(stack));
+            }
+            continue;
+        }
         // The first meaningful value token decides; the rest of the
         // declaration (`!important` included) is consumed and ignored.
         let value = parser.next().ok().cloned();
@@ -254,6 +301,65 @@ fn consume_declaration_rest(parser: &mut Parser<'_, '_>) {
             break;
         }
     }
+}
+
+/// Parses a `font-family` value list, consuming the declaration through
+/// its `;`. Comma-separated names: a quoted string is one complete name;
+/// consecutive idents join with single spaces (`Times New Roman`); a
+/// single unquoted generic keyword folds to its variant (`serif`,
+/// `sans-serif`, `monospace` — the roster the engine can serve; other
+/// generics stay `Named` and simply never match). Any other value token
+/// invalidates the declaration, browser-style; `!important` is ignored.
+/// An empty result is `None`.
+fn parse_family_list(parser: &mut Parser<'_, '_>) -> Option<Arc<[FamilyName]>> {
+    let mut names: Vec<FamilyName> = Vec::new();
+    // Unquoted idents accumulated since the last separator.
+    let mut words: Vec<String> = Vec::new();
+    let mut poisoned = false;
+    let flush = |names: &mut Vec<FamilyName>, words: &mut Vec<String>| {
+        if words.is_empty() {
+            return;
+        }
+        let name = if words.len() == 1 {
+            match words[0].to_ascii_lowercase().as_str() {
+                "serif" => FamilyName::Serif,
+                "sans-serif" => FamilyName::SansSerif,
+                "monospace" => FamilyName::Monospace,
+                _ => FamilyName::Named(words[0].clone()),
+            }
+        } else {
+            FamilyName::Named(words.join(" "))
+        };
+        words.clear();
+        names.push(name);
+    };
+    loop {
+        match parser.next() {
+            Ok(Token::Ident(name)) => words.push(name.to_string()),
+            Ok(Token::QuotedString(name)) => {
+                // A quoted name is complete on its own; adjacency with
+                // idents (`"Foo" Bar`) is invalid CSS and poisons.
+                if !words.is_empty() {
+                    poisoned = true;
+                }
+                names.push(FamilyName::Named(name.to_string()));
+            }
+            Ok(Token::Comma) => flush(&mut names, &mut words),
+            Ok(Token::Semicolon) => break,
+            // `!important`: keep what was parsed, skip the rest.
+            Ok(Token::Delim('!')) => {
+                consume_declaration_rest(parser);
+                break;
+            }
+            Ok(_) => poisoned = true,
+            Err(_) => break, // end of the declaration list
+        }
+    }
+    flush(&mut names, &mut words);
+    if poisoned || names.is_empty() {
+        return None;
+    }
+    Some(Arc::from(names))
 }
 
 /// Maps one `property: first-value` pair onto an honored declaration.

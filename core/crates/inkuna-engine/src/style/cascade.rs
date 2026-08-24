@@ -1,9 +1,14 @@
 //! Style resolution: UA defaults < publisher sheets (specificity, then
 //! source order) < inline `style` attributes. Infallible by design.
 
-use super::model::{ComputedStyle, Direction, FontStyle, FontWeight, StyledDocument, WritingMode};
+use std::sync::Arc;
+
+use super::model::{
+    ComputedStyle, Direction, FamilyListId, FontStyle, FontWeight, StyledDocument, WritingMode,
+};
 use super::sheet::{
-    parse_declarations, Declaration, FontWeightValue, Selector, SimpleSelector, Stylesheet,
+    parse_declarations, Declaration, FamilyName, FontWeightValue, Selector, SimpleSelector,
+    Stylesheet,
 };
 use crate::dom::{Document, ElementData, ElementName, NodeId, NodeKind};
 
@@ -16,12 +21,14 @@ pub fn resolve<'d>(doc: &'d Document, sheets: &[Stylesheet]) -> StyledDocument<'
         sheets,
         styles: vec![ComputedStyle::default(); doc.nodes.len()],
         writing_mode: WritingMode::default(),
+        families: vec![Arc::from(Vec::new())],
     };
     resolver.run();
     StyledDocument {
         doc,
         styles: resolver.styles,
         writing_mode: resolver.writing_mode,
+        families: resolver.families,
     }
 }
 
@@ -30,6 +37,8 @@ struct Resolver<'d, 's> {
     sheets: &'s [Stylesheet],
     styles: Vec<ComputedStyle>,
     writing_mode: WritingMode,
+    /// The interned `font-family` stacks; index 0 is the empty stack.
+    families: Vec<Arc<[FamilyName]>>,
 }
 
 impl Resolver<'_, '_> {
@@ -91,8 +100,9 @@ impl Resolver<'_, '_> {
         matched.sort_unstable();
         let is_root_scope = matches!(data.name, ElementName::Html | ElementName::Body);
         for (_, sheet_at, rule_at) in matched {
-            for declaration in &self.sheets[sheet_at].rules[rule_at].declarations {
-                self.apply(&mut style, *declaration, is_root_scope, inherited.font_weight);
+            for at in 0..self.sheets[sheet_at].rules[rule_at].declarations.len() {
+                let declaration = self.sheets[sheet_at].rules[rule_at].declarations[at].clone();
+                self.apply(&mut style, declaration, is_root_scope, inherited.font_weight);
             }
         }
 
@@ -133,10 +143,31 @@ impl Resolver<'_, '_> {
             }
             Declaration::TextAlign(align) => style.text_align = align,
             Declaration::RubyPosition(position) => style.ruby_position = position,
+            Declaration::FontFamily(stack) => style.font_family = self.intern(stack),
             // display: none only ever hides; other display values were
             // dropped at the sheet parse, so nothing un-hides a subtree.
             Declaration::DisplayNone => style.display_none = true,
         }
+    }
+
+    /// Interns one stack into the per-document table, deduplicated by
+    /// content so a stack repeated across rules and inline styles costs
+    /// one entry. The `u16` id space caps the table; the pathological
+    /// document that exhausts it degrades those stacks to "none" (the
+    /// reading font falls back), never a panic.
+    fn intern(&mut self, stack: Arc<[FamilyName]>) -> FamilyListId {
+        if let Some(at) = self
+            .families
+            .iter()
+            .position(|existing| **existing == *stack)
+        {
+            return FamilyListId(at as u16);
+        }
+        if self.families.len() > usize::from(u16::MAX) {
+            return FamilyListId::NONE;
+        }
+        self.families.push(stack);
+        FamilyListId((self.families.len() - 1) as u16)
     }
 
     /// Descendant matching: the last part must match the node itself,

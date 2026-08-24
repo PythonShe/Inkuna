@@ -5,6 +5,7 @@
 //! design and infallible.
 
 mod cascade;
+mod fontface;
 mod model;
 mod sheet;
 
@@ -12,8 +13,9 @@ mod sheet;
 mod tests;
 
 pub use cascade::resolve;
+pub use fontface::FontFaceRule;
 pub use model::{
-    ComputedStyle, Direction, FontStyle, FontWeight, RubyPosition, StyledDocument, TextAlign,
-    WritingMode,
+    ComputedStyle, Direction, FamilyListId, FontStyle, FontWeight, RubyPosition, StyledDocument,
+    TextAlign, WritingMode,
 };
-pub use sheet::{cap_sheet_sources, parse_sheet, Stylesheet};
+pub use sheet::{cap_sheet_sources, parse_sheet, FamilyName, Stylesheet};
