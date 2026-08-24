@@ -111,4 +111,10 @@
     <plurals name="a11y_result_count">
         <item quantity="other">%d hasil</item>
     </plurals>
+    <string name="reader_share_selection">Bagikan</string>
+    <string name="reader_web_search">Cari di web</string>
+    <string name="reader_chapter_unreadable">Bab ini tidak dapat ditampilkan.</string>
+    <string name="reader_chapter_truncated">Bab ini terlalu besar untuk ditampilkan sepenuhnya.</string>
+    <string name="reader_book_empty">Buku ini tidak memiliki konten yang dapat dibaca.</string>
+    <string name="reader_fixed_layout_unsupported">Buku ini menggunakan tata letak tetap yang belum dapat ditampilkan Inkuna.</string>
 </resources>

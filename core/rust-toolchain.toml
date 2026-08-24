@@ -1,0 +1,16 @@
+# Toolchain selection for the whole workspace. rustup reads this from any
+# cargo/rustc invocation under core/, so local builds, scripts/build-core-*.sh
+# and CI all resolve the same channel with nothing to keep in sync.
+#
+# "stable" rather than an exact version on purpose: the stack policy is newest
+# stable everywhere, and a version literal here would have to be bumped by hand
+# every six weeks and would silently freeze the compiler until someone did.
+# This file picks the channel; `rustup update stable` (run by both release
+# workflows) is what actually fetches a newer one. rustup auto-installs stable
+# if it is missing, but it will NOT upgrade an already-installed stale stable.
+#
+# Note this does not defend against the Homebrew rustc: that one is not a
+# rustup proxy, so it ignores this file entirely. scripts/build-core-*.sh still
+# have to pin RUSTC explicitly — see the root CLAUDE.md.
+[toolchain]
+channel = "stable"

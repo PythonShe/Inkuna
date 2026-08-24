@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,6 +75,7 @@ import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkButtonVariant
 import app.inkuna.core.Chapter as CoreChapter
+import app.inkuna.core.ChapterPositionRange
 import app.inkuna.core.Publication as CorePublication
 import kotlin.math.abs
 import app.inkuna.android.ui.components.inkShadow
@@ -142,7 +144,7 @@ private enum class ThemeSheetPage { ThemeType, Customize }
 fun ThemeTypeSheet(
     snapshot: AppSettings.Snapshot,
     settings: AppSettings,
-    appearance: ReaderAppearanceController,
+    publisherFamily: FontFamily?,
     onBrightnessPreview: (Float) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -251,11 +253,11 @@ fun ThemeTypeSheet(
                 ThemeSheetPage.Customize -> Box(
                     Modifier.semantics { paneTitle = customizeTitle },
                 ) {
-                    CustomizePanel(
-                        snapshot = snapshot,
-                        settings = settings,
-                        appearance = appearance,
-                        onBack = { page = ThemeSheetPage.ThemeType },
+                        CustomizePanel(
+                            snapshot = snapshot,
+                            settings = settings,
+                            publisherFamily = publisherFamily,
+                            onBack = { page = ThemeSheetPage.ThemeType },
                         onClose = dismiss,
                     )
                 }
@@ -451,8 +453,9 @@ private fun ThemeTile(
 @Composable
 fun ContentsSheet(
     publication: CorePublication,
-    chapters: List<ReaderViewModel.ReaderChapter>,
-    currentChapterIndex: Int?,
+    chapters: List<CoreChapter>,
+    positionRanges: List<ChapterPositionRange>,
+    currentPosition: UInt?,
     pageInfo: String,
     onSelect: (CoreChapter) -> Unit,
     onDismiss: () -> Unit,
@@ -513,14 +516,17 @@ fun ContentsSheet(
             ) {
                 itemsIndexed(
                     chapters,
-                    key = { _, entry -> entry.chapter.id },
-                ) { index, entry ->
-                    val chapter = entry.chapter
-                    val current = index == currentChapterIndex
+                    key = { _, chapter -> chapter.id },
+                ) { _, chapter ->
+                    val range = positionRanges.firstOrNull { it.chapterIdx == chapter.idx }
+                    val position = range?.startPosition
+                    val current = currentPosition
+                        ?.let { ReaderPositions.chapterRange(positionRanges, it)?.chapterIdx == chapter.idx }
+                        ?: false
                     val numeral = (chapter.idx + 1u).toString()
-                    val rowLabel = if (entry.position != null) {
+                    val rowLabel = if (position != null) {
                         stringResource(
-                            R.string.a11y_chapter_row, numeral, chapter.title, entry.position,
+                            R.string.a11y_chapter_row, numeral, chapter.title, position.toInt(),
                         )
                     } else {
                         stringResource(R.string.a11y_chapter_row_no_page, numeral, chapter.title)
@@ -561,9 +567,9 @@ fun ContentsSheet(
                             color = if (current) ink.accentText else ink.textDisplay,
                             modifier = Modifier.weight(1f),
                         )
-                        if (entry.position != null) {
+                        if (position != null) {
                             Text(
-                                stringResource(R.string.reader_chapter_page, entry.position),
+                                stringResource(R.string.reader_chapter_page, position.toInt()),
                                 style = InkType.caption,
                                 color = ink.textTertiary,
                             )

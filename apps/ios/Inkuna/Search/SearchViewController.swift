@@ -99,9 +99,9 @@ final class SearchViewController: ScrollScreenViewController {
                 if trimmed.isEmpty {
                     // The discover shelf: the freshest imports, a shelf's
                     // worth at most.
-                    rows = Array(try await bookshelf.list(shelf: .all, sort: .recentlyAdded).prefix(8))
+                    rows = Array(try await bookshelf.library().list(shelf: .all, sort: .recentlyAdded).prefix(8))
                 } else {
-                    rows = try await bookshelf.searchLibrary(query: trimmed)
+                    rows = try await bookshelf.library().searchLibrary(query: trimmed)
                     // The books' own text, under the metadata matches. A
                     // one-letter Latin query matches too much to be worth
                     // reading — one CJK character does not.
@@ -109,7 +109,7 @@ final class SearchViewController: ScrollScreenViewController {
                         // Search is derived data: a failed index leaves the
                         // metadata results standing rather than emptying
                         // the screen.
-                        hits = (try? await bookshelf.searchAllBooks(
+                        hits = (try? await bookshelf.search().searchAllBooks(
                             query: trimmed,
                             limit: Self.fullTextLimit
                         )) ?? []

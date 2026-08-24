@@ -1,0 +1,758 @@
+generation 0
+glyph_runs 248
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 26.0 44.171875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21
+  pos 26.0 44.171875 34.34375 44.171875 42.578125 44.171875 52.59375 44.171875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 62.875 44.171875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10 23
+  pos 72.921875 44.171875 83.21875 44.171875 93.234375 44.171875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 98.78125 44.171875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 41 61 21
+  pos 108.828125 44.171875 118.71875 44.171875 124.234375 44.171875 134.92188 44.171875 147.28125 44.171875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 157.5625 44.171875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10
+  pos 167.59375 44.171875 177.89063 44.171875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 187.90625 44.171875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 21 38 10
+  pos 197.9375 44.171875 207.82813 44.171875 213.34375 44.171875 223.625 44.171875 231.57813 44.171875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 241.59375 44.171875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 10 59 14
+  pos 251.625 44.171875 261.29688 44.171875 269.53125 44.171875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 278.6875 44.171875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 31 61 10 59 14
+  pos 288.71875 44.171875 299.01563 44.171875 304.53125 44.171875 316.89063 44.171875 326.5625 44.171875 334.79688 44.171875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 343.95313 44.171875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 10
+  pos 353.98438 44.171875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 90 40 23 21 67
+  pos 81.03125 72.21875 85.890625 72.21875 95.78125 72.21875 101.328125 72.21875 111.609375 72.21875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 121.90625 72.21875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 31 44 51
+  pos 126.328125 72.21875 131.32813 72.21875 137.57813 72.21875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 147.26563 72.21875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 38 48
+  pos 151.6875 72.21875 160.23438 72.21875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 169.3125 72.21875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 33 61 28 23
+  pos 173.73438 72.21875 182.25 72.21875 194.60938 72.21875 205.3125 72.21875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 210.85938 72.21875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 14 23
+  pos 215.28125 72.21875 220.82813 72.21875 231.10938 72.21875 240.26563 72.21875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 245.8125 72.21875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 67
+  pos 250.23438 72.21875 255.78125 72.21875 266.0625 72.21875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 276.35938 72.21875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 21 67 31 21
+  pos 280.78125 72.21875 291.0625 72.21875 301.35938 72.21875 306.875 72.21875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 317.15625 72.21875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21 23
+  pos 321.57813 72.21875 329.92188 72.21875 338.15625 72.21875 348.17188 72.21875 358.45313 72.21875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 26.0 117.265625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21
+  pos 26.0 117.265625 34.34375 117.265625 42.578125 117.265625 52.59375 117.265625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 62.875 117.265625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10 23
+  pos 73.046875 117.265625 83.34375 117.265625 93.359375 117.265625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 98.90625 117.265625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 41 61 21
+  pos 109.0625 117.265625 118.953125 117.265625 124.46875 117.265625 135.15625 117.265625 147.51563 117.265625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 157.79688 117.265625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10
+  pos 167.95313 117.265625 178.25 117.265625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 188.26563 117.265625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 21 38 10
+  pos 198.42188 117.265625 208.3125 117.265625 213.82813 117.265625 224.10938 117.265625 232.0625 117.265625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 242.07813 117.265625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 10 59 14
+  pos 252.23438 117.265625 261.90625 117.265625 270.14063 117.265625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 279.29688 117.265625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 31 61 10 59 14
+  pos 289.45313 117.265625 299.75 117.265625 305.26563 117.265625 317.625 117.265625 327.29688 117.265625 335.53125 117.265625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 344.6875 117.265625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 14
+  pos 354.84375 117.265625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 90 40 23 21 67
+  pos 81.03125 145.3125 85.890625 145.3125 95.78125 145.3125 101.328125 145.3125 111.609375 145.3125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 121.90625 145.3125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 31 44 51
+  pos 126.328125 145.3125 131.32813 145.3125 137.57813 145.3125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 147.26563 145.3125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 38 48
+  pos 151.6875 145.3125 160.23438 145.3125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 169.3125 145.3125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 33 61 28 23
+  pos 173.73438 145.3125 182.25 145.3125 194.60938 145.3125 205.3125 145.3125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 210.85938 145.3125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 14 23
+  pos 215.28125 145.3125 220.82813 145.3125 231.10938 145.3125 240.26563 145.3125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 245.8125 145.3125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 67
+  pos 250.23438 145.3125 255.78125 145.3125 266.0625 145.3125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 276.35938 145.3125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 21 67 31 21
+  pos 280.78125 145.3125 291.0625 145.3125 301.35938 145.3125 306.875 145.3125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 317.15625 145.3125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21 23
+  pos 321.57813 145.3125 329.92188 145.3125 338.15625 145.3125 348.17188 145.3125 358.45313 145.3125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 26.0 190.35938
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21
+  pos 26.0 190.35938 34.34375 190.35938 42.578125 190.35938 52.59375 190.35938
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 62.875 190.35938
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10 23
+  pos 73.4375 190.35938 83.734375 190.35938 93.75 190.35938
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 99.296875 190.35938
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 41 61 21
+  pos 109.859375 190.35938 119.75 190.35938 125.265625 190.35938 135.95313 190.35938 148.3125 190.35938
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 158.59375 190.35938
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10
+  pos 169.14063 190.35938 179.4375 190.35938
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 189.45313 190.35938
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 21 38 10
+  pos 200.0 190.35938 209.89063 190.35938 215.40625 190.35938 225.6875 190.35938 233.64063 190.35938
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 243.65625 190.35938
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 10 59 14
+  pos 254.20313 190.35938 263.875 190.35938 272.10938 190.35938
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 281.26563 190.35938
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 31 61 10 59 14
+  pos 291.8125 190.35938 302.10938 190.35938 307.625 190.35938 319.98438 190.35938 329.65625 190.35938 337.89063 190.35938
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 347.04688 190.35938
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 17
+  pos 357.59375 190.35938
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 90 40 23 21 67
+  pos 81.03125 218.40625 85.890625 218.40625 95.78125 218.40625 101.328125 218.40625 111.609375 218.40625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 121.90625 218.40625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 31 44 51
+  pos 126.328125 218.40625 131.32813 218.40625 137.57813 218.40625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 147.26563 218.40625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 38 48
+  pos 151.6875 218.40625 160.23438 218.40625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 169.3125 218.40625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 33 61 28 23
+  pos 173.73438 218.40625 182.25 218.40625 194.60938 218.40625 205.3125 218.40625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 210.85938 218.40625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 14 23
+  pos 215.28125 218.40625 220.82813 218.40625 231.10938 218.40625 240.26563 218.40625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 245.8125 218.40625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 67
+  pos 250.23438 218.40625 255.78125 218.40625 266.0625 218.40625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 276.35938 218.40625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 21 67 31 21
+  pos 280.78125 218.40625 291.0625 218.40625 301.35938 218.40625 306.875 218.40625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 317.15625 218.40625
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21 23
+  pos 321.57813 218.40625 329.92188 218.40625 338.15625 218.40625 348.17188 218.40625 358.45313 218.40625
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 26.0 263.45313
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21
+  pos 26.0 263.45313 34.34375 263.45313 42.578125 263.45313 52.59375 263.45313
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 62.875 263.45313
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10 23
+  pos 73.15625 263.45313 83.453125 263.45313 93.46875 263.45313
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 99.015625 263.45313
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 41 61 21
+  pos 109.296875 263.45313 119.1875 263.45313 124.703125 263.45313 135.39063 263.45313 147.75 263.45313
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 158.03125 263.45313
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10
+  pos 168.3125 263.45313 178.60938 263.45313
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 188.625 263.45313
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 21 38 10
+  pos 198.89063 263.45313 208.78125 263.45313 214.29688 263.45313 224.57813 263.45313 232.53125 263.45313
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 242.54688 263.45313
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 10 59 14
+  pos 252.8125 263.45313 262.48438 263.45313 270.71875 263.45313
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 279.875 263.45313
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 31 61 10 59 14
+  pos 290.14063 263.45313 300.4375 263.45313 305.95313 263.45313 318.3125 263.45313 327.98438 263.45313 336.21875 263.45313
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 345.375 263.45313
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 19
+  pos 355.64063 263.45313
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 90 40 23 21 67
+  pos 81.03125 291.5 85.890625 291.5 95.78125 291.5 101.328125 291.5 111.609375 291.5
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 121.90625 291.5
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 31 44 51
+  pos 126.328125 291.5 131.32813 291.5 137.57813 291.5
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 147.26563 291.5
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 38 48
+  pos 151.6875 291.5 160.23438 291.5
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 169.3125 291.5
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 33 61 28 23
+  pos 173.73438 291.5 182.25 291.5 194.60938 291.5 205.3125 291.5
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 210.85938 291.5
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 14 23
+  pos 215.28125 291.5 220.82813 291.5 231.10938 291.5 240.26563 291.5
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 245.8125 291.5
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 67
+  pos 250.23438 291.5 255.78125 291.5 266.0625 291.5
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 276.35938 291.5
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 21 67 31 21
+  pos 280.78125 291.5 291.0625 291.5 301.35938 291.5 306.875 291.5
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 317.15625 291.5
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21 23
+  pos 321.57813 291.5 329.92188 291.5 338.15625 291.5 348.17188 291.5 358.45313 291.5
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 26.0 336.54688
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21
+  pos 26.0 336.54688 34.34375 336.54688 42.578125 336.54688 52.59375 336.54688
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 62.875 336.54688
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10 23
+  pos 72.875 336.54688 83.171875 336.54688 93.1875 336.54688
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 98.734375 336.54688
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 41 61 21
+  pos 108.734375 336.54688 118.625 336.54688 124.140625 336.54688 134.82813 336.54688 147.1875 336.54688
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 157.46875 336.54688
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10
+  pos 167.46875 336.54688 177.76563 336.54688
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 187.78125 336.54688
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 21 38 10
+  pos 197.78125 336.54688 207.67188 336.54688 213.1875 336.54688 223.46875 336.54688 231.42188 336.54688
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 241.4375 336.54688
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 10 59 14
+  pos 251.4375 336.54688 261.10938 336.54688 269.34375 336.54688
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 278.5 336.54688
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 31 61 10 59 14
+  pos 288.5 336.54688 298.79688 336.54688 304.3125 336.54688 316.67188 336.54688 326.34375 336.54688 334.57813 336.54688
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 343.73438 336.54688
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 21
+  pos 353.71875 336.54688
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 90 40 23 21 67
+  pos 81.03125 364.59375 85.890625 364.59375 95.78125 364.59375 101.328125 364.59375 111.609375 364.59375
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 121.90625 364.59375
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 31 44 51
+  pos 126.328125 364.59375 131.32813 364.59375 137.57813 364.59375
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 147.26563 364.59375
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 38 48
+  pos 151.6875 364.59375 160.23438 364.59375
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 169.3125 364.59375
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 33 61 28 23
+  pos 173.73438 364.59375 182.25 364.59375 194.60938 364.59375 205.3125 364.59375
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 210.85938 364.59375
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 14 23
+  pos 215.28125 364.59375 220.82813 364.59375 231.10938 364.59375 240.26563 364.59375
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 245.8125 364.59375
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 67
+  pos 250.23438 364.59375 255.78125 364.59375 266.0625 364.59375
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 276.35938 364.59375
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 21 67 31 21
+  pos 280.78125 364.59375 291.0625 364.59375 301.35938 364.59375 306.875 364.59375
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 317.15625 364.59375
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21 23
+  pos 321.57813 364.59375 329.92188 364.59375 338.15625 364.59375 348.17188 364.59375 358.45313 364.59375
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 26.0 409.64063
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21
+  pos 26.0 409.64063 34.34375 409.64063 42.578125 409.64063 52.59375 409.64063
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 62.875 409.64063
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10 23
+  pos 73.5625 409.64063 83.859375 409.64063 93.875 409.64063
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 99.421875 409.64063
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 41 61 21
+  pos 110.09375 409.64063 119.984375 409.64063 125.5 409.64063 136.1875 409.64063 148.54688 409.64063
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 158.82813 409.64063
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10
+  pos 169.5 409.64063 179.79688 409.64063
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 189.8125 409.64063
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 21 38 10
+  pos 200.48438 409.64063 210.375 409.64063 215.89063 409.64063 226.17188 409.64063 234.125 409.64063
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 244.14063 409.64063
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 10 59 14
+  pos 254.8125 409.64063 264.48438 409.64063 272.71875 409.64063
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 281.875 409.64063
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 31 61 10 59 14
+  pos 292.54688 409.64063 302.84375 409.64063 308.35938 409.64063 320.71875 409.64063 330.39063 409.64063 338.625 409.64063
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 347.78125 409.64063
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23
+  pos 358.45313 409.64063
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 90 40 23 21 67
+  pos 81.03125 437.6875 85.890625 437.6875 95.78125 437.6875 101.328125 437.6875 111.609375 437.6875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 121.90625 437.6875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 31 44 51
+  pos 126.328125 437.6875 131.32813 437.6875 137.57813 437.6875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 147.26563 437.6875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 38 48
+  pos 151.6875 437.6875 160.23438 437.6875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 169.3125 437.6875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 33 61 28 23
+  pos 173.73438 437.6875 182.25 437.6875 194.60938 437.6875 205.3125 437.6875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 210.85938 437.6875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 14 23
+  pos 215.28125 437.6875 220.82813 437.6875 231.10938 437.6875 240.26563 437.6875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 245.8125 437.6875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 67
+  pos 250.23438 437.6875 255.78125 437.6875 266.0625 437.6875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 276.35938 437.6875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 21 67 31 21
+  pos 280.78125 437.6875 291.0625 437.6875 301.35938 437.6875 306.875 437.6875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 317.15625 437.6875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21 23
+  pos 321.57813 437.6875 329.92188 437.6875 338.15625 437.6875 348.17188 437.6875 358.45313 437.6875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 26.0 482.73438
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21
+  pos 26.0 482.73438 34.34375 482.73438 42.578125 482.73438 52.59375 482.73438
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 62.875 482.73438
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10 23
+  pos 73.609375 482.73438 83.90625 482.73438 93.921875 482.73438
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 99.46875 482.73438
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 41 61 21
+  pos 110.203125 482.73438 120.09375 482.73438 125.609375 482.73438 136.29688 482.73438 148.65625 482.73438
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 158.9375 482.73438
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10
+  pos 169.67188 482.73438 179.96875 482.73438
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 189.98438 482.73438
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 21 38 10
+  pos 200.71875 482.73438 210.60938 482.73438 216.125 482.73438 226.40625 482.73438 234.35938 482.73438
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 244.375 482.73438
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 10 59 14
+  pos 255.10938 482.73438 264.78125 482.73438 273.01563 482.73438
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 282.17188 482.73438
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 31 61 10 59 14
+  pos 292.90625 482.73438 303.20313 482.73438 308.71875 482.73438 321.07813 482.73438 330.75 482.73438 338.98438 482.73438
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 348.14063 482.73438
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 26
+  pos 358.85938 482.73438
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 90 40 23 21 67
+  pos 81.03125 510.78125 85.890625 510.78125 95.78125 510.78125 101.328125 510.78125 111.609375 510.78125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 121.90625 510.78125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 31 44 51
+  pos 126.328125 510.78125 131.32813 510.78125 137.57813 510.78125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 147.26563 510.78125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 38 48
+  pos 151.6875 510.78125 160.23438 510.78125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 169.3125 510.78125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 33 61 28 23
+  pos 173.73438 510.78125 182.25 510.78125 194.60938 510.78125 205.3125 510.78125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 210.85938 510.78125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 14 23
+  pos 215.28125 510.78125 220.82813 510.78125 231.10938 510.78125 240.26563 510.78125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 245.8125 510.78125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 67
+  pos 250.23438 510.78125 255.78125 510.78125 266.0625 510.78125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 276.35938 510.78125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 21 67 31 21
+  pos 280.78125 510.78125 291.0625 510.78125 301.35938 510.78125 306.875 510.78125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 317.15625 510.78125
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21 23
+  pos 321.57813 510.78125 329.92188 510.78125 338.15625 510.78125 348.17188 510.78125 358.45313 510.78125
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 26.0 555.8281
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21
+  pos 26.0 555.8281 34.34375 555.8281 42.578125 555.8281 52.59375 555.8281
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 62.875 555.8281
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10 23
+  pos 72.8125 555.8281 83.109375 555.8281 93.125 555.8281
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 98.671875 555.8281
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 41 61 21
+  pos 108.609375 555.8281 118.5 555.8281 124.015625 555.8281 134.70313 555.8281 147.0625 555.8281
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 157.34375 555.8281
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 10
+  pos 167.28125 555.8281 177.57813 555.8281
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 187.59375 555.8281
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 40 31 21 38 10
+  pos 197.53125 555.8281 207.42188 555.8281 212.9375 555.8281 223.21875 555.8281 231.17188 555.8281
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 241.1875 555.8281
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 10 59 14
+  pos 251.125 555.8281 260.79688 555.8281 269.03125 555.8281
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 278.1875 555.8281
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 67 31 61 10 59 14
+  pos 288.125 555.8281 298.42188 555.8281 303.9375 555.8281 316.29688 555.8281 325.96875 555.8281 334.20313 555.8281
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 343.35938 555.8281
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 28
+  pos 353.29688 555.8281
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 90 40 23 21 67
+  pos 81.03125 583.875 85.890625 583.875 95.78125 583.875 101.328125 583.875 111.609375 583.875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 121.90625 583.875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 31 44 51
+  pos 126.328125 583.875 131.32813 583.875 137.57813 583.875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 147.26563 583.875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 38 48
+  pos 151.6875 583.875 160.23438 583.875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 169.3125 583.875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 33 61 28 23
+  pos 173.73438 583.875 182.25 583.875 194.60938 583.875 205.3125 583.875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 210.85938 583.875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 14 23
+  pos 215.28125 583.875 220.82813 583.875 231.10938 583.875 240.26563 583.875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 245.8125 583.875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 23 21 67
+  pos 250.23438 583.875 255.78125 583.875 266.0625 583.875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 276.35938 583.875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 21 67 31 21
+  pos 280.78125 583.875 291.0625 583.875 301.35938 583.875 306.875 583.875
+run font=0 size=17.0 color=Text orientation=Upright
+  ids 3
+  pos 317.15625 583.875
+run font=24 size=17.0 color=Text orientation=Upright
+  ids 54 59 10 21 23
+  pos 321.57813 583.875 329.92188 583.875 338.15625 583.875 348.17188 583.875 358.45313 583.875
+images 0
+decorations 0
+links 0
+a11y 8
+block role=Body is_link=false lang=None rect=Rect { x: 26.0, y: 26.0, width: 338.0, height: 51.203125 } text="א בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃"
+block role=Body is_link=false lang=None rect=Rect { x: 26.0, y: 99.09375, width: 338.0, height: 51.203125 } text="ב בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃"
+block role=Body is_link=false lang=None rect=Rect { x: 26.0, y: 172.1875, width: 338.0, height: 51.203125 } text="ג בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃"
+block role=Body is_link=false lang=None rect=Rect { x: 26.0, y: 245.28125, width: 338.0, height: 51.203125 } text="ד בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃"
+block role=Body is_link=false lang=None rect=Rect { x: 26.0, y: 318.375, width: 338.0, height: 51.203125 } text="ה בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃"
+block role=Body is_link=false lang=None rect=Rect { x: 26.0, y: 391.46875, width: 338.0, height: 51.203125 } text="ו בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃"
+block role=Body is_link=false lang=None rect=Rect { x: 26.0, y: 464.5625, width: 338.0, height: 51.203125 } text="ז בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃"
+block role=Body is_link=false lang=None rect=Rect { x: 26.0, y: 537.65625, width: 338.0, height: 51.203125 } text="ח בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום׃"

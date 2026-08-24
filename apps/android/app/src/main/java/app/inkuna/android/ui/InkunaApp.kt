@@ -3,6 +3,7 @@ package app.inkuna.android.ui
 import android.app.Activity
 import android.app.UiModeManager
 import android.net.Uri
+import android.os.SystemClock
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -52,6 +53,10 @@ private object Routes {
     }
 }
 
+object ReaderPerf {
+    @Volatile var tapUptimeMs: Long = 0L
+}
+
 /**
  * Pushes [route] once. A second tap landing inside the 320ms page
  * transition finds the source entry no longer RESUMED and is dropped, so a
@@ -66,6 +71,7 @@ private fun NavHostController.pushOnce(route: String) {
 /** Opens the reader for a core publication, popping back to an existing
  *  reader instead of stacking a second one (mirrors the iOS review fix). */
 private fun NavHostController.openReader(publicationId: String, chapterHref: String? = null) {
+    ReaderPerf.tapUptimeMs = SystemClock.uptimeMillis()
     val route = Routes.reader(publicationId, chapterHref)
     if (!popBackStack(route, inclusive = false)) {
         pushOnce(route)

@@ -1,0 +1,46 @@
+[package]
+name = "inkuna-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+# Exposes src/test_support.rs (the fixture roster) outside cfg(test), so
+# the export-parity-fixtures example can build the golden corpus.
+test_support = ["dep:tempfile", "inkuna-content/test-support"]
+
+[dependencies]
+blake3 = "1.8"
+cssparser = "0.37"
+icu_segmenter = "2.3"
+inkuna-content = { path = "../inkuna-content" }
+quick-xml = { version = "0.41", features = ["escape-html"] }
+# `read-fonts` is direct only because harfrust re-exports just
+# `{types::{GlyphId, Tag}, FontRef}` — not `TableProvider`, `ReadError`, or
+# `tables::os2::SelectionFlags`, which fonts/registry.rs needs. Its version
+# MUST stay in lockstep with the read-fonts version harfrust itself requires;
+# re-check this pin on every harfrust bump, because a mismatch silently yields
+# two incompatible `FontRef` types (registry parsing vs shaping) with no
+# compile error.
+harfrust = "0.13.1"
+read-fonts = "0.43.2"
+thiserror = "2"
+log = "0.4"
+memmap2.workspace = true
+tempfile = { version = "3", optional = true }
+unicode-bidi = "0.3"
+# Pure-Rust WOFF/WOFF2 → sfnt decoding for publisher (EPUB-embedded)
+# fonts; the registry maps only raw sfnt files.
+wuff = "0.2.8"
+unicode-script = "0.5"
+unicode-linebreak = "0.1.5"
+imagesize = "0.15.0"
+
+[dev-dependencies]
+inkuna-content = { path = "../inkuna-content", features = ["test-support"] }
+tempfile = "3"
+
+[[example]]
+name = "export-parity-fixtures"
+required-features = ["test_support"]

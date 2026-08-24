@@ -70,7 +70,9 @@ impl Library {
         };
         let reminder_minutes = settings.reminder_minutes.min(MAX_REMINDER_MINUTES);
         let line_spacing = if settings.line_spacing.is_finite() {
-            settings.line_spacing.clamp(MIN_LINE_SPACING, MAX_LINE_SPACING)
+            settings
+                .line_spacing
+                .clamp(MIN_LINE_SPACING, MAX_LINE_SPACING)
         } else {
             DEFAULT_LINE_SPACING
         };

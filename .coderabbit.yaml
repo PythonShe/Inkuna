@@ -96,6 +96,9 @@ reviews:
     base_branches:
       - '^main$'
       - '^feat/.*'
+      # Engine-swap staging: plan PRs land on `dev/core` before it merges to
+      # main at the parity gate.
+      - '^dev/.*'
 
   # ---------------------------------------------------------------------------
   # Path filters
@@ -141,6 +144,8 @@ reviews:
     - '!**/*.woff2'
     - '!**/*.ttf'
     - '!**/*.otf'
+    # OpenType collections (Noto CJK bundles under `assets/fonts/`).
+    - '!**/*.ttc'
     # Icon Composer bundle — structured, but authored in Xcode's editor and
     # regenerated wholesale by `scripts/gen-icons.sh`.
     - '!apps/ios/AppIcon.icon/**'
@@ -162,6 +167,12 @@ reviews:
     # is the document structural changes are supposed to be checked against.
     - '!docs/repertoire/plans/**'
 
+    # Machine-regenerated golden snapshots (page counts, digests, projection
+    # dumps rewritten wholesale by `INKUNA_UPDATE_GOLDEN=1 cargo test`).
+    # Committed as the cross-platform parity contract, but the diff is
+    # hash churn no reviewer can judge — the engine tests are the gate.
+    - '!core/crates/inkuna-engine/golden/**'
+
     # Rust module roots. Per `core/CLAUDE.md` §2 a `mod.rs` may contain only a
     # doc comment, `mod`/`pub mod` declarations, `pub use` re-exports, and
     # module-level constants — there is no logic in them to review, so every
@@ -174,6 +185,21 @@ reviews:
     # names match their file names, and Greptile still sees the whole diff.
     # If reviews start misattributing paths, this is the line to drop first.
     - '!core/**/mod.rs'
+
+    # Configuration and manifest files (.toml, .yaml, .yml). Dependency
+    # specifications and tool configs are mechanically verified by CI gates
+    # and linters; excluding them reduces file count below review limits.
+    - '!**/*.toml'
+    - '!**/*.yaml'
+    - '!**/*.yml'
+
+    # Test files, test fixtures, and test utilities. Test files add substantial
+    # file volume without needing AI review (CI test suites gate regressions).
+    - '!**/*_tests.rs'
+    - '!**/tests.rs'
+    - '!**/test_support.rs'
+    - '!**/tests/**'
+    - '!**/examples/**'
 
   # ---------------------------------------------------------------------------
   # Path instructions — the hard rules from each component's CLAUDE.md that a

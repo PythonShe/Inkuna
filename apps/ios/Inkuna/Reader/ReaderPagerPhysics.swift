@@ -3,8 +3,7 @@ import UIKit
 
 /// The physics half of the pager: a display-link frame loop, a critically
 /// damped spring stepped on it, and the pure decision rules for where a
-/// released gesture lands. Nothing here knows about Readium — this layer
-/// carries over unchanged when the rendering stack is replaced, and its
+/// released gesture lands. Nothing here knows about the rendering layer, and its
 /// constants are shared with the Android shell so the two readers feel
 /// like one product.
 enum ReaderPagerRules {

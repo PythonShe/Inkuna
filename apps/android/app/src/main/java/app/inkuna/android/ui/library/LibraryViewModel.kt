@@ -100,12 +100,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 if (trimmed.isNotEmpty()) delay(SEARCH_DEBOUNCE_MS)
                 val bookshelf = LibraryStore.bookshelf(getApplication())
                 val publications = if (trimmed.isEmpty()) {
-                    bookshelf.list(shelf, Sort.RECENTLY_OPENED)
+                    bookshelf.library().list(shelf, Sort.RECENTLY_OPENED)
                 } else {
                     // Metadata search is the core's. The shelf still filters
                     // the result, so a search inside Finished stays there.
-                    val shelved = bookshelf.list(shelf, Sort.RECENTLY_OPENED).mapTo(HashSet()) { it.id }
-                    bookshelf.searchLibrary(trimmed).filter { it.id in shelved }
+                    val shelved = bookshelf.library().list(shelf, Sort.RECENTLY_OPENED).mapTo(HashSet()) { it.id }
+                    bookshelf.library().searchLibrary(trimmed).filter { it.id in shelved }
                 }
 
                 // Distinguish "this shelf is empty" from "there are no books
@@ -114,7 +114,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 val emptiness = when {
                     publications.isNotEmpty() -> LibraryEmptiness.Shelf(LibraryEmptiness.Shelf.Kind.Reading)
                     trimmed.isNotEmpty() -> LibraryEmptiness.Shelf(LibraryEmptiness.Shelf.Kind.NoMatches)
-                    bookshelf.list(Shelf.ALL, Sort.RECENTLY_ADDED).isEmpty() -> LibraryEmptiness.WholeLibrary
+                    bookshelf.library().list(Shelf.ALL, Sort.RECENTLY_ADDED).isEmpty() -> LibraryEmptiness.WholeLibrary
                     current.segment == LibrarySegment.Finished ->
                         LibraryEmptiness.Shelf(LibraryEmptiness.Shelf.Kind.Finished)
                     else -> LibraryEmptiness.Shelf(LibraryEmptiness.Shelf.Kind.Reading)

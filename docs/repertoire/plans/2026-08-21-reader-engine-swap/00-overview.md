@@ -125,6 +125,8 @@ un-laid-out chapter schedules its layout):
 `accessibility_blocks(spine_idx: u32, page_idx: u32) -> Vec<A11yBlock>` ·
 `font_registry() -> Vec<FontEntry>` ·
 `spine_count() -> u32` ·
+`is_rtl() -> bool` — publication-level page progression direction known at open time from OPF metadata (sync-safe) ·
+`published_page_count(spine_idx: u32) -> u32` — synchronous cache query returning the count of currently published pages for a spine item (0 if empty/unstarted, up to page_count when complete) ·
 `page_char_range(spine_idx: u32, page_idx: u32) -> CharRange` — the exact
 projection range a laid-out page covers (page anchors, progress reporting,
 accessibility) ·

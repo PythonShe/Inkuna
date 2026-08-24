@@ -9,6 +9,17 @@
 //! alphanumerics (ＡＢＣ→abc, common in CJK books), compatibility
 //! singletons, ligatures — and both sides of every comparison go through
 //! the same transform, so matching stays internally consistent.
+//!
+//! INVARIANT: no folded offset ever crosses the FFI. Every hit
+//! [`FoldedText::occurrences`] yields (and hence `BookSearchHit`'s
+//! `char_offset` and its `progression` denominator) indexes the ORIGINAL
+//! stored `resource_text` body in Unicode scalars. That body is the
+//! canonical projection once `reconciled_at` is set: import stamps new
+//! books, while the background pass converges existing books most-recently-
+//! read first. Plan-02 consumers must not feed offsets from an unreconciled
+//! legacy body to the engine. A fold expansion (`ﬁ`→"fi") or contraction
+//! (`㍿`→株式会社) shifts folded-space offsets, never the offsets returned
+//! here.
 
 /// How many chars of context a snippet keeps around a match; shared with
 /// the shells' result rows (2-line snippet labels).

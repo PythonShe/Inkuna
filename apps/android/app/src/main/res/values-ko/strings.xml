@@ -121,4 +121,10 @@
     <plurals name="a11y_result_count">
         <item quantity="other">%d개의 결과</item>
     </plurals>
+    <string name="reader_share_selection">공유</string>
+    <string name="reader_web_search">웹 검색</string>
+    <string name="reader_chapter_unreadable">이 장을 표시할 수 없습니다.</string>
+    <string name="reader_chapter_truncated">이 장은 너무 커서 모두 표시할 수 없습니다.</string>
+    <string name="reader_book_empty">이 책에는 읽을 수 있는 내용이 없습니다.</string>
+    <string name="reader_fixed_layout_unsupported">이 책은 고정 레이아웃을 사용하므로 Inkuna에서 아직 표시할 수 없습니다.</string>
 </resources>

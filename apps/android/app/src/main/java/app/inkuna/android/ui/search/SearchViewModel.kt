@@ -88,7 +88,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     getApplication<Application>().getString(R.string.unknown_author)
                 if (trimmed.isEmpty()) {
                     // The freshest imports, a shelf's worth at most.
-                    val discover = bookshelf.list(Shelf.ALL, Sort.RECENTLY_ADDED)
+                    val discover = bookshelf.library().list(Shelf.ALL, Sort.RECENTLY_ADDED)
                         .take(DISCOVER_CAPACITY)
                         .map { BookRow.from(it, unknownAuthor) }
                     ensureActive()
@@ -100,7 +100,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         failed = false,
                     )
                 } else {
-                    val results = bookshelf.searchLibrary(trimmed)
+                    val results = bookshelf.library().searchLibrary(trimmed)
                         .map { BookRow.from(it, unknownAuthor) }
                     ensureActive()
                     // Titles and authors answer first; the text of the books
@@ -108,7 +108,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     // (the reader's own rule — one CJK character counts).
                     val fullText = if (isSearchable(trimmed)) {
                         try {
-                            bookshelf.searchAllBooks(trimmed, FULL_TEXT_CAPACITY)
+                            bookshelf.search().searchAllBooks(trimmed, FULL_TEXT_CAPACITY)
                                 .map { hit ->
                                     FullTextRow(
                                         book = BookRow.from(hit.publication, unknownAuthor),

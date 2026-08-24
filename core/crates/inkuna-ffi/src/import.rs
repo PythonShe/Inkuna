@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::bookshelf::{blocking, Bookshelf};
+use crate::bookshelf::blocking;
 use crate::error::InkunaError;
 use crate::library::{publication_record, Publication};
 
@@ -84,8 +84,14 @@ fn file_from(fd: i32) -> std::fs::File {
     unsafe { std::fs::File::from_raw_fd(fd) }
 }
 
+/// The import facade: file and fd imports plus cover re-optimization.
+/// Constructed once by [`Bookshelf::open`], handed out by
+/// `Bookshelf::importer()` as a cheap `Arc` clone.
+#[derive(uniffi::Object)]
+pub struct ShelfImport(pub(crate) std::sync::Arc<inkuna_core::Library>);
+
 #[uniffi::export(async_runtime = "tokio")]
-impl Bookshelf {
+impl ShelfImport {
     /// Imports one file: copied into core-owned storage, hashed for
     /// dedupe, parsed for metadata/TOC/cover/text. Never returns `Failed`
     /// — hard I/O failures throw instead.

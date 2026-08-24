@@ -124,4 +124,10 @@
         <item quantity="one">%d resultado</item>
         <item quantity="other">%d resultados</item>
     </plurals>
+    <string name="reader_share_selection">Compartir</string>
+    <string name="reader_web_search">Buscar en la web</string>
+    <string name="reader_chapter_unreadable">No se puede mostrar este capítulo.</string>
+    <string name="reader_chapter_truncated">Este capítulo era demasiado grande para mostrarse por completo.</string>
+    <string name="reader_book_empty">Este libro no tiene contenido legible.</string>
+    <string name="reader_fixed_layout_unsupported">Este libro usa un diseño fijo que Inkuna todavía no puede mostrar.</string>
 </resources>

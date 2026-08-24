@@ -33,7 +33,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -56,6 +55,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,14 +83,13 @@ import kotlin.math.roundToInt
  * The Customize panel — level 2 of the Theme & type sheet. A live preview
  * on the reading surface, the font roster with own-typeface specimens,
  * the bold toggle, and the four layout sliders; everything applies
- * through the reader's own stylesheet, previewing per step and
- * committing on release.
+ * through the engine after each committed setting change.
  */
 @Composable
 internal fun CustomizePanel(
     snapshot: AppSettings.Snapshot,
     settings: AppSettings,
-    appearance: ReaderAppearanceController,
+    publisherFamily: FontFamily?,
     onBack: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -103,20 +102,14 @@ internal fun CustomizePanel(
 
     val fallback = stringResource(R.string.reader_preview_fallback)
     val resetLabel = stringResource(R.string.a11y_reset_defaults)
-    var phrase by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { phrase = appearance.currentPhrase() ?: fallback }
 
     fun commit(next: ReaderTypeDraft, write: () -> Unit) {
         draft = next
         write()
     }
 
-    // Slider releases must close the anchor session themselves: a commit of
-    // the value already stored never re-emits the snapshot, so the
-    // applyCommitted path would leave the anchor stranded.
     fun commitSlider(next: ReaderTypeDraft, write: () -> Unit) {
         commit(next, write)
-        appearance.endPreview()
     }
 
     Column(
@@ -137,10 +130,11 @@ internal fun CustomizePanel(
         ) {
             Spacer(Modifier.height(InkSpace.s4))
             AppearancePreviewCard(
-                phrase = phrase ?: fallback,
+                phrase = fallback,
                 theme = snapshot.readingTheme,
                 textSizeSp = AppSettings.TEXT_SIZE_STEPS[snapshot.textSizeStep],
                 draft = draft,
+                publisherFamily = publisherFamily,
             )
             Spacer(Modifier.height(InkSpace.s5))
 
@@ -149,6 +143,7 @@ internal fun CustomizePanel(
             GroupCard {
                 FontRow(
                     current = draft.font,
+                    publisherFamily = publisherFamily,
                     onPick = { font ->
                         haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                         commit(draft.copy(font = font)) { settings.setReadingFont(font) }
@@ -177,10 +172,9 @@ internal fun CustomizePanel(
                 value = draft.lineSpacing,
                 range = AppSettings.MIN_LINE_SPACING..AppSettings.MAX_LINE_SPACING,
                 step = 0.05f,
-                onBegin = { appearance.beginPreview() },
+                onBegin = {},
                 onPreview = { value ->
                     draft = draft.copy(lineSpacing = value)
-                    appearance.preview(draft)
                 },
                 onCommit = { value ->
                     commitSlider(draft.copy(lineSpacing = value)) { settings.setLineSpacing(value) }
@@ -194,10 +188,9 @@ internal fun CustomizePanel(
                 value = draft.letterSpacing,
                 range = 0f..AppSettings.MAX_LETTER_SPACING,
                 step = 0.005f,
-                onBegin = { appearance.beginPreview() },
+                onBegin = {},
                 onPreview = { value ->
                     draft = draft.copy(letterSpacing = value)
-                    appearance.preview(draft)
                 },
                 onCommit = { value ->
                     commitSlider(draft.copy(letterSpacing = value)) { settings.setLetterSpacing(value) }
@@ -211,10 +204,9 @@ internal fun CustomizePanel(
                 value = draft.wordSpacing,
                 range = 0f..AppSettings.MAX_WORD_SPACING,
                 step = 0.025f,
-                onBegin = { appearance.beginPreview() },
+                onBegin = {},
                 onPreview = { value ->
                     draft = draft.copy(wordSpacing = value)
-                    appearance.preview(draft)
                 },
                 onCommit = { value ->
                     commitSlider(draft.copy(wordSpacing = value)) { settings.setWordSpacing(value) }
@@ -228,10 +220,9 @@ internal fun CustomizePanel(
                 value = draft.margins.toFloat(),
                 range = AppSettings.MIN_READING_MARGINS.toFloat()..AppSettings.MAX_READING_MARGINS.toFloat(),
                 step = 2f,
-                onBegin = { appearance.beginPreview() },
+                onBegin = {},
                 onPreview = { value ->
                     draft = draft.copy(margins = value.roundToInt())
-                    appearance.preview(draft)
                 },
                 onCommit = { value ->
                     commitSlider(draft.copy(margins = value.roundToInt())) {
@@ -322,6 +313,7 @@ private fun AppearancePreviewCard(
     theme: ReadingTheme,
     textSizeSp: Float,
     draft: ReaderTypeDraft,
+    publisherFamily: FontFamily?,
 ) {
     val a11yPreview = stringResource(R.string.a11y_preview_sample)
     Box(
@@ -339,8 +331,10 @@ private fun AppearancePreviewCard(
     ) {
         Text(
             phrase,
-            fontFamily = draft.font.composeFamily(),
-            fontWeight = if (draft.bold) FontWeight.SemiBold else FontWeight.Normal,
+            fontFamily = draft.font.composeFamily(publisherFamily),
+            // The engine lays the bold toggle out at weight 700 — the
+            // specimen must match.
+            fontWeight = if (draft.bold) FontWeight.Bold else FontWeight.Normal,
             fontSize = textSizeSp.sp,
             lineHeight = (textSizeSp * draft.lineSpacing).sp,
             letterSpacing = draft.letterSpacing.em,
@@ -361,7 +355,11 @@ private fun AppearancePreviewCard(
  * its own typeface so the roster reads as a specimen sheet.
  */
 @Composable
-private fun FontRow(current: ReadingFont, onPick: (ReadingFont) -> Unit) {
+private fun FontRow(
+    current: ReadingFont,
+    publisherFamily: FontFamily?,
+    onPick: (ReadingFont) -> Unit,
+) {
     val ink = InkTheme.colors
     val title = stringResource(R.string.reader_font)
     val value = stringResource(current.nameRes)
@@ -419,7 +417,7 @@ private fun FontRow(current: ReadingFont, onPick: (ReadingFont) -> Unit) {
                     text = {
                         Text(
                             name,
-                            fontFamily = font.composeFamily(),
+                            fontFamily = font.composeFamily(publisherFamily),
                             fontWeight = if (chosen) FontWeight.Medium else FontWeight.Normal,
                             style = InkType.ui,
                             color = ink.textDisplay,

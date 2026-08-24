@@ -1,10 +1,8 @@
 import os
-import ReadiumShared
 import UIKit
 
-// The UniFFI bindings are compiled into this target, so `Publication` below
-// is the core's record, not `ReadiumShared.Publication` — the import is for
-// `Locator`, which decodes the core's stored position.
+// The UniFFI bindings are compiled into this target. Saved progress is a core
+// content coordinate projected into synthetic positions by `ReaderPositions`.
 
 /// Book detail: the cover held at arm's length, progress, and the core's
 /// table of contents with the saved position's chapter inked in accent.
@@ -17,6 +15,16 @@ final class BookDetailViewController: UIViewController {
     /// The core's flattened TOC; empty until fetched (and for books that
     /// list none).
     private var chapters: [Chapter] = []
+
+    /// The synthetic position the saved coordinate lands on, as the core
+    /// derives it. Nil for a book with no stored coordinate — never
+    /// opened, or a legacy row the rebaseline has not converted — and the
+    /// screen then shows the percentage alone rather than a made-up page.
+    private var storedPosition: UInt32?
+
+    /// The core's chapter spans, used only to attribute `storedPosition`
+    /// to a TOC entry for the highlight.
+    private var chapterRanges: [ChapterPositionRange] = []
 
     private let progressBar: InkProgressBar
     private let metaLabel = InkLabel()
@@ -152,11 +160,26 @@ final class BookDetailViewController: UIViewController {
         refreshTask = Task { [weak self, id = publication.id, logger] in
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                let publication = try await bookshelf.publication(id: id)
-                let chapters = try await bookshelf.chapters(id: id)
+                let publication = try await bookshelf.library().publication(id: id)
+                let chapters = try await bookshelf.library().chapters(id: id)
+                // The position line and the chapter highlight both hang on
+                // the stored coordinate; without one there is nothing to
+                // ask the core about, and both degrade rather than guess.
+                var position: UInt32?
+                var ranges: [ChapterPositionRange] = []
+                if let coordinate = publication.coordinate {
+                    position = try? await ReaderPositions.position(
+                        of: coordinate,
+                        id: id,
+                        on: bookshelf
+                    )
+                    ranges = (try? await bookshelf.progress().chapterPositionRanges(id: id)) ?? []
+                }
                 guard let self, !Task.isCancelled else { return }
                 self.publication = publication
                 self.chapters = chapters
+                self.storedPosition = position
+                self.chapterRanges = ranges
                 self.progressBar.setProgress(CGFloat(publication.progression), animated: false)
                 self.metaLabel.text = self.positionText()
                 self.rebuildContents()
@@ -171,16 +194,17 @@ final class BookDetailViewController: UIViewController {
 
     // MARK: Position line
 
-    /// The honest position line, mirroring the reader: "p. N of M" only
-    /// when the stored locator carries a synthetic position and the core
-    /// knows the count — book-wide percentage alone otherwise. Never a
-    /// fictional page number.
+    /// The honest position line, entirely in the core's position space:
+    /// "p. N of M" only when the book carries a coordinate the core can
+    /// resolve to a position, and knows its count — book-wide percentage
+    /// alone otherwise. Never a fictional page number.
+    ///
+    /// The reader and this screen use the same core-derived position space,
+    /// so the saved coordinate, page-info line, and chapter highlight agree.
     private func positionText() -> String {
         let percent = Int((publication.progression * 100).rounded())
         if
-            let locatorJSON = publication.locator,
-            let locator = try? Locator(jsonString: locatorJSON),
-            let position = locator.locations.position,
+            let position = storedPosition,
             let positionCount = publication.positionCount, positionCount > 0
         {
             let format = NSLocalizedString("reader_page_info", comment: "")
@@ -215,20 +239,19 @@ final class BookDetailViewController: UIViewController {
         }
     }
 
-    /// The chapter the saved position sits in: the first TOC entry whose
-    /// resource matches the stored locator's, the same "several entries in
-    /// one resource resolve to the first" rule as the reader's contents
-    /// sheet. Unlike the sheet, this screen keeps the book closed, so a
-    /// position in a resource that carries no TOC entry of its own cannot
-    /// be attributed to the preceding chapter — those books show no
-    /// highlight rather than a guessed one.
+    /// The chapter the saved position sits in, attributed by the core's
+    /// own chapter spans rather than by matching hrefs here. Those spans
+    /// are sparse — one per TOC chapter, never one per spine resource — so
+    /// a position inside a resource carrying no TOC entry of its own is
+    /// claimed by no span and leaves the list unhighlighted rather than
+    /// guessed. The reader's contents sheet is looser and keeps the
+    /// preceding chapter lit there; this screen deliberately does not.
     private func currentChapterIndex() -> Int? {
         guard
-            let locatorJSON = publication.locator,
-            let locator = try? Locator(jsonString: locatorJSON)
+            let position = storedPosition,
+            let range = ReaderPositions.chapterRange(in: chapterRanges, at: position)
         else { return nil }
-        let resource = ChapterHref.normalized(locator.href.string)
-        return chapters.firstIndex { ChapterHref.normalized($0.href) == resource }
+        return chapters.firstIndex { $0.idx == range.chapterIdx }
     }
 
     private func chapterRow(_ chapter: Chapter, isCurrent: Bool) -> UIView {

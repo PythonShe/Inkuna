@@ -4,10 +4,9 @@ import UIKit
 /// core's flattened TOC, the current chapter washed in accent. Picking a row
 /// hands the chapter back to the reader, which jumps the navigator.
 final class ContentsSheetViewController: UIViewController {
-    /// One chapter of the core TOC, joined with what the reader knows from
-    /// Readium: the synthetic position its resource starts at (nil until
-    /// positions are computed or when the href matches no resource) and
-    /// whether the reader is currently inside it.
+    /// One chapter of the core TOC, joined with its core-derived synthetic
+    /// start position (nil when no sparse chapter range exists) and whether
+    /// the reader is currently inside it.
     struct Row {
         let chapter: Chapter
         let position: Int?

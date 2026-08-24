@@ -3,6 +3,9 @@ import UIKit
 /// Opens the reader on a publication from the core library.
 @MainActor
 enum ReaderLauncher {
+    /// Stamped before navigation so the reader can record tap-to-paint time.
+    static var lastPushTimestamp: Date?
+
     /// Pushes the reader on a publication the caller already holds — the
     /// path every screen takes. `startingAt` opens at that chapter instead
     /// of the saved position (a detail-screen contents row).
@@ -12,6 +15,7 @@ enum ReaderLauncher {
         on navigationController: UINavigationController?
     ) {
         guard let navigationController else { return }
+        lastPushTimestamp = Date()
         let reader = ReaderViewController(publication: publication, initialChapter: chapter)
         reader.hidesBottomBarWhenPushed = true
         navigationController.pushViewController(reader, animated: true)
@@ -27,13 +31,14 @@ enum ReaderLauncher {
         Task {
             do {
                 let bookshelf = try await LibraryStore.shared.library()
-                let publications = try await bookshelf.list(shelf: .unfinished, sort: .recentlyOpened)
+                let publications = try await bookshelf.library().list(shelf: .unfinished, sort: .recentlyOpened)
                 guard let publication = publications.first else {
                     // Covers both an empty library and one whose every book
                     // is finished — the query is the unfinished shelf.
                     toast(symbol: "books.vertical", text: String(localized: "library_empty_reading", defaultValue: "Nothing to keep reading right now."), on: navigationController)
                     return
                 }
+                lastPushTimestamp = Date()
                 let reader = ReaderViewController(publication: publication)
                 reader.hidesBottomBarWhenPushed = true
                 navigationController.pushViewController(reader, animated: true)

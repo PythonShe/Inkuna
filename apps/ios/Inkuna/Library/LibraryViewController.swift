@@ -144,14 +144,14 @@ final class LibraryViewController: ScrollScreenViewController {
                 let bookshelf = try await LibraryStore.shared.library()
                 let rows: [Publication]
                 if trimmed.isEmpty {
-                    rows = try await bookshelf.list(shelf: shelf, sort: .recentlyOpened)
+                    rows = try await bookshelf.library().list(shelf: shelf, sort: .recentlyOpened)
                 } else {
                     // Metadata search is the core's, CJK-aware segmentation
                     // and all. The shelf still filters the result, so a
                     // search inside Finished stays inside Finished.
-                    let matches = try await bookshelf.searchLibrary(query: trimmed)
+                    let matches = try await bookshelf.library().searchLibrary(query: trimmed)
                     let shelved = Set(
-                        try await bookshelf.list(shelf: shelf, sort: .recentlyOpened).map(\.id)
+                        try await bookshelf.library().list(shelf: shelf, sort: .recentlyOpened).map(\.id)
                     )
                     rows = matches.filter { shelved.contains($0.id) }
                 }
@@ -168,7 +168,7 @@ final class LibraryViewController: ScrollScreenViewController {
                 if rows.isEmpty {
                     if !trimmed.isEmpty {
                         emptiness = .shelf(String(localized: "library_empty_query", defaultValue: "Nothing found in the stacks."))
-                    } else if try await bookshelf.list(shelf: .all, sort: .recentlyAdded).isEmpty {
+                    } else if try await bookshelf.library().list(shelf: .all, sort: .recentlyAdded).isEmpty {
                         emptiness = .wholeLibrary
                     }
                 }

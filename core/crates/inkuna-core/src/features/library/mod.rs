@@ -5,6 +5,7 @@
 mod bookmarks;
 mod model;
 mod queries;
+mod rebaseline;
 mod search;
 mod store;
 
@@ -12,5 +13,5 @@ mod store;
 mod tests;
 
 pub(crate) use model::{join_authors, map_publication, PUB_COLUMNS};
-pub use model::{Bookmark, Chapter, Publication, Shelf, Sort};
-pub use store::Library;
+pub use model::{Bookmark, Chapter, Publication, Shelf, Sort, SpineEntry};
+pub use store::{Library, PUBLISHER_FONT_DIR};

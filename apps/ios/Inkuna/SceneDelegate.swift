@@ -86,6 +86,10 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     private func debugShow(_ screen: String) {
+        if screen == "parityDigest" {
+            Task { await ParityDigestRunner.run() }
+            return
+        }
         if let main = window?.rootViewController as? MainTabBarController {
             switch screen {
             case "library": main.select(.library)
@@ -98,7 +102,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 Task {
                     guard
                         let bookshelf = try? await LibraryStore.shared.library(),
-                        let publication = try? await bookshelf.list(shelf: .all, sort: .recentlyAdded).first
+                        let publication = try? await bookshelf.library().list(shelf: .all, sort: .recentlyAdded).first
                     else { return }
                     let detail = BookDetailViewController(publication: publication)
                     detail.hidesBottomBarWhenPushed = true
@@ -127,7 +131,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard !epubs.isEmpty else { return }
         do {
             let bookshelf = try await LibraryStore.shared.library()
-            let outcomes = try await bookshelf.importBatch(paths: epubs, listener: nil)
+            let outcomes = try await bookshelf.importer().importBatch(paths: epubs, listener: nil)
             print("[inkuna.debug] imported fixtures: \(outcomes)")
         } catch {
             print("[inkuna.debug] fixture import failed: \(error)")

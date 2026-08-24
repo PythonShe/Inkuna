@@ -3,6 +3,7 @@
 
 use crate::core::time::unix_now;
 use crate::{CoreError, Library};
+use rusqlite::TransactionBehavior;
 
 impl Library {
     /// Starts a reading session: retroactively closes any open session for
@@ -12,7 +13,10 @@ impl Library {
     /// and stamps `last_opened_at`. Returns the session id.
     pub fn session_start(&self, publication_id: &str) -> Result<String, CoreError> {
         let mut conn = self.writer.lock().unwrap();
-        let tx = conn.transaction()?;
+        // This reads publications before updating it and sessions. Reserve
+        // the writer slot first so a concurrent rebaseline cannot invalidate
+        // the deferred transaction's snapshot with SQLITE_BUSY_SNAPSHOT.
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
         let progression: f64 = tx
             .query_row(

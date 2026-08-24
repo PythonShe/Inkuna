@@ -1,21 +1,35 @@
 package app.inkuna.android.ui.reader
 
 import android.app.Application
+import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewModelScope
+import app.inkuna.android.model.AppSettings
 import app.inkuna.android.model.LibraryStore
-import app.inkuna.core.Bookshelf
+import app.inkuna.android.ui.ReaderPerf
+import app.inkuna.android.ui.reader.engine.ReaderFontStore
+import app.inkuna.core.BookSearchHit
+import app.inkuna.core.Bookmark
 import app.inkuna.core.Chapter
-import app.inkuna.core.Publication as CorePublication
-import java.io.File
-import java.util.concurrent.atomic.AtomicReference
+import app.inkuna.core.ChapterPositionRange
+import app.inkuna.core.Coordinate
+import app.inkuna.core.InkunaException
+import app.inkuna.core.LayoutListener
+import app.inkuna.core.PageLocation
+import app.inkuna.core.Publication
+import app.inkuna.core.ReaderLayoutSettings
+import app.inkuna.core.ReaderSession
+import app.inkuna.core.Viewport
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,631 +38,515 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import org.readium.r2.navigator.epub.EpubNavigatorFactory
-import org.readium.r2.shared.publication.Link
-import org.readium.r2.shared.publication.Locator
-import org.readium.r2.shared.publication.Publication
-import org.readium.r2.shared.publication.services.positionsByReadingOrder
-import org.readium.r2.shared.util.Try
-import org.readium.r2.shared.util.Url
-import org.readium.r2.shared.util.asset.AssetRetriever
-import org.readium.r2.shared.util.getOrElse
-import org.readium.r2.shared.util.http.DefaultHttpClient
-import org.readium.r2.shared.util.resource.Resource
-import org.readium.r2.shared.util.resource.TransformingContainer
-import org.readium.r2.shared.util.resource.TransformingResource
-import org.readium.r2.shared.util.toUrl
-import org.readium.r2.streamer.PublicationOpener
-import org.readium.r2.streamer.parser.DefaultPublicationParser
+import kotlin.math.roundToLong
 
-/**
- * Owns one open book: fetches the core [CorePublication], opens the EPUB at
- * its `filePath` through Readium, and drives the whole core contract —
- * position count, per-page-turn progress, sessions, bookmarks, TOC jumps.
- * Rendering itself belongs to the navigator fragment; storage and progress
- * math belong to the Rust core; this class only ferries between them.
- *
- * Scoped to the reader's back-stack entry, so the opened publication
- * survives configuration changes; only the fragment is rebuilt.
- */
+/** One engine-backed reader; synchronous session reads are deliberately cache-only. */
 class ReaderViewModel(
     private val app: Application,
     private val publicationId: String,
-    /** A chapter href to open at instead of the saved position (a
-     *  detail-screen contents row); null resumes where the reader left off. */
     private val initialChapterHref: String? = null,
 ) : AndroidViewModel(app) {
 
     sealed interface UiState {
         data object Opening : UiState
-
-        /** Recoverable: the screen offers a retry. */
         data object Failed : UiState
+        data object FixedLayoutUnsupported : UiState
 
+        /**
+         * A publication whose spine holds no usable resource. The layout
+         * worker queue starts empty, so no callback — not even a failure —
+         * can ever arrive; the empty spine is the whole terminal truth.
+         */
+        data object NoReadableContent : UiState
         data class Ready(val book: ReaderBook) : UiState
     }
 
-    /** Everything the reader needs once the book is open. */
     class ReaderBook(
-        val core: CorePublication,
+        val session: ReaderSession,
         val publication: Publication,
-        val navigatorFactory: EpubNavigatorFactory,
-        /** The core's saved position, if any — hand it to the navigator. */
-        val initialLocator: Locator?,
-        /** Readium synthetic position count; 0 until computable. */
-        val positionCount: Int,
-        val chapters: List<ReaderChapter>,
-        /** 1-based position each reading-order resource starts at, by
-         *  reading-order index; empty when positions are uncomputable. */
-        val resourceStarts: List<Int>,
-        /** How many synthetic positions each resource holds, same order. */
-        val resourceCounts: List<Int>,
+        val chapters: List<Chapter>,
+        val positionRanges: List<ChapterPositionRange>,
+        val spineCount: UInt,
     )
 
-    /** A core TOC entry resolved against Readium's synthetic positions. */
-    data class ReaderChapter(
-        val chapter: Chapter,
-        /** Index of the chapter's resource in the reading order, if found. */
-        val resourceIndex: Int?,
-        /** 1-based position where the chapter's resource begins, if known. */
-        val position: Int?,
+    sealed interface LayoutEvent {
+        val generation: ULong
+
+        data object Invalidated : LayoutEvent {
+            override val generation: ULong = 0uL
+        }
+        data class FirstPage(override val generation: ULong, val spineIdx: UInt) : LayoutEvent
+        data class Chapter(override val generation: ULong, val spineIdx: UInt, val pageCount: UInt) : LayoutEvent
+        data class Failed(override val generation: ULong, val spineIdx: UInt) : LayoutEvent
+    }
+
+    data class SearchHit(
+        val spineIdx: UInt,
+        val charOffset: ULong?,
+        val snippetPre: String,
+        val snippetMatch: String,
+        val snippetPost: String,
+        /** Unicode-scalar length for the engine's future match-rect request. */
+        val matchLength: ULong,
+        val position: UInt?,
     )
+
+    data class SearchOutcome(
+        val hits: List<SearchHit> = emptyList(),
+        val total: Int = 0,
+        val unavailable: Boolean = false,
+    )
+
+    private data class PendingProgress(val coordinate: Coordinate, val position: UInt, val progression: Double)
 
     private val stateFlow = MutableStateFlow<UiState>(UiState.Opening)
     val state: StateFlow<UiState> = stateFlow.asStateFlow()
 
-    // @Volatile: assigned on the open dispatcher (Default) when the book
-    // opens, read from the application write scope's worker threads by the
-    // progress and session writes below.
-    @Volatile
-    private var bookshelf: Bookshelf? = null
+    // Replay bridges callbacks that win the race against AndroidView
+    // mounting and re-primes a recreated surface after a config change.
+    // Only events of the accepted generation are ever emitted, and the
+    // replay cache is purged on relayout, so a collector can never adopt a
+    // stale generation from it.
+    private val _layoutEvents = MutableSharedFlow<LayoutEvent>(replay = 64, extraBufferCapacity = 64)
+    val layoutEvents = _layoutEvents
+
+    @Volatile private var bookshelf: app.inkuna.core.Bookshelf? = null
     private var openJob: Job? = null
-
-    /**
-     * The Readium container, owned from the instant `open` succeeds rather
-     * than from the moment the Ready state is published: everything between
-     * the two (positions, position count, chapters) can suspend, so a
-     * cancellation or a throw there would otherwise leak the open file.
-     * An atomic get-and-set hands the instance to exactly one closer, and
-     * the instance is captured at scheduling time — a close queued for a
-     * failed attempt can never reach the container a retry opened after it.
-     */
-    private val openPublication = AtomicReference<Publication?>(null)
-
-    // Page turns arrive faster than writes need to land; a StateFlow
-    // conflates them so a fast flick persists the settled page, not a queue
-    // of intermediate ones. The core expects one `updateProgress` per turn.
-    private val pendingProgress = MutableStateFlow<Locator?>(null)
-    private var lastPersisted: Locator? = null
-
     private var sessionId: String? = null
-
-    /**
-     * Every core write this reader makes — progress, bookmarks, session
-     * start and end — passes through here, in the order it was asked for.
-     * Without it the final page turn and the session's closing write race
-     * on a multi-threaded scope, and a session closed before the last
-     * heartbeat keeps a stale end position (the core only heartbeats
-     * sessions with `ended_at IS NULL`).
-     */
     private val writeLock = Mutex()
-
-    /**
-     * Tail of the FIFO chain every lifecycle-ordered write joins. The lock
-     * above makes writes atomic; this chain makes them *ordered*: a
-     * `sessionStart` asked for after a teardown must run after the whole
-     * teardown, or a rotation's stop→start round trip lets the queued
-     * `sessionEnd` close the session the restart just opened, silencing
-     * every heartbeat for the rest of the sitting. Only touched from the
-     * main thread (lifecycle callbacks and `onCleared`), so plain field
-     * handover is safe; the same shape as the iOS reader's write chain.
-     */
+    private val relayoutLock = Mutex()
+    private val writeTailLock = Any()
     private var writeTail: Job? = null
+    private val pendingProgress = MutableStateFlow<PendingProgress?>(null)
+    private var lastPersisted: Coordinate? = null
+    private var targetCoordinate: Coordinate? = null
+    private var currentAnchor: Coordinate? = null
+    private var pendingSettle: Pair<UInt, UInt>? = null
+    private var readerSession: ReaderSession? = null
+    @Volatile private var readerClosed = false
+    private val pendingStartupEvents = mutableListOf<LayoutEvent>()
+    private var initialHrefFailed = false
+    private var initialLocation: PageLocation? = null
+    private var initialJump: PendingJump? = null
 
-    private fun enqueueCoreWrite(block: suspend () -> Unit): Job {
-        val previous = writeTail
-        val job = LibraryStore.writes.launch {
-            previous?.join()
-            block()
-        }
-        writeTail = job
-        return job
-    }
+    // Relayout buffers callbacks until the surface has invalidated its old
+    // display lists. Each event is then compared to the engine's current
+    // generation, never to a shell-maintained generation mirror.
+    private var layoutChangeInFlight = false
+    private val pendingLayoutEvents = mutableListOf<LayoutEvent>()
+    private var appliedViewport: Viewport? = null
+    private var openedAtMs = 0L
+    private var firstPageReadyMs: Long? = null
+    private var didLogFirstRender = false
+    private var didLogChapterComplete = false
 
     init {
-        open()
-        // Collected off Main: the write itself already runs on Default, but
-        // a Main-dispatched collector would still cost the UI thread one
-        // hop per page turn, on the same frames the WebView is loading.
         viewModelScope.launch(Dispatchers.Default) {
-            // The emitted value is deliberately ignored: the write always
-            // takes the newest pending locator, so a write that waited for
-            // the lock can never commit an older page than one that ran.
             pendingProgress.filterNotNull().collect { persistPendingProgress() }
         }
     }
 
-    /** Starts (or after a failure, restarts) opening the book. */
-    fun open() {
-        if (openJob?.isActive == true || stateFlow.value is UiState.Ready) return
+    /**
+     * Opens the session for the reader surface's measured viewport, which
+     * the screen supplies — the activity window can be a split-screen or
+     * freeform pane, so no display-level metric may stand in for it.
+     *
+     * Terminal states are guarded: `LaunchedEffect(viewport)` re-runs this
+     * on every rotation, and re-opening from Ready or NoReadableContent
+     * would stack a second core session on the retained one. Only an
+     * explicit [userRetry] — the failure screen's button — re-enters from
+     * Failed.
+     */
+    fun open(viewport: Viewport, userRetry: Boolean = false) {
+        if (openJob?.isActive == true) return
+        if (stateFlow.value !is UiState.Opening && !(userRetry && stateFlow.value is UiState.Failed)) return
         stateFlow.value = UiState.Opening
         openJob = viewModelScope.launch {
-            // A retry must not leave the failed attempt's container open.
-            // The snapshot happens here, synchronously, so the queued close
-            // can only ever touch the attempt that failed.
-            closeOpenPublicationAsync()
-            stateFlow.value = try {
-                UiState.Ready(doOpen())
-            } catch (e: Exception) {
-                Log.w(TAG, "opening $publicationId failed", e)
-                // Cancellation lands here too, and then no suspending close
-                // would run — hand it to the write scope, which outlives us.
-                closeOpenPublicationAsync()
-                UiState.Failed
+            try {
+                val book = doOpen(viewport)
+                stateFlow.value =
+                    if (book.spineCount == 0u) UiState.NoReadableContent else UiState.Ready(book)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (unsupported: InkunaException.UnsupportedContent) {
+                stateFlow.value = UiState.FixedLayoutUnsupported
+            } catch (failure: Throwable) {
+                Log.w(TAG, "opening $publicationId failed", failure)
+                stateFlow.value = UiState.Failed
             }
         }
     }
 
-    /**
-     * The whole open runs on [Dispatchers.Default]: Readium's parser and
-     * `positionsByReadingOrder` do their XML and position work on the
-     * caller's dispatcher, and on Main they would stall the reader's push
-     * animation for the entire parse of the book.
-     */
-    private suspend fun doOpen(): ReaderBook = withContext(Dispatchers.Default) {
+    private suspend fun doOpen(openViewport: Viewport): ReaderBook = withContext(Dispatchers.Default) {
+        openedAtMs = SystemClock.uptimeMillis()
+        firstPageReadyMs = null
+        didLogFirstRender = false
+        didLogChapterComplete = false
+        initialHrefFailed = false
+        initialJump = null
         val shelf = LibraryStore.bookshelf(app)
         bookshelf = shelf
-        val core = shelf.publication(publicationId)
-
-        val httpClient = DefaultHttpClient()
-        val assetRetriever = AssetRetriever(app.contentResolver, httpClient)
-        val asset = assetRetriever
-            .retrieve(File(core.filePath).toUrl(isDirectory = false))
-            .getOrElse { error -> throw ReaderOpenException(error.message) }
-        val opener = PublicationOpener(
-            publicationParser = DefaultPublicationParser(
-                app,
-                httpClient = httpClient,
-                assetRetriever = assetRetriever,
-                pdfFactory = null,
-            ),
-            // Every XHTML resource gets the fragmentation fix injected
-            // before the WebView ever paginates it; see fixFragmentation.
-            onCreatePublication = {
-                container = TransformingContainer(container, ::fixFragmentation)
-            },
-        )
-        val publication = opener
-            .open(asset, allowUserInteraction = false)
-            .getOrElse { error ->
-                asset.close()
-                throw ReaderOpenException(error.message)
+        val library = shelf.library()
+        val publication = library.publication(publicationId)
+        val chapters = library.chapters(publicationId)
+        val positionRanges = shelf.progress().chapterPositionRanges(publicationId)
+        val session = shelf.openReader(publicationId, openViewport, layoutSettings(AppSettings.get(app).snapshot.value), listener())
+        // Until the Main hop below stores the session, onCleared sees null
+        // and can never close it — a cancellation in that window (the
+        // registry marshal alone crosses the FFI with dozens of records)
+        // would orphan the session and its layout worker until JNA
+        // finalization. So this scope owns the close until the store lands.
+        var stored = false
+        try {
+            // Faces build off the main thread beside the first layout; inline,
+            // ~29 file parses would sit inside the open-to-first-page budget.
+            runCatching { session.fontRegistry() }.getOrNull()?.takeIf { it.isNotEmpty() }
+                ?.let { registry -> viewModelScope.launch { ReaderFontStore.prime(registry, session) } }
+            withContext(Dispatchers.Main.immediate) {
+                readerSession = session
+                stored = true
+                val startupEvents = pendingStartupEvents.toList()
+                pendingStartupEvents.clear()
+                startupEvents.forEach { if (acceptGeneration(it.generation)) _layoutEvents.emit(it) }
             }
-        // Owned from here on, whatever the rest of this function does.
-        openPublication.set(publication)
+            appliedViewport = openViewport
+            val restoredCoordinate = publication.coordinate
+                ?: coordinateForProgression(publication.progression, session)
 
-        // Synthetic positions are the honest substitute for page numbers.
-        // Reported once so the core can answer "p. N of M" everywhere.
-        val positionsByResource = publication.positionsByReadingOrder()
-        val positionCount = positionsByResource.sumOf { it.size }
-        // Per-resource counts, not just the total: the core derives each
-        // chapter's position range from them, which is what "pages left
-        // in this chapter" and a search hit's "p. N" are built on.
-        val positionRanges = if (positionCount > 0) {
-            positionsByResource.map { it.size.toUInt() }
-        } else {
-            emptyList()
-        }
-        runCatching {
-            shelf.reportPositionRanges(core.id, positionRanges)
-        }.onFailure { error ->
-            // The core rejects a breakdown that does not line up with its
-            // own spine — it drops duplicate and over-long spine hrefs that
-            // Readium's reading order keeps. The per-chapter spans are
-            // lost, but "p. N of M" need not be.
-            Log.w(TAG, "reportPositionRanges failed", error)
-            if (positionCount > 0) {
-                runCatching {
-                    shelf.reportPositionCount(core.id, positionCount.toUInt())
-                }.onFailure { Log.w(TAG, "reportPositionCount failed", it) }
+            // A fragment whose chapter has not laid out yet resolves to that
+            // chapter's start now and carries the fragment for the readiness
+            // event to refine; only a genuinely absent target reports a failure.
+            val initial = initialChapterHref?.let { href ->
+                runCatching { session.resolveJump(href, linkToast = true) }
+                    .onFailure { initialHrefFailed = it is InkunaException.AnchorNotFound || it is InkunaException.NotReady }
+                    .getOrNull()
             }
+            initialJump = initial?.takeIf { it.anchor != null }
+            targetCoordinate = initial?.coordinate ?: restoredCoordinate
+
+            initialLocation = targetCoordinate?.let { runCatching { session.locate(it) }.getOrNull() }
+            ReaderBook(
+                session = session,
+                publication = publication,
+                chapters = chapters,
+                positionRanges = positionRanges,
+                spineCount = session.spineCount(),
+            )
+        } catch (failure: Throwable) {
+            // Cancellation and failure alike: once stored, onCleared owns
+            // the close; before that, this abandoned session is closed on
+            // the same application-scoped writer onCleared uses.
+            if (!stored) {
+                LibraryStore.writes.launch {
+                    runCatching { session.close() }
+                        .onFailure { Log.w(TAG, "closing abandoned reader session failed", it) }
+                }
+            }
+            throw failure
+        }
+    }
+
+    private fun listener() = object : LayoutListener {
+        override fun onFirstPageReady(generation: ULong, spineIdx: UInt) {
+            postLayoutEvent(LayoutEvent.FirstPage(generation, spineIdx))
         }
 
-        val chapters = shelf.chapters(core.id).map { chapter ->
-            // The chapter-to-resource mapping is href-minus-fragment, per
-            // the core spec; the reading-order index it yields is what both
-            // the position and the "you are here" highlight are built on.
-            val resourceIndex = Url(chapter.href)?.let { readingOrderIndex(publication, it) }
-            ReaderChapter(
-                chapter = chapter,
-                resourceIndex = resourceIndex,
-                position = resourceIndex
-                    ?.let { positionsByResource.getOrNull(it) }
-                    ?.firstOrNull()
-                    ?.locations
-                    ?.position,
+        override fun onChapterReady(generation: ULong, spineIdx: UInt, pageCount: UInt) {
+            postLayoutEvent(LayoutEvent.Chapter(generation, spineIdx, pageCount))
+        }
+
+        override fun onChapterFailed(generation: ULong, spineIdx: UInt) {
+            postLayoutEvent(LayoutEvent.Failed(generation, spineIdx))
+        }
+    }
+
+    private fun postLayoutEvent(event: LayoutEvent) {
+        if (readerClosed) return
+        viewModelScope.launch(Dispatchers.Main.immediate) {
+            if (readerClosed) return@launch
+            if (readerSession == null) {
+                pendingStartupEvents += event
+                return@launch
+            }
+            if (layoutChangeInFlight) {
+                // The engine generation is sampled after the relayout ends;
+                // this keeps a callback queued before a second relayout from
+                // pinning the shell to the prior generation.
+                pendingLayoutEvents += event
+                return@launch
+            }
+            if (acceptGeneration(event.generation)) _layoutEvents.emit(event)
+        }
+    }
+
+    /** The engine, not a shell-side counter, decides whether an event is live. */
+    private fun acceptGeneration(generation: ULong): Boolean =
+        !readerClosed && readerSession?.generation() == generation
+
+    /** The open-time restore location; consumed exactly once per open. */
+    fun takeInitialLocation(): PageLocation? = initialLocation.also { initialLocation = null }
+
+    /** The open-time anchor jump still waiting on its chapter's layout. */
+    internal fun takeInitialJump(): PendingJump? = initialJump.also { initialJump = null }
+
+    fun consumeInitialHrefFailure(): Boolean = initialHrefFailed.also { initialHrefFailed = false }
+
+    fun currentCoordinate(): Coordinate? = currentAnchor ?: targetCoordinate
+
+    fun onPageSettled(spineIdx: UInt, pageIdx: UInt) {
+        val session = runCatching { session() }.getOrNull() ?: return
+        val coordinate = runCatching {
+            Coordinate(spineIdx, session.pageCharRange(spineIdx, pageIdx).start)
+        }.getOrNull()
+        if (coordinate == null) {
+            // The engine may have evicted this chapter (LRU beyond the
+            // cache capacity while the rest of the book laid out); the
+            // miss just re-scheduled it, so finish this settle on the
+            // chapter's next layout event instead of dropping the anchor.
+            pendingSettle = spineIdx to pageIdx
+            return
+        }
+        pendingSettle = null
+        currentAnchor = coordinate
+        targetCoordinate = coordinate
+        viewModelScope.launch(Dispatchers.Default) {
+            val shelf = bookshelf ?: return@launch
+            val position = runCatching { ReaderPositions.position(coordinate, publicationId, shelf) }.getOrNull() ?: return@launch
+            val progression = runCatching { ReaderPositions.progression(coordinate, publicationId, shelf) }
+                .getOrNull() ?: return@launch
+            pendingProgress.value = PendingProgress(
+                coordinate = coordinate,
+                position = position,
+                progression = progression,
             )
         }
+    }
 
-        // A requested start chapter wins over the saved position, resolved
-        // the same way a contents-sheet jump is; an unresolvable href falls
-        // back to resuming. The locator blob is opaque to the core; only
-        // Readium parses it. A blob this navigator cannot read (corrupt, or
-        // from a future format) degrades to opening at the start, never to
-        // a crash.
-        val chapterTarget = initialChapterHref
-            ?.let { href -> Url(href) }
-            ?.let { url -> publication.locatorFromLink(Link(href = url)) }
-        val initialLocator = chapterTarget ?: core.locator?.let { raw ->
-            runCatching { Locator.fromJSON(JSONObject(raw)) }.getOrNull()
+    private suspend fun persistPendingProgress() {
+        enqueueCoreWrite { writePendingProgress() }
+    }
+
+    private suspend fun writePendingProgress() {
+        val pending = pendingProgress.value ?: return
+        if (pending.coordinate == lastPersisted) return
+        writeLock.withLock {
+            val latest = pendingProgress.value ?: return@withLock
+            val shelf = bookshelf ?: return@withLock
+            runCatching {
+                shelf.progress().updateProgress(publicationId, latest.coordinate, latest.progression, latest.position)
+                lastPersisted = latest.coordinate
+            }.onFailure { Log.w(TAG, "updateProgress failed", it) }
+        }
+    }
+
+    private fun retryPendingSettle(spineIdx: UInt) {
+        val (spine, page) = pendingSettle ?: return
+        if (spine != spineIdx) return
+        pendingSettle = null
+        onPageSettled(spine, page)
+    }
+
+    fun onFirstPageReady(spineIdx: UInt) {
+        retryPendingSettle(spineIdx)
+        if (spineIdx == targetCoordinate?.spineIdx && firstPageReadyMs == null) {
+            firstPageReadyMs = SystemClock.uptimeMillis()
+            logPerf("open_to_first_page_ready_ms", openedAtMs)
+        }
+    }
+
+    fun onChapterReady(spineIdx: UInt) {
+        retryPendingSettle(spineIdx)
+        if (spineIdx == targetCoordinate?.spineIdx && !didLogChapterComplete) {
+            didLogChapterComplete = true
+            logPerf("chapter_layout_complete_ms", openedAtMs)
+        }
+    }
+
+    fun onCurrentPageDrawn() {
+        if (didLogFirstRender) return
+        didLogFirstRender = true
+        firstPageReadyMs?.let { logPerf("first_page_ready_to_first_render_ms", it) }
+        ReaderPerf.tapUptimeMs.takeIf { it > 0L }?.let { logPerf("tap_to_first_page_ms", it) }
+    }
+
+    /** Runs on the retained ViewModel scope, not a composition-scoped job. */
+    fun requestAppearanceUpdate(settings: ReaderLayoutSettings, viewport: Viewport) {
+        if (readerClosed) return
+        viewModelScope.launch { relayoutLock.withLock { updateAppearance(settings, viewport) } }
+    }
+
+    /** Relayouts, then emits an invalidation before draining live callbacks. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun updateAppearance(settings: ReaderLayoutSettings, target: Viewport): Boolean =
+        withContext(Dispatchers.Main.immediate) {
+            val session = readerSession ?: return@withContext false
+            currentAnchor = currentCoordinate()
+            // The relayout re-anchor supersedes any settle waiting on the
+            // old generation's page numbering.
+            pendingSettle = null
+            layoutChangeInFlight = true
+            var updated = false
+            try {
+                withContext(Dispatchers.Default) { session.updateLayout(target, settings) }
+                updated = true
+                appliedViewport = target
+                _layoutEvents.resetReplayCache()
+                _layoutEvents.emit(LayoutEvent.Invalidated)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                Log.w(TAG, "reader relayout failed", failure)
+            } finally {
+                withContext(NonCancellable) {
+                    layoutChangeInFlight = false
+                    val buffered = pendingLayoutEvents.toList()
+                    pendingLayoutEvents.clear()
+                    buffered.forEach { if (acceptGeneration(it.generation)) _layoutEvents.emit(it) }
+                }
+            }
+            updated
         }
 
-        ReaderBook(
-            core = core,
-            publication = publication,
-            navigatorFactory = EpubNavigatorFactory(publication),
-            initialLocator = initialLocator,
-            positionCount = positionCount,
-            chapters = chapters,
-            resourceStarts = positionsByResource.map {
-                it.firstOrNull()?.locations?.position ?: 0
-            },
-            resourceCounts = positionsByResource.map { it.size },
-        )
-    }
-
-    /** Where [href] sits in the reading order, ignoring any fragment. */
-    private fun readingOrderIndex(publication: Publication, href: Url): Int? {
-        val target = href.removeFragment().normalize()
-        return publication.readingOrder
-            .indexOfFirst { link -> link.url().normalize().removeFragment() == target }
-            .takeIf { it >= 0 }
-    }
-
     /**
-     * The TOC entry to mark as "you are here" for [locator].
-     *
-     * Highlights the last chapter whose resource starts at or before the
-     * current resource, resolving a tie — several chapters sharing one
-     * XHTML file, which is how many EPUBs are built — to the first of them.
-     * A resource with no TOC entry of its own therefore keeps the preceding
-     * chapter lit rather than clearing the highlight. Matching is on
-     * reading-order indices, never on href strings, so an entry whose href
-     * merely spells the current one differently still counts.
+     * Whether the surface's measured viewport no longer matches the one the
+     * session laid out for — true after a rotation recreated the activity
+     * (or a split-screen resize reshaped the pane) while this retained
+     * session kept the old geometry.
      */
-    fun currentChapterIndex(locator: Locator?): Int? {
-        val book = (stateFlow.value as? UiState.Ready)?.book ?: return null
-        val here = locator?.let { readingOrderIndex(book.publication, it.href) } ?: return null
-        val chapterResource = book.chapters
-            .mapNotNull { it.resourceIndex }
-            .filter { it <= here }
-            .maxOrNull() ?: return null
-        return book.chapters.indexOfFirst { it.resourceIndex == chapterResource }.takeIf { it >= 0 }
+    fun needsViewportRelayout(viewport: Viewport): Boolean {
+        val applied = appliedViewport ?: return false
+        return viewport != applied
     }
 
-    /** Resolves a core chapter's href into a navigator jump target. */
-    fun chapterLocator(chapter: Chapter): Locator? {
-        val book = (stateFlow.value as? UiState.Ready)?.book ?: return null
-        val url = Url(chapter.href) ?: return null
-        return book.publication.locatorFromLink(Link(href = url))
-    }
-
-    /**
-     * One in-book search hit, projected stable for Compose off the core's
-     * record (UniFFI records are `var`-fielded and recompose on every read).
-     */
-    data class SearchHit(
-        /** Reading-order index of the resource the hit sits in. */
-        val spineIndex: Int,
-        /** Package-relative href of that resource. */
-        val href: String,
-        /** Char offset of the match — with [spineIndex], a stable key. */
-        val charOffset: Long,
-        val snippetPre: String,
-        val snippetMatch: String,
-        val snippetPost: String,
-        /** In-resource progression, 0..1: the jump target's precision. */
-        val progression: Double,
-        /** Readium synthetic position of the hit, when computable. */
-        val position: Int?,
-    )
-
-    /** What one search answered: hits, the true total, and whether it ran. */
-    data class SearchOutcome(
-        val hits: List<SearchHit> = emptyList(),
-        /** The core's total, which may exceed [hits] — the cap is ours. */
-        val total: Int = 0,
-        /** The index is derived data; a failure means "not right now". */
-        val unavailable: Boolean = false,
-    )
-
-    /**
-     * In-book search through the core's case-folded, CJK-aware index.
-     *
-     * Suspends on the caller's coroutine, so a debounced caller cancelling
-     * a keystroke cancels the query with it. Positions are resolved here,
-     * against the same Readium synthetic positions the footer counts in.
-     */
     suspend fun search(query: String): SearchOutcome {
-        val book = (stateFlow.value as? UiState.Ready)?.book ?: return SearchOutcome()
         val shelf = bookshelf ?: return SearchOutcome()
         val results = try {
-            shelf.searchInBook(publicationId, query, SEARCH_LIMIT)
-        } catch (cancellation: kotlinx.coroutines.CancellationException) {
-            throw cancellation
+            shelf.search().searchInBook(publicationId, query, SEARCH_LIMIT)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (failure: Throwable) {
             Log.w(TAG, "searchInBook failed", failure)
             return SearchOutcome(unavailable = true)
         }
         return SearchOutcome(
-            hits = results.hits.map { hit ->
-                // The href is authoritative; the core's spine index is the
-                // fallback for a resource this navigator spells differently.
-                val resource = Url(hit.href)
-                    ?.let { readingOrderIndex(book.publication, it) }
-                    ?: hit.spineIdx.toInt()
-                SearchHit(
-                    spineIndex = resource,
-                    href = hit.href,
-                    charOffset = hit.charOffset.toLong(),
-                    snippetPre = hit.snippetPre,
-                    snippetMatch = hit.snippetMatch,
-                    snippetPost = hit.snippetPost,
-                    progression = hit.progression,
-                    position = positionOf(book, resource, hit.progression),
-                )
-            },
+            hits = results.hits.map { hit -> hit.toSearchHit(results.canonical, shelf) },
             total = results.total.toInt(),
         )
     }
 
-    /**
-     * Where a hit falls in Readium's synthetic positions: the resource's
-     * first position plus the whole positions its progression covers,
-     * clamped inside the resource. Null when positions are unknown — an
-     * honest blank beats an invented page.
-     */
-    private fun positionOf(book: ReaderBook, resource: Int, progression: Double): Int? {
-        val start = book.resourceStarts.getOrNull(resource) ?: return null
-        val count = book.resourceCounts.getOrNull(resource) ?: return null
-        if (start <= 0 || count <= 0) return null
-        val within = (progression.coerceIn(0.0, 1.0) * count).toInt().coerceIn(0, count - 1)
-        return start + within
-    }
-
-    /** The navigator jump target for a search hit. */
-    fun searchLocator(hit: SearchHit): Locator? {
-        val book = (stateFlow.value as? UiState.Ready)?.book ?: return null
-        val url = Url(hit.href) ?: return null
-        val locator = book.publication.locatorFromLink(Link(href = url)) ?: return null
-        return locator.copyWithLocations(
-            progression = hit.progression,
-            position = hit.position,
+    private suspend fun BookSearchHit.toSearchHit(canonical: Boolean, shelf: app.inkuna.core.Bookshelf): SearchHit {
+        val coordinate = takeIf { canonical }?.let { Coordinate(spineIdx, charOffset.toULong()) }
+        return SearchHit(
+            spineIdx = spineIdx,
+            charOffset = coordinate?.charOffset,
+            snippetPre = snippetPre,
+            snippetMatch = snippetMatch,
+            snippetPost = snippetPost,
+            matchLength = snippetMatch.codePointCount(0, snippetMatch.length).toULong(),
+            position = coordinate?.let { runCatching { ReaderPositions.position(it, publicationId, shelf) }.getOrNull() },
         )
     }
 
-    /** One call per page turn, from the navigator's locator flow. */
-    fun onLocatorChanged(locator: Locator) {
-        pendingProgress.value = locator
+    fun coordinateForBookmark(bookmark: Bookmark, onUnavailable: () -> Unit): Coordinate? =
+        bookmark.coordinate ?: readerSession?.let {
+            coordinateForProgression(bookmark.progression, it)
+        } ?: run {
+            onUnavailable()
+            null
+        }
+
+    private fun coordinateForProgression(progression: Double, session: ReaderSession): Coordinate? {
+        val count = session.positionCount()
+        // Defensive only: core's position_count floors at 1 (rebaseline.rs
+        // documents "1/1 when no position rows exist"), so this branch is
+        // unreachable under the current contract.
+        if (count == 0u) return null
+        val position = minOf(maxOf((progression * count.toDouble()).roundToLong().toUInt(), 1u), count)
+        return session.coordinateAtPosition(position)
     }
 
-    /**
-     * Writes the newest unpersisted page position, if there is one.
-     *
-     * The pending locator is read *inside* the lock rather than passed in:
-     * a caller that waited on the lock would otherwise commit whatever page
-     * it captured before waiting, letting an older locator land last.
-     */
-    private suspend fun persistPendingProgress() {
-        val shelf = bookshelf ?: return
-        withContext(NonCancellable + Dispatchers.Default) {
-            writeLock.withLock {
-                val locator = pendingProgress.value ?: return@withLock
-                if (locator === lastPersisted) return@withLock
-                // The book-wide totalProgression, never the per-resource one.
-                val progression = locator.locations.totalProgression ?: return@withLock
-                lastPersisted = locator
-                runCatching {
-                    shelf.updateProgress(
-                        publicationId,
-                        locator.toJSON().toString(),
-                        progression,
-                        locator.locations.position?.toUInt(),
-                    )
-                }.onFailure { Log.w(TAG, "updateProgress failed", it) }
-            }
+    fun addBookmark(coordinate: Coordinate, progression: Double, onPlaced: () -> Unit) {
+        enqueueCoreWrite {
+            val shelf = bookshelf ?: return@enqueueCoreWrite
+            runCatching { shelf.library().addBookmark(publicationId, coordinate, progression) }
+                .onSuccess { withContext(Dispatchers.Main.immediate) { onPlaced() } }
+                .onFailure { Log.w(TAG, "addBookmark failed", it) }
         }
     }
 
-    /**
-     * Reading sessions bracket the reader's visible lifetime — entered /
-     * left / backgrounded — and power the Stats screen. Writes run on the
-     * application scope so popping the reader never cancels the closing
-     * write; a session lost to a crash is closed retroactively by the
-     * core at the next `sessionStart`.
-     */
     fun onReaderVisible() {
         enqueueCoreWrite {
-            withContext(NonCancellable) {
-                writeLock.withLock {
-                    if (sessionId != null) return@withLock
-                    val shelf = bookshelf ?: return@withLock
-                    sessionId = runCatching { shelf.sessionStart(publicationId) }
-                        .onFailure { Log.w(TAG, "sessionStart failed", it) }
-                        .getOrNull()
-                }
+            writeLock.withLock {
+                if (sessionId == null) sessionId = runCatching { sessionShelf().stats().sessionStart(publicationId) }
+                    .onFailure { Log.w(TAG, "sessionStart failed", it) }.getOrNull()
             }
         }
     }
 
     fun onReaderHidden() {
-        endSitting(closePublication = false)
-    }
-
-    /**
-     * The one teardown coroutine: the final page position lands first, then
-     * the session closes around it, and — when the reader is going away for
-     * good — the container is released. One coroutine, so the order is the
-     * order of these lines rather than of whichever thread woke first.
-     */
-    private fun endSitting(closePublication: Boolean) {
         enqueueCoreWrite {
-            persistPendingProgress()
+            writePendingProgress()
             endSession()
-            if (closePublication) {
-                openPublication.getAndSet(null)?.let { close(it) }
-            }
         }
     }
 
     private suspend fun endSession() {
-        withContext(NonCancellable) {
-            writeLock.withLock {
-                val id = sessionId ?: return@withLock
-                sessionId = null
-                val shelf = bookshelf ?: return@withLock
-                runCatching { shelf.sessionEnd(id) }
-                    .onFailure { Log.w(TAG, "sessionEnd failed", it) }
-            }
+        writeLock.withLock {
+            val id = sessionId ?: return
+            sessionId = null
+            runCatching { sessionShelf().stats().sessionEnd(id) }
+                .onFailure { Log.w(TAG, "sessionEnd failed", it) }
         }
     }
 
-    /**
-     * Snapshots and releases the current container on the calling thread,
-     * then closes that exact instance off it. Capturing the reference
-     * before anything else can run is what keeps a close scheduled for a
-     * dead attempt away from the container a retry opens next.
-     */
-    private fun closeOpenPublicationAsync() {
-        val publication = openPublication.getAndSet(null) ?: return
-        LibraryStore.writes.launch { close(publication) }
+    // Callers span Main.immediate and Default dispatchers, so the tail swap
+    // must be an atomic read-launch-store or two writes can chain off the
+    // same predecessor and run concurrently.
+    private fun enqueueCoreWrite(block: suspend () -> Unit): Job = synchronized(writeTailLock) {
+        val previous = writeTail
+        LibraryStore.writes.launch {
+            previous?.join()
+            withContext(NonCancellable) { block() }
+        }.also { writeTail = it }
     }
 
-    /** `Publication.close()` blocks, so it never runs on the main thread. */
-    private suspend fun close(publication: Publication) {
-        withContext(NonCancellable + Dispatchers.IO) {
-            runCatching { publication.close() }
-                .onFailure { Log.w(TAG, "closing the publication failed", it) }
-        }
-    }
+    private fun session(): ReaderSession = readerSession
+        ?: error("reader session is not open")
 
-    /**
-     * Persists a bookmark at [locator]; [onPlaced] confirms on success.
-     *
-     * On the application write scope, like the session writes above: leaving
-     * the book the instant after the tap must not cancel the write. The
-     * confirmation ([onPlaced] drives haptics and the toast) is dispatched
-     * back to the main thread.
-     */
-    fun addBookmark(locator: Locator, onPlaced: () -> Unit) {
-        val shelf = bookshelf ?: return
-        enqueueCoreWrite {
-            // The main-thread confirmation hop stays outside the lock: held
-            // across it, every other reader write would queue behind main-
-            // thread availability.
-            writeLock.withLock {
-                runCatching {
-                    shelf.addBookmark(
-                        publicationId,
-                        locator.toJSON().toString(),
-                        locator.locations.totalProgression ?: 0.0,
-                    )
-                }
-            }
-                .onSuccess { withContext(Dispatchers.Main) { onPlaced() } }
-                .onFailure { Log.w(TAG, "addBookmark failed", it) }
-        }
+    private fun sessionShelf() = bookshelf ?: error("bookshelf is not open")
+
+    private fun layoutSettings(snapshot: AppSettings.Snapshot) = snapshot.readerLayoutSettings()
+
+    fun settingsFor(snapshot: AppSettings.Snapshot): ReaderLayoutSettings = snapshot.readerLayoutSettings()
+
+    private fun logPerf(name: String, since: Long) {
+        Log.i("InkunaPerf", "$name=${SystemClock.uptimeMillis() - since}")
     }
 
     override fun onCleared() {
-        // The last page turn may still sit unconsumed in the conflated flow.
-        // It flushes ahead of the session's closing write, and the container
-        // closes only once both have landed.
-        endSitting(closePublication = true)
+        readerClosed = true
+        val closingSession = readerSession
+        readerSession = null
+        layoutChangeInFlight = false
+        pendingStartupEvents.clear()
+        pendingLayoutEvents.clear()
+        onReaderHidden()
+        openJob?.cancel()
+        if (closingSession != null) {
+            LibraryStore.writes.launch {
+                runCatching { closingSession.close() }
+                    .onFailure { Log.w(TAG, "closing reader session failed", it) }
+            }
+        }
         super.onCleared()
     }
 
-    private class ReaderOpenException(message: String) : Exception(message)
-
     companion object {
         private const val TAG = "InkunaReader"
-
-        /** More hits than a panel can be scrolled through in one sitting;
-         *  the true total is reported separately. */
         private const val SEARCH_LIMIT = 200u
 
         fun factory(publicationId: String, initialChapterHref: String? = null) = viewModelFactory {
-            initializer {
-                val application = this[AndroidViewModelFactory.APPLICATION_KEY]!!
-                ReaderViewModel(application, publicationId, initialChapterHref)
-            }
+            initializer { ReaderViewModel(this[AndroidViewModelFactory.APPLICATION_KEY]!!, publicationId, initialChapterHref) }
         }
     }
-}
-
-/**
- * Books frequently ship `page-break-inside: avoid` on whole paragraphs or
- * wrapper divs; the column fragmenter then carries the entire block to the
- * next page, leaving the bottom of the previous one blank. Appended after
- * the author's styles, this lets running text fragment normally again.
- * Headings, figures, images and tables keep Readium CSS's own
- * keep-together rules — those are small and typographically right.
- */
-private const val FRAGMENTATION_FIX_STYLE =
-    "<style>" +
-        "p, blockquote, li, dd, div, section, aside {" +
-        "break-inside: auto !important;" +
-        "page-break-inside: auto !important;" +
-        "-webkit-column-break-inside: auto !important;" +
-        "}" +
-        "</style>"
-
-private val FRAGMENTATION_FIX_EXTENSIONS = setOf("xhtml", "html", "htm")
-
-private val FRAGMENTATION_FIX_STYLE_BYTES = FRAGMENTATION_FIX_STYLE.toByteArray(Charsets.US_ASCII)
-
-/** XHTML mandates lowercase; the uppercase form covers stray HTML. */
-private val HEAD_CLOSE_MARKERS = listOf(
-    "</head>".toByteArray(Charsets.US_ASCII),
-    "</HEAD>".toByteArray(Charsets.US_ASCII),
-)
-
-/**
- * Injects [FRAGMENTATION_FIX_STYLE] at the end of an XHTML resource's
- * `<head>`. The splice is done on raw bytes, never through a decoded
- * string: the ASCII marker survives any ASCII-compatible encoding
- * (including legacy CJK ones) unchanged, and in UTF-16 its interleaved
- * NULs mean the marker simply isn't found — the resource passes through
- * untouched instead of being corrupted by a lossy decode round-trip.
- * NCX and non-XHTML resources are never touched.
- */
-private fun fixFragmentation(url: Url, resource: Resource): Resource {
-    if (url.extension?.value?.lowercase() !in FRAGMENTATION_FIX_EXTENSIONS) return resource
-    return TransformingResource(resource) { bytes ->
-        val head = HEAD_CLOSE_MARKERS.firstNotNullOfOrNull { marker ->
-            bytes.lastIndexOf(marker).takeIf { it >= 0 }
-        }
-        Try.success(
-            if (head == null) {
-                bytes
-            } else {
-                ByteArray(bytes.size + FRAGMENTATION_FIX_STYLE_BYTES.size).also { out ->
-                    bytes.copyInto(out, 0, 0, head)
-                    FRAGMENTATION_FIX_STYLE_BYTES.copyInto(out, head)
-                    bytes.copyInto(out, head + FRAGMENTATION_FIX_STYLE_BYTES.size, head, bytes.size)
-                }
-            },
-        )
-    }
-}
-
-private fun ByteArray.lastIndexOf(needle: ByteArray): Int {
-    outer@ for (start in size - needle.size downTo 0) {
-        for (i in needle.indices) {
-            if (this[start + i] != needle[i]) continue@outer
-        }
-        return start
-    }
-    return -1
 }

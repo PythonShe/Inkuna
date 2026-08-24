@@ -144,9 +144,9 @@ final class ImportDebugViewController: ScrollScreenViewController {
     private func resetLibrary() {
         Task {
             guard let shelf = try? await LibraryStore.shared.library() else { return }
-            let books = (try? await shelf.list(shelf: .all, sort: .recentlyAdded)) ?? []
+            let books = (try? await shelf.library().list(shelf: .all, sort: .recentlyAdded)) ?? []
             for book in books {
-                try? await shelf.remove(id: book.id)
+                try? await shelf.library().remove(id: book.id)
             }
             reload()
         }
@@ -158,7 +158,7 @@ final class ImportDebugViewController: ScrollScreenViewController {
         Task {
             let books: [Publication]
             do {
-                books = try await LibraryStore.shared.library().list(shelf: .all, sort: .recentlyAdded)
+                books = try await LibraryStore.shared.library().library().list(shelf: .all, sort: .recentlyAdded)
             } catch {
                 books = []
             }

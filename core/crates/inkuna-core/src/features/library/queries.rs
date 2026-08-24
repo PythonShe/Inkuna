@@ -1,6 +1,7 @@
-//! Read side: shelves, sort orders, single publications, and the TOC.
+//! Read side: shelves, sort orders, single publications, the TOC, and
+//! the spine.
 
-use super::model::{map_publication, Chapter, Publication, Shelf, Sort, PUB_COLUMNS};
+use super::model::{map_publication, Chapter, Publication, Shelf, Sort, SpineEntry, PUB_COLUMNS};
 use super::Library;
 use crate::CoreError;
 
@@ -73,5 +74,42 @@ impl Library {
             self.publication(id)?;
         }
         Ok(chapters)
+    }
+
+    /// The publication's spine in reading order — the `spine_idx` →
+    /// resource-href map a stored `Coordinate` needs when no reader
+    /// session is open (naming the current chapter on a Home or Detail
+    /// screen). Entry `n` always has `spine_idx == n`: the rows come back
+    /// ordered and the import pipeline numbers them densely from 0, so a
+    /// caller may index the `Vec` directly by a coordinate's `spine_idx`
+    /// after a bounds check.
+    ///
+    /// Deliberately not folded into [`Chapter`]: the TOC-to-spine mapping
+    /// is lossy in both directions — a chapter whose href matches no
+    /// spine resource has no spine index at all, and one chapter may
+    /// cover several spine items — so a `spine_idx` field on `Chapter`
+    /// could not answer this honestly.
+    ///
+    /// Empty only for a publication with no spine rows; an unknown id
+    /// throws `NotFound`.
+    pub fn spine(&self, id: &str) -> Result<Vec<SpineEntry>, CoreError> {
+        let spine: Vec<SpineEntry> = self.readers.with(|conn| {
+            let mut stmt = conn.prepare_cached(
+                "SELECT spine_idx, href FROM resources
+                 WHERE publication_id = ?1 ORDER BY spine_idx",
+            )?;
+            let rows = stmt.query_map([id], |row| {
+                Ok(SpineEntry {
+                    spine_idx: row.get(0)?,
+                    href: row.get(1)?,
+                })
+            })?;
+            rows.collect::<Result<_, _>>().map_err(Into::into)
+        })?;
+        if spine.is_empty() {
+            // Distinguish "no spine rows" from "no such publication".
+            self.publication(id)?;
+        }
+        Ok(spine)
     }
 }

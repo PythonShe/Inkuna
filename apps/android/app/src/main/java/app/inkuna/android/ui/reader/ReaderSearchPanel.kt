@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -250,11 +251,14 @@ fun ReaderSearchPanel(
                                 contentDescription = countLabel
                             },
                     ) {
-                        items(
+                        itemsIndexed(
                             outcome.hits,
-                            key = { hit -> "${hit.spineIndex}:${hit.charOffset}" },
-                        ) { hit ->
-                            SearchResultRow(hit = hit, onClick = { onSelect(hit) })
+                            key = { index, hit -> "${hit.spineIdx}:${hit.charOffset}:$index" },
+                        ) { _, hit ->
+                            SearchResultRow(
+                                hit = hit,
+                                onClick = hit.charOffset?.let { { onSelect(hit) } },
+                            )
                         }
                     }
                 }
@@ -268,8 +272,9 @@ fun ReaderSearchPanel(
  * synthetic page it sits on — omitted rather than guessed when unknown.
  */
 @Composable
-private fun SearchResultRow(hit: ReaderViewModel.SearchHit, onClick: () -> Unit) {
+private fun SearchResultRow(hit: ReaderViewModel.SearchHit, onClick: (() -> Unit)?) {
     val ink = InkTheme.colors
+    val isNavigable = onClick != null
     // `snippetPre` / `snippetPost` already carry their own ellipses.
     val snippet = remember(hit, ink.accentText) {
         buildAnnotatedString {
@@ -283,13 +288,14 @@ private fun SearchResultRow(hit: ReaderViewModel.SearchHit, onClick: () -> Unit)
     Column(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier)
+            .alpha(if (isNavigable) 1f else 0.55f)
             .padding(horizontal = 4.dp, vertical = 11.dp)
     ) {
         Text(
             snippet,
             style = InkType.reading.copy(fontSize = 15.sp, lineHeight = 22.sp),
-            color = ink.textDisplay,
+            color = if (isNavigable) ink.textDisplay else ink.textTertiary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )

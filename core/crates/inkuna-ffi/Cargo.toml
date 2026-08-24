@@ -3,6 +3,7 @@ name = "inkuna-ffi"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "inkuna_ffi"
@@ -18,3 +19,7 @@ inkuna-core = { path = "../inkuna-core" }
 uniffi = { version = "0.32", features = ["cli", "tokio"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 thiserror = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tempfile = "3"

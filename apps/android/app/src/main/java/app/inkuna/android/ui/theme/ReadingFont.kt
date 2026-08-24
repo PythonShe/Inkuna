@@ -12,13 +12,17 @@ import app.inkuna.android.R
 /**
  * The reader's font roster (the Font list in the Customize panel).
  *
- * Stored by the core as an opaque id — like the reading theme — so fonts
- * can ship shell-first. Bundled faces are the Noto Latin variable cuts in
- * `assets/fonts/`; CJK glyphs always fall through to the system faces,
- * which is a product requirement, never an omission.
+ * Stored by the core as an opaque id. [Publisher] keeps the book's own
+ * embedded faces; the `system-*` ids select the platform faces registered
+ * with the engine at startup; the `noto-*` ids pin the bundled Latin
+ * variable cuts in `assets/fonts/`. CJK glyphs always fall through to the
+ * bundled CJK Notos, which is a product requirement, never an omission.
  */
 enum class ReadingFont(val id: String, @param:StringRes val nameRes: Int) {
-    /** The publication's own faces: no font-family rule is emitted. */
+    /**
+     * The publication's own faces: the engine honors the book's
+     * `@font-face` rules and falls back to Noto Serif.
+     */
     Publisher("publisher", R.string.reader_font_publisher),
     SystemSerif("system-serif", R.string.reader_font_system_serif),
     SystemSans("system-sans", R.string.reader_font_system_sans),
@@ -26,42 +30,40 @@ enum class ReadingFont(val id: String, @param:StringRes val nameRes: Int) {
     NotoSans("noto-sans", R.string.reader_font_noto_sans),
     ;
 
-    /**
-     * The CSS font-family stack injected into the page, or null for
-     * [Publisher]. Bundled families are namespaced "Inkuna Noto …"
-     * because a publisher may embed a face literally named "Noto Serif";
-     * the trailing generic keeps per-glyph CJK fallback intact.
-     */
-    val cssStack: String?
-        get() = when (this) {
-            Publisher -> null
-            SystemSerif -> "serif"
-            SystemSans -> "sans-serif"
-            NotoSerif -> "\"Inkuna Noto Serif\",serif"
-            NotoSans -> "\"Inkuna Noto Sans\",sans-serif"
-        }
-
     companion object {
+        /** The fresh-install face — mirrors the core DB default. */
         val DEFAULT = Publisher
 
-        /** Case-insensitive parse; unknown ids render as the default. */
-        fun from(id: String): ReadingFont =
-            entries.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: DEFAULT
+        /**
+         * Known ids map to themselves; anything else folds to [NotoSerif],
+         * exactly as the engine folds unknown ids, so the shell's readout
+         * and the laid-out page can never disagree.
+         */
+        fun normalize(stored: String): ReadingFont {
+            val id = stored.trim().lowercase()
+            return entries.firstOrNull { it.id == id } ?: NotoSerif
+        }
+
+        fun from(id: String): ReadingFont = normalize(id)
     }
 }
 
 /**
- * The face the "Aa" specimens and the preview card render in — loaded from
- * the same asset files the WebView is served, so specimen and page can
- * never disagree. Deliberately NOT part of [InkSerif]/[InkSans]: a bundled
- * Latin face in the app-wide fallback chain would break CJK UI text.
+ * The face the "Aa" specimens and the Font menu items render in. UI-only:
+ * the reading surface gets its faces from the engine's registry.
+ * [ReadingFont.Publisher] renders in [publisher] — the real embedded face
+ * the reader samples from the live session — and stands in with the serif
+ * reading face while none is known. Deliberately NOT part of
+ * [InkSerif]/[InkSans]: a bundled Latin face in the app-wide fallback
+ * chain would break CJK UI text.
  */
 @Composable
-fun ReadingFont.composeFamily(): FontFamily {
+fun ReadingFont.composeFamily(publisher: FontFamily? = null): FontFamily {
     val assets = LocalContext.current.assets
     return when (this) {
-        ReadingFont.Publisher, ReadingFont.SystemSerif -> InkSerif
-        ReadingFont.SystemSans -> InkSans
+        ReadingFont.Publisher -> publisher ?: FontFamily.Serif
+        ReadingFont.SystemSerif -> FontFamily.Serif
+        ReadingFont.SystemSans -> FontFamily.SansSerif
         ReadingFont.NotoSerif -> remember(assets) {
             FontFamily(
                 Font("fonts/NotoSerif.ttf", assets),

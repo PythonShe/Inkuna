@@ -21,18 +21,31 @@ pub enum InkunaError {
     UnsupportedFormat { format: Option<String> },
     #[error("invalid publication: {detail}")]
     InvalidPublication { detail: String },
-    #[error("invalid position ranges: expected {expected} resources, received {actual} (zero count: {has_zero})")]
-    InvalidPositionRanges {
-        expected: u32,
-        actual: u32,
-        has_zero: bool,
-    },
+    /// The reader engine has not laid out the requested page or position
+    /// yet — re-query after a layout event, never an error about the book.
+    #[error("layout not ready")]
+    NotReady { detail: String },
+    /// Content beyond what the reader engine can lay out (fixed-layout,
+    /// an unsupported structure). `detail` is for logs, not users.
+    #[error("unsupported content: {detail}")]
+    UnsupportedContent { detail: String },
+    #[error("layout budget exceeded: {detail}")]
+    LayoutBudgetExceeded { detail: String },
+    /// A jump target (TOC fragment, stored position) that does not exist
+    /// in the laid-out content.
+    #[error("anchor not found: {detail}")]
+    AnchorNotFound { detail: String },
     /// The search index failed; it is derived data, so a shell can treat
     /// this as "search unavailable right now".
     #[error("search index error: {detail}")]
     Search { detail: String },
     #[error("publication not found: {id}")]
     NotFound { id: String },
+    /// A lifecycle-ordering violation at the FFI boundary itself (e.g.
+    /// registering system fonts after the font registry already loaded)
+    /// — no `CoreError` twin because the core never produces it.
+    #[error("invalid state: {detail}")]
+    InvalidState { detail: String },
 }
 
 impl From<inkuna_core::CoreError> for InkunaError {
@@ -49,15 +62,12 @@ impl From<inkuna_core::CoreError> for InkunaError {
             C::Archive(m) => InkunaError::Archive { detail: m },
             C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat { format: f },
             C::InvalidPublication(m) => InkunaError::InvalidPublication { detail: m },
-            C::InvalidPositionRanges {
-                expected,
-                actual,
-                has_zero,
-            } => InkunaError::InvalidPositionRanges {
-                expected,
-                actual,
-                has_zero,
+            C::NotReady => InkunaError::NotReady {
+                detail: String::new(),
             },
+            C::UnsupportedContent(m) => InkunaError::UnsupportedContent { detail: m },
+            C::LayoutBudgetExceeded(m) => InkunaError::LayoutBudgetExceeded { detail: m },
+            C::AnchorNotFound(m) => InkunaError::AnchorNotFound { detail: m },
             C::Search(e) => InkunaError::Search {
                 detail: e.to_string(),
             },

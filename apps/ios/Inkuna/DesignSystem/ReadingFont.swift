@@ -2,30 +2,29 @@ import UIKit
 
 /// The reader's font roster (the Font list in the Customize panel).
 ///
-/// Stored by the core as an opaque id — like `ReadingTheme` — so fonts can
-/// ship shell-first. Bundled faces are the Noto Latin variable cuts; CJK
-/// glyphs always fall through to the system faces, which is a product
-/// requirement, never an omission.
+/// Stored by the core as an opaque id. `publisher` keeps the book's own
+/// embedded faces; the `system-*` ids select the platform faces registered
+/// with the engine at startup; the `noto-*` ids pin the bundled Latin
+/// variable cuts. CJK glyphs always fall through to the bundled CJK Notos,
+/// which is a product requirement, never an omission.
 enum ReadingFont: String, CaseIterable {
-    /// The publication's own faces: no font-family rule is emitted at all.
+    /// The publication's own faces: the engine honors the book's
+    /// @font-face rules and falls back to Noto Serif.
     case publisher
     case systemSerif = "system-serif"
     case systemSans = "system-sans"
     case notoSerif = "noto-serif"
     case notoSans = "noto-sans"
 
-    /// The CSS font-family stack for the reading web view, or nil for
-    /// `.publisher`. The bundled families are namespaced "Inkuna Noto …"
-    /// because a publisher may embed a face literally named "Noto Serif";
-    /// the trailing generic keeps per-glyph CJK fallback intact.
-    var cssStack: String? {
-        switch self {
-        case .publisher: nil
-        case .systemSerif: #"ui-serif, "Times New Roman", serif"#
-        case .systemSans: "-apple-system, system-ui, sans-serif"
-        case .notoSerif: #""Inkuna Noto Serif", serif"#
-        case .notoSans: #""Inkuna Noto Sans", sans-serif"#
-        }
+    /// The fresh-install face — mirrors the core DB default.
+    static let standard: ReadingFont = .publisher
+
+    /// Known ids map to themselves; anything else folds to `.notoSerif`,
+    /// exactly as the engine folds unknown ids, so the shell's readout and
+    /// the laid-out page can never disagree.
+    static func normalize(_ stored: String) -> ReadingFont {
+        let id = stored.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return ReadingFont(rawValue: id) ?? .notoSerif
     }
 
     var displayName: String {
@@ -38,14 +37,12 @@ enum ReadingFont: String, CaseIterable {
         }
     }
 
-    /// Native face for the preview card and the "Aa" specimens. The web
-    /// view never sees app-registered fonts, so this is UI-only; the
-    /// reading surface gets the same faces through @font-face. `.publisher`
-    /// has no knowable face natively and stands in with the serif reading
-    /// face.
+    /// Native face for the preview card's specimen. UI-only: the reading
+    /// surface gets its faces from the engine's registry. `.publisher` has
+    /// no knowable face here and stands in with the serif reading face.
     func previewFont(size: CGFloat, bold: Bool) -> UIFont {
-        // The reading surface maps the bold toggle to weight 600.
-        let weight: UIFont.Weight = bold ? .semibold : .regular
+        // The reading surface maps the bold toggle to weight 700.
+        let weight: UIFont.Weight = bold ? .bold : .regular
         switch self {
         case .publisher, .systemSerif:
             let base = UIFont.systemFont(ofSize: size, weight: weight)
@@ -64,15 +61,14 @@ enum ReadingFont: String, CaseIterable {
     /// name lookups only reach the default instance of a variable font.
     /// Falls back to the system face if the bundle lost the file.
     private static func notoFont(named postScriptName: String, size: CGFloat, bold: Bool) -> UIFont {
-        let wghtAxis = 0x77676874 // 'wght'
         let variation = UIFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String)
         let descriptor = UIFontDescriptor(fontAttributes: [
             .name: postScriptName,
-            variation: [wghtAxis: bold ? 600 : 400],
+            variation: [0x77676874: bold ? 700 : 400], // 'wght'
         ])
         let font = UIFont(descriptor: descriptor, size: size)
         guard font.fontName.hasPrefix("Noto") else {
-            return .systemFont(ofSize: size, weight: bold ? .semibold : .regular)
+            return .systemFont(ofSize: size, weight: bold ? .bold : .regular)
         }
         return font
     }

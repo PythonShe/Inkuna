@@ -125,9 +125,21 @@ fun BookDetailScreen(
             Spacer(Modifier.height(InkSpace.s5))
             val progress = book.progress ?: 0
             InkProgressBar(progress, Modifier.width(200.dp))
-            // The honest position line, mirroring the reader: "p. N of M"
-            // only when the stored locator carries a synthetic position and
-            // the core knows the count — never a fictional page number.
+            // The honest position line, entirely in the core's position
+            // space: "p. N of M" only when the book carries a coordinate
+            // the core can resolve to a position, and knows its count —
+            // never a fictional page number.
+            //
+            // ENGINE-SWAP INTERIM: this does NOT match the reader's own
+            // page-info line, which is core-computed from the canonical
+            // projection — different N
+            // and different M for the same book. Only books whose
+            // coordinate came from the core's rebaseline show a page number
+            // here at all; the reader writes no coordinate during the
+            // interim, so a freshly-read book degrades to the percentage
+            // rather than showing a number that disagrees with its own
+            // percentage. The two lines converge when the reader moves onto
+            // the core engine.
             val position = state.position
             val positionCount = state.positionCount
             Text(

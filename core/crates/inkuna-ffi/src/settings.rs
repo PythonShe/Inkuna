@@ -1,6 +1,6 @@
 //! App settings, read and written as one record.
 
-use crate::bookshelf::{blocking, Bookshelf};
+use crate::bookshelf::blocking;
 use crate::error::InkunaError;
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -72,8 +72,14 @@ impl From<Settings> for inkuna_core::Settings {
     }
 }
 
+/// The settings facade: the reader's persisted preferences.
+/// Constructed once by [`Bookshelf::open`], handed out by
+/// `Bookshelf::settings()` as a cheap `Arc` clone.
+#[derive(uniffi::Object)]
+pub struct ShelfSettings(pub(crate) std::sync::Arc<inkuna_core::Library>);
+
 #[uniffi::export(async_runtime = "tokio")]
-impl Bookshelf {
+impl ShelfSettings {
     pub async fn settings(&self) -> Result<Settings, InkunaError> {
         let library = self.0.clone();
         blocking(move || Ok(library.settings()?.into())).await

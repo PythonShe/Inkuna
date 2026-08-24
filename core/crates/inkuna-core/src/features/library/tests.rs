@@ -29,7 +29,15 @@ fn imports_cjk_epub_and_roundtrips() {
     assert_eq!(library.publication(&publication.id).unwrap(), publication);
 
     library
-        .update_progress(&publication.id, "{}", 0.42, None)
+        .update_progress(
+            &publication.id,
+            Some(inkuna_engine::Coordinate {
+                spine_idx: 0,
+                char_offset: 0,
+            }),
+            0.42,
+            None,
+        )
         .unwrap();
     assert_eq!(
         library.list(Shelf::All, Sort::RecentlyAdded).unwrap()[0].progression,
@@ -164,14 +172,20 @@ fn bookmarks_roundtrip_sorted_by_progression() {
     let late = library
         .add_bookmark(
             &publication.id,
-            r#"{"locations":{"totalProgression":0.8}}"#,
+            Some(inkuna_engine::Coordinate {
+                spine_idx: 1,
+                char_offset: 24,
+            }),
             0.8,
         )
         .unwrap();
     let early = library
         .add_bookmark(
             &publication.id,
-            r#"{"locations":{"totalProgression":0.2}}"#,
+            Some(inkuna_engine::Coordinate {
+                spine_idx: 0,
+                char_offset: 3,
+            }),
             0.2,
         )
         .unwrap();
@@ -186,7 +200,14 @@ fn bookmarks_roundtrip_sorted_by_progression() {
         Err(CoreError::NotFound(_))
     ));
     assert!(matches!(
-        library.add_bookmark("missing", "{}", 0.5),
+        library.add_bookmark(
+            "missing",
+            Some(inkuna_engine::Coordinate {
+                spine_idx: 0,
+                char_offset: 0,
+            }),
+            0.5
+        ),
         Err(CoreError::NotFound(_))
     ));
 }
@@ -237,4 +258,116 @@ fn reads_do_not_queue_behind_the_writer() {
         library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
         1
     );
+}
+
+/// The spine is the `spine_idx` → resource-href map a stored
+/// `Coordinate` needs when no reader session is open. Indexes are dense
+/// and in reading order, so a coordinate indexes the list directly.
+#[test]
+fn spine_maps_coordinates_to_resource_hrefs() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("moonlight.epub");
+    write_epub_with(
+        &epub,
+        "月光書房",
+        "紫式部",
+        "ja",
+        TocKind::Nav,
+        CoverKind::None,
+    );
+    let library = Library::open(&dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    let spine = library.spine(&publication.id).unwrap();
+    assert_eq!(
+        spine,
+        vec![
+            SpineEntry {
+                spine_idx: 0,
+                href: "OEBPS/text/ch01.xhtml".to_string(),
+            },
+            SpineEntry {
+                spine_idx: 1,
+                href: "OEBPS/text/ch02.xhtml".to_string(),
+            },
+        ]
+    );
+
+    // A stored coordinate now names its resource without a session.
+    let coordinate = inkuna_engine::Coordinate {
+        spine_idx: 1,
+        char_offset: 120,
+    };
+    assert_eq!(
+        spine[coordinate.spine_idx as usize].href,
+        "OEBPS/text/ch02.xhtml"
+    );
+
+    let unknown = library.spine("no-such-book");
+    assert!(matches!(unknown, Err(CoreError::NotFound(_))));
+}
+
+/// Why the map is its own list and not a `spine_idx` field on `Chapter`:
+/// the TOC-to-spine mapping is many-to-one. This fixture's nav doc has
+/// two entries pointing into spine item 0 (one of them fragment-
+/// anchored), so a per-chapter spine index could not round-trip back to
+/// a single chapter.
+#[test]
+fn several_chapters_can_share_one_spine_item() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("moonlight.epub");
+    write_epub_with(
+        &epub,
+        "月光書房",
+        "紫式部",
+        "ja",
+        TocKind::Nav,
+        CoverKind::None,
+    );
+    let library = Library::open(&dir.path().join("library")).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    let spine = library.spine(&publication.id).unwrap();
+    let chapters = library.chapters(&publication.id).unwrap();
+    assert!(chapters.len() > spine.len());
+
+    // Every chapter resolves into the spine by href minus fragment...
+    let resolved: Vec<u32> = chapters
+        .iter()
+        .filter_map(|c| {
+            let base = c.href.split('#').next().unwrap_or(&c.href);
+            spine.iter().find(|e| e.href == base).map(|e| e.spine_idx)
+        })
+        .collect();
+    assert_eq!(resolved.len(), chapters.len(), "all chapters placed");
+    // ...but not one-to-one: spine item 0 carries two of them.
+    assert_eq!(resolved.iter().filter(|&&i| i == 0).count(), 2);
+}
+
+/// The per-book extracted publisher-font cache dies with the book:
+/// `remove` deletes its directory, and the open-time sweep clears
+/// orphaned ones (an interrupted delete's leftovers).
+#[test]
+fn publisher_font_cache_is_removed_and_swept_with_the_book() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "Fonts", "Author", "en");
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    let cache = data_dir.join(PUBLISHER_FONT_DIR).join(&publication.id);
+    std::fs::create_dir_all(&cache).unwrap();
+    std::fs::write(cache.join("abc.ttf"), b"font bytes").unwrap();
+
+    library.remove(&publication.id).unwrap();
+    assert!(!cache.exists(), "remove() must delete the font cache");
+
+    // An orphan directory (no row references its id) is swept at open.
+    let orphan = data_dir.join(PUBLISHER_FONT_DIR).join("no-such-id");
+    std::fs::create_dir_all(&orphan).unwrap();
+    std::fs::write(orphan.join("x.ttf"), b"stale").unwrap();
+    drop(library);
+    let _library = Library::open(&data_dir).unwrap();
+    assert!(!orphan.exists(), "open() must sweep orphaned font caches");
 }

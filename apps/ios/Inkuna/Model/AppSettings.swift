@@ -23,7 +23,7 @@ final class AppSettings {
         reminderMinutes: 21 * 60,
         accountName: "",
         accountEmail: "",
-        readingFont: ReadingFont.publisher.rawValue,
+        readingFont: ReadingFont.standard.rawValue,
         readingBold: false,
         lineSpacing: 1.65,
         letterSpacing: 0,
@@ -66,13 +66,13 @@ final class AppSettings {
     func load() async {
         do {
             let bookshelf = try await LibraryStore.shared.library()
-            let current = try await bookshelf.settings()
+            let current = try await bookshelf.settings().settings()
             if let migrated = migratedLegacySettings(over: current) {
                 // Settings written by builds that kept them in UserDefaults
                 // move into the core once. The keys are removed only after
                 // the core write lands — a failed write must leave them in
                 // place for the next launch to migrate.
-                try await bookshelf.setSettings(settings: migrated)
+                try await bookshelf.settings().setSettings(settings: migrated)
                 removeLegacySettings()
                 if adoptStored(migrated) { persist() }
             } else {
@@ -178,9 +178,9 @@ final class AppSettings {
                     // writing it whole would erase them. Rebase instead:
                     // read the stored record and replay every change made
                     // since on top of it.
-                    _ = adoptStored(try await bookshelf.settings())
+                    _ = adoptStored(try await bookshelf.settings().settings())
                 }
-                try await bookshelf.setSettings(settings: record)
+                try await bookshelf.settings().setSettings(settings: record)
             } catch {
                 logger.warning("Settings write failed: \(error)")
             }
@@ -237,24 +237,21 @@ final class AppSettings {
         set { mutate { $0.reminderMinutes = UInt16(min(max(newValue, 0), 23 * 60 + 59)) } }
     }
 
-    /// The reader's body-text font. Stored as an opaque id like the theme:
-    /// an unknown id reads as `.publisher` here but is not overwritten
-    /// unless the user actually picks a font.
+    /// The reader's body-text face, normalized from legacy stored ids.
     var readingFont: ReadingFont {
-        get { ReadingFont(rawValue: record.readingFont.lowercased()) ?? .publisher }
+        get { ReadingFont.normalize(record.readingFont) }
         set { mutate { $0.readingFont = newValue.rawValue } }
     }
 
     /// The stored font id verbatim, unparsed. A commit that is not itself a
     /// font pick writes this back, so an id this build does not know
-    /// survives a bold toggle or a slider release instead of collapsing to
-    /// `publisher`.
+    /// survives a bold toggle or a slider release.
     var readingFontID: String {
         get { record.readingFont }
         set { mutate { $0.readingFont = newValue } }
     }
 
-    /// Whether body text is forced to weight 600 on the reading surface.
+    /// Whether body text is forced to weight 700 on the reading surface.
     var readingBold: Bool {
         get { record.readingBold }
         set { mutate { $0.readingBold = newValue } }
@@ -279,7 +276,7 @@ final class AppSettings {
         set { mutate { $0.wordSpacing = min(max(newValue, 0), 0.30) } }
     }
 
-    /// Horizontal page margins, in CSS px inside the reading web view.
+    /// Inline-axis page margins, in engine layout points.
     var readingMargins: Int {
         get { Int(record.readingMargins) }
         set { mutate { $0.readingMargins = UInt16(min(max(newValue, 16), 48)) } }
@@ -290,7 +287,7 @@ final class AppSettings {
     /// reset covers only the Customize panel.
     func resetReadingCustomization() {
         mutate {
-            $0.readingFont = ReadingFont.publisher.rawValue
+            $0.readingFont = ReadingFont.standard.rawValue
             $0.readingBold = false
             $0.lineSpacing = 1.65
             $0.letterSpacing = 0

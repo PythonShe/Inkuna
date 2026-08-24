@@ -1,7 +1,7 @@
 //! Full-text search: exact in-book occurrence scan and ranked
 //! library-wide queries over the tantivy index.
 
-use crate::bookshelf::{blocking, Bookshelf};
+use crate::bookshelf::blocking;
 use crate::error::InkunaError;
 use crate::library::{publication_record, Publication};
 
@@ -20,7 +20,7 @@ pub struct BookSearchHit {
     pub snippet_pre: String,
     pub snippet_match: String,
     pub snippet_post: String,
-    /// In-resource position of the hit, in [0, 1] — the value a Readium
+    /// In-resource position of the hit, in [0, 1] — the value a legacy
     /// locator's `locations.progression` takes.
     pub progression: f64,
 }
@@ -44,6 +44,11 @@ impl From<inkuna_core::BookSearchHit> for BookSearchHit {
 pub struct BookSearchResults {
     pub hits: Vec<BookSearchHit>,
     pub total: u32,
+    /// Whether the hit offsets index the book's canonical projection.
+    /// `false` while the background rebaseline has not reached this book:
+    /// the snippets are fine to display, but the offsets must not be fed
+    /// to a reader session's `locate` / `match_rects`.
+    pub canonical: bool,
 }
 
 /// One book matching a library-wide query, best first, with the first
@@ -58,8 +63,14 @@ pub struct LibrarySearchHit {
     pub excerpt_post: String,
 }
 
+/// The search facade: in-book scan and library-wide ranked search.
+/// Constructed once by [`Bookshelf::open`], handed out by
+/// `Bookshelf::search()` as a cheap `Arc` clone.
+#[derive(uniffi::Object)]
+pub struct ShelfSearch(pub(crate) std::sync::Arc<inkuna_core::Library>);
+
 #[uniffi::export(async_runtime = "tokio")]
-impl Bookshelf {
+impl ShelfSearch {
     /// Every occurrence of `query` in one book, in reading order: an
     /// exact case-folded substring scan — partial words and single CJK
     /// chars match by construction. Any minimum-length floor is shell UI
@@ -76,6 +87,7 @@ impl Bookshelf {
             Ok(BookSearchResults {
                 hits: results.hits.into_iter().map(Into::into).collect(),
                 total: results.total,
+                canonical: results.canonical,
             })
         })
         .await

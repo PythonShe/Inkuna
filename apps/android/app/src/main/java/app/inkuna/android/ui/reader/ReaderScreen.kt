@@ -1,6 +1,7 @@
 package app.inkuna.android.ui.reader
 
-import android.content.Intent
+import android.util.Log
+import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -14,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,14 +42,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,8 +53,6 @@ import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -70,10 +66,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
-import androidx.core.net.toUri
-import androidx.lifecycle.Lifecycle
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LifecycleStartEffect
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.inkuna.android.R
@@ -81,28 +75,22 @@ import app.inkuna.android.model.AppSettings
 import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkButtonSize
 import app.inkuna.android.ui.components.InkToast
+import app.inkuna.android.ui.reader.engine.EnginePageCanvas
+import app.inkuna.android.ui.reader.engine.EnginePagerSurface
+import app.inkuna.android.ui.reader.engine.PagePalette
+import app.inkuna.android.ui.reader.engine.ReaderFontStore
+import app.inkuna.android.ui.reader.engine.ReaderSelectionController
 import app.inkuna.android.ui.theme.InkMotion
 import app.inkuna.android.ui.theme.InkType
+import app.inkuna.android.ui.theme.ReadingFont
+import app.inkuna.core.Chapter
+import app.inkuna.core.Coordinate
+import app.inkuna.core.InkunaException
+import app.inkuna.core.PageLocation
+import app.inkuna.core.Viewport
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import org.readium.r2.navigator.epub.EpubNavigatorFragment
-import org.readium.r2.navigator.epub.EpubPreferences
-import org.readium.r2.navigator.input.InputListener
-import org.readium.r2.navigator.input.TapEvent
-import org.readium.r2.navigator.preferences.Color as ReadiumColor
-import org.readium.r2.navigator.preferences.Theme as ReadiumTheme
-import org.readium.r2.shared.ExperimentalReadiumApi
-import org.readium.r2.shared.publication.Locator
-import org.readium.r2.shared.util.AbsoluteUrl
 
-/**
- * The reader: Readium's EPUB navigator rendering the core-owned file, with
- * the shell's floating chrome above it. Chrome shows on entry, hides when a
- * page turns, and toggles on a bare tap of the prose. The core stores the
- * position (locator + progression) and the sessions; Readium owns rendering
- * and pagination.
- */
 @Composable
 fun ReaderScreen(
     publicationId: String,
@@ -117,89 +105,59 @@ fun ReaderScreen(
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     val theme = snapshot.readingTheme
-
-    // The enter slide and the navigator must not share frames: the
-    // fragment's first WebView spawns Chromium's sandboxed renderer on the
-    // main thread, and that cost mid-transition reads as a stutter in the
-    // push. The back-stack entry reaches RESUMED exactly when the slide
-    // settles, so the navigator mounts onto a still screen instead; the
-    // latch (saved across config changes) keeps it mounted through the pop
-    // transition, when the entry leaves RESUMED again.
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    var transitionSettled by rememberSaveable { mutableStateOf(false) }
-    if (!transitionSettled) {
-        LaunchedEffect(lifecycle) {
-            lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
-            transitionSettled = true
-        }
-    }
-
-    val background by animateColorAsState(
-        theme.background,
-        tween(InkMotion.durMed, easing = InkMotion.easeQuiet),
-        label = "readerBg",
-    )
-    val foreground by animateColorAsState(
-        theme.foreground,
-        tween(InkMotion.durMed, easing = InkMotion.easeQuiet),
-        label = "readerFg",
-    )
-
+    val background by animateColorAsState(theme.background, tween(InkMotion.durMed, easing = InkMotion.easeQuiet), "readerBg")
+    val foreground by animateColorAsState(theme.foreground, tween(InkMotion.durMed, easing = InkMotion.easeQuiet), "readerFg")
     val statusPad = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val tablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
+    val contentTop = ReaderMetrics.contentTop(
+        max(statusPad, WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()),
+        tablet,
+    )
+    val contentBottom = ReaderMetrics.contentBottom(navPad, tablet)
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(background)
-    ) {
+    // The engine viewport is the reader surface's measured size, not any
+    // WindowManager metric — the activity can be a split-screen or freeform
+    // pane much smaller than the display.
+    BoxWithConstraints(Modifier.fillMaxSize().background(background)) {
+        val viewport = Viewport(
+            width = maxWidth.value.toDouble(),
+            height = (maxHeight - contentTop - contentBottom).value.toDouble().coerceAtLeast(0.0),
+        )
+        LaunchedEffect(viewport) { viewModel.open(viewport) }
         when (val current = state) {
-            is ReaderViewModel.UiState.Opening -> {
-                // Quiet while the book opens — a spinner would be louder
-                // than the beat it takes.
-            }
-            is ReaderViewModel.UiState.Failed -> {
-                ReaderOpenFailed(
-                    foreground = foreground,
-                    onRetry = viewModel::open,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-            }
-            is ReaderViewModel.UiState.Ready -> if (transitionSettled) {
-                ReaderContent(
-                    viewModel = viewModel,
-                    book = current.book,
-                    settings = settings,
-                    snapshot = snapshot,
-                    foreground = foreground,
-                    statusPad = statusPad,
-                    navPad = navPad,
-                    onBack = onBack,
-                )
-            }
+            ReaderViewModel.UiState.Opening -> Unit
+            ReaderViewModel.UiState.Failed -> ReaderOpenFailed(
+                foreground,
+                stringResource(R.string.reader_open_failed),
+                { viewModel.open(viewport, userRetry = true) },
+                Modifier.align(Alignment.Center),
+            )
+            ReaderViewModel.UiState.FixedLayoutUnsupported -> ReaderOpenFailed(
+                foreground,
+                stringResource(R.string.reader_fixed_layout_unsupported),
+                null,
+                Modifier.align(Alignment.Center),
+            )
+            ReaderViewModel.UiState.NoReadableContent -> ReaderOpenFailed(
+                foreground,
+                stringResource(R.string.reader_book_empty),
+                null,
+                Modifier.align(Alignment.Center),
+            )
+            is ReaderViewModel.UiState.Ready -> ReaderContent(
+                viewModel, current.book, settings, snapshot, foreground, statusPad, navPad,
+                contentTop, contentBottom, viewport, onBack,
+            )
         }
-
-        // The back affordance survives every state — a book that will not
-        // open must never trap the reader. It also covers the beat between
-        // Ready and the transition settling, before the chrome's own back
-        // button exists.
-        if (state !is ReaderViewModel.UiState.Ready || !transitionSettled) {
-            Box(
-                Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 16.dp, top = statusPad + 6.dp)
-            ) {
-                ReaderGlassButton(
-                    icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                    contentDescription = stringResource(R.string.a11y_back),
-                    onClick = onBack,
-                )
+        if (state !is ReaderViewModel.UiState.Ready) {
+            Box(Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = statusPad + 6.dp)) {
+                ReaderGlassButton(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.a11y_back), onBack)
             }
         }
     }
 }
 
-@OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun ReaderContent(
     viewModel: ReaderViewModel,
@@ -207,299 +165,241 @@ private fun ReaderContent(
     settings: AppSettings,
     snapshot: AppSettings.Snapshot,
     foreground: Color,
-    statusPad: androidx.compose.ui.unit.Dp,
-    navPad: androidx.compose.ui.unit.Dp,
+    statusPad: Dp,
+    navPad: Dp,
+    contentTop: Dp,
+    contentBottom: Dp,
+    viewport: Viewport,
     onBack: () -> Unit,
 ) {
-    val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
-
-    // Chrome state lives in State objects handed to ReaderChromeLayer,
-    // which reads them inside its own recomposition scope: a bare read in
-    // this body would recompose all of ReaderContent on every page turn
-    // (every turn hides the chrome), re-reading insets and re-running
-    // every subtree on exactly the frames the page is moving.
+    val haptics = LocalHapticFeedback.current
     val chromeVisible = rememberSaveable { mutableStateOf(true) }
     val menuOpen = rememberSaveable { mutableStateOf(false) }
     var themeSheetOpen by rememberSaveable { mutableStateOf(false) }
     var contentsSheetOpen by rememberSaveable { mutableStateOf(false) }
     val searchOpen = rememberSaveable { mutableStateOf(false) }
+    val anchorState = remember(book) { mutableStateOf<Coordinate?>(null) }
+    val hostState = remember(book) { mutableStateOf<EngineHost?>(null) }
+    // Generation staleness lives in the retained ViewModel (the sole pin
+    // over the engine's generation); composition state here is only what
+    // dies legitimately with the composition.
+    val pendingJumpState = remember(book) { mutableStateOf<PendingJump?>(null) }
+    var pendingJump by pendingJumpState
+    val notedTruncatedChapters = remember(book) { mutableStateOf(setOf<UInt>()) }
+    var brightnessPreview by remember { mutableStateOf<Float?>(null) }
     var toastCount by rememberSaveable { mutableIntStateOf(0) }
     var toastShown by rememberSaveable { mutableIntStateOf(0) }
     val toastVisible = remember { mutableStateOf(false) }
-    // One toast slot, two things worth saying: the bookmark confirmation and
-    // a link the shell would not follow. Saved as an enum, never as a raw
-    // resource id — ids are not stable across app updates, and a restored
-    // stale id would throw at the stringResource call.
     val toastMessage = rememberSaveable { mutableStateOf(ReaderToast.BookmarkPlaced) }
-    // A programmatic jump (contents sheet) moves the locator; the auto-hide
-    // below must not read that as a page turn.
-    var jumping by remember { mutableStateOf(false) }
-    var brightnessPreview by remember { mutableStateOf<Float?>(null) }
-
-    var navigator by remember { mutableStateOf<EpubNavigatorFragment?>(null) }
-    // Held as a State the chrome reads inside its own scopes: a bare read
-    // in this body would recompose all of ReaderContent on every locator
-    // emission, and Readium emits several per page turn.
-    val locatorState = remember { mutableStateOf(book.initialLocator) }
-
-    // Under TalkBack a page-forward gesture *is* a scroll, so auto-hiding on
-    // page turns would strand an exploring reader with no way back out.
-    val touchExploration = remember(context) {
-        context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
-    }
-    // Remembered so the navigator host's modifier (below) stays stable
-    // across recompositions; the bodies read the state they need when run.
-    val toggleChrome = remember {
-        {
-            when {
-                searchOpen.value -> {
-                    searchOpen.value = false
-                    chromeVisible.value = true
-                }
-                menuOpen.value -> menuOpen.value = false
-                else -> chromeVisible.value = !chromeVisible.value
-            }
+    // Live TalkBack state: read inside the callback bodies below so toggling
+    // touch exploration mid-session changes behavior without leaving the screen.
+    val touchExploration = remember { mutableStateOf(false) }
+    DisposableEffect(context) {
+        val manager = context.getSystemService(AccessibilityManager::class.java)
+        touchExploration.value = manager?.isTouchExplorationEnabled == true
+        val listener = AccessibilityManager.TouchExplorationStateChangeListener { enabled ->
+            touchExploration.value = enabled
         }
-    }
-    val closeSearch = remember {
-        {
-            searchOpen.value = false
-            chromeVisible.value = true
-        }
+        manager?.addTouchExplorationStateChangeListener(listener)
+        onDispose { manager?.removeTouchExplorationStateChangeListener(listener) }
     }
 
-    // Back closes the reader's own layers before it leaves the book.
-    BackHandler(enabled = searchOpen.value || menuOpen.value) {
-        if (searchOpen.value) closeSearch() else menuOpen.value = false
+    fun notifyLinkFailed() {
+        toastMessage.value = ReaderToast.LinkFailed
+        toastCount += 1
     }
 
-    // Reading sessions bracket the reader's visible lifetime — leaving the
-    // book and backgrounding the app both end the sitting; they power Stats.
-    LifecycleStartEffect(book) {
-        viewModel.onReaderVisible()
-        onStopOrDispose { viewModel.onReaderHidden() }
-    }
-
-    val navigatorListener = remember(book) {
-        object : EpubNavigatorFragment.Listener {
-            /**
-             * Only http(s) leaves the app. An EPUB is untrusted content, and
-             * `intent:`, `market:`, `tel:` and friends would let a book aim
-             * an implicit intent at anything installed; the reader is told
-             * the link was not followed instead of it firing silently.
-             */
-            override fun onExternalLinkActivated(url: AbsoluteUrl) {
-                val opened = url.isHttp && runCatching {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, url.toString().toUri()))
-                }.isSuccess
-                if (!opened) {
-                    toastMessage.value = ReaderToast.LinkFailed
-                    toastCount += 1
-                }
-            }
-        }
-    }
-
-    val toggleLabel = stringResource(R.string.a11y_toggle_reader_controls)
-    // The preferences the fragment is built with. Remembered so the effect
-    // below can tell a real change from its own first run.
-    val initialPreferences = remember(book) { readingPreferences(snapshot) }
-    // The shared reading band (ReaderMetrics, mirrored by the iOS shell):
-    // phones pad off the larger of the status-bar and cutout insets so a
-    // notch never crowds the text; tablets get the fixed generous band.
-    // Readium's own insets padding is disabled in ReaderNavigatorHost, so
-    // this is the one and only vertical padding the page gets.
-    val cutoutTop = WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
-    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
-    val contentTop = ReaderMetrics.contentTop(max(statusPad, cutoutTop), isTablet)
-    val contentBottom = ReaderMetrics.contentBottom(navPad, isTablet)
-    // The pager layout drives every page turn; held so taps, keys, and
-    // jumps can route through its springs.
-    val pagerLayout = remember { mutableStateOf<ReaderPagerLayout?>(null) }
-    val nextPageLabel = stringResource(R.string.a11y_next_page)
-    val previousPageLabel = stringResource(R.string.a11y_previous_page)
-    // Named page turns are only honest while the pager exists and the
-    // overflow is paginated: `turnGeometric` refuses in vertical-scroll
-    // mode, so advertising the actions there gives TalkBack a "Next page"
-    // that silently does nothing.
-    val overflowFlow = remember(navigator) { navigator?.overflow }
-    val scrollMode by produceState(false, overflowFlow) {
-        val flow = overflowFlow
-        if (flow == null) value = false else flow.collect { value = it.scroll }
-    }
-    val pageTurnActions = pagerLayout.value != null && !scrollMode
-    // Hoisted so the fragment host's modifier is one stable value: rebuilt
-    // per recomposition, the fresh semantics lambda would re-update the
-    // AndroidView's modifier node on every page turn.
-    val hostModifier = remember(
-        contentTop, contentBottom, toggleLabel, toggleChrome,
-        nextPageLabel, previousPageLabel, pageTurnActions,
+    fun display(
+        location: PageLocation,
+        host: EngineHost,
+        showChrome: Boolean = true,
+        searchMatch: PendingJump? = null,
     ) {
-        Modifier
-            .fillMaxSize()
-            .padding(top = contentTop, bottom = contentBottom)
-            // The WebView owns raw touch; TalkBack still needs a named way
-            // to reach the chrome — and named page turns, since the host is
-            // not a scrollable container in Compose semantics, so the scroll
-            // actions would be a lie. turnForward/turnBackward already
-            // resolve the reading progression, RTL included.
-            .semantics {
-                onClick(label = toggleLabel) {
-                    toggleChrome()
-                    true
+        host.selection.clear()
+        host.layout.cancelInteraction()
+        val chromeWas = chromeVisible.value
+        host.surface.display(location.spineIdx, location.pageIdx)
+        searchMatch?.matchLength?.let { length ->
+            val rects = runCatching {
+                val pageRange = book.session.pageCharRange(location.spineIdx, location.pageIdx)
+                val matchEnd = if (ULong.MAX_VALUE - searchMatch.coordinate.charOffset < length) {
+                    ULong.MAX_VALUE
+                } else {
+                    searchMatch.coordinate.charOffset + length
                 }
-                if (pageTurnActions) {
-                    customActions = listOf(
-                        CustomAccessibilityAction(nextPageLabel) {
-                            pagerLayout.value?.turnForward() ?: false
-                        },
-                        CustomAccessibilityAction(previousPageLabel) {
-                            pagerLayout.value?.turnBackward() ?: false
-                        },
-                    )
+                val start = maxOf(searchMatch.coordinate.charOffset, pageRange.start)
+                val end = minOf(matchEnd, pageRange.end)
+                if (start < end) {
+                    book.session.matchRects(location.spineIdx, start, end - start)
+                } else {
+                    emptyList()
                 }
-            }
+            }.getOrDefault(emptyList())
+            host.canvas.showSearchHighlight(rects)
+        }
+        anchorState.value = runCatching {
+            Coordinate(location.spineIdx, book.session.pageCharRange(location.spineIdx, location.pageIdx).start)
+        }.getOrNull()
+        pendingJump = null
+        chromeVisible.value = if (showChrome) true else chromeWas
     }
-    // The reader's own user stylesheet (Customize: font, bold, spacings,
-    // margins) — never EpubPreferences, so the pipeline outlives Readium.
-    val styleInjector = remember(book) { ReaderStyleInjector() }
-    val appearanceScope = rememberCoroutineScope()
-    val appearance = remember(styleInjector) {
-        ReaderAppearanceController(appearanceScope, styleInjector) { pagerLayout.value }
-    }
-    DisposableEffect(styleInjector) {
-        onDispose { styleInjector.detach() }
-    }
-    ReaderNavigatorHost(
-        navigatorFactory = book.navigatorFactory,
-        initialLocator = book.initialLocator,
-        initialPreferences = initialPreferences,
-        listener = navigatorListener,
-        styleInjector = styleInjector,
-        onPager = { pagerLayout.value = it },
-        onNavigator = { navigator = it },
-        modifier = hostModifier,
-    )
 
-    // Chrome leaves the moment a page-turn drag is claimed — before the
-    // motion — matching iOS; the locator collect below stays as the
-    // fallback for programmatic turns. Under TalkBack a page gesture is
-    // a scroll, so the chrome must not vanish on it.
-    LaunchedEffect(pagerLayout.value, touchExploration) {
-        pagerLayout.value?.onTurnGesture = if (touchExploration) {
-            null
-        } else {
-            {
-                chromeVisible.value = false
-                menuOpen.value = false
+    fun attemptJump(pending: PendingJump, host: EngineHost) {
+        host.selection.clear()
+        host.layout.cancelInteraction()
+        var jump = pending
+        val spineIdx = jump.coordinate.spineIdx
+        val anchor = jump.anchor
+        if (anchor != null) {
+            // The anchor map arrives with the complete chapter. `NotReady`
+            // means "not yet", so park and let the chapter's readiness event
+            // retry; only `AnchorNotFound` means the anchor is missing.
+            try {
+                jump = jump.copy(coordinate = book.session.locateHref(anchor.href, anchor.fragment), anchor = null)
+            } catch (_: InkunaException.NotReady) {
+                pendingJump = jump
+                runCatching { book.session.chapter(spineIdx) }
+                return
+            } catch (_: InkunaException) {
+                pendingJump = null
+                if (jump.linkToast) notifyLinkFailed()
+                return
+            }
+        }
+        if (jump.toChapterEnd && !book.session.isReady(spineIdx)) {
+            // A deferred backward turn lands on the last page, which only
+            // complete geometry knows; `locate` would clamp to the
+            // published prefix. Park it and schedule the chapter.
+            pendingJump = jump
+            runCatching { book.session.chapter(spineIdx) }
+            return
+        }
+        try {
+            // Read readiness BEFORE locating: a partially laid chapter
+            // clamps `locate` to its published prefix, and readiness is
+            // monotonic within a generation — so a pre-read decides
+            // race-free whether the result can be a clamped page. Checking
+            // after `locate` loses the jump when the chapter completes in
+            // between: the clamped page shows, yet nothing re-presents.
+            val wasReady = runCatching { book.session.isReady(spineIdx) }.getOrDefault(false)
+            display(book.session.locate(jump.coordinate), host, jump.showChrome, jump)
+            // Keep a possibly-clamped jump parked so chapter completion
+            // re-presents it exactly (a user page turn supersedes it via
+            // onPageSettled).
+            if (!wasReady) pendingJump = jump
+        } catch (_: InkunaException.NotReady) {
+            pendingJump = jump
+            runCatching { book.session.chapter(spineIdx) }
+        } catch (_: InkunaException.AnchorNotFound) {
+            pendingJump = null
+            if (jump.linkToast) notifyLinkFailed()
+        } catch (failure: InkunaException) {
+            Log.w("InkunaReader", "jump to ${jump.coordinate} failed", failure)
+            pendingJump = null
+            if (jump.linkToast) notifyLinkFailed()
+        }
+    }
+
+    fun presentPending(host: EngineHost, spineIdx: UInt) {
+        // Only an event for the parked spine may retry — anything else
+        // would re-jump to the current page on every background chapter.
+        val jump = pendingJump ?: return
+        if (jump.coordinate.spineIdx != spineIdx) return
+        attemptJump(jump, host)
+    }
+
+    fun handleEvent(event: ReaderViewModel.LayoutEvent, host: EngineHost) {
+        when (event) {
+            ReaderViewModel.LayoutEvent.Invalidated -> {
+                host.selection.clear()
+                host.layout.cancelInteraction()
+                pendingJump = viewModel.currentCoordinate()?.let { PendingJump(it, showChrome = false) }
+                host.surface.layoutInvalidated(0uL)
+            }
+            is ReaderViewModel.LayoutEvent.FirstPage -> {
+                host.surface.firstPageBecameReady(event.generation, event.spineIdx)
+                viewModel.onFirstPageReady(event.spineIdx)
+                presentPending(host, event.spineIdx)
+            }
+            is ReaderViewModel.LayoutEvent.Chapter -> {
+                host.surface.chapterBecameReady(event.generation, event.spineIdx)
+                if (event.spineIdx !in notedTruncatedChapters.value &&
+                    runCatching { book.session.chapter(event.spineIdx).truncated }.getOrDefault(false)
+                ) {
+                    notedTruncatedChapters.value += event.spineIdx
+                    host.canvas.showTruncationNotice()
+                }
+                viewModel.onChapterReady(event.spineIdx)
+                presentPending(host, event.spineIdx)
+            }
+            is ReaderViewModel.LayoutEvent.Failed -> {
+                host.surface.chapterFailed(event.generation, event.spineIdx)
+                val parked = pendingJump
+                val jumpSpine = parked?.coordinate?.spineIdx
+                val targetSpine = viewModel.currentCoordinate()?.spineIdx
+                if (jumpSpine == event.spineIdx) {
+                    pendingJump = null
+                    // Terminal for this jump: the chapter it waited on will
+                    // never lay out, so say so once instead of parking forever.
+                    if (parked?.linkToast == true) notifyLinkFailed()
+                }
+                if (jumpSpine == event.spineIdx || targetSpine == event.spineIdx || anchorState.value?.spineIdx == event.spineIdx) {
+                    host.surface.display(event.spineIdx, 0u)
+                }
             }
         }
     }
 
-    // The design system's reading themes and type scale, routed through
-    // Readium's user preferences instead of fighting the navigator. The
-    // fragment was just built with [initialPreferences]; re-submitting the
-    // same values would re-inject CSS into every freshly created WebView.
-    var submittedPreferences by remember(book) { mutableStateOf(initialPreferences) }
-    LaunchedEffect(navigator, snapshot.readingTheme, snapshot.textSizeStep) {
-        val nav = navigator ?: return@LaunchedEffect
-        val preferences = readingPreferences(snapshot)
-        if (preferences == submittedPreferences) return@LaunchedEffect
-        submittedPreferences = preferences
-        nav.submitPreferences(preferences)
+    val host = hostState.value
+    if (host != null) {
+        LaunchedEffect(book, host) {
+            if (viewModel.consumeInitialHrefFailure()) notifyLinkFailed()
+            // The canvas must be measured before anything is displayed:
+            // a zero-width strip would anchor every page at slot 0 and pin
+            // the pager unengageable (iOS guarantees this with
+            // layoutIfNeeded before installing its canvas).
+            host.canvas.awaitSized()
+            viewModel.takeInitialLocation()?.let { display(it, host) }
+                ?: run {
+                    if (anchorState.value == null) {
+                        // A rebuilt composition over the retained session:
+                        // restore the current place without stealing focus
+                        // from the saved chrome state.
+                        viewModel.currentCoordinate()?.let {
+                            attemptJump(PendingJump(it, showChrome = false), host)
+                        }
+                    }
+                }
+            // An open-time fragment link lands on the chapter start above and
+            // refines to its anchor when that chapter finishes laying out.
+            viewModel.takeInitialJump()?.let { attemptJump(it, host) }
+            viewModel.layoutEvents.collect { event -> handleEvent(event, host) }
+        }
     }
 
-    // Committed Customize values only — the preview path writes CSS
-    // directly through the controller, so this never fires mid-drag. The
-    // injector seeds new WebViews itself; this pass re-lands the current
-    // page and recalibrates the pager after the reflow.
-    var appliedDraft by remember(book) { mutableStateOf<ReaderTypeDraft?>(null) }
+    fun requestRelayout() {
+        val live = hostState.value ?: return
+        live.selection.clear()
+        live.layout.cancelInteraction()
+        viewModel.requestAppearanceUpdate(viewModel.settingsFor(snapshot), viewport)
+    }
+
+    var appliedTypography by remember(book) { mutableStateOf(false) }
     LaunchedEffect(
-        navigator, snapshot.readingFont, snapshot.readingBold, snapshot.lineSpacing,
+        snapshot.textSizeStep, snapshot.rawReadingFont, snapshot.readingBold, snapshot.lineSpacing,
         snapshot.letterSpacing, snapshot.wordSpacing, snapshot.readingMargins,
     ) {
-        if (navigator == null) return@LaunchedEffect
-        val draft = ReaderTypeDraft.from(snapshot)
-        val first = appliedDraft == null
-        if (draft == appliedDraft) return@LaunchedEffect
-        appliedDraft = draft
-        if (first) {
-            // The open itself: seed the stylesheet without an anchor dance —
-            // the navigator is restoring the saved locator anyway.
-            appearance.preview(draft)
-        } else {
-            appearance.applyCommitted(snapshot)
-        }
+        if (appliedTypography) requestRelayout() else appliedTypography = true
     }
-
-    // Edge taps and hardware keys turn pages through the pager's springs
-    // (a tapped boundary turn slides the neighbour in, exactly like a
-    // dragged one); everything else toggles the chrome.
-    DisposableEffect(navigator) {
-        val nav = navigator ?: return@DisposableEffect onDispose {}
-        val pageTurns = ReaderPageTurnListener(nav, pagerLayout::value)
-        val chromeTaps = object : InputListener {
-            override fun onTap(event: TapEvent): Boolean {
-                toggleChrome()
-                return true
-            }
-        }
-        nav.addInputListener(pageTurns)
-        nav.addInputListener(chromeTaps)
-        onDispose {
-            nav.removeInputListener(pageTurns)
-            nav.removeInputListener(chromeTaps)
-            // Backstop for a missed onActionModeFinished: a stuck flag
-            // would otherwise kill every page turn for the process.
-            SelectionModeTracker.reset()
-        }
+    LaunchedEffect(viewport) {
+        // The session outlives the activity, so compare against the
+        // viewport it actually laid out for — a composition-scoped flag
+        // resets across rotation and would skip the relayout. Keying on the
+        // measured viewport also catches split-screen divider drags that
+        // resize the pane without recreating the activity.
+        if (viewModel.needsViewportRelayout(viewport)) requestRelayout()
     }
-
-    // One updateProgress per page turn; a turn also tucks the chrome away.
-    LaunchedEffect(navigator, touchExploration) {
-        val nav = navigator ?: return@LaunchedEffect
-        nav.currentLocator.collect { current ->
-            val previous = locatorState.value
-            locatorState.value = current
-            viewModel.onLocatorChanged(current)
-            // A turn is a move between two *known* places. The navigator's
-            // early emissions refine the restored locator (filling in the
-            // position it did not have yet); hiding the chrome on those
-            // would strip a reader who only just arrived.
-            val turned = previous?.locations?.position != null &&
-                current.locations.position != null && (
-                current.href != previous.href ||
-                    current.locations.position != previous.locations.position
-                )
-            when {
-                jumping -> {
-                    jumping = false
-                    chromeVisible.value = true
-                }
-                turned && !touchExploration -> {
-                    chromeVisible.value = false
-                    menuOpen.value = false
-                }
-            }
-        }
-    }
-
-    val jumpTo: (Locator) -> Unit = remember {
-        { target ->
-            navigator?.let { nav ->
-                // A turn mid-flight must not land on top of the jump.
-                pagerLayout.value?.cancelInteraction()
-                jumping = true
-                nav.go(target)
-                chromeVisible.value = true
-            }
-        }
-    }
-
-    // Toast lifecycle: repeated bookmarks replace the toast, not stack it.
-    // The shown counter is saved alongside, so a rotation doesn't replay a
-    // confirmation the reader already saw.
     LaunchedEffect(toastCount) {
         if (toastCount > toastShown) {
             toastShown = toastCount
@@ -508,343 +408,175 @@ private fun ReaderContent(
             toastVisible.value = false
         }
     }
+    // The faces are built off the main thread; a page that drew before they
+    // landed is repainted here rather than staying blank.
+    val fontRevision by ReaderFontStore.revision.collectAsStateWithLifecycle()
+    LaunchedEffect(fontRevision, host) { if (fontRevision > 0) host?.canvas?.redrawPages() }
+    LifecycleStartEffect(book) {
+        viewModel.onReaderVisible()
+        onStopOrDispose { viewModel.onReaderHidden() }
+    }
+    BackHandler(enabled = searchOpen.value || menuOpen.value) {
+        if (searchOpen.value) {
+            searchOpen.value = false
+            chromeVisible.value = true
+        } else menuOpen.value = false
+    }
 
-    // Ink veil standing in for brightness — never the system backlight.
-    // The preview keeps it tracking the slider while the drag is in
-    // flight; the persisted value takes over once it lands. The preview —
-    // the hot path — is read in the draw phase, so a slider drag
-    // invalidates drawing alone, never composition (the persisted value
-    // is a body read; a committed change recomposes once, on release).
-    // An idle veil draws nothing at all.
-    val snapshotBrightness = snapshot.brightness
-    Box(
-        Modifier
-            .fillMaxSize()
-            .drawBehind {
-                val brightness = brightnessPreview ?: snapshotBrightness
-                val veil =
-                    (AppSettings.DEFAULT_BRIGHTNESS - brightness).coerceAtLeast(0f) / 1.7f
-                if (veil > 0f) drawRect(Color(0xFF0A0907).copy(alpha = veil))
-            }
-    )
+    val keysSuppressed = themeSheetOpen || contentsSheetOpen || searchOpen.value
+    Box(Modifier.fillMaxSize().readerKeyTurns(host, keysSuppressed)) {
+        AndroidView(
+            factory = { viewContext ->
+                val canvas = EnginePageCanvas(viewContext).apply { palette = PagePalette.from(snapshot.readingTheme) }
+                val surface = EnginePagerSurface(book.session, canvas).apply { spineCount = book.spineCount }
+                val selection = ReaderSelectionController(book.session, canvas, surface)
+                val layout = ReaderPagerLayout(viewContext).apply {
+                    addView(canvas, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                    bind(surface)
+                }
+                val engineHost = EngineHost(layout, canvas, surface, selection)
+                surface.onPageSettled = { spineIdx, pageIdx ->
+                    selection.clear()
+                    // A settled page supersedes any parked navigation; a
+                    // presenting jump re-parks itself right after this.
+                    pendingJumpState.value = null
+                    viewModel.onPageSettled(spineIdx, pageIdx)
+                    anchorState.value = runCatching {
+                        Coordinate(spineIdx, book.session.pageCharRange(spineIdx, pageIdx).start)
+                    }.getOrNull()
+                    if (!touchExploration.value) {
+                        chromeVisible.value = false
+                        menuOpen.value = false
+                    }
+                }
+                canvas.onPageDrawn = { spineIdx, pageIdx ->
+                    if (surface.spineIdx == spineIdx && surface.pageIdx == pageIdx) viewModel.onCurrentPageDrawn()
+                }
+                canvas.onLinkActivated = { spineIdx, pageIdx, x, y ->
+                    handleLinkActivation(book, engineHost, spineIdx, pageIdx, x, y, ::notifyLinkFailed) { jump ->
+                        attemptJump(jump, engineHost)
+                    }
+                }
+                canvas.onPageTap = { spineIdx, pageIdx, x, y ->
+                    handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { jump -> attemptJump(jump, engineHost) }, chromeVisible, menuOpen)
+                }
+                layout.onTurnGesture = {
+                    if (!touchExploration.value) {
+                        chromeVisible.value = false
+                        menuOpen.value = false
+                    }
+                }
+                layout.onBoundaryTurnPending = { sign ->
+                    // A programmatic turn met a chapter still laying out:
+                    // park it as a jump and finish it on that chapter's
+                    // layout event (backward waits for complete geometry).
+                    val forward = (sign > 0) != surface.isRightToLeft
+                    val target = surface.spineIdx.toLong() + if (forward) 1 else -1
+                    if (target in 0 until book.spineCount.toLong()) {
+                        attemptJump(
+                            PendingJump(
+                                coordinate = Coordinate(target.toUInt(), if (forward) 0uL else ULong.MAX_VALUE),
+                                toChapterEnd = !forward,
+                                showChrome = false,
+                            ),
+                            engineHost,
+                        )
+                    }
+                }
+                hostState.value = engineHost
+                layout
+            },
+            update = { live -> hostState.value?.canvas?.palette = PagePalette.from(snapshot.readingTheme) },
+            modifier = Modifier.fillMaxSize().padding(top = contentTop, bottom = contentBottom).semantics {
+                onClick(label = context.getString(R.string.a11y_toggle_reader_controls)) {
+                    chromeVisible.value = !chromeVisible.value
+                    true
+                }
+                customActions = listOf(
+                    CustomAccessibilityAction(context.getString(R.string.a11y_next_page)) { hostState.value?.layout?.turnForward() ?: false },
+                    CustomAccessibilityAction(context.getString(R.string.a11y_previous_page)) { hostState.value?.layout?.turnBackward() ?: false },
+                )
+            },
+        )
 
-    // The bookmark write path stays here: it drives the toast counters,
-    // which belong to ReaderContent's one-slot toast machinery.
-    val placeBookmark = remember(book) {
-        {
-            navigator?.currentLocator?.value?.let { at ->
-                viewModel.addBookmark(at) {
-                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+        val brightness = brightnessPreview ?: snapshot.brightness
+        val veil = (AppSettings.DEFAULT_BRIGHTNESS - brightness).coerceAtLeast(0f) / 1.7f
+        if (veil > 0f) Box(Modifier.fillMaxSize().drawBehind { drawRect(Color(0xFF0A0907).copy(alpha = veil)) })
+
+        val placeBookmark = {
+            val coordinate = anchorState.value ?: viewModel.currentCoordinate()
+            if (coordinate == null) {
+                toastMessage.value = ReaderToast.LinkFailed
+                toastCount += 1
+            } else {
+                val count = book.session.positionCount().coerceAtLeast(1u)
+                val progression = book.session.positionOf(coordinate).toDouble() / count.toDouble()
+                viewModel.addBookmark(coordinate, progression) {
+                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.Confirm)
                     toastMessage.value = ReaderToast.BookmarkPlaced
                     toastCount += 1
                 }
             }
-            Unit
         }
-    }
-
-    ReaderChromeLayer(
-        viewModel = viewModel,
-        book = book,
-        foreground = foreground,
-        statusPad = statusPad,
-        navPad = navPad,
-        contentBottom = contentBottom,
-        chromeVisible = chromeVisible,
-        menuOpen = menuOpen,
-        searchOpen = searchOpen,
-        toastVisible = toastVisible,
-        toastMessage = toastMessage,
-        locatorState = locatorState,
-        onBack = onBack,
-        onOpenContents = { contentsSheetOpen = true },
-        onOpenThemeType = { themeSheetOpen = true },
-        onPlaceBookmark = placeBookmark,
-        onJump = jumpTo,
-        onCloseSearch = closeSearch,
-    )
-
-    if (themeSheetOpen) {
-        ThemeTypeSheet(
-            snapshot = snapshot,
-            settings = settings,
-            appearance = appearance,
-            onBrightnessPreview = { brightnessPreview = it },
-            onDismiss = { themeSheetOpen = false },
+        ReaderChromeLayer(
+            book, foreground, statusPad, navPad, contentBottom, chromeVisible, menuOpen, searchOpen,
+            toastVisible, toastMessage, anchorState, { hostState.value?.selection?.clear(); onBack() },
+            onOpenContents = { contentsSheetOpen = true }, onOpenThemeType = { themeSheetOpen = true },
+            onPlaceBookmark = placeBookmark,
+            onSelectSearch = { hit ->
+                hit.charOffset?.let { offset ->
+                    hostState.value?.let {
+                        attemptJump(PendingJump(Coordinate(hit.spineIdx, offset), matchLength = hit.matchLength), it)
+                    }
+                }
+                searchOpen.value = false
+                chromeVisible.value = true
+            },
+            onCloseSearch = { searchOpen.value = false; chromeVisible.value = true },
+            viewModel = viewModel,
         )
     }
 
-    if (contentsSheetOpen) {
-        val locator = locatorState.value
-        val currentChapterIndex = remember(locator, book) {
-            viewModel.currentChapterIndex(locator)
+    if (themeSheetOpen) {
+        // The Publisher roster entry previews in the face the page is
+        // actually read in: the dominant glyph-run face of the current
+        // page, resolved through the primed font store. Re-sampled on
+        // layout events and font-store builds, so a fresh Publisher pick
+        // settles onto the embedded face once the reflow lands.
+        var layoutTick by remember(book) { mutableIntStateOf(0) }
+        LaunchedEffect(book) { viewModel.layoutEvents.collect { layoutTick += 1 } }
+        val publisherFamily = if (snapshot.readingFont == ReadingFont.Publisher) {
+            remember(book, layoutTick, fontRevision, anchorState.value) {
+                publisherReadingFamily(book.session, hostState.value)
+            }
+        } else {
+            null
         }
+        ThemeTypeSheet(
+            snapshot,
+            settings,
+            publisherFamily = publisherFamily,
+            onBrightnessPreview = { brightnessPreview = it },
+        ) { themeSheetOpen = false }
+    }
+    if (contentsSheetOpen) {
+        // One position/count snapshot feeds both the highlight row and the
+        // header line — two FFI crossings for the whole sheet, not three.
+        val (sheetPosition, sheetCount) = readerPositionSnapshot(book, anchorState.value)
         ContentsSheet(
-            publication = book.core,
+            publication = book.publication,
             chapters = book.chapters,
-            currentChapterIndex = currentChapterIndex,
-            pageInfo = readerPageInfo(locator, book),
-            onSelect = { chapter -> viewModel.chapterLocator(chapter)?.let(jumpTo) },
+            positionRanges = book.positionRanges,
+            currentPosition = sheetPosition,
+            pageInfo = readerPageInfo(book, sheetPosition, sheetCount),
+            onSelect = { chapter ->
+                hostState.value?.let { live ->
+                    runCatching { book.session.resolveJump(chapter.href, linkToast = true) }
+                        .onSuccess { attemptJump(it, live) }
+                        .onFailure { notifyLinkFailed() }
+                }
+            },
             onDismiss = { contentsSheetOpen = false },
         )
     }
 }
-
-/**
- * Every floating layer above the page — footer, glass buttons, speed-dial,
- * toast, search — in its own recomposition scope. The chrome states are
- * read HERE, never in [ReaderContent]'s body: every page turn flips
- * [chromeVisible], and reading it one level up would recompose the whole
- * reader on exactly the frames the page is moving.
- */
-@Composable
-private fun ReaderChromeLayer(
-    viewModel: ReaderViewModel,
-    book: ReaderViewModel.ReaderBook,
-    foreground: Color,
-    statusPad: Dp,
-    navPad: Dp,
-    contentBottom: Dp,
-    chromeVisible: MutableState<Boolean>,
-    menuOpen: MutableState<Boolean>,
-    searchOpen: MutableState<Boolean>,
-    toastVisible: State<Boolean>,
-    toastMessage: State<ReaderToast>,
-    locatorState: State<Locator?>,
-    onBack: () -> Unit,
-    onOpenContents: () -> Unit,
-    onOpenThemeType: () -> Unit,
-    onPlaceBookmark: () -> Unit,
-    onJump: (Locator) -> Unit,
-    onCloseSearch: () -> Unit,
-) {
-    Box(Modifier.fillMaxSize()) {
-        // Page-info footer, fading with the chrome.
-        AnimatedVisibility(
-            visible = chromeVisible.value,
-            enter = fadeIn(tween(240, easing = InkMotion.easeQuiet)),
-            exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
-            modifier = Modifier
-                // The chrome's fades run over a page that scrolls at the
-                // display's full rate; without their own votes they'd run
-                // in the 60 Hz category and read as stutter against it.
-                .preferredFrameRate(FrameRateCategory.High)
-                .align(Alignment.BottomCenter)
-                .padding(bottom = navPad + ReaderMetrics.footerLift),
-        ) {
-            // locatorState is read here, inside this content lambda, so a
-            // page turn recomposes the footer text alone.
-            Text(
-                readerPageInfo(locatorState.value, book),
-                style = InkType.caption,
-                color = foreground.copy(alpha = 0.55f),
-            )
-        }
-
-        // Back button.
-        AnimatedVisibility(
-            visible = chromeVisible.value && !searchOpen.value,
-            enter = fadeIn(tween(240, easing = InkMotion.easeQuiet)),
-            exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
-            modifier = Modifier
-                .preferredFrameRate(FrameRateCategory.High)
-                .align(Alignment.TopStart)
-                .padding(start = 16.dp, top = statusPad + 6.dp),
-        ) {
-            ReaderGlassButton(
-                icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = stringResource(R.string.a11y_back),
-                onClick = onBack,
-            )
-        }
-
-        // Speed-dial reading menu.
-        AnimatedVisibility(
-            visible = menuOpen.value,
-            enter = fadeIn(tween(240, easing = InkMotion.easeQuiet)) +
-                slideInVertically(tween(240, easing = InkMotion.easeQuiet)) { it / 10 },
-            exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)) +
-                slideOutVertically(tween(240, easing = InkMotion.easeQuiet)) { it / 10 },
-            modifier = Modifier
-                .preferredFrameRate(FrameRateCategory.High)
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = contentBottom + 46.dp + 12.dp),
-        ) {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.padding(start = 16.dp).widthIn(max = 320.dp),
-            ) {
-                ReaderMenuPill(
-                    text = stringResource(
-                        R.string.reader_menu_contents,
-                        readerPercent(locatorState.value, book),
-                    ),
-                    icon = Icons.AutoMirrored.Outlined.List,
-                    onClick = {
-                        menuOpen.value = false
-                        onOpenContents()
-                    },
-                )
-                ReaderMenuPill(
-                    text = stringResource(R.string.reader_menu_theme_type),
-                    icon = Icons.Outlined.FormatSize,
-                    onClick = {
-                        menuOpen.value = false
-                        onOpenThemeType()
-                    },
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ReaderGlassButton(
-                        icon = Icons.Outlined.Search,
-                        contentDescription = stringResource(R.string.a11y_search_book),
-                        onClick = {
-                            menuOpen.value = false
-                            chromeVisible.value = false
-                            searchOpen.value = true
-                        },
-                    )
-                    ReaderGlassButton(
-                        icon = Icons.Outlined.Bookmark,
-                        contentDescription = stringResource(R.string.a11y_place_bookmark),
-                        onClick = onPlaceBookmark,
-                    )
-                }
-            }
-        }
-
-        // Menu toggle.
-        AnimatedVisibility(
-            visible = chromeVisible.value && !searchOpen.value,
-            enter = fadeIn(tween(240, easing = InkMotion.easeQuiet)),
-            exit = fadeOut(tween(240, easing = InkMotion.easeQuiet)),
-            modifier = Modifier
-                .preferredFrameRate(FrameRateCategory.High)
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = contentBottom),
-        ) {
-            ReaderGlassButton(
-                icon = if (menuOpen.value) Icons.Outlined.Close else Icons.Outlined.MoreHoriz,
-                contentDescription = stringResource(
-                    if (menuOpen.value) {
-                        R.string.a11y_close_reading_menu
-                    } else {
-                        R.string.a11y_reading_menu
-                    }
-                ),
-                onClick = { menuOpen.value = !menuOpen.value },
-            )
-        }
-
-        // Bookmark / blocked-link toast.
-        AnimatedVisibility(
-            visible = toastVisible.value,
-            enter = fadeIn(tween(InkMotion.durFast, easing = InkMotion.easeQuiet)),
-            exit = fadeOut(tween(InkMotion.durMed, easing = InkMotion.easeQuiet)),
-            modifier = Modifier
-                .preferredFrameRate(FrameRateCategory.High)
-                .align(Alignment.TopCenter)
-                .padding(top = statusPad + 56.dp),
-        ) {
-            InkToast(
-                text = stringResource(
-                    when (toastMessage.value) {
-                        ReaderToast.BookmarkPlaced -> R.string.reader_bookmark_placed
-                        ReaderToast.LinkFailed -> R.string.reader_link_failed
-                    },
-                ),
-                icon = when (toastMessage.value) {
-                    ReaderToast.BookmarkPlaced -> Icons.Filled.Bookmark
-                    ReaderToast.LinkFailed -> Icons.Outlined.LinkOff
-                },
-            )
-        }
-
-        if (searchOpen.value) {
-            // A scrim between the page and the panel: without a pointer-input
-            // node here, taps and drags aimed at the panel's quiet areas fall
-            // through to the navigator behind it.
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) { detectTapGestures { onCloseSearch() } }
-            )
-            ReaderSearchPanel(
-                topPadding = statusPad + 8.dp,
-                viewModel = viewModel,
-                onSelect = { hit ->
-                    // The jump lands first, then the panel gets out of the
-                    // way — closing first would hand the navigator a target
-                    // while the chrome is still animating over it.
-                    viewModel.searchLocator(hit)?.let(onJump)
-                    onCloseSearch()
-                },
-                onClose = onCloseSearch,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ReaderOpenFailed(
-    foreground: Color,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.padding(horizontal = 40.dp),
-    ) {
-        Text(
-            stringResource(R.string.reader_open_failed),
-            style = InkType.reading,
-            color = foreground.copy(alpha = 0.75f),
-        )
-        Spacer(Modifier.height(18.dp))
-        InkButton(
-            text = stringResource(R.string.reader_retry),
-            onClick = onRetry,
-            size = InkButtonSize.Small,
-        )
-    }
-}
-
-/** Whole-book percentage at [locator], falling back to the core's saved
- *  progression until the navigator has said where it is. */
-private fun readerPercent(locator: Locator?, book: ReaderViewModel.ReaderBook): Int {
-    val progression = locator?.locations?.totalProgression ?: book.core.progression
-    return (progression * 100).roundToInt().coerceIn(0, 100)
-}
-
-/** Honest numbers: Readium's synthetic positions, never invented pages.
- *  Deliberately not restartable — the caller's scope owns the state read. */
-@Composable
-private fun readerPageInfo(locator: Locator?, book: ReaderViewModel.ReaderBook): String {
-    val position = locator?.locations?.position
-    val percent = readerPercent(locator, book)
-    return if (position != null && book.positionCount > 0) {
-        stringResource(R.string.reader_page_info, position, book.positionCount, percent)
-    } else {
-        stringResource(R.string.reader_percent, percent)
-    }
-}
-
-/**
- * The design system's reading surface, spoken in Readium preferences: the
- * theme's exact ink and ground, and the 0.9–1.25rem type scale as a
- * multiplier of the publisher size. Vertical writing stays untouched —
- * Readium derives it from the publication language.
- */
-@OptIn(ExperimentalReadiumApi::class)
-private fun readingPreferences(snapshot: AppSettings.Snapshot): EpubPreferences {
-    val theme = snapshot.readingTheme
-    return EpubPreferences(
-        theme = if (theme.isNight) ReadiumTheme.DARK else ReadiumTheme.LIGHT,
-        backgroundColor = ReadiumColor(theme.background.toArgb()),
-        textColor = ReadiumColor(theme.foreground.toArgb()),
-        fontSize = AppSettings.TEXT_SIZE_STEPS[snapshot.textSizeStep] / 16.0,
-    )
-}
-
-/** What the reader's single toast slot is currently saying. */
-private enum class ReaderToast { BookmarkPlaced, LinkFailed }

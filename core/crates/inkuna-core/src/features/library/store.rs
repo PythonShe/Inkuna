@@ -11,6 +11,12 @@ use crate::core::db::{migrate, open_connection, ReaderPool, READER_POOL_SIZE};
 use crate::features::search::SearchIndex;
 use crate::CoreError;
 
+/// The data-dir subdirectory holding per-book extracted publisher-font
+/// caches (`pubfonts/<publication-id>/<content-hash>.<ext>`). The FFI
+/// builds session cache paths from it; [`Library::remove`] and the
+/// open-time sweep delete a book's directory with the book.
+pub const PUBLISHER_FONT_DIR: &str = "pubfonts";
+
 /// The library facade: one SQLite DB plus core-owned book/cover storage
 /// under a single data dir. One writer connection (mutations only, each in
 /// a transaction; file I/O and parsing always happen outside the lock) and
@@ -44,7 +50,16 @@ impl Library {
         let search = SearchIndex::open(&data_dir)?;
         // Heal the index against the database off the open path; a fresh
         // install and an unchanged library both make this a cheap no-op.
-        search.spawn_reconcile(db_path);
+        // The V8 rebaseline chains FIRST on the same thread, so the
+        // reconcile body never indexes a corpus the rebaseline is about
+        // to replace; reads meanwhile see NULL coordinate columns and
+        // fall back to the read-time default, so nothing waits on it.
+        let index_handle = search.write_handle();
+        let rebaseline_data_dir = data_dir.clone();
+        let rebaseline_db_path = db_path.clone();
+        search.spawn_reconcile(db_path, move |cancel| {
+            super::rebaseline::run(&rebaseline_data_dir, &rebaseline_db_path, &index_handle, cancel);
+        });
 
         let library = Library {
             data_dir,
@@ -66,9 +81,10 @@ impl Library {
     }
 
     /// Removes the publication row (child tables cascade), its book file,
-    /// and its cover. File deletion is idempotent — missing files are not
-    /// an error — and always confined to the data dir because DB paths are
-    /// relative by construction.
+    /// its cover, and its extracted publisher-font cache. File deletion
+    /// is idempotent — missing files are not an error — and always
+    /// confined to the data dir because DB paths are relative by
+    /// construction (the font cache path is built from the id here).
     pub fn remove(&self, id: &str) -> Result<(), CoreError> {
         let publication = self.publication(id)?;
         {
@@ -79,6 +95,9 @@ impl Library {
         if let Some(cover) = &publication.cover_path {
             let _ = std::fs::remove_file(self.data_dir.join(cover));
         }
+        let _ = std::fs::remove_dir_all(
+            self.data_dir.join(PUBLISHER_FONT_DIR).join(id),
+        );
         // Derived data: a failure here only leaves stale docs that the
         // next open's reconcile drops, so the remove still succeeds.
         if let Err(e) = self.search.delete_publication(id) {
@@ -116,6 +135,27 @@ impl Library {
                 let rel = format!("{sub}/{}", entry.file_name().to_string_lossy());
                 if !referenced.contains(&rel) {
                     let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+
+        // Publisher-font caches are keyed by publication id; a directory
+        // whose id has no row is a leftover of an interrupted delete.
+        // The dir is optional (created lazily at first reader open).
+        let ids: HashSet<String> = self.readers.with(|conn| {
+            let mut stmt = conn.prepare("SELECT id FROM publications")?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            let mut set = HashSet::new();
+            for row in rows {
+                set.insert(row?);
+            }
+            Ok(set)
+        })?;
+        if let Ok(entries) = std::fs::read_dir(self.data_dir.join(PUBLISHER_FONT_DIR)) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if !ids.contains(&name) {
+                    let _ = std::fs::remove_dir_all(entry.path());
                 }
             }
         }

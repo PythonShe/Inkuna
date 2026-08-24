@@ -60,7 +60,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
                 // Stats bucketing follows the zone and week convention this
                 // device lives in; the zone id (not a fixed offset) is what
                 // keeps week/month/year boundaries honest across DST.
-                val overview = bookshelf.statsOverview(
+                val overview = bookshelf.stats().statsOverview(
                     timezone = ZoneId.systemDefault().id,
                     // The same locale the calendar grid renders with
                     // (LocalConfiguration), not Locale.getDefault() — the
@@ -72,7 +72,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 // Reading, not unfinished: "in progress" means actually
                 // begun, so a freshly imported book stays off this list.
-                val inProgress = bookshelf.list(Shelf.READING, Sort.RECENTLY_OPENED)
+                val inProgress = bookshelf.library().list(Shelf.READING, Sort.RECENTLY_OPENED)
                 val unknownAuthor =
                     getApplication<Application>().getString(R.string.unknown_author)
                 val fresh = UiState(

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import app.inkuna.android.R
 import app.inkuna.android.model.BookRow
 import app.inkuna.android.model.LibraryStore
+import app.inkuna.android.ui.reader.ReaderPositions
 import app.inkuna.core.Bookshelf
 import app.inkuna.core.Publication
 import app.inkuna.core.Shelf
@@ -18,8 +19,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONObject
-import org.readium.r2.shared.publication.Locator
 
 /**
  * The Tonight screen's core-backed state: the hero to continue and the
@@ -55,7 +54,7 @@ class TonightViewModel(application: Application) : AndroidViewModel(application)
                 // Unfinished, not all: a book just finished must not be the
                 // "keep reading" hero merely for being touched last.
                 val bookshelf = LibraryStore.bookshelf(getApplication())
-                val publications = bookshelf.list(Shelf.UNFINISHED, Sort.RECENTLY_OPENED)
+                val publications = bookshelf.library().list(Shelf.UNFINISHED, Sort.RECENTLY_OPENED)
                 val unknownAuthor =
                     getApplication<Application>().getString(R.string.unknown_author)
                 val rows = publications.map { BookRow.from(it, unknownAuthor) }
@@ -79,35 +78,31 @@ class TonightViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * How many Readium synthetic positions the hero has left in the chapter
-     * it is stopped in.
+     * How many synthetic positions the hero has left in the chapter it is
+     * stopped in, for the caption only.
      *
-     * The chapter ranges are reported by the reader the last time the book
-     * was open, so they are absent until then — and the stored locator is
-     * opaque to the core, so only Readium parses it. Either missing makes
-     * this null and the card falls back to the honest percentage. Several
-     * ranges can contain one position (a chapter with sub-entries in the
-     * same resource); the innermost — the greatest start — is the chapter
-     * the reader is actually in.
+     * Both halves are core answers: the position the stored coordinate
+     * lands on, and the chapter spans around it. A book with no coordinate
+     * yet — never opened, or a legacy row the rebaseline has not reached —
+     * has no position to caption and degrades to the percentage line, as
+     * does any book whose spans the core cannot produce. Zero or less is
+     * not a caption worth showing.
      */
     private suspend fun pagesLeftInChapter(bookshelf: Bookshelf, publication: Publication): Int? {
-        val position = publication.locator
-            ?.let { raw -> runCatching { Locator.fromJSON(JSONObject(raw)) }.getOrNull() }
-            ?.locations?.position
-            ?: return null
-        val ranges = try {
-            bookshelf.chapterPositionRanges(publication.id)
+        val coordinate = publication.coordinate ?: return null
+        return try {
+            val position = ReaderPositions.position(coordinate, publication.id, bookshelf)
+            val ranges = bookshelf.progress().chapterPositionRanges(publication.id)
+            val containing = ReaderPositions.chapterRange(ranges, position) ?: return null
+            val left = containing.endPosition.toLong() - position.toLong()
+            if (left > 0) left.toInt() else null
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Throwable) {
-            Log.w(TAG, "Chapter position ranges would not load", failure)
-            return null
+            // The shelf itself loaded; only the caption is poorer for it.
+            Log.w(TAG, "The hero's chapter position would not resolve", failure)
+            null
         }
-        val here = ranges
-            .filter { position.toUInt() in it.startPosition..it.endPosition }
-            .maxByOrNull { it.startPosition }
-            ?: return null
-        return (here.endPosition.toLong() - position).toInt().takeIf { it > 0 }
     }
 
     private companion object {

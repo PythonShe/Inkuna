@@ -1223,6 +1223,9 @@ property / adversarial test corpus.
         fn first_page_ready(&self, generation: u64, spine_idx: u32);
         fn chapter_ready(&self, generation: u64, spine_idx: u32,
                          page_count: u32);
+        // Every terminal outcome has exactly one event, so shells never
+        // poll: a chapter that fails closed announces itself here.
+        fn chapter_failed(&self, generation: u64, spine_idx: u32);
     }
     pub struct EngineSession { /* private */ }
     impl EngineSession {
@@ -1280,9 +1283,13 @@ property / adversarial test corpus.
     `LaidPage`'s `(PageDisplayList, PageMaps)` into the chapter's cache
     slot AS EMITTED, firing `first_page_ready` on page 0 and
     `chapter_ready` on completion. A chapter whose parse fails closed is
-    cached as `Failed(UnsupportedContent)` — `chapter()`/`page()` on it
-    return that error (the shell renders its localized placeholder page;
-    plan 02). Cache (`cache.rs`): LRU, capacity 5 complete chapters
+    cached as `Failed(UnsupportedContent)` and fires `chapter_failed`
+    (after the slot guard drops, under the same closed re-check as the
+    readiness emits) — `chapter()`/`page()` on it then return that error
+    (the shell drops its loading state and renders its localized
+    placeholder page; plan 02). Every terminal outcome of laying a
+    chapter out therefore has exactly one event, so no shell ever polls
+    for a failure. Cache (`cache.rs`): LRU, capacity 5 complete chapters
     (spec §2), keyed `(spine_idx, generation)`; the current chapter is
     never evicted. Generations: `update_layout` bumps a monotonic
     `AtomicU64`, records the new `(viewport, settings)`, clears the
@@ -1326,6 +1333,10 @@ property / adversarial test corpus.
     `is_ready(s)` may still be false, then `chapter_ready` with final
     count; `not_ready_then_ready`: `chapter(2)` before layout →
     `NotReady`, after `chapter_ready(2)` → geometry;
+    `failed_chapter_scoped`: a garbage chapter between two good ones →
+    `chapter_failed(gen, idx)` observed (no polling), and `chapter(idx)`
+    / `page(idx, 0)` then throw `UnsupportedContent` while the rest of
+    the book stays queryable;
     `update_layout_bumps_generation_and_invalidates`: change viewport →
     new geometry has new generation, old generation never re-observed in
     events after the bump; `locate_hit_test_round_trip`: for a grid of
@@ -1610,8 +1621,13 @@ shells compile at the end (6.8).
     corrupt book never blocks the library); the book retries on next
     open. Thread-level: a failure opening the connection logs and
     returns (same as search reconcile today). `Library` reads meanwhile:
-    coordinate columns NULL → read-time default `Coordinate { spine_idx:
-    0, char_offset: 0 }` (6.5), so nothing waits on the pass.
+    coordinate columns NULL → `None` (6.5) — the caller falls back to
+    the stored `progression`, so nothing waits on the pass and no row
+    ever claims a coordinate it does not have. In-book search reads the
+    same way: `BookSearchResults` carries `canonical: bool` (false until
+    this book's `reconciled_at` is set), and non-canonical hit offsets
+    index a pre-rebaseline body — snippets stay displayable, but the
+    offsets must NOT be fed to a session's `locate` / `match_rects`.
   - **Tests:** (fixture DB seeded at V8 with real Readium locator JSON
     shapes) `valid_locator_converts`:
     `{"href":"OEBPS/ch02.xhtml","locations":{"progression":0.5}}` on a
@@ -1645,31 +1661,36 @@ shells compile at the end (6.8).
     swaps `locator: Option<String>` → `coordinate: Option<Coordinate>`
     (read: both columns non-NULL → Some, else None — pre-reconcile rows
     surface `None`, and `position_count` keeps meaning); core `Bookmark`
-    swaps `locator: String` → `coordinate: Coordinate` (read: NULL
-    columns → `Coordinate { spine_idx: 0, char_offset: 0 }` — the spec's
-    read-time default). Writes: `Library::update_progress(&self, id:
-    &str, coordinate: Coordinate, progression: f64, position:
-    Option<u32>)` — stores the coordinate columns; when `position` is
+    swaps `locator: String` → `coordinate: Option<Coordinate>` (read:
+    NULL columns → `None`; there is NO read-time `(0, 0)` default — a
+    row with no coordinate must degrade to its stored `progression`,
+    never silently claim the top of the first spine item). Writes:
+    `Library::update_progress(&self, id: &str, coordinate:
+    Option<Coordinate>, progression: f64, position: Option<u32>)` —
+    stores the coordinate columns when `Some`, leaves them NULL when
+    `None` (a shell without a live reader session still records
+    progression); when `position` is
     `None`, derives it from the coordinate against `resource_positions`
     (`start_position + char_offset / 1024`, clamped into the resource's
     range) so session stats keep flowing without a shell-side position
     model (doc comment: shells may pass `None`). All other semantics
     (clamping, finish threshold, session heartbeat) unchanged.
-    `Library::add_bookmark(&self, id: &str, coordinate: Coordinate,
-    progression: f64) -> Result<Bookmark, CoreError>` writes coordinate
-    columns + `locator = ''`. FFI: new
+    `Library::add_bookmark(&self, id: &str, coordinate:
+    Option<Coordinate>, progression: f64) -> Result<Bookmark, CoreError>`
+    writes coordinate columns (NULL when `None`) + `locator = ''`. FFI:
+    new
     `#[derive(uniffi::Record)] pub struct Coordinate { pub spine_idx:
     u32, pub char_offset: u64 }` (in `reader/records.rs`, module
     declared from `lib.rs`) with `From` conversions both ways;
     `Publication` record: `locator` field deleted, `coordinate:
     Option<Coordinate>` added (`position_count` stays); `Bookmark`
-    record: `locator` → `coordinate: Coordinate`;
-    `ShelfProgress::update_progress(id: String, coordinate: Coordinate,
-    progression: f64, position: Option<u32>)`;
-    `ShelfLibrary::add_bookmark(id: String, coordinate: Coordinate,
-    progression: f64)`. Method names all unchanged (overview: "same
-    method names, `locator: String` parameters/fields become
-    `coordinate: Coordinate`"). Session-free position lookups (overview
+    record: `locator` → `coordinate: Option<Coordinate>`;
+    `ShelfProgress::update_progress(id: String, coordinate:
+    Option<Coordinate>, progression: f64, position: Option<u32>)`;
+    `ShelfLibrary::add_bookmark(id: String, coordinate:
+    Option<Coordinate>, progression: f64)`. Method names all unchanged
+    (overview: "same method names, `locator: String` parameters/fields
+    become `coordinate: Option<Coordinate>`"). Session-free position lookups (overview
     contract — Home/Detail screens have no `ReaderSession`): core
     `Library::position_of(&self, id: &str, coordinate: Coordinate) ->
     Result<u32, CoreError>` and `Library::position_count(&self, id: &str)
@@ -1734,6 +1755,7 @@ shells compile at the end (6.8).
         fn on_first_page_ready(&self, generation: u64, spine_idx: u32);
         fn on_chapter_ready(&self, generation: u64, spine_idx: u32,
                             page_count: u32);
+        fn on_chapter_failed(&self, generation: u64, spine_idx: u32);
     }
     ```
     (the `ImportProgressListener` precedent; doc: callbacks arrive on
@@ -1759,6 +1781,9 @@ shells compile at the end (6.8).
     `accessibility_blocks(spine_idx: u32, page_idx: u32) ->
     Result<Vec<A11yBlock>, InkunaError>`, `font_registry() ->
     Vec<FontEntry>`, `spine_count() -> u32` (wraps `spine_len`),
+    `is_rtl() -> bool` (publication-level progression from OPF metadata),
+    `published_page_count(spine_idx: u32) -> u32` (sync cache query of
+    emitted pages),
     `page_char_range(spine_idx: u32, page_idx: u32) -> Result<CharRange,
     InkunaError>`, `position_of(coordinate: Coordinate) -> u32` and
     `position_count() -> u32` (1-based synthetic position lookup over a

@@ -79,6 +79,17 @@ fn detects_utf16_txt_but_still_rejects_nul_binary_data() {
     ));
 }
 
+#[test]
+fn detects_bomless_utf16_cjk_txt() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cjk.txt");
+    let text = "春夏秋冬 山中月夜".repeat(64);
+    let bytes: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    std::fs::write(&path, bytes).unwrap();
+
+    assert_eq!(Format::detect(&path).unwrap(), Format::Txt);
+}
+
 /// A `mimetype` entry that trims to the EPUB literal but inflates far past
 /// the detection budget must not be read whole, and must not pass as an
 /// EPUB — detection falls through exactly as a wrong mimetype string does.
@@ -104,4 +115,42 @@ fn oversized_mimetype_entry_is_not_an_epub() {
     zip.finish().unwrap();
 
     assert_eq!(Format::detect(&path).unwrap(), Format::Cbz);
+}
+
+fn utf16(text: &str, little_endian: bool) -> Vec<u8> {
+    if little_endian {
+        text.encode_utf16().flat_map(u16::to_le_bytes).collect()
+    } else {
+        text.encode_utf16().flat_map(u16::to_be_bytes).collect()
+    }
+}
+
+fn assert_detected_as_txt_in_both_byte_orders(dir: &Path, text: &str) {
+    for (name, little_endian) in [("le.txt", true), ("be.txt", false)] {
+        let path = dir.join(name);
+        std::fs::write(&path, utf16(text, little_endian)).unwrap();
+        assert_eq!(Format::detect(&path).unwrap(), Format::Txt, "{name}");
+    }
+}
+
+/// CJK UTF-16 carries its NULs at the opposite parity from ASCII UTF-16,
+/// because they come from the low byte of U+xx00 characters (一 U+4E00,
+/// 言 U+8A00, 退 U+9000). Detection must accept both byte orders, and the
+/// converter must agree on which one — otherwise mojibake reaches
+/// `resource_text`, the search index, and the reader.
+#[test]
+fn detects_bomless_utf16_cjk_with_low_byte_nul_characters() {
+    let dir = tempfile::tempdir().unwrap();
+    let text = "一片寂静，月光洒在窗台上。".repeat(64);
+    assert_detected_as_txt_in_both_byte_orders(dir.path(), &text);
+}
+
+/// Smart quotes and em dashes keep a UTF-16 sample byte-wise valid UTF-8
+/// without making it pure-ASCII UTF-16. Such a file must still be detected
+/// as TXT rather than failing import outright.
+#[test]
+fn detects_bomless_utf16_english_with_smart_punctuation() {
+    let dir = tempfile::tempdir().unwrap();
+    let text = "It was the best of times — the ‘worst’ too. ".repeat(64);
+    assert_detected_as_txt_in_both_byte_orders(dir.path(), &text);
 }
