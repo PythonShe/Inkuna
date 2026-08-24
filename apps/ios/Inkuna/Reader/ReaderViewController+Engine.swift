@@ -23,7 +23,17 @@ extension ReaderViewController {
                 settings: layoutSettings(),
                 listener: relay
             )
-            guard !Task.isCancelled, isViewLoaded else { return }
+            guard !Task.isCancelled, isViewLoaded else {
+                // The abandoned session was never stored, so
+                // `releaseReaderEngineOffMain()` cannot reach it. Dropping the
+                // last reference here would run Rust `Drop` on the main actor,
+                // where it joins the layout worker (up to one chapter's layout).
+                // Hand it to a detached task instead, matching that path.
+                Task.detached(priority: .utility) {
+                    reader.shutdown()
+                }
+                return
+            }
             readerSession = reader
             layoutRelay = relay
             // A publication whose spine holds no usable resource can never
