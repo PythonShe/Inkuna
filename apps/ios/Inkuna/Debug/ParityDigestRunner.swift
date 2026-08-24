@@ -133,7 +133,8 @@ enum ParityDigestRunner {
         case let .Io(detail), let .Database(detail), let .Archive(detail),
              let .InvalidPublication(detail), let .NotReady(detail),
              let .UnsupportedContent(detail), let .LayoutBudgetExceeded(detail),
-             let .AnchorNotFound(detail), let .Search(detail):
+             let .AnchorNotFound(detail), let .Search(detail),
+             let .InvalidState(detail):
             return detail
         case let .FileTooLarge(limit):
             return "limit=\(limit)"

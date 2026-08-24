@@ -62,6 +62,7 @@ enum ImportFailureReason: Error, Sendable, Equatable {
         case .UnsupportedContent(let detail): self = .unknown(detail)
         case .LayoutBudgetExceeded(let detail): self = .unknown(detail)
         case .AnchorNotFound(let detail): self = .unknown(detail)
+        case .InvalidState(let detail): self = .unknown(detail)
         }
     }
 }

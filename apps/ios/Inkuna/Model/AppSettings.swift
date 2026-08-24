@@ -23,7 +23,7 @@ final class AppSettings {
         reminderMinutes: 21 * 60,
         accountName: "",
         accountEmail: "",
-        readingFont: ReadingFont.notoSerif.rawValue,
+        readingFont: ReadingFont.standard.rawValue,
         readingBold: false,
         lineSpacing: 1.65,
         letterSpacing: 0,
@@ -287,7 +287,7 @@ final class AppSettings {
     /// reset covers only the Customize panel.
     func resetReadingCustomization() {
         mutate {
-            $0.readingFont = ReadingFont.notoSerif.rawValue
+            $0.readingFont = ReadingFont.standard.rawValue
             $0.readingBold = false
             $0.lineSpacing = 1.65
             $0.letterSpacing = 0

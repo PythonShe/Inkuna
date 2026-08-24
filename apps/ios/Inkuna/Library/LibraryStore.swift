@@ -18,6 +18,12 @@ actor LibraryStore {
 
     private var opened: Bookshelf?
 
+    /// The in-flight open. `library()` suspends while system fonts
+    /// register, and actor methods are reentrant across suspension — so
+    /// every concurrent caller must join this one task or a second
+    /// `Bookshelf` could open mid-registration.
+    private var opening: Task<Bookshelf, Error>?
+
     /// The background cover-normalization pass, held on the actor so it
     /// has a defined cancellation path and a second open can never queue
     /// a second pass.
@@ -32,10 +38,28 @@ actor LibraryStore {
     /// rather than trapped: a reader whose library will not open needs a
     /// screen they can retry or reset from, not an app that cannot launch.
     /// Nothing is cached on failure, so a later call retries.
-    func library() throws -> Bookshelf {
+    ///
+    /// System reading faces (New York / San Francisco) are registered with
+    /// the engine in here, after the core opens and before the `Bookshelf`
+    /// is handed to anyone — the core accepts that call exactly once and
+    /// only before the first reader session, and funneling every session
+    /// through this method is what keeps that ordering true.
+    func library() async throws -> Bookshelf {
         if let opened {
             return opened
         }
+        if let opening {
+            return try await opening.value
+        }
+        let task = Task { try await self.open() }
+        opening = task
+        defer { opening = nil }
+        let bookshelf = try await task.value
+        opened = bookshelf
+        return bookshelf
+    }
+
+    private func open() async throws -> Bookshelf {
         guard let directory = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -65,7 +89,22 @@ actor LibraryStore {
         // books/, and covers/. A pre-existing inkuna.db from the old
         // dbPath constructor is adopted by the core's v2 migration.
         let bookshelf = try Bookshelf.open(dataDir: directory.path, fontDir: fontDirectory.path)
-        opened = bookshelf
+        // Hand the platform faces to the engine before anyone can start a
+        // session. A failure here never fails the open: the engine simply
+        // falls back to the bundled Notos for the system-font choices.
+        let faces = SystemReadingFonts.discover()
+        if !faces.isEmpty {
+            do {
+                let warnings = try await bookshelf.registerSystemFonts(faces: faces)
+                for warning in warnings {
+                    logger.warning(
+                        "System font skipped (\(warning.filePath, privacy: .public)): \(warning.detail, privacy: .public)"
+                    )
+                }
+            } catch {
+                logger.warning("System font registration failed: \(error)")
+            }
+        }
         // Covers imported by older cores are full-resolution originals;
         // normalize them into the core's bounded WebP form off the
         // critical path. Idempotent and cheap when there is nothing to

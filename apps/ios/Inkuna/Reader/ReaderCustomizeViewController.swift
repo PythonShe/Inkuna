@@ -177,7 +177,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         stack.setCustomSpacing(InkSpacing.space5, after: card)
     }
 
-    /// The two bundled faces, current one checked. Rebuilt on every pick so the
+    /// The full roster, current face checked. Rebuilt on every pick so the
     /// checkmark and the row's readout can never disagree. Per-item
     /// specimens are deliberately absent: `UIMenu` renders plain titles
     /// only, and the preview card already shows the face in use.

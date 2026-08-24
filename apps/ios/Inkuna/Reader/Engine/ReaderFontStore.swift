@@ -75,6 +75,17 @@ final class ReaderFontStore {
     }
 
     private func descriptor(for entry: FontEntry, in availableDescriptors: [CTFontDescriptor]) -> CTFontDescriptor? {
+        // The registry names every face, and the name is authoritative:
+        // Core Text's descriptor order for a collection (or a variable
+        // font's named instances) is not guaranteed to match the file's
+        // collection order, so a system or publisher .ttc face is found by
+        // its PostScript name first and only falls back to the index.
+        if let match = availableDescriptors.first(where: { candidate in
+            CTFontDescriptorCopyAttribute(candidate, kCTFontNameAttribute) as? String == entry.postScriptName
+        }) {
+            return match
+        }
+
         guard
             let index = Int(exactly: entry.collectionIndex),
             availableDescriptors.indices.contains(index)
