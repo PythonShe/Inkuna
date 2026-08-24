@@ -48,8 +48,10 @@
 //!   the registration order the shell passed (a variable face takes
 //!   nine consecutive ids — its `wght` instances at 100..=900 ascending;
 //!   a static face takes one). A face that fails to load takes NO id.
-//! - the PUBLISHER block (a later package) follows immediately after
-//!   the system block, from [`FontRegistry::next_free_id`] upward.
+//! - the PUBLISHER block follows immediately after the system block,
+//!   from [`FontRegistry::next_free_id`] upward — but ONLY on a
+//!   per-session derived registry ([`FontRegistry::with_publisher`]);
+//!   the process-global registry never carries publisher faces.
 //!
 //! Shells prime their font tables from `font_registry()` after open, so
 //! every entry exists before any session starts and ids never move.
@@ -67,9 +69,10 @@ use read_fonts::FontRef;
 
 use crate::error::EngineError;
 use crate::settings::FontFamily;
-use crate::style::{FontStyle, FontWeight};
+use crate::style::{FamilyName, FontStyle, FontWeight};
 
 use super::face::{font_metrics, map_font, missing, post_script_name, wght_range};
+use super::publisher::{load_publisher_faces, PublisherFaceSpec, PublisherFamilies};
 use super::system::{load_system_faces, FaceSlots, SystemFontFace, SystemFontWarning};
 
 /// One variation-axis coordinate a face is used at. Empty for the
@@ -201,11 +204,11 @@ pub struct FontRegistry {
     faces: Vec<LoadedFace>,
     /// The registered platform faces `System*` requests resolve from.
     system: FaceSlots,
-    /// The publisher-embedded faces `Publisher` requests resolve from.
-    /// Deliberately empty until publisher registration lands (B2): the
-    /// lookup path is real, its data is not — so `Publisher` explicitly
-    /// falls back to NotoSerif at selection time today.
-    publisher: FaceSlots,
+    /// The publisher family table `font-family` stacks resolve against
+    /// via [`FontRegistry::select_stack`]. Empty on the process-global
+    /// base registry; populated only on the per-session derived registry
+    /// [`FontRegistry::with_publisher`] builds.
+    publisher: PublisherFamilies,
 }
 
 impl FontRegistry {
@@ -327,10 +330,63 @@ impl FontRegistry {
                 entries,
                 faces,
                 system: system_slots,
-                publisher: FaceSlots::default(),
+                publisher: PublisherFamilies::default(),
             }),
             warnings,
         ))
+    }
+
+    /// A per-session registry extending `base` with the publication's
+    /// embedded faces: the shared blocks are carried over (cheap `Arc`
+    /// clones of the maps) and the publisher block is appended from
+    /// [`FontRegistry::next_free_id`] upward, in spec order — see the
+    /// determinism notes on the `publisher` module. Specs that fail to
+    /// load are skipped with a warning log; an empty result simply
+    /// yields a registry whose `Publisher` selection falls back exactly
+    /// like the base's.
+    pub fn with_publisher(
+        base: &Arc<FontRegistry>,
+        specs: &[PublisherFaceSpec],
+    ) -> Arc<FontRegistry> {
+        let mut entries = base.entries.clone();
+        let mut faces = base.faces.clone();
+        let publisher = load_publisher_faces(specs, &mut entries, &mut faces);
+        Arc::new(FontRegistry {
+            entries,
+            faces,
+            // The system slot table is small and immutable; rebuilding it
+            // is not worth sharing machinery — clone the resolved slots.
+            system: base.system.clone(),
+            publisher,
+        })
+    }
+
+    /// The reading-face id for a `font-family` stack under the
+    /// `publisher` reading font, walking the stack in author order:
+    /// a named family registered from the publication wins; a generic
+    /// `serif`/`sans-serif` resolves to the bundled Noto equivalent;
+    /// `monospace` (no bundled mono roster) and unknown names walk on.
+    /// A stack that matches nothing — and the empty stack — falls back
+    /// to NotoSerif, the reader's default reading face.
+    pub fn select_stack(
+        &self,
+        stack: &[FamilyName],
+        style: FontStyle,
+        weight: FontWeight,
+    ) -> u32 {
+        for name in stack {
+            match name {
+                FamilyName::Named(named) => {
+                    if let Some(id) = self.publisher.select(named, style, weight.value()) {
+                        return id;
+                    }
+                }
+                FamilyName::Serif => return self.select(FontFamily::NotoSerif, style, weight),
+                FamilyName::SansSerif => return self.select(FontFamily::NotoSans, style, weight),
+                FamilyName::Monospace => {}
+            }
+        }
+        self.select(FontFamily::NotoSerif, style, weight)
     }
 
     /// The full face table, for the FFI. Never forces byte loads —
@@ -339,8 +395,9 @@ impl FontRegistry {
         self.entries.clone()
     }
 
-    /// The first id the next dynamic block (publisher faces, B2) will
-    /// allocate from — one past the system block.
+    /// The first id the publisher block allocates from — one past the
+    /// system block on the base registry, one past everything on a
+    /// derived one.
     pub fn next_free_id(&self) -> u32 {
         self.entries.len() as u32
     }
@@ -368,7 +425,11 @@ impl FontRegistry {
     /// static Bold ids, everything else its instance id.
     pub fn select(&self, family: FontFamily, style: FontStyle, weight: FontWeight) -> u32 {
         let dynamic = match family {
-            FontFamily::Publisher => self.publisher.select(true, style, weight.value()),
+            // A bare `Publisher` request (an element with no
+            // `font-family` stack, or the terminal `.notdef` stage)
+            // reads as "no preference": NotoSerif. Stacks resolve
+            // through [`FontRegistry::select_stack`] instead.
+            FontFamily::Publisher => None,
             FontFamily::SystemSerif => self.system.select(true, style, weight.value()),
             FontFamily::SystemSans => self.system.select(false, style, weight.value()),
             FontFamily::NotoSerif | FontFamily::NotoSans => None,

@@ -27,6 +27,7 @@ fn context(fonts: &FontRegistry) -> ShapeContext<'_> {
     ShapeContext {
         fonts,
         family: FontFamily::NotoSerif,
+        families: &[],
         font_style: FontStyle::Normal,
         font_weight: FontWeight::NORMAL,
         size: Fx::from_pt(16.0),

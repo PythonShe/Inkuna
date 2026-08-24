@@ -71,6 +71,15 @@ impl EngineSession {
     /// lays out first, then spine neighbors of the most recently
     /// queried chapter. A `pre-paginated` package is rejected —
     /// fixed-layout gets a dedicated navigator, never this engine.
+    ///
+    /// `publisher_font_dir` is the per-book cache dir for the
+    /// publication's embedded faces. When given and the book embeds
+    /// fonts, the session shapes with a derived registry extending
+    /// `fonts` by the publisher block (extraction + registration happen
+    /// HERE, before open returns, because shells prime their font
+    /// tables from `font_registry()` exactly once after open); `None`
+    /// disables publisher fonts entirely. Extraction failures degrade
+    /// per face — an open never fails because of an embedded font.
     pub fn open(
         epub_path: &Path,
         fonts: Arc<FontRegistry>,
@@ -78,6 +87,7 @@ impl EngineSession {
         settings: LayoutSettings,
         lang: Option<String>,
         opening_chapter: u32,
+        publisher_font_dir: Option<&Path>,
         events: Arc<dyn LayoutEvents>,
     ) -> Result<Arc<EngineSession>, EngineError> {
         let package = read_package(epub_path)?;
@@ -86,6 +96,17 @@ impl EngineSession {
                 detail: "fixed-layout".to_string(),
             });
         }
+        let fonts = match publisher_font_dir {
+            Some(dir) => {
+                let specs = crate::fonts::extract_publisher_fonts(epub_path, &package, dir);
+                if specs.is_empty() {
+                    fonts
+                } else {
+                    FontRegistry::with_publisher(&fonts, &specs)
+                }
+            }
+            None => fonts,
+        };
         let spine = package.spine;
         let focus = opening_chapter.min(spine.len().saturating_sub(1) as u32);
         let mut queue = VecDeque::new();
@@ -194,6 +215,14 @@ impl EngineSession {
 
     pub fn spine_len(&self) -> u32 {
         self.shared.spine.len() as u32
+    }
+
+    /// The registry this session shapes with — the base registry, or the
+    /// derived one carrying this publication's publisher block. THE
+    /// table `font_registry()` must serve, so display-list font ids
+    /// always resolve.
+    pub fn fonts(&self) -> Arc<FontRegistry> {
+        Arc::clone(&self.shared.fonts)
     }
 
     /// The engine's current layout generation. Shells compare callback

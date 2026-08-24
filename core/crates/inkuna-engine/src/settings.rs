@@ -47,12 +47,16 @@ const RUBY_SCALE: (u32, u32) = (1, 2);
 /// two `System*` values are *requests*, not guarantees: the registry
 /// serves them from its dynamically registered faces and silently falls
 /// back to the bundled Noto equivalent when none were registered
-/// (publisher-embedded faces land in a later package; system faces are
-/// whatever the shell registered before the first reader open).
+/// (publisher faces are the book's own embedded fonts, extracted and
+/// registered per session; system faces are whatever the shell
+/// registered before the first reader open).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontFamily {
-    /// The book's own embedded faces; falls back to [`FontFamily::NotoSerif`]
-    /// until publisher font registration exists.
+    /// The book's own embedded faces: element `font-family` stacks pick
+    /// among the registered publisher families (`select_stack`); a stack
+    /// that matches nothing, a book with no embedded fonts, and elements
+    /// with no stack fall back to [`FontFamily::NotoSerif`] (a generic
+    /// `sans-serif` in the stack to [`FontFamily::NotoSans`]).
     Publisher,
     /// The platform's serif face set, as registered by the shell.
     SystemSerif,
@@ -65,7 +69,9 @@ pub enum FontFamily {
 impl FontFamily {
     /// Whether the family is serif-flavored — what the CJK/Hebrew
     /// fallback stages key their serif/sans split on. `Publisher`
-    /// counts as serif: its B1 fallback is NotoSerif.
+    /// counts as serif: its terminal fallback is NotoSerif, and the
+    /// fallback stages deliberately stay the bundled Notos regardless
+    /// of which embedded face shapes the Reading stage.
     pub fn is_serif(self) -> bool {
         !matches!(self, FontFamily::SystemSans | FontFamily::NotoSans)
     }

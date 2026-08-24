@@ -79,6 +79,7 @@ pub(super) fn open(
         LayoutSettings::default(),
         None,
         opening,
+        None,
         Arc::new(TestEvents(tx)),
     )
     .expect("session opens");
@@ -383,6 +384,7 @@ fn fixed_layout_rejected_at_open() {
         LayoutSettings::default(),
         None,
         0,
+        None,
         Arc::new(TestEvents(tx)),
     ) {
         Err(EngineError::UnsupportedContent { detail }) => {
@@ -427,6 +429,7 @@ fn declared_fixed_layout_is_not_downgraded_by_a_reflowable_itemref() {
         LayoutSettings::default(),
         None,
         0,
+        None,
         Arc::new(TestEvents(tx)),
     ) {
         Err(EngineError::UnsupportedContent { detail }) => assert_eq!(detail, "fixed-layout"),
@@ -662,6 +665,7 @@ fn drop_inside_callback_does_not_deadlock() {
         LayoutSettings::default(),
         None,
         0,
+        None,
         Arc::clone(&events) as Arc<dyn LayoutEvents>,
     )
     .expect("session opens");

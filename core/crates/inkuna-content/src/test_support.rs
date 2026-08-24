@@ -202,6 +202,8 @@ pub fn write_epub(path: &Path, title: &str, author: &str, language: &str) {
 /// documents. Test-only code: I/O errors panic.
 pub struct EpubBuilder {
     language: String,
+    identifier: String,
+    encryption_xml: Option<String>,
     resources: Vec<(String, String, Vec<u8>)>,
     spine: Vec<String>,
     toc: Vec<(String, String, u32)>,
@@ -220,6 +222,8 @@ impl EpubBuilder {
     pub fn new() -> Self {
         Self {
             language: "en".to_string(),
+            identifier: "fixture".to_string(),
+            encryption_xml: None,
             resources: Vec::new(),
             spine: Vec::new(),
             toc: Vec::new(),
@@ -232,6 +236,20 @@ impl EpubBuilder {
     /// Sets `dc:language` (a BCP 47 tag).
     pub fn language(mut self, tag: &str) -> Self {
         self.language = tag.to_string();
+        self
+    }
+
+    /// Sets the package's Unique Identifier value (`dc:identifier`
+    /// referenced by `package@unique-identifier`); default `fixture`.
+    pub fn identifier(mut self, value: &str) -> Self {
+        self.identifier = value.to_string();
+        self
+    }
+
+    /// Adds a `META-INF/encryption.xml` with the given body — the font
+    /// obfuscation declaration fixtures use.
+    pub fn encryption_xml(mut self, xml: &str) -> Self {
+        self.encryption_xml = Some(xml.to_string());
         self
     }
 
@@ -304,6 +322,11 @@ impl EpubBuilder {
         )
         .unwrap();
 
+        if let Some(xml) = &self.encryption_xml {
+            zip.start_file("META-INF/encryption.xml", deflated).unwrap();
+            zip.write_all(xml.as_bytes()).unwrap();
+        }
+
         let mut manifest = String::new();
         for (at, (href, media_type, _)) in self.resources.iter().enumerate() {
             manifest.push_str(&format!(
@@ -348,7 +371,7 @@ impl EpubBuilder {
                 r#"<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="uid">fixture</dc:identifier>
+    <dc:identifier id="uid">{}</dc:identifier>
     <dc:title>Fixture</dc:title>
     <dc:creator>Fixture Author</dc:creator>
     <dc:language>{}</dc:language>
@@ -357,6 +380,7 @@ impl EpubBuilder {
   <manifest>{manifest}</manifest>
   <spine{progression}>{itemrefs}</spine>
 </package>"#,
+                xml_escape(&self.identifier),
                 xml_escape(&self.language)
             )
             .as_bytes(),

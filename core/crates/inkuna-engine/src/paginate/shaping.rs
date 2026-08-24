@@ -6,8 +6,9 @@ use std::ops::Range;
 
 use crate::dom::{Document, ElementName, NodeId, NodeKind};
 use crate::layout::{SegmentKind, ShapedParagraph, ShapedSegment};
+use crate::settings::FontFamily;
 use crate::shape::{shape_ruby, shape_text, ShapeContext};
-use crate::style::{FontStyle, FontWeight, WritingMode};
+use crate::style::{FamilyListId, FontStyle, FontWeight, WritingMode};
 
 use super::blocks::{is_block, ParagraphMeta};
 use super::pages::{ChapterInput, Metrics};
@@ -36,6 +37,7 @@ pub(super) fn shape_paragraph<'a>(
         range: Range<u64>,
         font_style: FontStyle,
         weight: FontWeight,
+        family: FamilyListId,
         ruby: Option<NodeId>,
     }
     let mut groups: Vec<Group> = Vec::new();
@@ -49,6 +51,7 @@ pub(super) fn shape_paragraph<'a>(
                     && ((last.ruby.is_some() && last.ruby == g.ruby)
                         || (last.font_style == g.font_style
                             && last.weight == g.weight
+                            && last.family == g.family
                             && last.ruby == g.ruby)) =>
             {
                 last.range.end = g.range.end;
@@ -61,14 +64,19 @@ pub(super) fn shape_paragraph<'a>(
         let s = span.char_range.start - para_start;
         let e = span.char_range.end - para_start;
         if s > cursor {
-            let (fs, w) = groups
+            let (fs, w, fam) = groups
                 .last()
-                .map(|g| (g.font_style, g.weight))
-                .unwrap_or((block_style.font_style, block_style.font_weight));
+                .map(|g| (g.font_style, g.weight, g.family))
+                .unwrap_or((
+                    block_style.font_style,
+                    block_style.font_weight,
+                    block_style.font_family,
+                ));
             push(&mut groups, Group {
                 range: cursor..s,
                 font_style: fs,
                 weight: w,
+                family: fam,
                 ruby: None,
             });
         }
@@ -77,19 +85,25 @@ pub(super) fn shape_paragraph<'a>(
             range: s..e,
             font_style: st.font_style,
             weight: st.font_weight,
+            family: st.font_family,
             ruby: nearest_ruby(styled.doc, span.node),
         });
         cursor = e;
     }
     if cursor < para_len {
-        let (fs, w) = groups
+        let (fs, w, fam) = groups
             .last()
-            .map(|g| (g.font_style, g.weight))
-            .unwrap_or((block_style.font_style, block_style.font_weight));
+            .map(|g| (g.font_style, g.weight, g.family))
+            .unwrap_or((
+                block_style.font_style,
+                block_style.font_weight,
+                block_style.font_family,
+            ));
         push(&mut groups, Group {
             range: cursor..para_len,
             font_style: fs,
             weight: w,
+            family: fam,
             ruby: None,
         });
     }
@@ -115,9 +129,17 @@ pub(super) fn shape_paragraph<'a>(
         } else {
             g.weight
         };
+        // The stack matters only under the publisher reading font; every
+        // other setting shapes with an empty stack (settings-owned).
+        let families = if family == FontFamily::Publisher {
+            styled.family_stack(g.family)
+        } else {
+            &[]
+        };
         let ctx = ShapeContext {
             fonts: input.fonts,
             family,
+            families,
             font_style: g.font_style,
             font_weight: weight,
             size,

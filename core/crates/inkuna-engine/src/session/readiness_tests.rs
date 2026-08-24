@@ -215,6 +215,7 @@ fn published_page_count_rises_from_zero_to_page_count() {
         LayoutSettings::default(),
         None,
         0,
+        None,
         Arc::clone(&probe) as Arc<dyn LayoutEvents>,
     )
     .expect("session opens");
@@ -331,6 +332,7 @@ fn locate_resolves_the_published_prefix_and_waits_for_the_unlaid_tail() {
         LayoutSettings::default(),
         None,
         0,
+        None,
         gate,
     )
     .expect("session opens");
@@ -393,6 +395,7 @@ fn published_page_count_is_zero_after_cache_eviction() {
         LayoutSettings::default(),
         None,
         0,
+        None,
         gate,
     )
     .expect("session opens");
@@ -446,6 +449,7 @@ fn chapter_ready_queries_do_not_move_focus_from_the_active_chapter() {
         LayoutSettings::default(),
         None,
         ACTIVE,
+        None,
         events,
     )
     .expect("session opens");
@@ -520,6 +524,7 @@ fn itemref_only_fixed_layout_rejected_at_open() {
         LayoutSettings::default(),
         None,
         0,
+        None,
         Arc::new(TestEvents(tx)),
     ) {
         Err(EngineError::UnsupportedContent { detail }) => assert_eq!(detail, "fixed-layout"),

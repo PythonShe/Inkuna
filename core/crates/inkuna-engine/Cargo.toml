@@ -30,6 +30,9 @@ log = "0.4"
 memmap2.workspace = true
 tempfile = { version = "3", optional = true }
 unicode-bidi = "0.3"
+# Pure-Rust WOFF/WOFF2 → sfnt decoding for publisher (EPUB-embedded)
+# fonts; the registry maps only raw sfnt files.
+wuff = "0.2.8"
 unicode-script = "0.5"
 unicode-linebreak = "0.1.5"
 imagesize = "0.15.0"

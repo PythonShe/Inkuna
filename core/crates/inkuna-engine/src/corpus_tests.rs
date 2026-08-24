@@ -67,6 +67,7 @@ fn corpus_equals_session_projection() {
         LayoutSettings::default(),
         None,
         0,
+        None,
         Arc::new(NoEvents),
     )
     .expect("session opens");

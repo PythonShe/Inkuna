@@ -6,7 +6,10 @@
 //! viewport, settings fingerprint, font set, engine version)` — the
 //! worker thread only decides WHEN a page becomes available, never what
 //! it contains. Nothing thread-timing-dependent ever reaches page
-//! content.
+//! content. The font set includes the session's publisher block: its
+//! specs derive from the publication bytes alone and its ids from the
+//! base registry state, so the same book on the same registry always
+//! shapes with the same ids.
 
 mod cache;
 mod model;

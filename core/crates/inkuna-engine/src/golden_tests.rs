@@ -58,6 +58,7 @@ fn open_session(path: &PathBuf) -> Arc<EngineSession> {
         golden_settings(),
         None,
         0,
+        None,
         Arc::new(NoEvents),
     )
     .expect("session opens")

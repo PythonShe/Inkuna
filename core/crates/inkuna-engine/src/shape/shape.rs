@@ -14,7 +14,7 @@ use unicode_script::{Script, UnicodeScript};
 use crate::fixed::Fx;
 use crate::fonts::FontRegistry;
 use crate::settings::FontFamily;
-use crate::style::{FontStyle, FontWeight};
+use crate::style::{FamilyName, FontStyle, FontWeight};
 
 use super::itemize::{itemize, Item};
 
@@ -64,6 +64,10 @@ pub struct ShapedRun {
 pub struct ShapeContext<'a> {
     pub fonts: &'a FontRegistry,
     pub family: FontFamily,
+    /// The element's `font-family` stack, honored only when `family` is
+    /// [`FontFamily::Publisher`] (settings-owned typography otherwise).
+    /// Empty = no stack: the Reading stage keeps its family default.
+    pub families: &'a [FamilyName],
     pub font_style: FontStyle,
     pub font_weight: FontWeight,
     pub size: Fx,
@@ -105,8 +109,17 @@ impl Stage {
     fn font_id(self, ctx: &ShapeContext) -> u32 {
         match self {
             Stage::Reading | Stage::Notdef => {
-                ctx.fonts
-                    .select(ctx.family, ctx.font_style, ctx.font_weight)
+                // Under the publisher reading font, the element's
+                // `font-family` stack picks the face; the terminal
+                // `.notdef` stage re-shapes with the SAME face so the
+                // missing-glyph box matches the surrounding text.
+                if ctx.family == FontFamily::Publisher && !ctx.families.is_empty() {
+                    ctx.fonts
+                        .select_stack(ctx.families, ctx.font_style, ctx.font_weight)
+                } else {
+                    ctx.fonts
+                        .select(ctx.family, ctx.font_style, ctx.font_weight)
+                }
             }
             // Serif/sans per family, bold per weight; no Hebrew italics
             // exist — the registry maps italic requests to regular.

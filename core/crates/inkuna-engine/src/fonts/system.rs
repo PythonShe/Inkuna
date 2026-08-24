@@ -65,9 +65,9 @@ const SYSTEM_INSTANCE_WEIGHTS: [u16; 9] = [100, 200, 300, 400, 500, 600, 700, 80
 const MAX_TTC_SCAN: u32 = 64;
 
 /// Registered faces for the serif/sans × upright/italic slots, each a
-/// `(weight, id)` list in ascending weight order. Also the empty
-/// placeholder the publisher block reuses until B2 makes it real.
-#[derive(Debug, Default)]
+/// `(weight, id)` list in ascending weight order. (Publisher faces use
+/// their own family table in `publisher.rs`, not these slots.)
+#[derive(Debug, Default, Clone)]
 pub(super) struct FaceSlots {
     slots: [Vec<(u16, u32)>; 4],
 }
@@ -116,7 +116,7 @@ impl FaceSlots {
 ///   descending below, else ascending above 500;
 /// - desired < 400: exact, else descending below, else ascending above;
 /// - desired > 500: exact, else ascending above, else descending below.
-fn nearest_weight(candidates: &[(u16, u32)], desired: u16) -> Option<u32> {
+pub(super) fn nearest_weight(candidates: &[(u16, u32)], desired: u16) -> Option<u32> {
     let id = |pair: &(u16, u32)| pair.1;
     if let Some(found) = candidates.iter().find(|(w, _)| *w == desired) {
         return Some(id(found));
