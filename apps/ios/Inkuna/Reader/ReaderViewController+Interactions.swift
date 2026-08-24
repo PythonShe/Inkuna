@@ -176,6 +176,9 @@ extension ReaderViewController {
 
     func coordinateForProgression(_ progression: Double, session: ReaderSession) -> Coordinate? {
         let count = session.positionCount()
+        // Defensive only: the core's position_count floors at 1 (rebaseline
+        // documents "1/1 when no position rows exist"), so this guard cannot
+        // fire against a live session.
         guard count > 0 else { return nil }
         let position = min(max(UInt32((progression * Double(count)).rounded()), 1), count)
         return session.coordinateAtPosition(position: position)
