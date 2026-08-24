@@ -3,6 +3,10 @@ import UIKit
 /// In-reader contents: a native detent sheet with the book header and the
 /// core's flattened TOC, the current chapter washed in accent. Picking a row
 /// hands the chapter back to the reader, which jumps the navigator.
+///
+/// The list is a diffable collection view, not a built-up stack: a long
+/// publication's TOC can run to hundreds of entries, and materializing a
+/// constrained row per chapter froze the sheet's presentation for seconds.
 final class ContentsSheetViewController: UIViewController {
     /// One chapter of the core TOC, joined with its core-derived synthetic
     /// start position (nil when no sparse chapter range exists) and whether
@@ -20,6 +24,8 @@ final class ContentsSheetViewController: UIViewController {
     private let coverPath: String?
     private let rows: [Row]
     private let pageInfoText: String
+    private var dataSource: UICollectionViewDiffableDataSource<Int, Int>?
+    private weak var listView: UICollectionView?
 
     init(bookTitle: String, coverSeed: Int, coverPath: String?, rows: [Row], pageInfoText: String) {
         self.bookTitle = bookTitle
@@ -82,32 +88,8 @@ final class ContentsSheetViewController: UIViewController {
 
         // MARK: Chapter list
 
-        let listStack = UIStackView()
-        listStack.axis = .vertical
-        if rows.isEmpty {
-            let empty = InkLabel()
-            empty.text = String(localized: "detail_no_contents", defaultValue: "This book lists no contents.")
-            empty.font = InkFont.reading()
-            empty.textColor = InkColor.textTertiary
-            empty.textAlignment = .center
-            empty.numberOfLines = 0
-            let wrapper = UIStackView(arrangedSubviews: [empty])
-            wrapper.axis = .vertical
-            wrapper.isLayoutMarginsRelativeArrangement = true
-            wrapper.layoutMargins = UIEdgeInsets(top: InkSpacing.space12, left: 0, bottom: InkSpacing.space12, right: 0)
-            listStack.addArrangedSubview(wrapper)
-        } else {
-            for row in rows {
-                listStack.addArrangedSubview(makeRow(row))
-            }
-        }
-
-        let scrollView = UIScrollView()
-        scrollView.alwaysBounceVertical = true
-        listStack.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(listStack)
-
-        let column = UIStackView(arrangedSubviews: [header, hairline, scrollView])
+        let listView = makeListView()
+        let column = UIStackView(arrangedSubviews: [header, hairline, listView])
         column.axis = .vertical
         column.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(column)
@@ -117,109 +99,173 @@ final class ContentsSheetViewController: UIViewController {
             column.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             column.topAnchor.constraint(equalTo: view.topAnchor, constant: InkSpacing.space2),
             column.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            listStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: InkSpacing.space4),
-            listStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -InkSpacing.space4),
-            listStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 6),
-            listStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -InkSpacing.space3),
-            listStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -2 * InkSpacing.space4),
-        ])
-    }
-
-    private func makeRow(_ rowModel: Row) -> UIView {
-        let chapter = rowModel.chapter
-        let isCurrent = rowModel.isCurrent
-
-        let numeral = InkLabel()
-        numeral.text = "\(chapter.idx + 1)"
-        numeral.font = InkFont.caption
-        numeral.textColor = isCurrent ? InkColor.accentText : InkColor.textTertiary
-        numeral.setContentHuggingPriority(.required, for: .horizontal)
-        numeral.setContentCompressionResistancePriority(.required, for: .horizontal)
-        NSLayoutConstraint.activate([numeral.widthAnchor.constraint(greaterThanOrEqualToConstant: 22)])
-
-        let title = InkLabel()
-        title.text = chapter.title
-        title.font = InkFont.serif(16, weight: isCurrent ? .semibold : .regular, style: .body)
-        title.textColor = isCurrent ? InkColor.accentText : InkColor.textDisplay
-        title.numberOfLines = 0
-        // The title owns the leftover width; numeral and position stay snug.
-        title.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        let content = UIStackView(arrangedSubviews: [numeral, title])
-        // Honest synthetic positions only: the column is absent until the
-        // navigator has computed positions for this book.
-        if let position = rowModel.position {
-            let positionLabel = InkLabel()
-            let format = NSLocalizedString("reader_chapter_page", comment: "")
-            positionLabel.text = String.localizedStringWithFormat(format, Int64(position))
-            positionLabel.font = InkFont.caption
-            positionLabel.textColor = InkColor.textTertiary
-            positionLabel.setContentHuggingPriority(.required, for: .horizontal)
-            positionLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-            content.addArrangedSubview(positionLabel)
-        }
-
-        let row = ChapterRowControl(isCurrent: isCurrent) { [weak self] in
-            self?.onSelectChapter?(chapter)
-            self?.dismiss(animated: true)
-        }
-        row.backgroundColor = isCurrent ? InkColor.accentSoft : .clear
-        row.layer.cornerRadius = InkRadius.sm
-
-        content.axis = .horizontal
-        content.alignment = .firstBaseline
-        content.spacing = 12
-        content.isUserInteractionEnabled = false
-        content.translatesAutoresizingMaskIntoConstraints = false
-        row.addSubview(content)
-        // Nested TOC entries step in with their depth.
-        let leadingInset = 10 + CGFloat(min(chapter.depth, 4)) * 14
-        NSLayoutConstraint.activate([
-            content.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: leadingInset),
-            content.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -10),
-            content.topAnchor.constraint(equalTo: row.topAnchor, constant: 13),
-            content.bottomAnchor.constraint(equalTo: row.bottomAnchor, constant: -13),
         ])
 
-        row.isAccessibilityElement = true
-        if let position = rowModel.position {
-            let format = NSLocalizedString("a11y_chapter_row", comment: "")
-            row.accessibilityLabel = String.localizedStringWithFormat(format, "\(chapter.idx + 1)", chapter.title, Int64(position))
-        } else {
-            let format = NSLocalizedString("a11y_chapter_row_no_page", comment: "")
-            row.accessibilityLabel = String.localizedStringWithFormat(format, "\(chapter.idx + 1)", chapter.title)
+        if rows.isEmpty {
+            let empty = InkLabel()
+            empty.text = String(localized: "detail_no_contents", defaultValue: "This book lists no contents.")
+            empty.font = InkFont.reading()
+            empty.textColor = InkColor.textTertiary
+            empty.textAlignment = .center
+            empty.numberOfLines = 0
+            empty.translatesAutoresizingMaskIntoConstraints = false
+            let wrapper = UIView()
+            wrapper.addSubview(empty)
+            NSLayoutConstraint.activate([
+                empty.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: InkSpacing.space4),
+                empty.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -InkSpacing.space4),
+                empty.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: InkSpacing.space12),
+            ])
+            listView.backgroundView = wrapper
         }
-        row.accessibilityTraits = isCurrent ? [.button, .selected] : .button
-        return row
+
+        var snapshot = NSDiffableDataSourceSnapshot<Int, Int>()
+        snapshot.appendSections([0])
+        snapshot.appendItems(Array(rows.indices))
+        dataSource?.apply(snapshot, animatingDifferences: false)
     }
 
-    /// Tappable chapter row with a soft pressed wash. The current chapter
-    /// already rests on the accent wash, so it dims instead.
-    private final class ChapterRowControl: UIControl {
-        private let isCurrent: Bool
-        private var restingColor: UIColor?
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        revealCurrentChapterIfNeeded()
+    }
 
-        init(isCurrent: Bool, handler: @escaping @MainActor () -> Void) {
-            self.isCurrent = isCurrent
-            super.init(frame: .zero)
-            addAction(UIAction { _ in handler() }, for: .touchUpInside)
+    /// One initial scroll that lands the reader's chapter in view — with
+    /// hundreds of entries the current one is rarely near the top.
+    private var didRevealCurrent = false
+    private func revealCurrentChapterIfNeeded() {
+        guard !didRevealCurrent, let listView, listView.bounds.height > 0 else { return }
+        didRevealCurrent = true
+        guard let current = rows.firstIndex(where: { $0.isCurrent }) else { return }
+        listView.layoutIfNeeded()
+        listView.scrollToItem(
+            at: IndexPath(item: current, section: 0),
+            at: .centeredVertically,
+            animated: false
+        )
+    }
+
+    private func makeListView() -> UICollectionView {
+        var configuration = UICollectionLayoutListConfiguration(appearance: .plain)
+        configuration.backgroundColor = .clear
+        configuration.showsSeparators = false
+        let layout = UICollectionViewCompositionalLayout.list(using: configuration)
+        let listView = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        listView.backgroundColor = .clear
+        listView.alwaysBounceVertical = true
+        listView.delegate = self
+        listView.contentInset = UIEdgeInsets(top: 6, left: 0, bottom: InkSpacing.space3, right: 0)
+        self.listView = listView
+
+        let registration = UICollectionView.CellRegistration<ChapterRowCell, Int> { [weak self] cell, _, index in
+            guard let self, self.rows.indices.contains(index) else { return }
+            cell.apply(self.rows[index])
+        }
+        dataSource = UICollectionViewDiffableDataSource<Int, Int>(collectionView: listView) { collectionView, indexPath, index in
+            collectionView.dequeueConfiguredReusableCell(using: registration, for: indexPath, item: index)
+        }
+        return listView
+    }
+
+    /// Chapter row with a soft pressed wash. The current chapter already
+    /// rests on the accent wash, so it dims instead.
+    private final class ChapterRowCell: UICollectionViewCell {
+        private let numeral = InkLabel()
+        private let title = InkLabel()
+        private let position = InkLabel()
+        private let content = UIStackView()
+        private var leadingInset: NSLayoutConstraint?
+        private var isCurrent = false
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            numeral.font = InkFont.caption
+            numeral.setContentHuggingPriority(.required, for: .horizontal)
+            numeral.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+            title.numberOfLines = 0
+            // The title owns the leftover width; numeral and position stay snug.
+            title.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+            position.font = InkFont.caption
+            position.textColor = InkColor.textTertiary
+            position.setContentHuggingPriority(.required, for: .horizontal)
+            position.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+            [numeral, title, position].forEach { content.addArrangedSubview($0) }
+            content.axis = .horizontal
+            content.alignment = .firstBaseline
+            content.spacing = 12
+            content.isUserInteractionEnabled = false
+            content.translatesAutoresizingMaskIntoConstraints = false
+            contentView.addSubview(content)
+            contentView.layer.cornerRadius = InkRadius.sm
+            let leading = content.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: InkSpacing.space4 + 10)
+            leadingInset = leading
+            NSLayoutConstraint.activate([
+                numeral.widthAnchor.constraint(greaterThanOrEqualToConstant: 22),
+                leading,
+                content.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -(InkSpacing.space4 + 10)),
+                content.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 13),
+                content.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -13),
+            ])
         }
 
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+        func apply(_ row: Row) {
+            let chapter = row.chapter
+            isCurrent = row.isCurrent
+            numeral.text = "\(chapter.idx + 1)"
+            numeral.textColor = isCurrent ? InkColor.accentText : InkColor.textTertiary
+            title.text = chapter.title
+            title.font = InkFont.serif(16, weight: isCurrent ? .semibold : .regular, style: .body)
+            title.textColor = isCurrent ? InkColor.accentText : InkColor.textDisplay
+            if let page = row.position {
+                let format = NSLocalizedString("reader_chapter_page", comment: "")
+                position.text = String.localizedStringWithFormat(format, Int64(page))
+                position.isHidden = false
+            } else {
+                // Honest synthetic positions only: the column is absent until
+                // the navigator has computed positions for this book.
+                position.text = nil
+                position.isHidden = true
+            }
+            // Nested TOC entries step in with their depth.
+            leadingInset?.constant = InkSpacing.space4 + 10 + CGFloat(min(chapter.depth, 4)) * 14
+            contentView.backgroundColor = isCurrent ? InkColor.accentSoft : .clear
+            contentView.alpha = 1
+
+            isAccessibilityElement = true
+            if let page = row.position {
+                let format = NSLocalizedString("a11y_chapter_row", comment: "")
+                accessibilityLabel = String.localizedStringWithFormat(format, "\(chapter.idx + 1)", chapter.title, Int64(page))
+            } else {
+                let format = NSLocalizedString("a11y_chapter_row_no_page", comment: "")
+                accessibilityLabel = String.localizedStringWithFormat(format, "\(chapter.idx + 1)", chapter.title)
+            }
+            accessibilityTraits = isCurrent ? [.button, .selected] : .button
+        }
+
         override var isHighlighted: Bool {
             didSet {
                 guard isHighlighted != oldValue else { return }
                 if isCurrent {
-                    alpha = isHighlighted ? 0.7 : 1
-                } else if isHighlighted {
-                    restingColor = backgroundColor
-                    backgroundColor = InkColor.accentSoft
+                    contentView.alpha = isHighlighted ? 0.7 : 1
                 } else {
-                    backgroundColor = restingColor
+                    contentView.backgroundColor = isHighlighted ? InkColor.accentSoft : .clear
                 }
             }
         }
+    }
+}
+
+extension ContentsSheetViewController: UICollectionViewDelegate {
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        collectionView.deselectItem(at: indexPath, animated: false)
+        guard rows.indices.contains(indexPath.item) else { return }
+        onSelectChapter?(rows[indexPath.item].chapter)
+        dismiss(animated: true)
     }
 }
