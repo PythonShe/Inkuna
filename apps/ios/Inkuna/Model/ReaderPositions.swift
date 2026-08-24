@@ -46,7 +46,9 @@ enum ReaderPositions {
     /// Ranges are 1-based and inclusive, and several may contain one
     /// position when a resource carries nested TOC entries — positions are
     /// resource-granular and cannot split inside one. The innermost
-    /// (greatest start) wins.
+    /// (greatest start) wins; equal starts — fragment-anchored entries
+    /// sharing a resource — tie-break on greatest `chapterIdx`, so the
+    /// deepest (last-listed) entry beats its parent.
     ///
     /// The set is sparse: the core emits one range per TOC chapter, keyed
     /// by `chapterIdx`, and never one per spine resource — a resource with
@@ -60,6 +62,6 @@ enum ReaderPositions {
     ) -> ChapterPositionRange? {
         ranges
             .filter { $0.startPosition <= position && position <= $0.endPosition }
-            .max { $0.startPosition < $1.startPosition }
+            .max { ($0.startPosition, $0.chapterIdx) < ($1.startPosition, $1.chapterIdx) }
     }
 }
