@@ -39,26 +39,38 @@
 //! apply when building platform fonts.
 //!
 //! Allocation rule: blocks are append-only and fixed-size, so every id
-//! is deterministic across runs and platforms. The next dynamic block
-//! (system/publisher faces) starts at [`FIRST_DYNAMIC_ID`] (57).
+//! is deterministic across runs and platforms. Above the fixed blocks
+//! sit the DYNAMIC blocks, allocated once at load and stable for the
+//! process lifetime:
+//!
+//! - the SYSTEM block starts at [`FIRST_DYNAMIC_ID`] (57): the platform
+//!   faces the shell registered before load, ids issued append-only in
+//!   the registration order the shell passed (a variable face takes
+//!   nine consecutive ids — its `wght` instances at 100..=900 ascending;
+//!   a static face takes one). A face that fails to load takes NO id.
+//! - the PUBLISHER block (a later package) follows immediately after
+//!   the system block, from [`FontRegistry::next_free_id`] upward.
+//!
+//! Shells prime their font tables from `font_registry()` after open, so
+//! every entry exists before any session starts and ids never move.
 //!
 //! The CJK faces live in language-specific OTCs (one file per
 //! family+weight); `collection_index` picks the region face inside the
 //! collection. The Sans OTCs also carry Mono faces at indices 5–9,
 //! which the registry never references.
 
-use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 
 use memmap2::Mmap;
-use read_fonts::tables::os2::SelectionFlags;
-use read_fonts::types::{NameId, Tag};
-use read_fonts::{FontRef, TableProvider};
+use read_fonts::FontRef;
 
 use crate::error::EngineError;
 use crate::settings::FontFamily;
 use crate::style::{FontStyle, FontWeight};
+
+use super::face::{font_metrics, map_font, missing, post_script_name, wght_range};
+use super::system::{load_system_faces, FaceSlots, SystemFontFace, SystemFontWarning};
 
 /// One variation-axis coordinate a face is used at. Empty for the
 /// manifest ids 0–28 (default instances / static faces); the
@@ -181,20 +193,42 @@ const INSTANCE_BASE_ID: u32 = SYMBOLS_ID + 1;
 pub const FIRST_DYNAMIC_ID: u32 =
     INSTANCE_BASE_ID + (VARIABLE_FACES.len() * INSTANCE_WEIGHTS.len()) as u32;
 
-const WGHT: Tag = Tag::new(b"wght");
-
-/// The loaded, validated bundled font set.
+/// The loaded, validated font set: the fixed bundled blocks plus the
+/// dynamic system block registered at load. Immutable once built — ids
+/// are stable for the process lifetime.
 pub struct FontRegistry {
     entries: Vec<FontEntry>,
     faces: Vec<LoadedFace>,
+    /// The registered platform faces `System*` requests resolve from.
+    system: FaceSlots,
+    /// The publisher-embedded faces `Publisher` requests resolve from.
+    /// Deliberately empty until publisher registration lands (B2): the
+    /// lookup path is real, its data is not — so `Publisher` explicitly
+    /// falls back to NotoSerif at selection time today.
+    publisher: FaceSlots,
 }
 
 impl FontRegistry {
+    /// The bundled set alone — [`FontRegistry::load_with_system`] with
+    /// no system faces.
+    pub fn load(font_dir: &Path) -> Result<Arc<FontRegistry>, EngineError> {
+        Ok(Self::load_with_system(font_dir, &[])?.0)
+    }
+
     /// Maps and parses EVERY manifest face, so per-face failure after a
     /// successful load is impossible by construction. The OS faults map
     /// pages in only as parsing and shaping touch them. Load once per
     /// process, off the UI thread.
-    pub fn load(font_dir: &Path) -> Result<Arc<FontRegistry>, EngineError> {
+    ///
+    /// `system` is the shell's platform face set, registered into the
+    /// dynamic block in call order (see the module doc). System faces
+    /// degrade instead of failing: each unloadable one is skipped with
+    /// a returned [`SystemFontWarning`], and only a broken BUNDLED set
+    /// errors.
+    pub fn load_with_system(
+        font_dir: &Path,
+        system: &[SystemFontFace],
+    ) -> Result<(Arc<FontRegistry>, Vec<SystemFontWarning>), EngineError> {
         let mut entries = Vec::with_capacity(FIRST_DYNAMIC_ID as usize);
         let mut faces = Vec::with_capacity(FIRST_DYNAMIC_ID as usize);
         // Maps cached per file: the four OTCs each back eight ids.
@@ -284,13 +318,31 @@ impl FontRegistry {
             }
         }
         debug_assert_eq!(entries.len() as u32, FIRST_DYNAMIC_ID);
-        Ok(Arc::new(FontRegistry { entries, faces }))
+
+        // The system block: ids from FIRST_DYNAMIC_ID upward in the
+        // shell's registration order; failures skip with warnings.
+        let (system_slots, warnings) = load_system_faces(system, &mut entries, &mut faces);
+        Ok((
+            Arc::new(FontRegistry {
+                entries,
+                faces,
+                system: system_slots,
+                publisher: FaceSlots::default(),
+            }),
+            warnings,
+        ))
     }
 
     /// The full face table, for the FFI. Never forces byte loads —
     /// entries carry paths, not data.
     pub fn entries(&self) -> Vec<FontEntry> {
         self.entries.clone()
+    }
+
+    /// The first id the next dynamic block (publisher faces, B2) will
+    /// allocate from — one past the system block.
+    pub fn next_free_id(&self) -> u32 {
+        self.entries.len() as u32
     }
 
     /// Panic-free: ids are registry-issued; an out-of-range id (which
@@ -303,17 +355,32 @@ impl FontRegistry {
         }
     }
 
-    /// The reading-face id for a family + style + weight. The numeric
-    /// weight maps to the nearest of the nine standard weights via the
-    /// CSS font-matching rule ([`nearest_standard_weight`]); 400 keeps
-    /// the base ids, 700 the static Bold ids, everything else its
-    /// instance id.
+    /// The reading-face id for a family + style + weight.
+    ///
+    /// `System*` requests resolve from the registered system faces
+    /// (style + numeric weight, CSS nearest rule; an italic request
+    /// with no italic face synthesizes from the uprights) and fall back
+    /// to the Noto equivalent when the role has no registered upright.
+    /// `Publisher` resolves from the publisher slots — empty until B2 —
+    /// so it falls back to NotoSerif today. The bundled Notos map their
+    /// numeric weight onto the nine standard weights via
+    /// [`nearest_standard_weight`]: 400 keeps the base ids, 700 the
+    /// static Bold ids, everything else its instance id.
     pub fn select(&self, family: FontFamily, style: FontStyle, weight: FontWeight) -> u32 {
-        let face = match (family, style) {
-            (FontFamily::NotoSerif, FontStyle::Normal) => 0usize,
-            (FontFamily::NotoSerif, FontStyle::Italic) => 1,
-            (FontFamily::NotoSans, FontStyle::Normal) => 2,
-            (FontFamily::NotoSans, FontStyle::Italic) => 3,
+        let dynamic = match family {
+            FontFamily::Publisher => self.publisher.select(true, style, weight.value()),
+            FontFamily::SystemSerif => self.system.select(true, style, weight.value()),
+            FontFamily::SystemSans => self.system.select(false, style, weight.value()),
+            FontFamily::NotoSerif | FontFamily::NotoSans => None,
+        };
+        if let Some(id) = dynamic {
+            return id;
+        }
+        let face = match (family.is_serif(), style) {
+            (true, FontStyle::Normal) => 0usize,
+            (true, FontStyle::Italic) => 1,
+            (false, FontStyle::Normal) => 2,
+            (false, FontStyle::Italic) => 3,
         };
         match nearest_standard_weight(weight) {
             400 => VARIABLE_FACES[face],
@@ -359,18 +426,6 @@ impl FontRegistry {
     }
 }
 
-/// The `wght` axis user-space range from a variable face's fvar, or
-/// `None` when the face is static or has no weight axis.
-fn wght_range(font: &FontRef<'_>) -> Option<(f64, f64)> {
-    let fvar = font.fvar().ok()?;
-    let axes = fvar.axes().ok()?;
-    let axis = axes.iter().find(|axis| axis.axis_tag() == WGHT)?;
-    Some((
-        axis.min_value().to_f64(),
-        axis.max_value().to_f64(),
-    ))
-}
-
 /// The CSS font-matching weight rule (css-fonts-4 §5.2) over the nine
 /// standard weights 100..=900, which the Latin roster covers in full:
 /// - desired 400..=500: 400 stays 400, otherwise the first weight
@@ -391,65 +446,6 @@ fn nearest_standard_weight(weight: FontWeight) -> u16 {
     }
 }
 
-fn map_font(path: &Path, name: &str) -> Result<Mmap, EngineError> {
-    let file = File::open(path).map_err(|e| missing(name, &e))?;
-    // SAFETY: iOS maps read-only app-bundle resources and Android maps read-only
-    // extracted assets in noBackupFilesDir, so the mapped font file cannot mutate.
-    unsafe { Mmap::map(&file) }.map_err(|e| missing(name, &e))
-}
-
-fn post_script_name(font: &FontRef<'_>) -> Result<Option<String>, read_fonts::ReadError> {
-    let names = font.name()?;
-    let data = names.string_data();
-    let Some(record) = names
-        .name_record()
-        .into_iter()
-        .filter(|record| record.name_id() == NameId::POSTSCRIPT_NAME)
-        .next()
-    else {
-        return Ok(None);
-    };
-    let name = record.string(data)?.to_string();
-    Ok((!name.is_empty()).then_some(name))
-}
-
-/// Matches ttf-parser's default-instance horizontal metric selection:
-/// `USE_TYPO_METRICS`, then hhea, then OS/2 typo metrics, then Windows
-/// metrics. Weight-instance ids reuse their base face's default-instance
-/// metrics deliberately (no MVAR application) — line metrics stay
-/// weight-independent.
-fn font_metrics(font: &FontRef<'_>) -> Result<(u16, i32, i32), read_fonts::ReadError> {
-    let upem = font.head()?.units_per_em();
-    let hhea = font.hhea()?;
-    let mut ascender = i32::from(hhea.ascender().to_i16());
-    let mut descender = i32::from(hhea.descender().to_i16());
-    if let Ok(os2) = font.os2() {
-        if os2
-            .fs_selection()
-            .contains(SelectionFlags::USE_TYPO_METRICS)
-        {
-            return Ok((
-                upem,
-                i32::from(os2.s_typo_ascender()),
-                i32::from(os2.s_typo_descender()).saturating_neg(),
-            ));
-        }
-        if ascender == 0 {
-            ascender = i32::from(os2.s_typo_ascender());
-            if ascender == 0 {
-                ascender = i32::from(os2.us_win_ascent());
-            }
-        }
-        if descender == 0 {
-            descender = i32::from(os2.s_typo_descender());
-            if descender == 0 {
-                descender = -i32::from(os2.us_win_descent());
-            }
-        }
-    }
-    Ok((upem, ascender, descender.saturating_neg()))
-}
-
 /// Region offset in id order: SC 0, TC 1, JP 2, KR 3.
 fn cjk_region(lang: Option<&str>) -> u32 {
     let Some(lang) = lang else { return 0 };
@@ -466,12 +462,6 @@ fn cjk_region(lang: Option<&str>) -> u32 {
             }
         }
         _ => 0,
-    }
-}
-
-fn missing(file: &str, cause: &dyn std::fmt::Display) -> EngineError {
-    EngineError::UnsupportedContent {
-        detail: format!("font missing: {file} ({cause})"),
     }
 }
 

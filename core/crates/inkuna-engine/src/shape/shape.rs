@@ -110,14 +110,12 @@ impl Stage {
             }
             // Serif/sans per family, bold per weight; no Hebrew italics
             // exist — the registry maps italic requests to regular.
-            Stage::Hebrew => ctx
+            // Fallback stages always shape with the bundled Notos:
+            // system/publisher faces only ever replace the Reading stage.
+            Stage::Hebrew => ctx.fonts.hebrew(ctx.family.is_serif(), ctx.font_weight),
+            Stage::Cjk => ctx
                 .fonts
-                .hebrew(ctx.family == FontFamily::NotoSerif, ctx.font_weight),
-            Stage::Cjk => ctx.fonts.cjk(
-                ctx.lang,
-                ctx.family == FontFamily::NotoSerif,
-                ctx.font_weight,
-            ),
+                .cjk(ctx.lang, ctx.family.is_serif(), ctx.font_weight),
             Stage::Symbols => ctx.fonts.symbols(),
         }
     }

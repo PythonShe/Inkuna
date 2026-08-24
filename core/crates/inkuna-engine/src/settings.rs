@@ -43,12 +43,32 @@ const HEADING_SCALE: [f64; 6] = [2.0, 1.5, 1.17, 1.0, 0.83, 0.67];
 /// at `size.mul_ratio(num, den)`). engine-chosen: no prior renderer precedent.
 const RUBY_SCALE: (u32, u32) = (1, 2);
 
-/// The registry faces the engine bundles. Publisher-embedded fonts are a
-/// non-goal; every roster id resolves to one of these.
+/// The reading-face family a roster id resolves to. `Publisher` and the
+/// two `System*` values are *requests*, not guarantees: the registry
+/// serves them from its dynamically registered faces and silently falls
+/// back to the bundled Noto equivalent when none were registered
+/// (publisher-embedded faces land in a later package; system faces are
+/// whatever the shell registered before the first reader open).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontFamily {
+    /// The book's own embedded faces; falls back to [`FontFamily::NotoSerif`]
+    /// until publisher font registration exists.
+    Publisher,
+    /// The platform's serif face set, as registered by the shell.
+    SystemSerif,
+    /// The platform's sans face set, as registered by the shell.
+    SystemSans,
     NotoSerif,
     NotoSans,
+}
+
+impl FontFamily {
+    /// Whether the family is serif-flavored — what the CJK/Hebrew
+    /// fallback stages key their serif/sans split on. `Publisher`
+    /// counts as serif: its B1 fallback is NotoSerif.
+    pub fn is_serif(self) -> bool {
+        !matches!(self, FontFamily::SystemSans | FontFamily::NotoSans)
+    }
 }
 
 /// The seven Customize settings, as the shells persist them. Apply
@@ -127,13 +147,18 @@ impl LayoutSettings {
         u64::from_le_bytes(first)
     }
 
-    /// The registry face for the roster id: serif-family ids →
-    /// [`FontFamily::NotoSerif`], sans ids → [`FontFamily::NotoSans`];
-    /// `publisher` and any unknown id → NotoSerif (publisher-embedded
-    /// fonts are a non-goal).
+    /// The requested reading family for the roster id, one arm per
+    /// roster value. Unknown ids (a stale persisted value, a future
+    /// roster entry) fall back to NotoSerif — the registry then resolves
+    /// `Publisher`/`System*` requests against its registered faces,
+    /// falling back to the bundled Notos when none exist.
     pub fn font_family(&self) -> FontFamily {
         match self.reading_font.to_ascii_lowercase().as_str() {
-            "system-sans" | "noto-sans" => FontFamily::NotoSans,
+            "publisher" => FontFamily::Publisher,
+            "system-serif" => FontFamily::SystemSerif,
+            "system-sans" => FontFamily::SystemSans,
+            "noto-sans" => FontFamily::NotoSans,
+            // "noto-serif" and every unknown id.
             _ => FontFamily::NotoSerif,
         }
     }

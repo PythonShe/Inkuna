@@ -107,20 +107,49 @@ fn clamps_out_of_range() {
 }
 
 #[test]
-fn unknown_font_maps_to_serif() {
-    for id in ["publisher", "garamond-galaxy", "", "noto-serif", "system-serif"] {
+fn roster_ids_map_to_their_families() {
+    let family = |id: &str| {
+        LayoutSettings {
+            reading_font: id.to_string(),
+            ..LayoutSettings::default()
+        }
+        .font_family()
+    };
+    // Every roster value is its own family now — no silent folds.
+    assert_eq!(family("publisher"), FontFamily::Publisher);
+    assert_eq!(family("system-serif"), FontFamily::SystemSerif);
+    assert_eq!(family("system-sans"), FontFamily::SystemSans);
+    assert_eq!(family("noto-serif"), FontFamily::NotoSerif);
+    assert_eq!(family("noto-sans"), FontFamily::NotoSans);
+    // Matching is case-insensitive (persisted values from old shells).
+    assert_eq!(family("Noto-Sans"), FontFamily::NotoSans);
+    assert_eq!(family("System-Serif"), FontFamily::SystemSerif);
+}
+
+#[test]
+fn unknown_font_falls_back_to_noto_serif() {
+    for id in ["garamond-galaxy", "", "serif", "times-new-roman"] {
         let settings = LayoutSettings {
             reading_font: id.to_string(),
             ..LayoutSettings::default()
         };
         assert_eq!(settings.font_family(), FontFamily::NotoSerif, "id {id:?}");
     }
-    for id in ["noto-sans", "system-sans", "Noto-Sans"] {
-        let settings = LayoutSettings {
-            reading_font: id.to_string(),
-            ..LayoutSettings::default()
-        };
-        assert_eq!(settings.font_family(), FontFamily::NotoSans, "id {id:?}");
+}
+
+#[test]
+fn family_serif_split() {
+    // The CJK/Hebrew fallback stages key on this: Publisher counts as
+    // serif because its B1 fallback face is NotoSerif.
+    for family in [
+        FontFamily::Publisher,
+        FontFamily::SystemSerif,
+        FontFamily::NotoSerif,
+    ] {
+        assert!(family.is_serif(), "{family:?}");
+    }
+    for family in [FontFamily::SystemSans, FontFamily::NotoSans] {
+        assert!(!family.is_serif(), "{family:?}");
     }
 }
 

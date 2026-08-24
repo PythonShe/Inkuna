@@ -32,7 +32,10 @@ pub use display::{
 pub use dom::{parse, Document};
 pub use error::EngineError;
 pub use fixed::Fx;
-pub use fonts::{FontAxis, FontEntry, FontRegistry, LoadedFace};
+pub use fonts::{
+    FontAxis, FontEntry, FontRegistry, LoadedFace, SystemFontFace, SystemFontRole,
+    SystemFontWarning,
+};
 pub use layout::{
     break_paragraph, Line, LineOptions, PositionedRun, SegmentKind, ShapedParagraph,
     ShapedSegment, MAX_LINES_PER_PARAGRAPH,
