@@ -1,5 +1,6 @@
 package app.inkuna.android.ui.reader
 
+import android.util.Log
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.BackHandler
@@ -279,6 +280,7 @@ private fun ReaderContent(
             pendingJump = null
             if (jump.linkToast) notifyLinkFailed()
         } catch (failure: InkunaException) {
+            Log.w("InkunaReader", "jump to ${jump.coordinate} failed", failure)
             pendingJump = null
             if (jump.linkToast) notifyLinkFailed()
         }
