@@ -95,6 +95,12 @@ object ParityDigestRunner {
             )
             try {
                 val spineCount = session.spineCount()
+                // A zero-spine book would emit an empty digest object that
+                // diffs clean against iOS's — an explicit failure value
+                // instead, so parity-compare.sh's sentinel scan catches it.
+                if (spineCount == 0u) {
+                    return ParityBookValue.StringValue("ERROR: no spines")
+                }
                 // `chapter` is cache-only: its expected NotReady result queues every
                 // spine through the engine's own worker before we await terminals.
                 repeat(spineCount.toInt()) { spine ->
@@ -227,9 +233,21 @@ private data class ParityManifestSettings(
     val wordSpacing: Double,
     val readingMargins: UInt,
 ) {
+    /**
+     * Parity invariant: digests are only comparable across shells when
+     * the layout shapes with the deterministic bundled Notos — the
+     * `system-*` ids resolve to different platform faces per shell BY
+     * DESIGN, and `publisher` layers system registration underneath.
+     * Any manifest font outside the bundled pair is pinned to
+     * `noto-serif` (the engine's own unknown-id fold), matching the iOS
+     * runner.
+     */
+    private val parityFont: String
+        get() = if (readingFont in listOf("noto-serif", "noto-sans")) readingFont else "noto-serif"
+
     val coreValue: ReaderLayoutSettings
         get() = ReaderLayoutSettings(
-            readingFont,
+            parityFont,
             readingBold,
             textSizeStep,
             lineSpacing,

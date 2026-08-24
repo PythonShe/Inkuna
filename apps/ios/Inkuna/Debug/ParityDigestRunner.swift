@@ -86,6 +86,12 @@ enum ParityDigestRunner {
                 listener: listener
             )
             let spineCount = session.spineCount()
+            // A zero-spine book would emit an empty digest object that
+            // diffs clean against Android's — an explicit failure value
+            // instead, so parity-compare.sh's sentinel scan catches it.
+            guard spineCount > 0 else {
+                return .string("ERROR: no spines")
+            }
             // `chapter` is cache-only: its expected NotReady result queues every
             // spine through the engine's own worker before we await terminals.
             for spineIdx in 0..<spineCount {
@@ -197,9 +203,20 @@ private struct ParityManifestSettings: Decodable, Sendable {
         case readingMargins = "reading_margins"
     }
 
+    /// Parity invariant: digests are only comparable across shells when
+    /// the layout shapes with the deterministic bundled Notos — the
+    /// `system-*` ids resolve to different platform faces per shell BY
+    /// DESIGN, and `publisher` layers system registration underneath.
+    /// Any manifest font outside the bundled pair is pinned to
+    /// `noto-serif` (the engine's own unknown-id fold), matching the
+    /// Android runner.
+    private var parityFont: String {
+        ["noto-serif", "noto-sans"].contains(readingFont) ? readingFont : "noto-serif"
+    }
+
     var coreValue: ReaderLayoutSettings {
         ReaderLayoutSettings(
-            readingFont: readingFont,
+            readingFont: parityFont,
             readingBold: readingBold,
             textSizeStep: textSizeStep,
             lineSpacing: lineSpacing,
