@@ -20,16 +20,23 @@ Website: [inkuna.app](https://inkuna.app)
 ## Architecture
 
 One Rust core, two native shells. All non-UI logic (library database, import,
-format detection, metadata, reading progress — later search, annotations, sync)
-lives in Rust and is exposed to both platforms through
-[UniFFI](https://mozilla.github.io/uniffi-rs/). Each shell is thin and fully
-native so the reading experience feels at home on its platform. EPUB/CBZ
-rendering is planned on the [Readium](https://readium.org) native toolkits.
+format detection, metadata, reading progress, search — later annotations and
+sync) lives in Rust and is exposed to both platforms through
+[UniFFI](https://mozilla.github.io/uniffi-rs/). The core also owns the reader
+itself: a layout engine that parses, styles, shapes, and paginates each
+chapter into per-page glyph-run display lists, which the shells draw natively
+(Core Text on iOS, `Canvas.drawGlyphs` on Android) and drive with their own
+gesture and spring physics. Each shell is thin and fully native so the
+reading experience feels at home on its platform.
 
 ```
 core/           Rust workspace
-  crates/inkuna-core/   pure-Rust domain: library, import, formats
-  crates/inkuna-ffi/    UniFFI surface -> Swift + Kotlin bindings
+  crates/inkuna-content/  EPUB container: archive reads, OPF/spine, TOC
+  crates/inkuna-format/   import-side conversion (MOBI/AZW3/TXT -> EPUB)
+  crates/inkuna-engine/   reader layout engine: DOM -> style -> shape ->
+                          paginate -> display lists (CJK + vertical writing)
+  crates/inkuna-core/     domain services: library, DB, import, search
+  crates/inkuna-ffi/      UniFFI surface -> Swift + Kotlin bindings
 apps/ios/       UIKit shell (min iOS 18, Liquid Glass gated on iOS 26)
 apps/android/   Jetpack Compose shell (minSdk 33, targetSdk 37)
 assets/         brand assets (icon sources + Icon Composer layers)
@@ -38,10 +45,10 @@ website/        Astro static site for inkuna.app (Cloudflare Pages)
 docs/           project documentation
 ```
 
-Formats: EPUB, MOBI, AZW3 (DRM-free), TXT, PDF, with CBZ/CBR comics planned —
-reflowable formats normalize to EPUB at import; fixed-layout formats get
-dedicated navigators. CJK typography — including vertical writing — is a
-first-class goal.
+Formats: EPUB, MOBI, AZW3 (DRM-free), and TXT ship today — reflowable
+formats normalize to EPUB at import. PDF and CBZ/CBR comics are planned as
+fixed-layout formats with dedicated navigators. CJK typography — including
+vertical writing and CJK-aware search — is a first-class goal.
 
 ## Building
 
