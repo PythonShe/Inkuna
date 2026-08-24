@@ -440,3 +440,126 @@ fn non_hebrew_misses_skip_hebrew_stage() {
     assert_eq!(runs.len(), 1);
     assert_eq!(runs[0].font_id, 8, "Serif CJK SC Regular");
 }
+
+/// D2 word-spacing audit: `(cluster, advance)` of every U+0020 glyph.
+fn space_advances(runs: &[ShapedRun], text: &str) -> Vec<(u32, Fx)> {
+    let spaces: Vec<u32> = text
+        .chars()
+        .enumerate()
+        .filter(|(_, c)| *c == ' ')
+        .map(|(i, _)| i as u32)
+        .collect();
+    runs.iter()
+        .flat_map(|r| r.glyphs.iter())
+        .filter(|g| spaces.contains(&g.cluster))
+        .map(|g| (g.cluster, g.advance))
+        .collect()
+}
+
+/// Every inter-word gap must be one space glyph in the SAME face as the
+/// letters, with a sane advance: nonzero, below half an em, and equal
+/// across the sentence. Guards suspects 1 and 2 of the word-spacing
+/// report: instance-path shaping (wght via ShaperInstance) and
+/// registered system / publisher reading faces.
+fn assert_sane_spaces(runs: &[ShapedRun], text: &str, label: &str) -> Fx {
+    assert_eq!(runs.len(), 1, "{label}: sentence must stay one run, got {runs:?}");
+    let spaces = space_advances(runs, text);
+    assert_eq!(spaces.len(), 2, "{label}: both spaces must emit a glyph");
+    let em = runs[0].size;
+    let (lo, hi) = (Fx(em.0 / 8), Fx(em.0 / 2));
+    for (cluster, adv) in &spaces {
+        assert!(
+            *adv > lo && *adv < hi,
+            "{label}: space at {cluster} has advance {adv:?}, outside ({lo:?}, {hi:?})"
+        );
+    }
+    assert_eq!(spaces[0].1, spaces[1].1, "{label}: unequal space advances");
+    spaces[0].1
+}
+
+#[test]
+fn word_gaps_sane_across_weights_on_the_instance_path() {
+    let fonts = registry();
+    let text = "one two three";
+    let mut advances = Vec::new();
+    for weight in [400u16, 600, 700] {
+        let c = ShapeContext {
+            font_weight: FontWeight::new(weight),
+            ..ctx(fonts)
+        };
+        let runs = shape_text(text, &c);
+        advances.push(assert_sane_spaces(&runs, text, &format!("NotoSerif {weight}")));
+    }
+    // 400 (default instance), 600 (bold-toggle floor, ShaperInstance
+    // path) and 700 (static Bold face) must agree within 25%.
+    for pair in advances.windows(2) {
+        let (a, b) = (pair[0].0 as f64, pair[1].0 as f64);
+        assert!(
+            (a - b).abs() / a < 0.25,
+            "space advance jumped across weights: {advances:?}"
+        );
+    }
+}
+
+#[test]
+fn word_gaps_sane_with_registered_system_face() {
+    // A registered platform face replacing the Reading stage — the
+    // bundled Sans file stands in for Roboto/New York.
+    let dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"));
+    let face = crate::fonts::SystemFontFace {
+        role: crate::fonts::SystemFontRole::Serif,
+        italic: false,
+        weight: 400,
+        file_path: dir.join("NotoSans.ttf").to_string_lossy().into_owned(),
+        post_script_name: None,
+        ttc_hint: None,
+    };
+    let (fonts, warnings) =
+        FontRegistry::load_with_system(dir, std::slice::from_ref(&face)).expect("registry loads");
+    assert!(warnings.is_empty(), "system stand-in must register: {warnings:?}");
+    let text = "one two three";
+    for weight in [400u16, 600] {
+        let c = ShapeContext {
+            family: FontFamily::SystemSerif,
+            font_weight: FontWeight::new(weight),
+            ..ctx(&fonts)
+        };
+        let runs = shape_text(text, &c);
+        assert!(
+            runs[0].font_id >= crate::fonts::FIRST_DYNAMIC_ID,
+            "system-serif must shape with the registered face, got id {}",
+            runs[0].font_id
+        );
+        assert_sane_spaces(&runs, text, &format!("system face {weight}"));
+    }
+}
+
+#[test]
+fn word_gaps_sane_with_publisher_face() {
+    let dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/fonts"));
+    let base = FontRegistry::load(dir).expect("registry loads");
+    let spec = crate::fonts::PublisherFaceSpec {
+        file_path: dir.join("NotoSans.ttf").into(),
+        family: "PubBody".to_string(),
+        italic: false,
+        weight: (100, 900),
+    };
+    let fonts = FontRegistry::with_publisher(&base, std::slice::from_ref(&spec));
+    let families = [crate::style::FamilyName::Named("PubBody".to_string())];
+    let text = "one two three";
+    for weight in [400u16, 600] {
+        let c = ShapeContext {
+            family: FontFamily::Publisher,
+            families: &families,
+            font_weight: FontWeight::new(weight),
+            ..ctx(&fonts)
+        };
+        let runs = shape_text(text, &c);
+        assert!(
+            runs[0].font_id >= base.next_free_id(),
+            "publisher stack must shape with the publisher face, got id {}",
+            runs[0].font_id
+        );
+        assert_sane_spaces(&runs, text, &format!("publisher face {weight}"));
+    }
+}
