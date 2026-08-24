@@ -64,10 +64,14 @@ final class ReaderPreviewCard: UIView {
         paragraph.lineBreakMode = .byTruncatingTail
 
         // CTFont is toll-free bridged to UIFont, so a sampled publisher
-        // face drops straight into the attribute dictionary.
+        // face drops straight into the attribute dictionary. Bold applies
+        // over the sampled family exactly as the layout does — a face with
+        // no bold counterpart keeps the sample unmodified.
         let font: Any = if settings.readingFont == .publisher,
             let publisher = publisherFontProvider?(size) {
-            publisher
+            settings.readingBold
+                ? (CTFontCreateCopyWithSymbolicTraits(publisher, 0, nil, .traitBold, .traitBold) ?? publisher)
+                : publisher
         } else {
             settings.readingFont.previewFont(size: size, bold: settings.readingBold)
         }
