@@ -49,7 +49,7 @@ extension ReaderViewController {
             UIApplication.shared.open(url) { [weak self] in if !$0 { self?.showLinkNotFollowed() } }
             return
         }
-        do { try jump(to: resolveHref(target)) }
+        do { try attemptJump(resolveJump(target, linkToast: true)) }
         catch InkunaError.AnchorNotFound { showLinkNotFollowed() }
         catch { logger.warning("Internal link \(target, privacy: .public) failed: \(error)") }
     }
@@ -93,11 +93,26 @@ extension ReaderViewController {
         try attemptJump(PendingJump(coordinate: coordinate))
     }
 
-    func attemptJump(_ jump: PendingJump) throws {
+    func attemptJump(_ pending: PendingJump) throws {
         guard let readerSession, let surface = pagerSurface else { return }
         selectionController?.clear()
         pager?.cancelInteraction()
+        var jump = pending
         let spineIdx = jump.coordinate.spineIdx
+        if let anchor = jump.anchor {
+            // The anchor map arrives with the complete chapter. `NotReady`
+            // means "not yet", so park and let the chapter's readiness event
+            // retry; only `AnchorNotFound` (thrown on) means it is missing.
+            do {
+                jump = jump.resolved(
+                    to: try readerSession.locateHref(href: anchor.href, fragment: anchor.fragment)
+                )
+            } catch InkunaError.NotReady {
+                pendingJump = jump
+                _ = try? readerSession.chapter(spineIdx: spineIdx)
+                return
+            }
+        }
         if jump.toChapterEnd && !readerSession.isReady(spineIdx: spineIdx) {
             pendingJump = jump
             _ = try? readerSession.chapter(spineIdx: spineIdx)
@@ -139,7 +154,7 @@ extension ReaderViewController {
     }
 
     func jump(to chapter: Chapter) {
-        do { try jump(to: resolveHref(chapter)) }
+        do { try attemptJump(resolveJump(chapter, linkToast: true)) }
         catch InkunaError.AnchorNotFound { showLinkNotFollowed() }
         catch { logger.warning("TOC jump for \(chapter.id, privacy: .public) failed: \(error)") }
     }

@@ -128,5 +128,6 @@
     <string name="reader_web_search">Rechercher sur le Web</string>
     <string name="reader_chapter_unreadable">Ce chapitre ne peut pas être affiché.</string>
     <string name="reader_chapter_truncated">Ce chapitre était trop volumineux pour être affiché entièrement.</string>
+    <string name="reader_book_empty">Ce livre ne contient aucun contenu lisible.</string>
     <string name="reader_fixed_layout_unsupported">Ce livre utilise une mise en page fixe qu’Inkuna ne peut pas encore afficher.</string>
 </resources>

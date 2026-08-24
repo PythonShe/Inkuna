@@ -125,5 +125,6 @@
     <string name="reader_web_search">Tìm kiếm trên web</string>
     <string name="reader_chapter_unreadable">Không thể hiển thị chương này.</string>
     <string name="reader_chapter_truncated">Chương này quá lớn để hiển thị toàn bộ.</string>
+    <string name="reader_book_empty">Sách này không có nội dung để đọc.</string>
     <string name="reader_fixed_layout_unsupported">Sách này dùng bố cục cố định mà Inkuna chưa thể hiển thị.</string>
 </resources>

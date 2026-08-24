@@ -120,6 +120,12 @@ fun ReaderScreen(
                 null,
                 Modifier.align(Alignment.Center),
             )
+            ReaderViewModel.UiState.NoReadableContent -> ReaderOpenFailed(
+                foreground,
+                stringResource(R.string.reader_book_empty),
+                null,
+                Modifier.align(Alignment.Center),
+            )
             is ReaderViewModel.UiState.Ready -> ReaderContent(
                 viewModel, current.book, settings, snapshot, foreground, statusPad, navPad, onBack,
             )
@@ -213,10 +219,28 @@ private fun ReaderContent(
         chromeVisible.value = if (showChrome) true else chromeWas
     }
 
-    fun attemptJump(jump: PendingJump, host: EngineHost) {
+    fun attemptJump(pending: PendingJump, host: EngineHost) {
         host.selection.clear()
         host.layout.cancelInteraction()
+        var jump = pending
         val spineIdx = jump.coordinate.spineIdx
+        val anchor = jump.anchor
+        if (anchor != null) {
+            // The anchor map arrives with the complete chapter. `NotReady`
+            // means "not yet", so park and let the chapter's readiness event
+            // retry; only `AnchorNotFound` means the anchor is missing.
+            try {
+                jump = jump.copy(coordinate = book.session.locateHref(anchor.href, anchor.fragment), anchor = null)
+            } catch (_: InkunaException.NotReady) {
+                pendingJump = jump
+                runCatching { book.session.chapter(spineIdx) }
+                return
+            } catch (_: InkunaException) {
+                pendingJump = null
+                if (jump.linkToast) notifyLinkFailed()
+                return
+            }
+        }
         if (jump.toChapterEnd && !book.session.isReady(spineIdx)) {
             // A deferred backward turn lands on the last page, which only
             // complete geometry knows; `locate` would clamp to the
@@ -284,9 +308,15 @@ private fun ReaderContent(
             }
             is ReaderViewModel.LayoutEvent.Failed -> {
                 host.surface.chapterFailed(event.generation, event.spineIdx)
-                val jumpSpine = pendingJump?.coordinate?.spineIdx
+                val parked = pendingJump
+                val jumpSpine = parked?.coordinate?.spineIdx
                 val targetSpine = viewModel.currentCoordinate()?.spineIdx
-                if (jumpSpine == event.spineIdx) pendingJump = null
+                if (jumpSpine == event.spineIdx) {
+                    pendingJump = null
+                    // Terminal for this jump: the chapter it waited on will
+                    // never lay out, so say so once instead of parking forever.
+                    if (parked?.linkToast == true) notifyLinkFailed()
+                }
                 if (jumpSpine == event.spineIdx || targetSpine == event.spineIdx || anchorState.value?.spineIdx == event.spineIdx) {
                     host.surface.display(event.spineIdx, 0u)
                 }
@@ -314,6 +344,9 @@ private fun ReaderContent(
                         }
                     }
                 }
+            // An open-time fragment link lands on the chapter start above and
+            // refines to its anchor when that chapter finishes laying out.
+            viewModel.takeInitialJump()?.let { attemptJump(it, host) }
             viewModel.layoutEvents.collect { event -> handleEvent(event, host) }
         }
     }
@@ -391,12 +424,12 @@ private fun ReaderContent(
                     if (surface.spineIdx == spineIdx && surface.pageIdx == pageIdx) viewModel.onCurrentPageDrawn()
                 }
                 canvas.onLinkActivated = { spineIdx, pageIdx, x, y ->
-                    handleLinkActivation(book, engineHost, spineIdx, pageIdx, x, y, ::notifyLinkFailed) { coordinate ->
-                        attemptJump(PendingJump(coordinate, linkToast = true), engineHost)
+                    handleLinkActivation(book, engineHost, spineIdx, pageIdx, x, y, ::notifyLinkFailed) { jump ->
+                        attemptJump(jump, engineHost)
                     }
                 }
                 canvas.onPageTap = { spineIdx, pageIdx, x, y ->
-                    handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { coordinate -> attemptJump(PendingJump(coordinate, linkToast = true), engineHost) }, chromeVisible, menuOpen)
+                    handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { jump -> attemptJump(jump, engineHost) }, chromeVisible, menuOpen)
                 }
                 layout.onTurnGesture = if (touchExploration) null else {
                     { chromeVisible.value = false; menuOpen.value = false }
@@ -484,8 +517,8 @@ private fun ReaderContent(
             pageInfo = readerPageInfo(book, anchorState.value),
             onSelect = { chapter ->
                 hostState.value?.let { live ->
-                    runCatching { book.session.locateHrefParts(chapter.href) }
-                        .onSuccess { attemptJump(PendingJump(it, linkToast = true), live) }
+                    runCatching { book.session.resolveJump(chapter.href, linkToast = true) }
+                        .onSuccess { attemptJump(it, live) }
                         .onFailure { notifyLinkFailed() }
                 }
             },

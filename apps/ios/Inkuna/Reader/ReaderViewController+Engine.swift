@@ -26,13 +26,28 @@ extension ReaderViewController {
             guard !Task.isCancelled, isViewLoaded else { return }
             readerSession = reader
             layoutRelay = relay
+            // A publication whose spine holds no usable resource can never
+            // emit a layout callback — the worker queue starts empty. The
+            // count is known synchronously at open, so state it now rather
+            // than waiting on an event that will not come.
+            guard reader.spineCount() > 0 else {
+                showOpenFailure(
+                    String(
+                        localized: "reader_book_empty",
+                        defaultValue: "This book has no readable content."
+                    )
+                )
+                return
+            }
             ReaderFontStore.shared.prime(reader.fontRegistry())
             installCanvas(session: reader)
             let restoredCoordinate = publication.coordinate
                 ?? coordinateForProgression(publication.progression, session: reader)
             if let initialChapter {
                 do {
-                    targetCoordinate = try resolveHref(initialChapter)
+                    let jump = try resolveJump(initialChapter, linkToast: true)
+                    targetCoordinate = jump.coordinate
+                    if jump.anchor != nil { pendingJump = jump }
                 } catch InkunaError.AnchorNotFound, InkunaError.NotReady {
                     targetCoordinate = restoredCoordinate
                     showLinkNotFollowed()
@@ -153,7 +168,13 @@ extension ReaderViewController {
                 pagerSurface?.display(spineIdx: spineIdx, pageIdx: 0)
                 loadingIndicator.stopAnimating()
             }
-            if pendingJumpTargetsSpine { pendingJump = nil }
+            if pendingJumpTargetsSpine {
+                let parked = pendingJump
+                pendingJump = nil
+                // Terminal for this jump: the chapter it waited on will
+                // never lay out, so say so once instead of parking forever.
+                if parked?.linkToast == true { showLinkNotFollowed() }
+            }
         }
     }
 
@@ -190,17 +211,39 @@ extension ReaderViewController {
         relayoutAnchor = nil
     }
 
-    func resolveHref(_ chapter: Chapter) throws -> Coordinate { try resolveHref(chapter.href) }
+    func resolveJump(_ chapter: Chapter, linkToast: Bool = false) throws -> PendingJump {
+        try resolveJump(chapter.href, linkToast: linkToast)
+    }
 
-    func resolveHref(_ href: String) throws -> Coordinate {
+    /// Turns a TOC or link href into a jump. A fragment needs the target
+    /// chapter's anchor map, which layout builds — so an un-laid chapter
+    /// answers `NotReady`, not `AnchorNotFound`. The fragment-free lookup
+    /// resolves from the spine model alone and never waits, so the jump
+    /// still names the chapter, aims at its start, and carries the fragment
+    /// for that chapter's readiness event to refine.
+    func resolveJump(_ href: String, linkToast: Bool = false) throws -> PendingJump {
         guard let readerSession else { throw InkunaError.NotReady(detail: "Reader is not open") }
         guard let hashIndex = href.firstIndex(of: "#") else {
-            return try readerSession.locateHref(href: href, fragment: nil)
+            return PendingJump(
+                coordinate: try readerSession.locateHref(href: href, fragment: nil),
+                linkToast: linkToast
+            )
         }
-        return try readerSession.locateHref(
-            href: String(href[..<hashIndex]),
-            fragment: String(href[href.index(after: hashIndex)...])
-        )
+        let path = String(href[..<hashIndex])
+        let fragment = String(href[href.index(after: hashIndex)...])
+        let chapterStart = try readerSession.locateHref(href: path, fragment: nil)
+        do {
+            return PendingJump(
+                coordinate: try readerSession.locateHref(href: path, fragment: fragment),
+                linkToast: linkToast
+            )
+        } catch InkunaError.NotReady {
+            return PendingJump(
+                coordinate: chapterStart,
+                anchor: PendingAnchor(href: path, fragment: fragment),
+                linkToast: linkToast
+            )
+        }
     }
 
     func viewport() -> Viewport {

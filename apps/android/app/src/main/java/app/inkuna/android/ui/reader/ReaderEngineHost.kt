@@ -8,6 +8,8 @@ import app.inkuna.android.ui.reader.engine.EnginePageCanvas
 import app.inkuna.android.ui.reader.engine.EnginePagerSurface
 import app.inkuna.android.ui.reader.engine.ReaderSelectionController
 import app.inkuna.core.Coordinate
+import app.inkuna.core.InkunaException
+import app.inkuna.core.ReaderSession
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 /** The engine-backed view stack one [ReaderScreen] composition drives. */
@@ -19,17 +21,47 @@ internal class EngineHost(
 )
 
 /**
+ * A fragment whose chapter has not laid out yet. The anchor map is built
+ * during layout, so until the chapter completes `locateHref` answers
+ * `NotReady` — which is not the anchor being absent. The jump carries the
+ * fragment so the chapter's readiness event can resolve it.
+ */
+internal data class PendingAnchor(val href: String, val fragment: String)
+
+/**
  * One parked navigation, retried on layout events for its own spine only.
  * [toChapterEnd] marks a deferred backward chapter turn, which must wait
  * for complete geometry (the last page) rather than the published prefix.
  */
 internal data class PendingJump(
     val coordinate: Coordinate,
+    val anchor: PendingAnchor? = null,
     val matchLength: ULong? = null,
     val toChapterEnd: Boolean = false,
     val linkToast: Boolean = false,
     val showChrome: Boolean = true,
 )
+
+/**
+ * Turns a TOC or link href into a jump. A fragment needs the target
+ * chapter's anchor map, which layout builds — so an un-laid chapter answers
+ * `NotReady`, not `AnchorNotFound`. The fragment-free lookup resolves from
+ * the spine model alone and never waits, so the jump still names the
+ * chapter, aims at its start, and carries the fragment for that chapter's
+ * readiness event to refine. Mirrors the iOS `resolveJump`.
+ */
+internal fun ReaderSession.resolveJump(href: String, linkToast: Boolean = false): PendingJump {
+    val index = href.indexOf('#')
+    if (index < 0) return PendingJump(locateHref(href, null), linkToast = linkToast)
+    val path = href.substring(0, index)
+    val fragment = href.substring(index + 1)
+    val chapterStart = locateHref(path, null)
+    return try {
+        PendingJump(locateHref(path, fragment), linkToast = linkToast)
+    } catch (_: InkunaException.NotReady) {
+        PendingJump(chapterStart, anchor = PendingAnchor(path, fragment), linkToast = linkToast)
+    }
+}
 
 /** Suspends until the view has a non-zero laid-out size. */
 internal suspend fun View.awaitSized() {
@@ -65,7 +97,7 @@ internal fun handleCanvasPoint(
     x: Float,
     y: Float,
     onLinkFailed: () -> Unit,
-    onInternalLink: (Coordinate) -> Unit,
+    onInternalLink: (PendingJump) -> Unit,
     chromeVisible: MutableState<Boolean>,
     menuOpen: MutableState<Boolean>,
 ) {
@@ -108,7 +140,7 @@ internal fun handleLinkActivation(
     layoutX: Float,
     layoutY: Float,
     onLinkFailed: () -> Unit,
-    onInternalLink: (Coordinate) -> Unit,
+    onInternalLink: (PendingJump) -> Unit,
 ) {
     val target = linkTargetAt(book, spineIdx, pageIdx, layoutX.toDouble(), layoutY.toDouble())
     if (target == null) {
@@ -134,13 +166,13 @@ private fun followLink(
     host: EngineHost,
     target: String,
     onLinkFailed: () -> Unit,
-    onInternalLink: (Coordinate) -> Unit,
+    onInternalLink: (PendingJump) -> Unit,
 ) {
     val uri = target.toUri()
     if (uri.scheme == "http" || uri.scheme == "https") {
         runCatching { host.canvas.context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }.onFailure { onLinkFailed() }
     } else {
-        runCatching { book.session.locateHrefParts(target) }
+        runCatching { book.session.resolveJump(target, linkToast = true) }
             .onSuccess(onInternalLink)
             .onFailure { onLinkFailed() }
     }

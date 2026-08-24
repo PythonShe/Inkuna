@@ -125,5 +125,6 @@
     <string name="reader_web_search">ค้นหาเว็บ</string>
     <string name="reader_chapter_unreadable">ไม่สามารถแสดงบทนี้ได้</string>
     <string name="reader_chapter_truncated">บทนี้มีขนาดใหญ่เกินกว่าจะแสดงได้ทั้งหมด</string>
+    <string name="reader_book_empty">หนังสือเล่มนี้ไม่มีเนื้อหาที่อ่านได้</string>
     <string name="reader_fixed_layout_unsupported">หนังสือเล่มนี้ใช้เลย์เอาต์แบบตายตัว ซึ่ง Inkuna ยังแสดงไม่ได้</string>
 </resources>

@@ -131,5 +131,6 @@
     </plurals>
     <string name="reader_chapter_unreadable">This chapter can\'t be displayed.</string>
     <string name="reader_chapter_truncated">This chapter was too large to display completely.</string>
+    <string name="reader_book_empty">This book has no readable content.</string>
     <string name="reader_fixed_layout_unsupported">This book uses a fixed layout, which Inkuna can\'t display yet.</string>
 </resources>

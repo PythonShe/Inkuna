@@ -73,7 +73,7 @@ adb shell am force-stop app.inkuna.android
 | 7 | Four themes, night mode, and live typography application. | **OWNER-PENDING** — after launching with the shared commands above, cycle every theme and night mode, then adjust each typography setting while reading. Capture one screenshot per theme and note any setting that does not live-apply. |
 | 8 | Selection copy/share/web-search in horizontal and vertical text. | **OWNER-PENDING** — after launching with the shared commands above, select text in normal and vertical books on both targets; invoke Copy, Share, and Web Search, and record the copied/selected text and action availability. |
 | 9 | VoiceOver/TalkBack block navigation, language, bounds, and links. | **OWNER-PENDING** — after launching with the shared commands above, enable VoiceOver and TalkBack respectively; navigate a CJK book by accessibility blocks, verify language switching/bounds, and confirm link traits. Record a screen recording or owner verification date. |
-| 10 | Performance gate and progressive availability. | **OWNER-PENDING** — populate the five-run table below on the required Pro targets. No simulator/emulator runtime is available in this workspace. |
+| 10 | Performance gate and progressive availability. | **OWNER-PENDING** (indicative Android numbers below, NOT the gate) — populate the five-run table below on the required Pro targets. No simulator/emulator runtime is available in this workspace. |
 | 11 | Cross-device page-digest comparison. | **VERIFIED 2026-08-24** on the Pro targets (iPhone 17 Pro simulator, iOS 26.5; AVD `Pixel_10_Pro_XL`). Two-book dry-run corpus (`latin.epub`, `cjk_horizontal.epub`) from plan 01's `export-parity-fixtures`. Both hooks produced identical structure (latin: 2 spines / 8 pages; cjk_horizontal: 1 spine / 5 pages) and `scripts/parity-compare.sh parity-ios.json parity-android.json` returned **`PARITY OK (2 books)`**, exit 0. `parity-ios.json` SHA-256 `f472cd2c2b3e6e252aeec2825ab7c36945ef6df34fbd8f0bb4697d9baf1627b5`; `parity-android.json` SHA-256 `f472cd2c2b3e6e252aeec2825ab7c36945ef6df34fbd8f0bb4697d9baf1627b5`. NOTE: this is the 2-book dry-run required by Task 6.3's Verify step, not the full 7-fixture corpus — the remaining five archetypes (`cjk_vertical_ruby`, `rtl`, `mixed_script`, `image_heavy`, `table_degradation`) are still OWNER-PENDING and run with the same commands. |
 | 12 | Bindings, clean shell builds, generated-drift check, and zero-Readium sweep. | **PASS (local static/build portion)** — both mandated binding scripts and both Debug shell builds passed above; `git diff --check` exited 0. The literal sweep below produced no output. Generated output was regenerated only by the scripts, then its ignored build/cache directories were moved recoverably outside the worktree before the literal gate. Device-dependent behavior remains covered by rows 1–11. |
 
@@ -256,3 +256,18 @@ scripts/parity-compare.sh parity-ios.json parity-android.json
 
   **PASS:** no output; exit 1 is `grep`'s normal no-match status. There are
   zero matches in the specified non-documents scope.
+
+### Indicative Android numbers (NOT the gate — recorded for direction only)
+
+Measured 2026-08-24 on AVD `Pixel_10_Pro_XL`, debug build, cold-process open of
+a CJK book, after the font-priming fix in `98e15d0` moved 29 font builds and 29
+name-table walks off the main thread:
+
+| metric | observed | gate |
+|---|---|---|
+| `open_to_first_page_ready_ms` | 83 | <= 100 |
+| `tap_to_first_page_ms` | 204 | <= 250 |
+
+**Why this is not the gate:** a single run, not the required 5-run median; an
+emulator, not a reference device; and no pre-fix baseline was captured, so the
+improvement from `98e15d0` is not quantified. Row 10 stays OWNER-PENDING.

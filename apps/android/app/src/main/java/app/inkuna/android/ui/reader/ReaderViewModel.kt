@@ -54,6 +54,13 @@ class ReaderViewModel(
         data object Opening : UiState
         data object Failed : UiState
         data object FixedLayoutUnsupported : UiState
+
+        /**
+         * A publication whose spine holds no usable resource. The layout
+         * worker queue starts empty, so no callback — not even a failure —
+         * can ever arrive; the empty spine is the whole terminal truth.
+         */
+        data object NoReadableContent : UiState
         data class Ready(val book: ReaderBook) : UiState
     }
 
@@ -122,6 +129,7 @@ class ReaderViewModel(
     private val pendingStartupEvents = mutableListOf<LayoutEvent>()
     private var initialHrefFailed = false
     private var initialLocation: PageLocation? = null
+    private var initialJump: PendingJump? = null
 
     // Relayout buffers callbacks until the surface has invalidated its old
     // display lists. Each event is then compared to the engine's current
@@ -146,7 +154,9 @@ class ReaderViewModel(
         stateFlow.value = UiState.Opening
         openJob = viewModelScope.launch {
             try {
-                stateFlow.value = UiState.Ready(doOpen())
+                val book = doOpen()
+                stateFlow.value =
+                    if (book.spineCount == 0u) UiState.NoReadableContent else UiState.Ready(book)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (unsupported: InkunaException.UnsupportedContent) {
@@ -164,6 +174,7 @@ class ReaderViewModel(
         didLogFirstRender = false
         didLogChapterComplete = false
         initialHrefFailed = false
+        initialJump = null
         val shelf = LibraryStore.bookshelf(app)
         bookshelf = shelf
         val library = shelf.library()
@@ -186,14 +197,16 @@ class ReaderViewModel(
         val restoredCoordinate = publication.coordinate
             ?: coordinateForProgression(publication.progression, session)
 
-        targetCoordinate = initialChapterHref?.let { href ->
-            runCatching { session.locateHrefParts(href) }
+        // A fragment whose chapter has not laid out yet resolves to that
+        // chapter's start now and carries the fragment for the readiness
+        // event to refine; only a genuinely absent target reports a failure.
+        val initial = initialChapterHref?.let { href ->
+            runCatching { session.resolveJump(href, linkToast = true) }
                 .onFailure { initialHrefFailed = it is InkunaException.AnchorNotFound || it is InkunaException.NotReady }
                 .getOrNull()
-        } ?: restoredCoordinate
-        if (initialChapterHref != null && targetCoordinate == null) {
-            targetCoordinate = restoredCoordinate
         }
+        initialJump = initial?.takeIf { it.anchor != null }
+        targetCoordinate = initial?.coordinate ?: restoredCoordinate
 
         initialLocation = targetCoordinate?.let { runCatching { session.locate(it) }.getOrNull() }
         ReaderBook(
@@ -244,6 +257,9 @@ class ReaderViewModel(
 
     /** The open-time restore location; consumed exactly once per open. */
     fun takeInitialLocation(): PageLocation? = initialLocation.also { initialLocation = null }
+
+    /** The open-time anchor jump still waiting on its chapter's layout. */
+    internal fun takeInitialJump(): PendingJump? = initialJump.also { initialJump = null }
 
     fun consumeInitialHrefFailure(): Boolean = initialHrefFailed.also { initialHrefFailed = false }
 
@@ -516,9 +532,4 @@ class ReaderViewModel(
             initializer { ReaderViewModel(this[AndroidViewModelFactory.APPLICATION_KEY]!!, publicationId, initialChapterHref) }
         }
     }
-}
-
-internal fun ReaderSession.locateHrefParts(href: String): Coordinate {
-    val index = href.indexOf('#')
-    return if (index < 0) locateHref(href, null) else locateHref(href.substring(0, index), href.substring(index + 1))
 }

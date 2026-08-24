@@ -6318,6 +6318,25 @@
         "pt": { "stringUnit": { "state": "translated", "value": "Este capítulo era grande demais para ser exibido por completo." } }
       }
     },
+    "reader_book_empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This book has no readable content." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "这本书没有可阅读的内容。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "這本書沒有可閱讀的內容。" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "この本には表示できる本文がありません。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 책에는 읽을 수 있는 내용이 없습니다." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Este libro no tiene contenido legible." } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Ce livre ne contient aucun contenu lisible." } },
+        "it": { "stringUnit": { "state": "translated", "value": "Questo libro non contiene contenuti leggibili." } },
+        "ru": { "stringUnit": { "state": "translated", "value": "В этой книге нет содержимого для чтения." } },
+        "th": { "stringUnit": { "state": "translated", "value": "หนังสือเล่มนี้ไม่มีเนื้อหาที่อ่านได้" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Sách này không có nội dung để đọc." } },
+        "de": { "stringUnit": { "state": "translated", "value": "Dieses Buch enthält keine lesbaren Inhalte." } },
+        "id": { "stringUnit": { "state": "translated", "value": "Buku ini tidak memiliki konten yang dapat dibaca." } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Este livro não tem conteúdo legível." } }
+      }
+    },
     "reader_fixed_layout_unsupported": {
       "extractionState": "manual",
       "localizations": {

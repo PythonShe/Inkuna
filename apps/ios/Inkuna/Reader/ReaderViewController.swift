@@ -18,8 +18,18 @@ final class ReaderViewController: UIViewController {
         }
     }
 
+    /// A fragment whose chapter has not laid out yet. The anchor map is
+    /// built during layout, so until the chapter completes `locateHref`
+    /// answers `NotReady` — which is not the anchor being absent. The jump
+    /// carries the fragment so the chapter's readiness event can resolve it.
+    struct PendingAnchor {
+        let href: String
+        let fragment: String
+    }
+
     struct PendingJump {
         let coordinate: Coordinate
+        let anchor: PendingAnchor?
         let matchLength: UInt64?
         let toChapterEnd: Bool
         let linkToast: Bool
@@ -27,16 +37,29 @@ final class ReaderViewController: UIViewController {
 
         init(
             coordinate: Coordinate,
+            anchor: PendingAnchor? = nil,
             matchLength: UInt64? = nil,
             toChapterEnd: Bool = false,
             linkToast: Bool = false,
             showChrome: Bool = true
         ) {
             self.coordinate = coordinate
+            self.anchor = anchor
             self.matchLength = matchLength
             self.toChapterEnd = toChapterEnd
             self.linkToast = linkToast
             self.showChrome = showChrome
+        }
+
+        /// The same jump once its anchor resolved to a real coordinate.
+        func resolved(to coordinate: Coordinate) -> PendingJump {
+            PendingJump(
+                coordinate: coordinate,
+                matchLength: matchLength,
+                toChapterEnd: toChapterEnd,
+                linkToast: linkToast,
+                showChrome: showChrome
+            )
         }
     }
 

@@ -125,5 +125,6 @@
     <string name="reader_web_search">搜索网页</string>
     <string name="reader_chapter_unreadable">无法显示此章节。</string>
     <string name="reader_chapter_truncated">此章节过大，无法完整显示。</string>
+    <string name="reader_book_empty">这本书没有可阅读的内容。</string>
     <string name="reader_fixed_layout_unsupported">此书使用固定版式，Inkuna 暂时无法显示。</string>
 </resources>
