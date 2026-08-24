@@ -429,6 +429,9 @@ class ReaderViewModel(
 
     private fun coordinateForProgression(progression: Double, session: ReaderSession): Coordinate? {
         val count = session.positionCount()
+        // Defensive only: core's position_count floors at 1 (rebaseline.rs
+        // documents "1/1 when no position rows exist"), so this branch is
+        // unreachable under the current contract.
         if (count == 0u) return null
         val position = minOf(maxOf((progression * count.toDouble()).roundToLong().toUInt(), 1u), count)
         return session.coordinateAtPosition(position)
