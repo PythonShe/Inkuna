@@ -6,6 +6,7 @@ import app.inkuna.core.Bookshelf
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -52,7 +53,14 @@ object LibraryStore {
         // permissions.
         val dataDir = context.applicationContext.filesDir
         return openLock.withLock {
-            opened ?: withContext(Dispatchers.IO) {
+            // Once `Bookshelf.open` returns, `opened` MUST be set: a
+            // caller's cancellation between the two would orphan the live
+            // shelf, and the next call would construct a second Bookshelf
+            // on the same data directory — forbidden, it would sweep the
+            // first's in-flight import. NonCancellable makes the whole
+            // open-and-cache block immune to the caller's cancellation,
+            // which resurfaces at the caller's next suspension point.
+            opened ?: withContext(NonCancellable + Dispatchers.IO) {
                 // The engine shapes with the bundled font set and needs a
                 // real directory to read it from, so the APK's copy is
                 // unpacked first. A failure here fails the open, which the
@@ -65,23 +73,25 @@ object LibraryStore {
                 // Hand the platform faces (Noto Serif / Roboto) to the
                 // engine before the shelf is cached and anyone can start a
                 // reader session — the core accepts this call exactly once
-                // and only before the first session. A failure never fails
-                // the open: the engine simply falls back to the bundled
-                // Notos for the system-font choices.
-                val faces = SystemReadingFonts.discover()
-                if (faces.isNotEmpty()) {
-                    try {
+                // and only before the first session. A failure — discovery
+                // included — never fails the open: the engine simply falls
+                // back to the bundled Notos for the system-font choices.
+                // (No CancellationException rethrow: this block is
+                // NonCancellable, so one here is a genuine failure that
+                // must not skip caching the shelf below.)
+                try {
+                    val faces = SystemReadingFonts.discover()
+                    if (faces.isNotEmpty()) {
                         shelf.registerSystemFonts(faces).forEach { warning ->
                             Log.w(TAG, "System font skipped (${warning.filePath}): ${warning.detail}")
                         }
-                    } catch (cancellation: CancellationException) {
-                        throw cancellation
-                    } catch (failure: Throwable) {
-                        Log.w(TAG, "System font registration failed", failure)
                     }
+                } catch (failure: Throwable) {
+                    Log.w(TAG, "System font registration failed", failure)
                 }
-                shelf
-            }.also { shelf ->
+                // The cache-store stays inside the NonCancellable block:
+                // the dispatch back to a cancelled caller can throw before
+                // any code after `withContext` runs.
                 opened = shelf
                 // Covers imported by older cores are full-resolution
                 // originals; normalize them into the core's bounded WebP
@@ -97,6 +107,7 @@ object LibraryStore {
                         Log.w(TAG, "Cover optimization failed", failure)
                     }
                 }
+                shelf
             }
         }
     }
