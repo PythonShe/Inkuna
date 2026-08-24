@@ -5,19 +5,26 @@ import org.junit.Test
 
 class ReadingFontTest {
     @Test
-    fun normalizeMapsLegacySystemSansToNotoSans() {
-        assertEquals(ReadingFont.NOTO_SANS, ReadingFont.normalize("system-sans"))
+    fun normalizePreservesEveryRosterId() {
+        ReadingFont.entries.forEach { font ->
+            assertEquals(font, ReadingFont.normalize(font.id))
+        }
     }
 
     @Test
-    fun normalizePreservesShippedFontIds() {
-        assertEquals(ReadingFont.NOTO_SERIF, ReadingFont.normalize(ReadingFont.NOTO_SERIF.id))
-        assertEquals(ReadingFont.NOTO_SANS, ReadingFont.normalize(ReadingFont.NOTO_SANS.id))
+    fun normalizeIgnoresCaseAndWhitespace() {
+        assertEquals(ReadingFont.SystemSans, ReadingFont.normalize("  System-Sans\n"))
+        assertEquals(ReadingFont.Publisher, ReadingFont.normalize("PUBLISHER"))
     }
 
     @Test
-    fun normalizeDefaultsUnknownAndLegacyFacesToNotoSerif() {
-        assertEquals(ReadingFont.NOTO_SERIF, ReadingFont.normalize("publisher"))
-        assertEquals(ReadingFont.NOTO_SERIF, ReadingFont.normalize("anything-else"))
+    fun normalizeFoldsUnknownIdsToNotoSerifLikeTheEngine() {
+        assertEquals(ReadingFont.NotoSerif, ReadingFont.normalize("anything-else"))
+        assertEquals(ReadingFont.NotoSerif, ReadingFont.normalize(""))
+    }
+
+    @Test
+    fun defaultMatchesTheCoreDbDefault() {
+        assertEquals("publisher", ReadingFont.DEFAULT.id)
     }
 }

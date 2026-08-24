@@ -58,10 +58,29 @@ object LibraryStore {
                 // unpacked first. A failure here fails the open, which the
                 // caller's retry path already covers — a reader engine with
                 // no fonts could not lay a page out anyway.
-                Bookshelf.open(
+                val shelf = Bookshelf.open(
                     dataDir.absolutePath,
                     CoreFonts.ensureExtracted(context).absolutePath,
                 )
+                // Hand the platform faces (Noto Serif / Roboto) to the
+                // engine before the shelf is cached and anyone can start a
+                // reader session — the core accepts this call exactly once
+                // and only before the first session. A failure never fails
+                // the open: the engine simply falls back to the bundled
+                // Notos for the system-font choices.
+                val faces = SystemReadingFonts.discover()
+                if (faces.isNotEmpty()) {
+                    try {
+                        shelf.registerSystemFonts(faces).forEach { warning ->
+                            Log.w(TAG, "System font skipped (${warning.filePath}): ${warning.detail}")
+                        }
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (failure: Throwable) {
+                        Log.w(TAG, "System font registration failed", failure)
+                    }
+                }
+                shelf
             }.also { shelf ->
                 opened = shelf
                 // Covers imported by older cores are full-resolution

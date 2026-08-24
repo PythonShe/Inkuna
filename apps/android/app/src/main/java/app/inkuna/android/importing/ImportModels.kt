@@ -101,6 +101,7 @@ data class ImportFailure(
             is InkunaException.UnsupportedContent,
             is InkunaException.LayoutBudgetExceeded,
             is InkunaException.AnchorNotFound,
+            is InkunaException.InvalidState,
             ->
                 failure(name, ImportFailureKind.LibraryError, describe(error))
         }
