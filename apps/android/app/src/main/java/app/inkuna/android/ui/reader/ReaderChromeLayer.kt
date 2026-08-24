@@ -69,16 +69,21 @@ internal fun ReaderChromeLayer(
     onCloseSearch: () -> Unit,
     viewModel: ReaderViewModel,
 ) {
+    // One position/count snapshot per recomposition: both the page-info
+    // line and the menu percent read it, so the chrome crosses the FFI at
+    // most twice (one positionOf + one positionCount) per pass.
+    val position = anchorState.value?.let { runCatching { book.session.positionOf(it) }.getOrNull() }
+    val positionCount = position?.let { book.session.positionCount() }
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(chromeVisible.value, Modifier.preferredFrameRate(FrameRateCategory.High).align(Alignment.BottomCenter).padding(bottom = navPad + ReaderMetrics.footerLift), fadeIn(tween(240)), fadeOut(tween(240))) {
-            Text(readerPageInfo(book, anchorState.value), style = InkType.caption, color = foreground.copy(alpha = 0.55f))
+            Text(readerPageInfo(book, position, positionCount), style = InkType.caption, color = foreground.copy(alpha = 0.55f))
         }
         AnimatedVisibility(chromeVisible.value && !searchOpen.value, Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = statusPad + 6.dp), fadeIn(tween(240)), fadeOut(tween(240))) {
             ReaderGlassButton(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.a11y_back), onBack)
         }
         AnimatedVisibility(menuOpen.value, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = contentBottom + 58.dp), fadeIn(tween(240)) + slideInVertically(tween(240)) { it / 10 }, fadeOut(tween(240)) + slideOutVertically(tween(240)) { it / 10 }) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.widthIn(max = 320.dp)) {
-                ReaderMenuPill(text = stringResource(R.string.reader_menu_contents, readerPercent(book, anchorState.value)), icon = Icons.AutoMirrored.Outlined.List, onClick = { menuOpen.value = false; onOpenContents() })
+                ReaderMenuPill(text = stringResource(R.string.reader_menu_contents, readerPercent(book, position, positionCount)), icon = Icons.AutoMirrored.Outlined.List, onClick = { menuOpen.value = false; onOpenContents() })
                 ReaderMenuPill(text = stringResource(R.string.reader_menu_theme_type), icon = Icons.Outlined.FormatSize, onClick = { menuOpen.value = false; onOpenThemeType() })
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ReaderGlassButton(icon = Icons.Outlined.Search, contentDescription = stringResource(R.string.a11y_search_book), onClick = { menuOpen.value = false; searchOpen.value = true })
@@ -115,20 +120,26 @@ internal fun ReaderOpenFailed(
     }
 }
 
-private fun readerPercent(book: ReaderViewModel.ReaderBook, coordinate: Coordinate?): Int {
-    val position = coordinate?.let { runCatching { book.session.positionOf(it) }.getOrNull() } ?: return (book.publication.progression * 100).roundToInt().coerceIn(0, 100)
-    return (position.toDouble() / book.session.positionCount().coerceAtLeast(1u).toDouble() * 100).roundToInt().coerceIn(0, 100)
+/** Pure percent over an already-read position/count pair; no FFI crossings. */
+private fun readerPercent(book: ReaderViewModel.ReaderBook, position: UInt?, count: UInt?): Int {
+    if (position == null || count == null) return (book.publication.progression * 100).roundToInt().coerceIn(0, 100)
+    return (position.toDouble() / count.coerceAtLeast(1u).toDouble() * 100).roundToInt().coerceIn(0, 100)
 }
 
 @Composable
+internal fun readerPageInfo(book: ReaderViewModel.ReaderBook, position: UInt?, count: UInt?): String =
+    if (position != null && count != null) {
+        val args = ReaderPositionFormat.resourceArgs(position, count)
+        stringResource(R.string.reader_page_info, args[0], args[1], readerPercent(book, position, count))
+    } else {
+        stringResource(R.string.reader_percent, readerPercent(book, null, null))
+    }
+
+/** Convenience over the snapshot form for callers holding only a coordinate. */
+@Composable
 internal fun readerPageInfo(book: ReaderViewModel.ReaderBook, coordinate: Coordinate?): String {
     val position = coordinate?.let { runCatching { book.session.positionOf(it) }.getOrNull() }
-    return if (position != null) {
-        val args = ReaderPositionFormat.resourceArgs(position, book.session.positionCount())
-        stringResource(R.string.reader_page_info, args[0], args[1], readerPercent(book, coordinate))
-    } else {
-        stringResource(R.string.reader_percent, readerPercent(book, coordinate))
-    }
+    return readerPageInfo(book, position, position?.let { book.session.positionCount() })
 }
 
 internal object ReaderPositionFormat {
