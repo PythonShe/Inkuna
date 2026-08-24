@@ -2,6 +2,75 @@
 
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
+/// Request-ordered last-open-wins slot for the one live engine session.
+///
+/// Concurrent `open_reader` calls complete in arbitrary order on the
+/// blocking pool, so completion order cannot decide the winner: a slow
+/// older open finishing last must not displace the newer, currently
+/// visible session. Every request draws a monotonically increasing
+/// ticket up front; only the holder of the newest ticket may install
+/// its session, and a stale request instead gets its own session back
+/// to close off to the side.
+///
+/// Both methods only swap under the lock — closing sessions happens in
+/// the caller, outside any critical section — and both recover from
+/// poisoning: the state is swap-consistent, so a panicking open never
+/// bricks later ones. Generic over the session type purely so the
+/// ordering rules are unit-testable without opening real books.
+struct ActiveSlot<S> {
+    state: Mutex<SlotState<S>>,
+}
+
+struct SlotState<S> {
+    /// Tickets issued so far; the highest is the newest open request.
+    issued: u64,
+    /// The installed session, held weakly so a shell dropping its
+    /// handle closes the engine session without this slot keeping it
+    /// alive.
+    session: Weak<S>,
+}
+
+impl<S> ActiveSlot<S> {
+    fn new() -> Self {
+        ActiveSlot {
+            state: Mutex::new(SlotState {
+                issued: 0,
+                session: Weak::new(),
+            }),
+        }
+    }
+
+    /// Registers a new open request: draws its ticket and vacates the
+    /// slot, returning the previous session (when still alive) for the
+    /// caller to close outside the lock.
+    fn begin(&self) -> (u64, Option<Arc<S>>) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.issued += 1;
+        let previous = std::mem::replace(&mut state.session, Weak::new()).upgrade();
+        (state.issued, previous)
+    }
+
+    /// Installs `session` only while `ticket` is still the newest
+    /// issued. Returns the session the caller must close outside the
+    /// lock: the displaced one on install, or `session` itself when a
+    /// newer request was issued meanwhile — the newer session (whether
+    /// already stored or still opening) keeps the slot.
+    fn store(&self, ticket: u64, session: &Arc<S>) -> Option<Arc<S>> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if ticket == state.issued {
+            std::mem::replace(&mut state.session, Arc::downgrade(session)).upgrade()
+        } else {
+            Some(session.clone())
+        }
+    }
+}
+
 use crate::error::InkunaError;
 use crate::import::ShelfImport;
 use crate::library::ShelfLibrary;
@@ -37,8 +106,9 @@ pub struct Bookshelf {
     font_registry: Arc<OnceLock<Arc<inkuna_core::FontRegistry>>>,
     /// Last-open-wins: the one live engine session per `Bookshelf`,
     /// held weakly so a shell dropping its `ReaderSession` closes the
-    /// engine session without this registry keeping it alive.
-    active_session: Arc<Mutex<Weak<inkuna_core::EngineSession>>>,
+    /// engine session without this registry keeping it alive. Ordered
+    /// by request ticket, never by completion — see [`ActiveSlot`].
+    active_session: Arc<ActiveSlot<inkuna_core::EngineSession>>,
     library_facade: Arc<ShelfLibrary>,
     importer: Arc<ShelfImport>,
     search: Arc<ShelfSearch>,
@@ -70,7 +140,7 @@ impl Bookshelf {
         let library = Arc::new(inkuna_core::Library::open(&data_dir)?);
         Ok(Arc::new(Bookshelf {
             font_registry: Arc::new(OnceLock::new()),
-            active_session: Arc::new(Mutex::new(Weak::new())),
+            active_session: Arc::new(ActiveSlot::new()),
             library_facade: Arc::new(ShelfLibrary(library.clone())),
             importer: Arc::new(ShelfImport(library.clone())),
             search: Arc::new(ShelfSearch(library.clone())),
@@ -188,10 +258,13 @@ impl Bookshelf {
     /// loads the bundled fonts (once per process), and starts the layout
     /// worker at the stored coordinate's chapter (chapter 0 when none).
     ///
-    /// Last-open-wins: one live reader per `Bookshelf` — a still-live
-    /// previous session (any id) is closed before the new one opens;
-    /// sessions also close when the shell drops them. `listener`
-    /// callbacks arrive on engine threads — hop to the main thread.
+    /// Last-open-wins, ordered by REQUEST: one live reader per
+    /// `Bookshelf` — a still-live previous session (any id) is closed
+    /// before the new one opens, and a concurrent open that was
+    /// requested later always wins even when it completes first (the
+    /// earlier call then returns an already-closed session); sessions
+    /// also close when the shell drops them. `listener` callbacks
+    /// arrive on engine threads — hop to the main thread.
     ///
     /// Fixed-layout books throw `UnsupportedContent`; an unknown id
     /// `NotFound`; a broken font dir `UnsupportedContent`.
@@ -206,7 +279,15 @@ impl Bookshelf {
         let font_dir = self.font_dir.clone();
         let registry = self.font_registry.clone();
         let active = self.active_session.clone();
+        // The ticket is drawn HERE, before hopping to the blocking pool,
+        // so concurrent opens are ordered by request, not by whichever
+        // blocking task happens to finish last — a slow older open can
+        // never displace the newer session the shell is showing.
+        let (ticket, previous) = active.begin();
         blocking(move || {
+            if let Some(previous) = previous {
+                previous.close();
+            }
             let publication = library.publication(&id)?;
             let epub_path = library.data_dir().join(&publication.file_path);
             let opening_chapter = publication
@@ -236,22 +317,6 @@ impl Bookshelf {
             // `position_of`/`position_count` from without touching the DB.
             let ranges = library.position_ranges(&id)?;
 
-            // Last-open-wins with a NARROW critical section: only the
-            // slot swaps happen under the lock — closing the previous
-            // session and the (font-extracting) engine open below must
-            // never hold it, so a panic in either cannot poison the
-            // mutex; poisoning is recovered regardless (the Weak slot
-            // cannot be left inconsistent by a mid-swap panic), so a
-            // single bad open never bricks every later one.
-            let previous = {
-                let mut slot = active
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                std::mem::replace(&mut *slot, Weak::new()).upgrade()
-            };
-            if let Some(previous) = previous {
-                previous.close();
-            }
             // The per-book cache dir the session extracts the book's
             // embedded (publisher) fonts into; `Library::remove` and the
             // open-time sweep clean it up with the book.
@@ -270,16 +335,12 @@ impl Bookshelf {
                 Arc::new(ListenerAdapter(listener)),
             )
             .map_err(|e| InkunaError::from(inkuna_core::CoreError::from(e)))?;
-            // Store the new session; if a concurrent open stored its own
-            // between our two lock scopes, the LAST store wins and the
-            // displaced session is closed — one live reader either way.
-            let displaced = {
-                let mut slot = active
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                std::mem::replace(&mut *slot, Arc::downgrade(&session)).upgrade()
-            };
-            if let Some(displaced) = displaced {
+            // Store the new session; the NEWEST-TICKETED request wins
+            // regardless of completion order. When a newer open was
+            // requested meanwhile, `store` hands this session back and
+            // it closes off to the side — one live reader either way,
+            // and always the most recently requested one.
+            if let Some(displaced) = active.store(ticket, &session) {
                 displaced.close();
             }
 
