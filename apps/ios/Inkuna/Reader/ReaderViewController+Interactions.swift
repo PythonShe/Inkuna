@@ -301,17 +301,32 @@ extension ReaderViewController {
     /// image-only page) leaves the preview on its serif stand-in.
     func publisherReadingFont(size: CGFloat) -> CTFont? {
         guard AppSettings.shared.readingFont == .publisher,
-              let readerSession, let surface = pagerSurface,
-              let list = try? readerSession.page(spineIdx: surface.spineIdx, pageIdx: surface.pageIdx)
-        else { return nil }
-        var glyphCounts: [UInt32: Int] = [:]
-        for run in list.glyphRuns {
-            glyphCounts[run.fontId, default: 0] += run.glyphIds.count
+              let readerSession, let surface = pagerSurface else { return nil }
+        let generation = readerSession.generation()
+        let dominant: UInt32?
+        if let sample = publisherFontSample,
+           sample.spineIdx == surface.spineIdx,
+           sample.pageIdx == surface.pageIdx,
+           sample.generation == generation {
+            dominant = sample.fontID
+        } else {
+            // A page that has not been published yet stays unmemoized so a
+            // later draw of the same page can sample it; a returned list is
+            // immutable within its generation, so its result — even "no
+            // dominant face" on an image-only page — is final.
+            guard let list = try? readerSession.page(spineIdx: surface.spineIdx, pageIdx: surface.pageIdx)
+            else { return nil }
+            var glyphCounts: [UInt32: Int] = [:]
+            for run in list.glyphRuns {
+                glyphCounts[run.fontId, default: 0] += run.glyphIds.count
+            }
+            dominant = glyphCounts.max(by: {
+                ($0.value, $1.key) < ($1.value, $0.key)
+            })?.key
+            publisherFontSample = (surface.spineIdx, surface.pageIdx, generation, dominant)
         }
-        guard let dominant = glyphCounts.max(by: {
-            ($0.value, $1.key) < ($1.value, $0.key)
-        })?.key else { return nil }
-        return ReaderFontStore.shared.font(id: dominant, size: size)
+        guard let dominant else { return nil }
+        return ReaderFontStore.shared.font(id: dominant, size: size, owner: readerSession)
     }
 
     func applyTheme(_ theme: ReadingTheme) {

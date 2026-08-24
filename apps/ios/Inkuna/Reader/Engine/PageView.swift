@@ -19,6 +19,10 @@ final class PageView: UIView {
     private var displayList: PageDisplayList?
     private var spineIdx: UInt32?
     private var pageIdx: UInt32?
+    /// The session whose display list is mounted: the font store's cache is
+    /// bound to a session, so a stale page of the previous book can never
+    /// draw the next book's face under a colliding publisher font id.
+    private weak var ownerSession: AnyObject?
 
     override init(frame: CGRect) {
         theme = .paper
@@ -32,8 +36,9 @@ final class PageView: UIView {
         configure()
     }
 
-    func present(_ list: PageDisplayList?, spineIdx: UInt32, pageIdx: UInt32, session _: ReaderSession) {
+    func present(_ list: PageDisplayList?, spineIdx: UInt32, pageIdx: UInt32, session: ReaderSession) {
         displayList = list
+        ownerSession = session
         self.spineIdx = spineIdx
         self.pageIdx = pageIdx
         accessibilityElements = []
@@ -85,7 +90,7 @@ final class PageView: UIView {
             guard
                 !run.glyphIds.isEmpty,
                 run.positions.count == run.glyphIds.count * 2,
-                let font = ReaderFontStore.shared.font(id: run.fontId, size: CGFloat(run.size))
+                let font = ReaderFontStore.shared.font(id: run.fontId, size: CGFloat(run.size), owner: ownerSession)
             else {
                 continue
             }

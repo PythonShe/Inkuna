@@ -49,7 +49,12 @@ extension ReaderViewController {
                 )
                 return
             }
-            ReaderFontStore.shared.prime(reader.fontRegistry())
+            // Awaited: the descriptor build runs off the main actor, but no
+            // canvas exists — so no page draws — until priming completes.
+            await ReaderFontStore.shared.prime(reader.fontRegistry(), owner: reader)
+            // The await can outlive the screen: a pop during priming has
+            // already shut the session down via `releaseReaderEngineOffMain`.
+            guard !Task.isCancelled, readerSession === reader else { return }
             installCanvas(session: reader)
             let restoredCoordinate = publication.coordinate
                 ?? coordinateForProgression(publication.progression, session: reader)
