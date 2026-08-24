@@ -346,6 +346,10 @@ private fun ReaderContent(
             toastVisible.value = false
         }
     }
+    // The faces are built off the main thread; a page that drew before they
+    // landed is repainted here rather than staying blank.
+    val fontRevision by ReaderFontStore.revision.collectAsStateWithLifecycle()
+    LaunchedEffect(fontRevision, host) { if (fontRevision > 0) host?.canvas?.redrawPages() }
     LifecycleStartEffect(book) {
         viewModel.onReaderVisible()
         onStopOrDispose { viewModel.onReaderHidden() }
@@ -357,10 +361,10 @@ private fun ReaderContent(
         } else menuOpen.value = false
     }
 
-    Box(Modifier.fillMaxSize()) {
+    val keysSuppressed = themeSheetOpen || contentsSheetOpen || searchOpen.value
+    Box(Modifier.fillMaxSize().readerKeyTurns(host, keysSuppressed)) {
         AndroidView(
             factory = { viewContext ->
-                ReaderFontStore.prime(book.session.fontRegistry())
                 val canvas = EnginePageCanvas(viewContext).apply { palette = PagePalette.from(snapshot.readingTheme) }
                 val surface = EnginePagerSurface(book.session, canvas).apply { spineCount = book.spineCount }
                 val selection = ReaderSelectionController(book.session, canvas, surface)
@@ -387,7 +391,9 @@ private fun ReaderContent(
                     if (surface.spineIdx == spineIdx && surface.pageIdx == pageIdx) viewModel.onCurrentPageDrawn()
                 }
                 canvas.onLinkActivated = { spineIdx, pageIdx, x, y ->
-                    handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { coordinate -> attemptJump(PendingJump(coordinate, linkToast = true), engineHost) }, chromeVisible, menuOpen)
+                    handleLinkActivation(book, engineHost, spineIdx, pageIdx, x, y, ::notifyLinkFailed) { coordinate ->
+                        attemptJump(PendingJump(coordinate, linkToast = true), engineHost)
+                    }
                 }
                 canvas.onPageTap = { spineIdx, pageIdx, x, y ->
                     handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { coordinate -> attemptJump(PendingJump(coordinate, linkToast = true), engineHost) }, chromeVisible, menuOpen)

@@ -55,6 +55,9 @@ internal suspend fun View.awaitSized() {
  * Resolves a canvas tap: an external link opens in the browser, an internal
  * link jumps, and a plain point falls through to the edge-band page turns or
  * the chrome toggle.
+ *
+ * [x] and [y] are canvas pixels — the sole pixel-to-layout-point conversion
+ * for this path happens here.
  */
 internal fun handleCanvasPoint(
     book: ReaderViewModel.ReaderBook,
@@ -66,28 +69,79 @@ internal fun handleCanvasPoint(
     chromeVisible: MutableState<Boolean>,
     menuOpen: MutableState<Boolean>,
 ) {
-    val hit = runCatching {
-        book.session.hitTest(host.surface.spineIdx, host.surface.pageIdx, host.canvas.toLayoutX(x), host.canvas.toLayoutY(y))
-    }.getOrNull()
-    val target = hit?.linkTarget
+    val target = linkTargetAt(
+        book, host.surface.spineIdx, host.surface.pageIdx,
+        host.canvas.toLayoutX(x), host.canvas.toLayoutY(y),
+    )
     if (target != null) {
-        val uri = target.toUri()
-        if (uri.scheme == "http" || uri.scheme == "https") {
-            runCatching { host.canvas.context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }.onFailure { onLinkFailed() }
-        } else {
-            runCatching { book.session.locateHrefParts(target) }
-                .onSuccess(onInternalLink)
-                .onFailure { onLinkFailed() }
-        }
+        followLink(book, host, target, onLinkFailed, onInternalLink)
         return
     }
+    // Edge taps are geometric, like the drags and like the iOS shell's
+    // bands: the left band always brings the page in from the left, whatever
+    // the publication's progression direction.
     val band = maxOf(host.layout.width * 0.3f, 80f)
     when {
-        x < band -> host.layout.turnBackward()
-        x > host.layout.width - band -> host.layout.turnForward()
+        x < band -> host.layout.turnGeometric(-1)
+        x > host.layout.width - band -> host.layout.turnGeometric(1)
         else -> {
             menuOpen.value = false
             chromeVisible.value = !chromeVisible.value
         }
+    }
+}
+
+/**
+ * Accessibility activation of a link block. Its point arrives in the core's
+ * own page-local space — layout points at 1x with y growing downward,
+ * straight off `A11yBlock.rect` — which is exactly the space `hitTest` takes,
+ * so it needs no view-space conversion (unlike [handleCanvasPoint], whose
+ * point starts out canvas pixels). A miss reports the failure rather than
+ * falling through to the edge bands: activating a link never turns the page.
+ * Mirrors the iOS `activateLink`.
+ */
+internal fun handleLinkActivation(
+    book: ReaderViewModel.ReaderBook,
+    host: EngineHost,
+    spineIdx: UInt,
+    pageIdx: UInt,
+    layoutX: Float,
+    layoutY: Float,
+    onLinkFailed: () -> Unit,
+    onInternalLink: (Coordinate) -> Unit,
+) {
+    val target = linkTargetAt(book, spineIdx, pageIdx, layoutX.toDouble(), layoutY.toDouble())
+    if (target == null) {
+        onLinkFailed()
+        return
+    }
+    followLink(book, host, target, onLinkFailed, onInternalLink)
+}
+
+/** Hit-tests one published page; [layoutX] and [layoutY] are layout points. */
+private fun linkTargetAt(
+    book: ReaderViewModel.ReaderBook,
+    spineIdx: UInt,
+    pageIdx: UInt,
+    layoutX: Double,
+    layoutY: Double,
+): String? = runCatching {
+    book.session.hitTest(spineIdx, pageIdx, layoutX, layoutY)
+}.getOrNull()?.linkTarget
+
+private fun followLink(
+    book: ReaderViewModel.ReaderBook,
+    host: EngineHost,
+    target: String,
+    onLinkFailed: () -> Unit,
+    onInternalLink: (Coordinate) -> Unit,
+) {
+    val uri = target.toUri()
+    if (uri.scheme == "http" || uri.scheme == "https") {
+        runCatching { host.canvas.context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }.onFailure { onLinkFailed() }
+    } else {
+        runCatching { book.session.locateHrefParts(target) }
+            .onSuccess(onInternalLink)
+            .onFailure { onLinkFailed() }
     }
 }

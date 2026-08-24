@@ -88,11 +88,18 @@ class PageView(context: Context) : View(context) {
         drawGlyphRuns(canvas)
         drawDecorations(canvas, list.decorations)
         canvas.restore()
-        onPageDrawn?.invoke(spineIdx, pageIdx)
+        // A page whose runs were dropped for want of faces has not really
+        // rendered; the store's revision brings us back here once it has.
+        if (renderedRuns.isEmpty() || ReaderFontStore.isPrimed) onPageDrawn?.invoke(spineIdx, pageIdx)
     }
 
     internal fun accessibilityBlocks(): List<A11yBlock> = displayList?.a11y.orEmpty()
 
+    /**
+     * Emits the block's centre in the core's page-local layout points —
+     * the space `A11yBlock.rect` and `hitTest` both speak — never view
+     * pixels. Its consumer must not re-divide by the display density.
+     */
     internal fun activateLink(block: A11yBlock): Boolean {
         if (!block.isLink) return false
         onLinkActivated?.invoke(

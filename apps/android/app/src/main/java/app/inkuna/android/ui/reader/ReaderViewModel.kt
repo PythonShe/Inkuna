@@ -14,6 +14,7 @@ import androidx.lifecycle.viewModelScope
 import app.inkuna.android.model.AppSettings
 import app.inkuna.android.model.LibraryStore
 import app.inkuna.android.ui.ReaderPerf
+import app.inkuna.android.ui.reader.engine.ReaderFontStore
 import app.inkuna.core.BookSearchHit
 import app.inkuna.core.Bookmark
 import app.inkuna.core.Chapter
@@ -171,6 +172,10 @@ class ReaderViewModel(
         val positionRanges = shelf.progress().chapterPositionRanges(publicationId)
         val openViewport = viewport()
         val session = shelf.openReader(publicationId, openViewport, layoutSettings(AppSettings.get(app).snapshot.value), listener())
+        // Faces build off the main thread beside the first layout; inline,
+        // ~29 file parses would sit inside the open-to-first-page budget.
+        runCatching { session.fontRegistry() }.getOrNull()?.takeIf { it.isNotEmpty() }
+            ?.let { registry -> viewModelScope.launch { ReaderFontStore.prime(registry) } }
         withContext(Dispatchers.Main.immediate) {
             readerSession = session
             val startupEvents = pendingStartupEvents.toList()

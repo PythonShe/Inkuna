@@ -108,7 +108,10 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
             selectionController?.updatePalette(value.link)
         }
 
+    /** Accessibility link activation; its point is page-local layout points. */
     var onLinkActivated: ((spineIdx: UInt, pageIdx: UInt, x: Float, y: Float) -> Unit)? = null
+
+    /** A finger tap; its point is canvas pixels. */
     var onPageTap: ((spineIdx: UInt, pageIdx: UInt, x: Float, y: Float) -> Unit)? = null
     var onPageDrawn: ((spineIdx: UInt, pageIdx: UInt) -> Unit)? = null
 
@@ -165,6 +168,14 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
      */
     internal fun showSearchHighlight(rects: List<SelectionRect>) {
         selectionController?.showSearchHighlight(rects)
+    }
+
+    /**
+     * Redraws the mounted pages without re-querying their display lists —
+     * used when the font faces land after a page has already drawn.
+     */
+    internal fun redrawPages() {
+        mounted.values.forEach { it.view.invalidate() }
     }
 
     internal fun toLayoutX(x: Float): Double = (x / resources.displayMetrics.density).toDouble()

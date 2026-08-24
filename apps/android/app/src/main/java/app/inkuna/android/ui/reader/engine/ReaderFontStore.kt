@@ -6,6 +6,13 @@ import app.inkuna.core.FontEntry
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.charset.Charset
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** Rebuilds the exact engine font faces for [android.graphics.Canvas.drawGlyphs]. */
 object ReaderFontStore {
@@ -14,12 +21,41 @@ object ReaderFontStore {
     @Volatile
     private var fonts: Map<UInt, Font> = emptyMap()
 
+    @Volatile
+    private var primedRegistry: List<FontEntry>? = null
+
+    private val gate = Mutex()
+
+    private val _revision = MutableStateFlow(0)
+
+    /** Bumps once per completed build, so mounted pages can redraw when the faces land. */
+    val revision: StateFlow<Int> = _revision.asStateFlow()
+
+    /** Whether a build has completed — true even for one that rejected every face. */
+    val isPrimed: Boolean get() = primedRegistry != null
+
     /**
      * Replaces the whole immutable registry at once, so drawing threads only
      * ever observe a complete font map.
+     *
+     * The build is blocking disk I/O — one native `Font.Builder` plus a
+     * `name`-table walk per entry, over ~40 MB `.ttc` collections — so it
+     * runs off the main thread and must never sit inside the
+     * open-to-first-page budget. An unchanged registry short-circuits, so
+     * the work does not repeat on every rotation.
      */
-    fun prime(registry: List<FontEntry>) {
-        val rebuilt = buildMap {
+    suspend fun prime(registry: List<FontEntry>) {
+        gate.withLock {
+            if (registry == primedRegistry) return@withLock
+            val rebuilt = withContext(Dispatchers.IO) { build(registry) }
+            fonts = rebuilt
+            primedRegistry = registry
+            _revision.value += 1
+        }
+    }
+
+    private fun build(registry: List<FontEntry>): Map<UInt, Font> {
+        return buildMap {
             registry.forEach { entry ->
                 val font = runCatching {
                     Font.Builder(File(entry.filePath))
@@ -51,7 +87,6 @@ object ReaderFontStore {
                 put(entry.id, font)
             }
         }
-        fonts = rebuilt
     }
 
     fun font(id: UInt): Font? = fonts[id]

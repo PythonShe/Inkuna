@@ -247,6 +247,12 @@ class ReaderSelectionController(
         private var handle: Handle? = null
         private var presentation = Presentation.SELECTION
 
+        /** The knob's drawn diameter and its offset from the text edge. */
+        private val knobPx = KNOB_DP * resources.displayMetrics.density
+
+        /** Half-extent of the grab box: 12 + 2 x 18 dp, Android's minimum target. */
+        private val grabRadiusPx = knobPx / 2f + KNOB_HIT_INSET_DP * resources.displayMetrics.density
+
         val bounds: RectF get() = rects.fold(RectF()) { total, rect ->
             if (total.isEmpty) RectF(rect) else total.apply { union(rect) }
         }
@@ -324,8 +330,8 @@ class ReaderSelectionController(
                 MotionEvent.ACTION_DOWN -> {
                     handle = listOf(Handle.START, Handle.END).firstOrNull { candidate ->
                         handleGeometry(candidate)?.second?.let { point ->
-                            val radius = HANDLE * 1.8f
-                            point.x in event.x - radius..event.x + radius && point.y in event.y - radius..event.y + radius
+                            point.x in event.x - grabRadiusPx..event.x + grabRadiusPx &&
+                                point.y in event.y - grabRadiusPx..event.y + grabRadiusPx
                         } == true
                     }
                     val selected = handle ?: return false
@@ -353,10 +359,10 @@ class ReaderSelectionController(
                 else -> return null
             }
             val knob = when (mode to handle) {
-                WritingMode.HORIZONTAL_TB to Handle.START -> android.graphics.PointF(anchor.x, anchor.y - HANDLE)
-                WritingMode.HORIZONTAL_TB to Handle.END -> android.graphics.PointF(anchor.x, anchor.y + HANDLE)
-                WritingMode.VERTICAL_RL to Handle.START -> android.graphics.PointF(anchor.x + HANDLE, anchor.y)
-                WritingMode.VERTICAL_RL to Handle.END -> android.graphics.PointF(anchor.x - HANDLE, anchor.y)
+                WritingMode.HORIZONTAL_TB to Handle.START -> android.graphics.PointF(anchor.x, anchor.y - knobPx)
+                WritingMode.HORIZONTAL_TB to Handle.END -> android.graphics.PointF(anchor.x, anchor.y + knobPx)
+                WritingMode.VERTICAL_RL to Handle.START -> android.graphics.PointF(anchor.x + knobPx, anchor.y)
+                WritingMode.VERTICAL_RL to Handle.END -> android.graphics.PointF(anchor.x - knobPx, anchor.y)
                 else -> anchor
             }
             return anchor to knob
@@ -365,11 +371,15 @@ class ReaderSelectionController(
         private fun drawTeardrop(canvas: Canvas, anchor: android.graphics.PointF, knob: android.graphics.PointF) {
             paint.strokeWidth = 2f * resources.displayMetrics.density
             canvas.drawLine(anchor.x, anchor.y, knob.x, knob.y, paint)
-            canvas.drawCircle(knob.x, knob.y, HANDLE / 2f, paint)
+            canvas.drawCircle(knob.x, knob.y, knobPx / 2f, paint)
         }
 
         companion object {
-            const val HANDLE = 24f
+            /** Knob diameter in dp, mirroring the iOS overlay's 12 pt knob. */
+            const val KNOB_DP = 12f
+
+            /** Grab-box inset in dp around the knob; iOS insets its own by 16 pt. */
+            const val KNOB_HIT_INSET_DP = 18f
             val searchHighlightDayColor = 0xFFB4863B.toInt()
             val searchHighlightNightColor = 0xFFD9AE63.toInt()
             const val searchHighlightAlpha = 0.35f
