@@ -66,10 +66,14 @@ class PageImageLoader(
     }
 
     /**
-     * Decodes with the dimensions read first, downsampling to the edge cap
-     * before any pixel allocation — a pathological 16000x16000 source must
-     * never materialize at full size ahead of the LruCache's byte budget.
-     * Anything still over the cap at the maximum sample factor is rejected.
+     * Decodes with the dimensions read first, downsampling until BOTH the
+     * edge cap and the total-pixel-area cap hold, before any pixel
+     * allocation — a pathological 16000x16000 source must never
+     * materialize at full size ahead of the LruCache's byte budget, and a
+     * near-square bitmap within the edge cap alone could still allocate
+     * several times the area the display can show (the same two-cap
+     * contract the iOS shell enforces). Anything still over a cap at the
+     * maximum sample factor is rejected.
      */
     private fun decodeCapped(bytes: ByteArray): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -78,7 +82,14 @@ class PageImageLoader(
         val height = bounds.outHeight
         if (width <= 0 || height <= 0) return null
         var sample = 1
-        while ((width + sample - 1) / sample > maxEdgePx || (height + sample - 1) / sample > maxEdgePx) {
+        while (true) {
+            val sampledWidth = (width + sample - 1) / sample
+            val sampledHeight = (height + sample - 1) / sample
+            if (maxOf(sampledWidth, sampledHeight) <= maxEdgePx &&
+                sampledWidth.toLong() * sampledHeight.toLong() <= maxAreaPx
+            ) {
+                break
+            }
             if (sample >= MAX_SAMPLE) return null
             sample *= 2
         }
@@ -95,6 +106,15 @@ class PageImageLoader(
             Resources.getSystem().displayMetrics.heightPixels,
             1024,
         )
+
+        /**
+         * Nor more total pixels than (2x display width) x (2x display
+         * height) — each dimension floored at 1024, so degenerate metrics
+         * still yield a 2048x2048 area floor, matching the iOS shell.
+         */
+        val maxAreaPx: Long =
+            2L * maxOf(Resources.getSystem().displayMetrics.widthPixels, 1024) *
+                2L * maxOf(Resources.getSystem().displayMetrics.heightPixels, 1024)
         const val MAX_SAMPLE = 32
     }
 }
