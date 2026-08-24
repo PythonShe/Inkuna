@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -85,6 +86,7 @@ import app.inkuna.core.Chapter
 import app.inkuna.core.Coordinate
 import app.inkuna.core.InkunaException
 import app.inkuna.core.PageLocation
+import app.inkuna.core.Viewport
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
@@ -106,14 +108,28 @@ fun ReaderScreen(
     val foreground by animateColorAsState(theme.foreground, tween(InkMotion.durMed, easing = InkMotion.easeQuiet), "readerFg")
     val statusPad = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val tablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
+    val contentTop = ReaderMetrics.contentTop(
+        max(statusPad, WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()),
+        tablet,
+    )
+    val contentBottom = ReaderMetrics.contentBottom(navPad, tablet)
 
-    Box(Modifier.fillMaxSize().background(background)) {
+    // The engine viewport is the reader surface's measured size, not any
+    // WindowManager metric — the activity can be a split-screen or freeform
+    // pane much smaller than the display.
+    BoxWithConstraints(Modifier.fillMaxSize().background(background)) {
+        val viewport = Viewport(
+            width = maxWidth.value.toDouble(),
+            height = (maxHeight - contentTop - contentBottom).value.toDouble().coerceAtLeast(0.0),
+        )
+        LaunchedEffect(viewport) { viewModel.open(viewport) }
         when (val current = state) {
             ReaderViewModel.UiState.Opening -> Unit
             ReaderViewModel.UiState.Failed -> ReaderOpenFailed(
                 foreground,
                 stringResource(R.string.reader_open_failed),
-                viewModel::open,
+                { viewModel.open(viewport) },
                 Modifier.align(Alignment.Center),
             )
             ReaderViewModel.UiState.FixedLayoutUnsupported -> ReaderOpenFailed(
@@ -129,7 +145,8 @@ fun ReaderScreen(
                 Modifier.align(Alignment.Center),
             )
             is ReaderViewModel.UiState.Ready -> ReaderContent(
-                viewModel, current.book, settings, snapshot, foreground, statusPad, navPad, onBack,
+                viewModel, current.book, settings, snapshot, foreground, statusPad, navPad,
+                contentTop, contentBottom, viewport, onBack,
             )
         }
         if (state !is ReaderViewModel.UiState.Ready) {
@@ -149,6 +166,9 @@ private fun ReaderContent(
     foreground: Color,
     statusPad: Dp,
     navPad: Dp,
+    contentTop: Dp,
+    contentBottom: Dp,
+    viewport: Viewport,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -171,12 +191,6 @@ private fun ReaderContent(
     var toastShown by rememberSaveable { mutableIntStateOf(0) }
     val toastVisible = remember { mutableStateOf(false) }
     val toastMessage = rememberSaveable { mutableStateOf(ReaderToast.BookmarkPlaced) }
-    val configuration = LocalConfiguration.current
-    val contentTop = ReaderMetrics.contentTop(
-        max(statusPad, WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()),
-        configuration.smallestScreenWidthDp >= 600,
-    )
-    val contentBottom = ReaderMetrics.contentBottom(navPad, configuration.smallestScreenWidthDp >= 600)
     // Live TalkBack state: read inside the callback bodies below so toggling
     // touch exploration mid-session changes behavior without leaving the screen.
     val touchExploration = remember { mutableStateOf(false) }
@@ -367,7 +381,7 @@ private fun ReaderContent(
         val live = hostState.value ?: return
         live.selection.clear()
         live.layout.cancelInteraction()
-        viewModel.requestAppearanceUpdate(viewModel.settingsFor(snapshot))
+        viewModel.requestAppearanceUpdate(viewModel.settingsFor(snapshot), viewport)
     }
 
     var appliedTypography by remember(book) { mutableStateOf(false) }
@@ -377,11 +391,13 @@ private fun ReaderContent(
     ) {
         if (appliedTypography) requestRelayout() else appliedTypography = true
     }
-    LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp) {
+    LaunchedEffect(viewport) {
         // The session outlives the activity, so compare against the
         // viewport it actually laid out for — a composition-scoped flag
-        // resets across rotation and would skip the relayout.
-        if (viewModel.needsViewportRelayout()) requestRelayout()
+        // resets across rotation and would skip the relayout. Keying on the
+        // measured viewport also catches split-screen divider drags that
+        // resize the pane without recreating the activity.
+        if (viewModel.needsViewportRelayout(viewport)) requestRelayout()
     }
     LaunchedEffect(toastCount) {
         if (toastCount > toastShown) {

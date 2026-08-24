@@ -3,9 +3,6 @@ package app.inkuna.android.ui.reader
 import android.app.Application
 import android.os.SystemClock
 import android.util.Log
-import android.view.WindowInsets
-import android.view.WindowManager
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory
 import androidx.lifecycle.viewmodel.initializer
@@ -144,18 +141,22 @@ class ReaderViewModel(
     private var didLogChapterComplete = false
 
     init {
-        open()
         viewModelScope.launch(Dispatchers.Default) {
             pendingProgress.filterNotNull().collect { persistPendingProgress() }
         }
     }
 
-    fun open() {
+    /**
+     * Opens the session for the reader surface's measured viewport, which
+     * the screen supplies — the activity window can be a split-screen or
+     * freeform pane, so no display-level metric may stand in for it.
+     */
+    fun open(viewport: Viewport) {
         if (openJob?.isActive == true || stateFlow.value is UiState.Ready) return
         stateFlow.value = UiState.Opening
         openJob = viewModelScope.launch {
             try {
-                val book = doOpen()
+                val book = doOpen(viewport)
                 stateFlow.value =
                     if (book.spineCount == 0u) UiState.NoReadableContent else UiState.Ready(book)
             } catch (cancelled: CancellationException) {
@@ -169,7 +170,7 @@ class ReaderViewModel(
         }
     }
 
-    private suspend fun doOpen(): ReaderBook = withContext(Dispatchers.Default) {
+    private suspend fun doOpen(openViewport: Viewport): ReaderBook = withContext(Dispatchers.Default) {
         openedAtMs = SystemClock.uptimeMillis()
         firstPageReadyMs = null
         didLogFirstRender = false
@@ -182,7 +183,6 @@ class ReaderViewModel(
         val publication = library.publication(publicationId)
         val chapters = library.chapters(publicationId)
         val positionRanges = shelf.progress().chapterPositionRanges(publicationId)
-        val openViewport = viewport()
         val session = shelf.openReader(publicationId, openViewport, layoutSettings(AppSettings.get(app).snapshot.value), listener())
         // Faces build off the main thread beside the first layout; inline,
         // ~29 file parses would sit inside the open-to-first-page budget.
@@ -343,14 +343,14 @@ class ReaderViewModel(
     }
 
     /** Runs on the retained ViewModel scope, not a composition-scoped job. */
-    fun requestAppearanceUpdate(settings: ReaderLayoutSettings) {
+    fun requestAppearanceUpdate(settings: ReaderLayoutSettings, viewport: Viewport) {
         if (readerClosed) return
-        viewModelScope.launch { relayoutLock.withLock { updateAppearance(settings) } }
+        viewModelScope.launch { relayoutLock.withLock { updateAppearance(settings, viewport) } }
     }
 
     /** Relayouts, then emits an invalidation before draining live callbacks. */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun updateAppearance(settings: ReaderLayoutSettings): Boolean =
+    private suspend fun updateAppearance(settings: ReaderLayoutSettings, target: Viewport): Boolean =
         withContext(Dispatchers.Main.immediate) {
             val session = readerSession ?: return@withContext false
             currentAnchor = currentCoordinate()
@@ -360,7 +360,6 @@ class ReaderViewModel(
             layoutChangeInFlight = true
             var updated = false
             try {
-                val target = viewport()
                 withContext(Dispatchers.Default) { session.updateLayout(target, settings) }
                 updated = true
                 appliedViewport = target
@@ -382,13 +381,14 @@ class ReaderViewModel(
         }
 
     /**
-     * Whether the window no longer matches the viewport the session laid
-     * out for — true after a rotation recreated the activity while this
-     * retained session kept the old geometry.
+     * Whether the surface's measured viewport no longer matches the one the
+     * session laid out for — true after a rotation recreated the activity
+     * (or a split-screen resize reshaped the pane) while this retained
+     * session kept the old geometry.
      */
-    fun needsViewportRelayout(): Boolean {
+    fun needsViewportRelayout(viewport: Viewport): Boolean {
         val applied = appliedViewport ?: return false
-        return viewport() != applied
+        return viewport != applied
     }
 
     suspend fun search(query: String): SearchOutcome {
@@ -487,23 +487,6 @@ class ReaderViewModel(
         ?: error("reader session is not open")
 
     private fun sessionShelf() = bookshelf ?: error("bookshelf is not open")
-
-    private fun viewport(): Viewport {
-        val manager = app.getSystemService(WindowManager::class.java)
-        val metrics = manager.currentWindowMetrics
-        val density = app.resources.displayMetrics.density
-        val insets = metrics.windowInsets
-        val status = insets.getInsetsIgnoringVisibility(WindowInsets.Type.statusBars()).top
-        val cutout = insets.displayCutout?.safeInsetTop ?: 0
-        val navigation = insets.getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars()).bottom
-        val tablet = app.resources.configuration.smallestScreenWidthDp >= 600
-        val top = ReaderMetrics.contentTop(maxOf(status, cutout).toFloat().div(density).dp, tablet).value
-        val bottom = ReaderMetrics.contentBottom(navigation.toFloat().div(density).dp, tablet).value
-        return Viewport(
-            width = metrics.bounds.width().toDouble() / density,
-            height = (metrics.bounds.height().toDouble() / density - top - bottom).coerceAtLeast(0.0),
-        )
-    }
 
     private fun layoutSettings(snapshot: AppSettings.Snapshot) = snapshot.readerLayoutSettings()
 
