@@ -394,6 +394,7 @@ fn search_offset_equals_projection_offset() {
         LayoutSettings::default(),
         Some("ja".to_string()),
         hit.spine_idx,
+        None,
         Arc::new(Events(tx)),
     )
     .unwrap();

@@ -242,6 +242,13 @@ impl Bookshelf {
             if let Some(previous) = slot.upgrade() {
                 previous.close();
             }
+            // The per-book cache dir the session extracts the book's
+            // embedded (publisher) fonts into; `Library::remove` and the
+            // open-time sweep clean it up with the book.
+            let publisher_font_dir = library
+                .data_dir()
+                .join(inkuna_core::PUBLISHER_FONT_DIR)
+                .join(&id);
             let session = inkuna_core::EngineSession::open(
                 &epub_path,
                 fonts.clone(),
@@ -249,12 +256,17 @@ impl Bookshelf {
                 settings.into(),
                 publication.language.clone(),
                 opening_chapter,
+                Some(&publisher_font_dir),
                 Arc::new(ListenerAdapter(listener)),
             )
             .map_err(|e| InkunaError::from(inkuna_core::CoreError::from(e)))?;
             *slot = Arc::downgrade(&session);
             drop(slot);
 
+            // The session's own registry: base blocks plus this book's
+            // publisher block — what `font_registry()` must serve so the
+            // shells can draw every display-list font id.
+            let fonts = session.fonts();
             Ok(Arc::new(ReaderSession {
                 session,
                 fonts,

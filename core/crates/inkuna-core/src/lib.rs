@@ -16,7 +16,9 @@ pub use crate::core::error::CoreError;
 /// never need a direct chrono dependency.
 pub use chrono::Weekday;
 pub use features::import::{BatchImportOutcome, ImportOutcome};
-pub use features::library::{Bookmark, Chapter, Library, Publication, Shelf, Sort, SpineEntry};
+pub use features::library::{
+    Bookmark, Chapter, Library, Publication, Shelf, Sort, SpineEntry, PUBLISHER_FONT_DIR,
+};
 pub use features::progress::{coordinate_for, position_count_for, position_for, ChapterPositionRange};
 pub use features::search::{BookSearchHit, BookSearchResults, LibrarySearchHit};
 pub use features::settings::Settings;

@@ -343,3 +343,31 @@ fn several_chapters_can_share_one_spine_item() {
     // ...but not one-to-one: spine item 0 carries two of them.
     assert_eq!(resolved.iter().filter(|&&i| i == 0).count(), 2);
 }
+
+/// The per-book extracted publisher-font cache dies with the book:
+/// `remove` deletes its directory, and the open-time sweep clears
+/// orphaned ones (an interrupted delete's leftovers).
+#[test]
+fn publisher_font_cache_is_removed_and_swept_with_the_book() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "Fonts", "Author", "en");
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+
+    let cache = data_dir.join(PUBLISHER_FONT_DIR).join(&publication.id);
+    std::fs::create_dir_all(&cache).unwrap();
+    std::fs::write(cache.join("abc.ttf"), b"font bytes").unwrap();
+
+    library.remove(&publication.id).unwrap();
+    assert!(!cache.exists(), "remove() must delete the font cache");
+
+    // An orphan directory (no row references its id) is swept at open.
+    let orphan = data_dir.join(PUBLISHER_FONT_DIR).join("no-such-id");
+    std::fs::create_dir_all(&orphan).unwrap();
+    std::fs::write(orphan.join("x.ttf"), b"stale").unwrap();
+    drop(library);
+    let _library = Library::open(&data_dir).unwrap();
+    assert!(!orphan.exists(), "open() must sweep orphaned font caches");
+}
