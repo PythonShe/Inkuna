@@ -234,6 +234,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
     }
 
     private fun updatePages() {
+        val session = session ?: return
         val currentScene = scene ?: return
         if (width <= 0 || height <= 0) return
         val pageWidth = width.toFloat()
@@ -270,7 +271,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
             if (key !in targetKeys) page.view.visibility = View.INVISIBLE
         }
         targets.forEach { (key, x) ->
-            val page = mount(key)
+            val page = mount(key, session)
             val params = page.view.layoutParams as? LayoutParams
             if (params?.width != width || params.height != pageHeight) {
                 page.view.layoutParams = LayoutParams(width, pageHeight)
@@ -284,7 +285,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
         truncationNotice?.let(::bringChildToFront)
     }
 
-    private fun mount(key: PageKey): MountedPage {
+    private fun mount(key: PageKey, session: ReaderSession): MountedPage {
         useCounter += 1uL
         mounted[key]?.let { existing ->
             existing.use = useCounter
@@ -292,7 +293,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
                 existing.queried = true
                 displayListFor(key)?.let { list ->
                     existing.generation = list.generation
-                    existing.view.present(list, key.spineIdx, key.pageIdx, session ?: return existing)
+                    existing.view.present(list, key.spineIdx, key.pageIdx, session)
                 }
             }
             return existing
@@ -312,12 +313,7 @@ class EnginePageCanvas(context: Context) : FrameLayout(context) {
         view.setOnTouchListener { _, event -> receivePageTouch(key.spineIdx, key.pageIdx, event) }
         view.onPageDrawn = { spineIdx, pageIdx -> onPageDrawn?.invoke(spineIdx, pageIdx) }
         val list = displayListFor(key)
-        view.present(
-            list,
-            key.spineIdx,
-            key.pageIdx,
-            session ?: return MountedPage(view, null, queried = true, use = useCounter),
-        )
+        view.present(list, key.spineIdx, key.pageIdx, session)
         return MountedPage(view, list?.generation, queried = true, use = useCounter)
             .also { mounted[key] = it }
     }
