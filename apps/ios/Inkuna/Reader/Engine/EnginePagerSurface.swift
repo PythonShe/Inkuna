@@ -242,11 +242,8 @@ final class EnginePagerSurface: ReaderPagerSurface {
             if !ready {
                 _ = try? session.chapter(spineIdx: neighbor)
             }
-        } else if case let .complete(geometry)? = readiness[neighbor], geometry.pageCount > 0 {
-            ready = true
         } else {
-            _ = try? session.chapter(spineIdx: neighbor)
-            ready = false
+            ready = completeGeometry(neighbor) != nil
         }
         neighborReadiness[key] = ready
         return ready
@@ -259,7 +256,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
         if failedSpines.contains(target) || isForward(toRight: toRight) {
             targetPage = 0
         } else {
-            guard case let .complete(geometry)? = readiness[target], geometry.pageCount > 0 else { return false }
+            guard let geometry = completeGeometry(target) else { return false }
             targetPage = geometry.pageCount - 1
         }
         spineIdx = target
@@ -307,6 +304,21 @@ final class EnginePagerSurface: ReaderPagerSurface {
         guard readiness[spineIdx] == nil, !failedSpines.contains(spineIdx) else { return }
         let published = session.publishedPageCount(spineIdx: spineIdx)
         if published > 0 { readiness[spineIdx] = .partial(publishedPages: published) }
+    }
+
+    /// Complete geometry with at least one page, healing the readiness map
+    /// from the session cache (a recreated surface starts with an empty map
+    /// even when the session has already laid the chapter out). A miss
+    /// schedules the chapter and answers nil.
+    private func completeGeometry(_ spineIdx: UInt32) -> ChapterGeometry? {
+        if case let .complete(geometry)? = readiness[spineIdx], geometry.pageCount > 0 {
+            return geometry
+        }
+        guard let geometry = try? session.chapter(spineIdx: spineIdx) else { return nil }
+        if let latestGeneration, geometry.generation != latestGeneration { return nil }
+        guard geometry.pageCount > 0 else { return nil }
+        readiness[spineIdx] = .complete(geometry: geometry)
+        return geometry
     }
 
     private func accept(generation: UInt64) -> Bool {
@@ -374,7 +386,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
         if isForward(toRight: toRight) {
             return (neighbor, 0, toRight)
         }
-        guard case let .complete(geometry)? = readiness[neighbor], geometry.pageCount > 0 else { return nil }
+        guard let geometry = completeGeometry(neighbor) else { return nil }
         return (neighbor, geometry.pageCount - 1, toRight)
     }
 
