@@ -31,6 +31,15 @@ class EnginePagerSurface(
     private var interactionPageCount: UInt? = null
     private var lastSettledPage: UInt? = null
 
+    /**
+     * The page the last boundary commit departed from. While the commit's
+     * remaining travel glides out, that page is the neighbor on screen —
+     * held here so it stays drawable (and re-enterable, on the exact page
+     * it was left from) even when its chapter's completed geometry is not
+     * available, which the backward neighbor rules would otherwise demand.
+     */
+    private var departedEdge: Pair<UInt, UInt>? = null
+
     var spineIdx: UInt = 0u
         private set
     var pageIdx: UInt = 0u
@@ -61,6 +70,7 @@ class EnginePagerSurface(
         scenePageCount = count
         lastSettledPage = pageIdx
         neighborReadiness.clear()
+        departedEdge = null
         canvas.showUnreadablePlaceholder(spineIdx in failedSpines)
         setScene()
         onPageSettled?.invoke(spineIdx, pageIdx)
@@ -121,6 +131,7 @@ class EnginePagerSurface(
         readiness.clear()
         failedSpines.clear()
         neighborReadiness.clear()
+        departedEdge = null
         scenePageCount = 0u
         interactionPageCount = null
         lastSettledPage = null
@@ -135,6 +146,7 @@ class EnginePagerSurface(
 
     override fun endPagingInteraction() {
         interactionPageCount = null
+        departedEdge = null
         setScene()
     }
 
@@ -196,6 +208,7 @@ class EnginePagerSurface(
 
     override fun neighborIsReady(toRight: Boolean): Boolean {
         val neighbor = neighborSpine(toRight) ?: return false
+        if (departedEdge?.first == neighbor) return true
         val key = NeighborKey(neighbor, toRight)
         neighborReadiness[key]?.let { return it }
         val ready = when {
@@ -222,14 +235,17 @@ class EnginePagerSurface(
     override fun commitBoundaryCrossing(toRight: Boolean): Boolean {
         val target = neighborSpine(toRight) ?: return false
         if (!neighborIsReady(toRight)) return false
+        val departed = departedEdge
         val targetPage = when {
             target in failedSpines -> 0u
+            departed?.first == target -> departed.second
             isForward(toRight) -> 0u
             else -> {
                 val geometry = completeGeometry(target) ?: return false
                 geometry.pageCount - 1u
             }
         }
+        departedEdge = spineIdx to pageIdx
         spineIdx = target
         pageIdx = targetPage
         val count = pageCountFor(target)
@@ -348,8 +364,10 @@ class EnginePagerSurface(
     private fun neighborEntry(toRight: Boolean): PageNeighbor? {
         val neighbor = neighborSpine(toRight) ?: return null
         if (!neighborIsReady(toRight)) return null
+        val departed = departedEdge
         val page = when {
             neighbor in failedSpines -> 0u
+            departed?.first == neighbor -> departed.second
             isForward(toRight) -> 0u
             else -> {
                 val geometry = completeGeometry(neighbor) ?: return null

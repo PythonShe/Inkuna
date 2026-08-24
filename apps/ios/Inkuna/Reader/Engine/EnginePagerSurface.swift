@@ -45,6 +45,12 @@ final class EnginePagerSurface: ReaderPagerSurface {
     private var scenePageCount: UInt32 = 0
     private var interactionPageCount: UInt32?
     private var lastSettledPage: UInt32?
+    /// The page the last boundary commit departed from. While the commit's
+    /// remaining travel glides out, that page is the neighbor on screen —
+    /// held here so it stays drawable (and re-enterable, on the exact page
+    /// it was left from) even when its chapter's completed geometry is not
+    /// available, which the backward neighbor rules would otherwise demand.
+    private var departedEdge: (spineIdx: UInt32, pageIdx: UInt32)?
 
     private(set) var spineIdx: UInt32 = 0
     private(set) var pageIdx: UInt32 = 0
@@ -85,6 +91,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
         scenePageCount = count
         lastSettledPage = pageIdx
         neighborReadiness.removeAll()
+        departedEdge = nil
         canvas.showUnreadablePlaceholder(failedSpines.contains(spineIdx))
         setScene()
         onPageSettled?(spineIdx, pageIdx)
@@ -141,6 +148,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
         readiness.removeAll()
         failedSpines.removeAll()
         neighborReadiness.removeAll()
+        departedEdge = nil
         scenePageCount = 0
         interactionPageCount = nil
         lastSettledPage = nil
@@ -155,6 +163,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
 
     func endPagingInteraction() {
         interactionPageCount = nil
+        departedEdge = nil
         setScene()
     }
 
@@ -229,6 +238,7 @@ final class EnginePagerSurface: ReaderPagerSurface {
 
     func neighborIsReady(toRight: Bool) -> Bool {
         guard let neighbor = neighborSpine(toRight: toRight) else { return false }
+        if departedEdge?.spineIdx == neighbor { return true }
         let key = NeighborKey(spineIdx: neighbor, toRight: toRight)
         if let ready = neighborReadiness[key] { return ready }
         let ready: Bool
@@ -253,12 +263,17 @@ final class EnginePagerSurface: ReaderPagerSurface {
         guard let target = neighborSpine(toRight: toRight) else { return false }
         guard neighborIsReady(toRight: toRight) else { return false }
         let targetPage: UInt32
-        if failedSpines.contains(target) || isForward(toRight: toRight) {
+        if failedSpines.contains(target) {
+            targetPage = 0
+        } else if let departed = departedEdge, departed.spineIdx == target {
+            targetPage = departed.pageIdx
+        } else if isForward(toRight: toRight) {
             targetPage = 0
         } else {
             guard let geometry = completeGeometry(target) else { return false }
             targetPage = geometry.pageCount - 1
         }
+        departedEdge = (spineIdx: spineIdx, pageIdx: pageIdx)
         spineIdx = target
         pageIdx = targetPage
         let count = pageCount(for: target)
@@ -383,6 +398,9 @@ final class EnginePagerSurface: ReaderPagerSurface {
     private func neighborEntry(toRight: Bool) -> (spineIdx: UInt32, pageIdx: UInt32, toRight: Bool)? {
         guard let neighbor = neighborSpine(toRight: toRight), neighborIsReady(toRight: toRight) else { return nil }
         if failedSpines.contains(neighbor) { return (neighbor, 0, toRight) }
+        if let departed = departedEdge, departed.spineIdx == neighbor {
+            return (neighbor, departed.pageIdx, toRight)
+        }
         if isForward(toRight: toRight) {
             return (neighbor, 0, toRight)
         }

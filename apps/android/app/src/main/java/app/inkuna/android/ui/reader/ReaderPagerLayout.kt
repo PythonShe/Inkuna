@@ -11,6 +11,7 @@ import android.widget.FrameLayout
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -63,15 +64,34 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     private var startPage = 0
     private var boundaryPx = 0f
     private var rubberRaw = 0f
+    /** The raw strip coordinate last applied — what a glide resumes from. */
+    private var stripPosition = 0f
     private var neighbourReadyPlus = 0
     private var neighbourReadyMinus = 0
 
     // MARK: Settle state
 
     private val spring = SettleSpring()
-    private enum class Settle { NONE, INNER, PAGER_COMMIT_PLUS, PAGER_COMMIT_MINUS, PAGER_RETURN, RUBBER }
+
+    /**
+     * INNER drives the inner offset directly; GLIDE drives the raw strip
+     * coordinate, so one flight carries boundary travel and inner travel
+     * as one continuous motion — the remaining glide after an eager
+     * commit, a cancelled crossing's return, a rubber release, and any
+     * turns chained onto them.
+     */
+    private enum class Settle { NONE, INNER, GLIDE }
     private var settle = Settle.NONE
-    private var pickedUpCommit = false
+
+    /**
+     * The boundary displacement on screen is a page already committed away
+     * from — its release runs the full inner rules instead of the
+     * return-to-exit-page rule, so momentum chains into the new chapter.
+     */
+    private var postCommitGlide = false
+
+    /** A crossing asked for while the previous one's departing sheet still
+     *  occupies the boundary; it runs when the glide lands. */
     private var chainTurnSign = 0
     private var chainTurnVelocity = 0f
 
@@ -199,9 +219,10 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         startPage = (inner.offset / innerPitch).roundToInt()
         boundaryPx = 0f
         rubberRaw = 0f
+        stripPosition = baseStrip
         neighbourReadyPlus = 0
         neighbourReadyMinus = 0
-        pickedUpCommit = false
+        postCommitGlide = false
         dragging = true
         onTurnGesture?.invoke()
     }
@@ -223,19 +244,21 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             endSurfaceInteraction()
             return
         }
-        when (val kind = frozen) {
-            Settle.PAGER_COMMIT_PLUS, Settle.PAGER_COMMIT_MINUS, Settle.PAGER_RETURN -> {
+        when (frozen) {
+            Settle.GLIDE -> {
                 val inner = currentSurface.innerMetrics()
-                val outer = currentSurface.outerMetrics()
-                if (inner == null || outer == null) {
+                if (inner == null) {
                     frozen = Settle.NONE
                     rejected = true
                     endSurfaceInteraction()
                     return
                 }
-                boundaryPx = outer.offset - outerHome
-                baseStrip = inner.offset + boundaryPx
-                pickedUpCommit = kind != Settle.PAGER_RETURN
+                // Rubber resistance is not inverted here; the raw
+                // coordinate restarts from the displayed one and
+                // resistance re-applies from there — imperceptible, and
+                // always convergent.
+                val outer = currentSurface.outerMetrics()
+                baseStrip = inner.offset + ((outer?.offset ?: outerHome) - outerHome)
             }
             Settle.INNER -> {
                 val inner = currentSurface.innerMetrics() ?: run {
@@ -246,16 +269,6 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
                 }
                 baseStrip = inner.offset
                 startPage = (inner.offset / inner.pageWidth).roundToInt()
-            }
-            Settle.RUBBER -> {
-                val inner = currentSurface.innerMetrics() ?: run {
-                    frozen = Settle.NONE
-                    rejected = true
-                    endSurfaceInteraction()
-                    return
-                }
-                val outer = currentSurface.outerMetrics()
-                baseStrip = inner.offset + ((outer?.offset ?: outerHome) - outerHome)
             }
             Settle.NONE -> return
         }
@@ -272,9 +285,11 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             Settle.INNER -> surface?.innerMetrics()?.let {
                 startInnerSpring(it.offset, frozenVelocity, frozenTarget)
             } ?: cancelInteraction()
-            Settle.PAGER_COMMIT_PLUS, Settle.PAGER_COMMIT_MINUS, Settle.PAGER_RETURN ->
-                settlePager(frozenTarget, frozenVelocity, kind)
-            Settle.RUBBER -> settleRubber()
+            Settle.GLIDE -> if (surface?.innerMetrics() != null) {
+                settleGlide(frozenTarget, frozenVelocity)
+            } else {
+                cancelInteraction()
+            }
             Settle.NONE -> Unit
         }
     }
@@ -283,6 +298,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
 
     private fun applyStrip(strip: Float) {
         val currentSurface = surface ?: return
+        stripPosition = strip
         // On the engine path a chapter's published page count grows during
         // layout; adopt mid-gesture growth (the surface only ever reports it
         // when no offset moves) so the drag reaches pages published under
@@ -305,6 +321,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             rubberRaw = overflow
             currentSurface.setOuterOffset(outerHome + rubberBand(overflow))
         }
+        if (overflow == 0f) postCommitGlide = false
     }
 
     /** Whether a neighbour chapter exists on this side of the outer range. */
@@ -349,27 +366,22 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             abs(boundaryPx) > 0.5f -> {
                 val sign = if (boundaryPx > 0f) 1 else -1
                 val commits = !cancelled && boundaryCommits(boundaryPx, contentVelocity)
-                if (commits && pickedUpCommit &&
-                    abs(contentVelocity) >= minFlingVelocityPx &&
-                    (contentVelocity > 0f) == (sign > 0)
-                ) {
-                    chainTurnSign = sign
-                    chainTurnVelocity = contentVelocity
+                if (!(commits && crossBoundary(sign, contentVelocity))) {
+                    // Not crossing: glide the strip home. Behind an eager
+                    // commit the displaced sheet is one already left
+                    // behind, so the full inner rules run and a
+                    // same-direction flick chains straight into the new
+                    // chapter; an uncommitted crossing returns to its
+                    // exit page.
+                    settleGlide(returnTarget(contentVelocity), contentVelocity)
                 }
-                settlePager(
-                    target = outerHome + if (commits) sign * outerPitch else 0f,
-                    velocity = contentVelocity,
-                    kind = when {
-                        !commits -> Settle.PAGER_RETURN
-                        sign > 0 -> Settle.PAGER_COMMIT_PLUS
-                        else -> Settle.PAGER_COMMIT_MINUS
-                    },
-                )
             }
-            abs(rubberRaw) > 0.5f -> settleRubber()
+            abs(rubberRaw) > 0.5f -> settleGlide(
+                stripPosition.coerceIn(innerRange.start, innerRange.endInclusive),
+                0f,
+            )
             else -> settleInner(contentVelocity)
         }
-        pickedUpCommit = false
     }
 
     private fun boundaryCommits(displacement: Float, velocity: Float): Boolean {
@@ -377,69 +389,111 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         return abs(displacement) >= width / 3f
     }
 
-    private fun settlePager(target: Float, velocity: Float, kind: Settle) {
-        val currentSurface = surface ?: run { settleDone(); return }
-        val from = currentSurface.outerMetrics()?.offset ?: run { settleDone(); return }
-        settle = kind
+    /**
+     * Commits the crossing this instant and rebases the live interaction
+     * onto the neighbour chapter: the landing page becomes the inner strip
+     * and the departing page becomes opposite-side boundary travel,
+     * pixel-identical across the relabel. The remaining travel glides home
+     * on the strip spring, so further turns chain onto it freely. Returns
+     * false when the surface refuses the commit; the strip is untouched
+     * then.
+     */
+    private fun crossBoundary(sign: Int, velocity: Float): Boolean {
+        val currentSurface = surface ?: return false
+        val travelled = min(abs(boundaryPx), outerPitch)
+        if (!currentSurface.commitBoundaryCrossing(sign > 0)) return false
+        val inner = currentSurface.innerMetrics()
+        val outer = currentSurface.outerMetrics()
+        if (inner == null || outer == null || inner.pageWidth <= 0f) {
+            // No strip to glide on after the relabel (a generation flipped
+            // under the commit): resolve the interaction on the landing.
+            cancelInteraction()
+            return true
+        }
+        innerRange = inner.range
+        outerRange = outer.range
+        innerPitch = inner.pageWidth
+        outerPitch = outer.pageWidth
+        outerHome = outer.offset
+        val entry = if (sign > 0) innerRange.start else innerRange.endInclusive
+        startPage = (entry / innerPitch).roundToInt()
+        neighbourReadyPlus = 0
+        neighbourReadyMinus = 0
+        applyStrip(entry - sign * (innerPitch - travelled))
+        postCommitGlide = abs(boundaryPx) > 0.5f
+        settleGlide(entry, velocity)
+        return true
+    }
+
+    /**
+     * The strip offset a boundary release that does not cross settles on;
+     * a post-commit flick aimed past the strip's far edge queues the next
+     * crossing for the glide's settle, since the departing sheet still
+     * occupies the boundary.
+     */
+    private fun returnTarget(velocity: Float): Float {
+        val exit = if (boundaryPx > 0f) innerRange.endInclusive else innerRange.start
+        if (!postCommitGlide) return exit
+        val pitch = innerPitch
+        if (pitch <= 0f) return exit
+        val innerX = stripPosition.coerceIn(innerRange.start, innerRange.endInclusive)
+        val maxPage = (innerRange.endInclusive / pitch).roundToInt()
+        val page = innerX / pitch
+        val targetPage = if (abs(velocity) >= minFlingVelocityPx) {
+            if (velocity > 0f) floor(page).toInt() + 1 else ceil(page).toInt() - 1
+        } else {
+            val travel = page - startPage
+            val whole = travel.toInt()
+            val fraction = travel - whole
+            startPage + whole + when {
+                abs(fraction) < COMMIT_FRACTION -> 0
+                fraction > 0 -> 1
+                else -> -1
+            }
+        }
+        if (abs(velocity) >= minFlingVelocityPx) {
+            val sign = if (velocity > 0f) 1 else -1
+            if (((sign > 0 && targetPage > maxPage) || (sign < 0 && targetPage < 0)) &&
+                neighbourReady(sign)
+            ) {
+                chainTurnSign = sign
+                chainTurnVelocity = velocity
+            }
+        }
+        return (targetPage.coerceIn(0, maxPage) * pitch)
+            .coerceIn(innerRange.start, innerRange.endInclusive)
+    }
+
+    private fun settleGlide(target: Float, velocity: Float) {
+        settle = Settle.GLIDE
         spring.start(
-            from = from,
+            from = stripPosition,
             velocity = velocity,
             target = target,
-            // A commit lands on the spring's natural rest, exactly as it
-            // does on iOS — no widened arrival threshold shortening the
-            // flight's tail.
             onFrame = { position, springVelocity ->
                 val live = surface
                 if (live != null && !live.isBusy) {
-                    live.setOuterOffset(position)
-                    boundaryPx = position - outerHome
+                    applyStrip(position)
                     feedSpringVelocity(this, springVelocity)
                     true
                 } else {
                     false
                 }
             },
-            onSettle = { landPagerSettle(kind) },
+            onSettle = { glideSettled() },
             onAbort = { abortSettle() },
         )
     }
 
-    private fun landPagerSettle(kind: Settle) {
-        val moved = if (kind == Settle.PAGER_RETURN) {
-            true
-        } else {
-            surface?.commitBoundaryCrossing(kind == Settle.PAGER_COMMIT_PLUS) == true
-        }
+    private fun glideSettled() {
         settleDone()
-        if (moved && kind != Settle.PAGER_RETURN && chainTurnSign != 0) {
+        if (chainTurnSign != 0) {
             val chained = chainTurnSign
             val chainedVelocity = chainTurnVelocity
             chainTurnSign = 0
             chainTurnVelocity = 0f
             post { turnGeometric(chained, chainedVelocity) }
-        } else if (!moved) {
-            chainTurnSign = 0
-            chainTurnVelocity = 0f
         }
-    }
-
-    private fun settleRubber() {
-        val from = surface?.outerMetrics()?.offset ?: run { settleDone(); return }
-        settle = Settle.RUBBER
-        spring.start(
-            from = from,
-            velocity = 0f,
-            target = outerHome,
-            onFrame = { position, _ ->
-                surface?.setOuterOffset(position)
-                true
-            },
-            onSettle = {
-                rubberRaw = 0f
-                settleDone()
-            },
-            onAbort = { abortSettle() },
-        )
     }
 
     private fun settleInner(velocity: Float) {
@@ -467,22 +521,14 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         if (abs(velocity) >= minFlingVelocityPx) {
             val sign = if (velocity > 0f) 1 else -1
             if ((sign > 0 && targetPage > maxPage) || (sign < 0 && targetPage < 0)) {
-                if (startBoundaryFlight(sign, velocity)) return
+                // A fast flick on the resource's edge page: route it into
+                // the same eager crossing a dragged commit takes.
+                if (neighbourReady(sign) && crossBoundary(sign, velocity)) return
             }
         }
         val target = (targetPage.coerceIn(0, maxPage) * pitch)
             .coerceIn(inner.range.start, inner.range.endInclusive)
         startInnerSpring(offset, velocity, target)
-    }
-
-    private fun startBoundaryFlight(sign: Int, velocity: Float): Boolean {
-        if (!neighbourReady(sign)) return false
-        settlePager(
-            target = outerHome + sign * outerPitch,
-            velocity = velocity,
-            kind = if (sign > 0) Settle.PAGER_COMMIT_PLUS else Settle.PAGER_COMMIT_MINUS,
-        )
-        return true
     }
 
     private fun startInnerSpring(from: Float, velocity: Float, target: Float) {
@@ -516,6 +562,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         settle = Settle.NONE
         boundaryPx = 0f
         rubberRaw = 0f
+        postCommitGlide = false
         surface?.setOuterOffset(outerHome)
         reset()
         endSurfaceInteraction()
@@ -542,30 +589,50 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     fun turnGeometric(sign: Int, velocity: Float = 0f): Boolean {
         val currentSurface = surface ?: return false
         if (!currentSurface.isEngageable || currentSurface.isBusy || dragging) return false
-        var didAbortSettle = false
+        // A turn already in flight: successive taps chain by moving the
+        // running spring's goal one page further. A crossing commits
+        // eagerly, so a glide's goal chains exactly like an inner turn's —
+        // and one aimed past the strip runs the next crossing the moment
+        // the departing sheet is out of the way.
         if (spring.isRunning) {
+            val next = spring.currentTarget + sign * innerPitch
+            val inInner = next in innerRange.start..innerRange.endInclusive
             when (settle) {
                 Settle.INNER -> {
-                    val next = spring.currentTarget + sign * innerPitch
-                    if (next in innerRange.start..innerRange.endInclusive) spring.retarget(next)
+                    if (inInner) spring.retarget(next)
                     return true
                 }
-                Settle.PAGER_RETURN, Settle.RUBBER -> {
-                    spring.cancel()
-                    surface?.setOuterOffset(outerHome)
-                    settleDone()
-                    didAbortSettle = true
+                Settle.GLIDE -> {
+                    if (inInner) {
+                        spring.retarget(next)
+                        return true
+                    }
+                    if (!neighbourReady(sign)) return true
+                    if (abs(boundaryPx) <= 0.5f || (boundaryPx > 0f) == (sign > 0)) {
+                        // The boundary is clear, or already displaced
+                        // toward that neighbour: cross now, mid-flight.
+                        val carried = spring.currentVelocity
+                        val fallback = spring.currentTarget
+                            .coerceIn(innerRange.start, innerRange.endInclusive)
+                        spring.cancel()
+                        settle = Settle.NONE
+                        if (!crossBoundary(sign, carried)) settleGlide(fallback, carried)
+                    } else {
+                        chainTurnSign = sign
+                        chainTurnVelocity = velocity
+                    }
+                    return true
                 }
-                else -> return true
+                Settle.NONE -> Unit
             }
         }
 
         beginSurfaceInteraction()
-        val inner = currentSurface.innerMetrics() ?: run { endSurfaceInteraction(); return didAbortSettle }
-        val outer = currentSurface.outerMetrics() ?: run { endSurfaceInteraction(); return didAbortSettle }
+        val inner = currentSurface.innerMetrics() ?: run { endSurfaceInteraction(); return false }
+        val outer = currentSurface.outerMetrics() ?: run { endSurfaceInteraction(); return false }
         if (inner.pageWidth <= 0f) {
             endSurfaceInteraction()
-            return didAbortSettle
+            return false
         }
         onTurnGesture?.invoke()
         innerRange = inner.range
@@ -575,22 +642,21 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         outerHome = outer.offset
         startPage = (inner.offset / innerPitch).roundToInt()
         baseStrip = inner.offset
+        stripPosition = inner.offset
+        boundaryPx = 0f
+        rubberRaw = 0f
         neighbourReadyPlus = 0
         neighbourReadyMinus = 0
+        postCommitGlide = false
 
         val target = inner.offset + sign * innerPitch
         if (target in inner.range.start..inner.range.endInclusive) {
             startInnerSpring(inner.offset, velocity, target)
             return true
         }
-        if (neighbourReady(sign)) {
-            settlePager(
-                target = outerHome + sign * outerPitch,
-                velocity = velocity,
-                kind = if (sign > 0) Settle.PAGER_COMMIT_PLUS else Settle.PAGER_COMMIT_MINUS,
-            )
-            return true
-        }
+        // A boundary turn: commit eagerly and glide the neighbour in with
+        // the same spring a drag-release uses.
+        if (neighbourReady(sign) && crossBoundary(sign, velocity)) return true
         if (neighbourExists(sign)) {
             // The neighbour is still laying out: hand the turn to the host,
             // which schedules the chapter and completes it on readiness.
@@ -601,7 +667,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
             }
         }
         endSurfaceInteraction()
-        return didAbortSettle
+        return false
     }
 
     /** Cancels every in-flight interaction for teardown, jumps, and reflow. */
@@ -610,7 +676,7 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         settle = Settle.NONE
         frozen = Settle.NONE
         chainTurnSign = 0
-        pickedUpCommit = false
+        postCommitGlide = false
         boundaryPx = 0f
         rubberRaw = 0f
         // Close the outer strip against its live geometry — the surface's

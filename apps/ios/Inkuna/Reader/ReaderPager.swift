@@ -23,9 +23,13 @@ import UIKit
 /// there adopts the frozen position into a live gesture, and a bare tap
 /// lets the frozen turn finish rather than re-deciding it.
 ///
-/// A boundary crossing that settles on the neighbor's slot is then
-/// committed through the surface, which updates the renderer's
-/// bookkeeping without moving anything on screen.
+/// A boundary crossing commits the instant it is decided — at release, or
+/// as a flick/tap turn starts — not when its animation lands. The commit
+/// relabels the strips onto the neighbor chapter pixel-identically (the
+/// landing page becomes the inner strip; the departing page becomes
+/// opposite-side boundary travel) and the remaining motion glides home on
+/// the raw strip coordinate, so further turns chain onto a crossing as
+/// freely as onto an inner turn.
 @MainActor
 final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     private let surface: ReaderPagerSurface
@@ -64,9 +68,13 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
 
     private let spring = ReaderPagerSpring()
     private enum SpringRole {
+        /// Drives the inner offset directly — pure within-chapter settles.
         case inner
-        case outerCommit(toRight: Bool)
-        case outerReturn
+        /// Drives the raw strip coordinate, so one flight can carry
+        /// boundary travel and inner travel as one continuous motion: the
+        /// remaining glide after an eager commit, a cancelled crossing's
+        /// return, and any turns chained onto either.
+        case glide
     }
     private var springRole: SpringRole = .inner
     /// A spring frozen by a touch-down, resumed on a bare touch-up so an
@@ -80,11 +88,14 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         var velocity: CGFloat
     }
     private var frozen: FrozenSpring?
-    /// A same-direction flick that adopts a boundary flight asks for one
-    /// additional page after the first crossing settles.
+    /// A crossing asked for while the previous one's departing sheet still
+    /// occupies the boundary; it runs when the glide lands.
     private var pendingTurnDirection: CGFloat = 0
     private var pendingTurnVelocity: CGFloat = 0
-    private var adoptedCommitFlight = false
+    /// The boundary displacement on screen is a page already committed
+    /// away from — its release runs the full inner rules instead of the
+    /// return-to-exit-page rule, so momentum chains into the new chapter.
+    private var postCommitGlide = false
     /// Re-asserts the displaced outer offset every frame while a boundary
     /// interaction holds without a running spring.
     private let holdLoop = ReaderPagerFrameLoop()
@@ -142,7 +153,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         frozen = nil
         pendingTurnDirection = 0
         pendingTurnVelocity = 0
-        adoptedCommitFlight = false
+        postCommitGlide = false
         if interactionActive {
             surface.setOuterOffset(outerHome)
             interactionActive = false
@@ -187,39 +198,38 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         onPageTurnGesture?()
 
         // A turn already in flight: successive taps chain by moving the
-        // running spring's goal one page further, staying inside the
-        // resource. A running boundary commit takes the tap as "seen" and
-        // finishes.
+        // running spring's goal one page further. A crossing commits
+        // eagerly, so a glide's goal chains exactly like an inner turn's —
+        // and one aimed past the strip runs the next crossing the moment
+        // the departing sheet is out of the way.
         if spring.isRunning {
+            let next = spring.target + direction * pageWidth
+            let inInner = next >= innerRange.lowerBound - 2 && next <= innerRange.upperBound + 2
             switch springRole {
             case .inner:
-                let next = spring.target + direction * pageWidth
-                if next >= innerRange.lowerBound - 2, next <= innerRange.upperBound + 2 {
+                if inInner {
                     spring.retarget(min(max(next, innerRange.lowerBound), innerRange.upperBound))
                 }
                 return true
-            case .outerReturn:
-                // A return settle is purely cosmetic — it is travelling
-                // back to the page already on screen. Swallowing the tap
-                // would lose a real turn, so land the settle at its base
-                // right now and fall through to perform the turn. Mirrors
-                // the Android shell's F17 fix; commit flights below stay
-                // "seen", because those are turns the reader has already
-                // been shown.
-                //
-                // Viability comes first: the settle may only be destroyed
-                // when a turn can take its place this instant. At a true
-                // book boundary there is no neighbor to turn to, and
-                // cancelling would snap `outerHome` into place with no
-                // animation for nothing — so leave the settle running and
-                // take the tap as "seen".
-                guard returnAbortCanTurn(direction: direction) else { return true }
-                spring.cancel()
-                surface.setOuterOffset(outerHome)
-                boundaryDisplacement = 0
-                interactionActive = false
-                updateHoldLoop()
-            case .outerCommit:
+            case .glide:
+                if inInner {
+                    spring.retarget(min(max(next, innerRange.lowerBound), innerRange.upperBound))
+                    return true
+                }
+                guard neighborExists(direction: direction) else { return true }
+                if abs(boundaryDisplacement) <= 0.5 || (boundaryDisplacement > 0) == (direction > 0) {
+                    // The boundary is clear, or already displaced toward
+                    // that neighbor: cross now, mid-flight.
+                    let carried = spring.currentVelocity
+                    let fallback = min(max(spring.target, innerRange.lowerBound), innerRange.upperBound)
+                    spring.cancel()
+                    if !crossBoundary(direction: direction, velocity: carried) {
+                        startGlideSpring(to: fallback, velocity: carried)
+                    }
+                } else {
+                    pendingTurnDirection = direction
+                    pendingTurnVelocity = velocity
+                }
                 return true
             }
         }
@@ -233,30 +243,23 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
                 to: min(max(innerTarget, innerRange.lowerBound), innerRange.upperBound),
                 velocity: velocity
             )
-        } else {
-            // A boundary turn: reveal the neighbor with the same spring a
-            // drag-release uses, then commit.
-            guard neighborExists(direction: direction) else {
-                interactionActive = false
-                surface.endPagingInteraction()
-                // The neighbor chapter is there but still laying out: hand
-                // the turn to the host, which parks it and completes it on
-                // that chapter's readiness event rather than refusing a
-                // turn the reader asked for.
-                if neighborInOuterRange(direction: direction), let onBoundaryTurnPending {
-                    onBoundaryTurnPending(direction)
-                    return true
-                }
-                return false
+            return true
+        }
+        // A boundary turn: commit eagerly and glide the neighbor in with
+        // the same spring a drag-release uses.
+        guard neighborExists(direction: direction),
+              crossBoundary(direction: direction, velocity: velocity) else {
+            interactionActive = false
+            surface.endPagingInteraction()
+            // The neighbor chapter is there but still laying out: hand
+            // the turn to the host, which parks it and completes it on
+            // that chapter's readiness event rather than refusing a
+            // turn the reader asked for.
+            if neighborInOuterRange(direction: direction), let onBoundaryTurnPending {
+                onBoundaryTurnPending(direction)
+                return true
             }
-            exitBound = direction > 0 ? innerRange.upperBound : innerRange.lowerBound
-            boundaryHaptic.prepare()
-            startOuterSpring(
-                from: outerHome,
-                to: outerHome + direction * pageWidth,
-                velocity: velocity,
-                role: .outerCommit(toRight: direction > 0)
-            )
+            return false
         }
         return true
     }
@@ -319,17 +322,12 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
                 return
             }
             startInnerSpring(from: inner.offset, to: frozen.target, velocity: frozen.velocity)
-        case .outerCommit, .outerReturn:
-            guard let outer = surface.outerMetrics() else {
+        case .glide:
+            guard surface.innerMetrics() != nil else {
                 cancelInteraction()
                 return
             }
-            startOuterSpring(
-                from: outer.offset,
-                to: frozen.target,
-                velocity: frozen.velocity,
-                role: frozen.role
-            )
+            startGlideSpring(to: frozen.target, velocity: frozen.velocity)
         }
     }
 
@@ -338,17 +336,12 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         switch recognizer.state {
         case .began:
             onPageTurnGesture?()
-            let frozenRole = frozen?.role
             frozen = nil
             spring.cancel()
             pendingTurnDirection = 0
-            adoptedCommitFlight = false
             guard adoptOrCaptureBaselines() else {
                 recognizer.state = .cancelled
                 return
-            }
-            if interactionActive, abs(boundaryDisplacement) > 0.5, case .outerCommit = frozenRole {
-                adoptedCommitFlight = true
             }
             // Applying from zero hands the slop distance to the page too,
             // the way a scroll view tracks from touch-down.
@@ -407,25 +400,12 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         startPage = pageWidth > 0 ? Int((inner.offset / pageWidth).rounded()) : 0
         exitBound = innerRange.upperBound
         boundaryDisplacement = 0
+        postCommitGlide = false
         neighborVerdictRight = 0
         neighborVerdictLeft = 0
         interactionActive = true
         boundaryHaptic.prepare()
         return true
-    }
-
-    /// Can a tap that lands during a return settle be honoured by a turn
-    /// right away? Either the strip still holds a page in `direction`, or a
-    /// loaded neighbor can be revealed. Consulted before the settle is
-    /// cancelled, so a refused turn never costs the settle its animation.
-    private func returnAbortCanTurn(direction: CGFloat) -> Bool {
-        if let inner = surface.innerMetrics() {
-            let target = inner.offset + direction * inner.pageWidth
-            if target >= inner.range.lowerBound - 2, target <= inner.range.upperBound + 2 {
-                return true
-            }
-        }
-        return neighborExists(direction: direction)
     }
 
     /// Per-gesture neighbor verdicts: 0 unknown, 1 ready, -1 declined.
@@ -491,6 +471,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             lastInnerWritten = innerX
         }
         boundaryDisplacement = displayed
+        if displayed == 0 { postCommitGlide = false }
         surface.setOuterOffset(outerHome + displayed)
         updateHoldLoop()
     }
@@ -514,7 +495,6 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
 
     private func release(contentVelocity: CGFloat, cancelled: Bool) {
         let velocity = cancelled ? 0 : contentVelocity
-        defer { adoptedCommitFlight = false }
         if abs(boundaryDisplacement) > 0.5 {
             let commits = !cancelled &&
                 neighborExists(direction: boundaryDisplacement) &&
@@ -523,65 +503,80 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
                     velocity: velocity,
                     pageWidth: pageWidth
                 )
-            let forward = boundaryDisplacement > 0
-            if commits, adoptedCommitFlight,
-               abs(velocity) >= ReaderPagerRules.flingVelocity,
-               (velocity > 0) == forward {
-                pendingTurnDirection = forward ? 1 : -1
-                pendingTurnVelocity = velocity
+            if commits, crossBoundary(direction: boundaryDisplacement > 0 ? 1 : -1, velocity: velocity) {
+                return
             }
-            startOuterSpring(
-                from: outerHome + boundaryDisplacement,
-                to: commits ? outerHome + (forward ? pageWidth : -pageWidth) : outerHome,
-                velocity: velocity,
-                role: commits ? .outerCommit(toRight: forward) : .outerReturn
+            // Not crossing: glide the strip home. Behind an eager commit
+            // the displaced sheet is one already left behind, so the full
+            // inner rules run and a same-direction flick chains straight
+            // into the new chapter; an uncommitted crossing returns to
+            // its exit page.
+            startGlideSpring(
+                to: postCommitGlide ? innerReleaseTarget(velocity: velocity) : exitBound,
+                velocity: velocity
             )
         } else {
-            let innerX = min(max(stripRaw, innerRange.lowerBound), innerRange.upperBound)
-            let maxPage = pageWidth > 0
-                ? Int((innerRange.upperBound / pageWidth).rounded())
-                : 0
             // A fast flick barely travels before it releases: on a
             // resource's edge page the strip never overflows during the
             // touch, so the clamped inner settle below would swallow a
             // turn the reader clearly asked for. Route a flick past the
-            // edge into the same boundary flight a dragged crossing takes.
+            // edge into the same eager crossing a dragged commit takes.
             if pageWidth > 0, abs(velocity) >= ReaderPagerRules.flingVelocity {
+                let innerX = min(max(stripRaw, innerRange.lowerBound), innerRange.upperBound)
+                let maxPage = Int((innerRange.upperBound / pageWidth).rounded())
                 let direction: CGFloat = velocity > 0 ? 1 : -1
                 let page = innerX / pageWidth
                 let flickTarget = velocity > 0
                     ? Int(page.rounded(.down)) + 1
                     : Int(page.rounded(.up)) - 1
                 if (direction > 0 && flickTarget > maxPage) || (direction < 0 && flickTarget < 0),
-                   neighborExists(direction: direction) {
-                    exitBound = direction > 0 ? innerRange.upperBound : innerRange.lowerBound
-                    boundaryHaptic.prepare()
-                    startOuterSpring(
-                        from: outerHome,
-                        to: outerHome + direction * pageWidth,
-                        velocity: velocity,
-                        role: .outerCommit(toRight: direction > 0)
-                    )
+                   neighborExists(direction: direction),
+                   crossBoundary(direction: direction, velocity: velocity) {
                     return
                 }
             }
-            let targetPage = ReaderPagerRules.innerTargetPage(
-                startPage: startPage,
-                offset: innerX,
-                velocity: velocity,
-                pageWidth: pageWidth,
-                maxPage: maxPage
-            )
-            let unclamped = CGFloat(targetPage) * pageWidth
+            let innerX = min(max(stripRaw, innerRange.lowerBound), innerRange.upperBound)
             startInnerSpring(
                 from: innerX,
-                // `maxPage` rounds, so the last page of a resource whose
-                // content overruns its column grid would otherwise settle
-                // past the scrollable maximum.
-                to: min(max(unclamped, innerRange.lowerBound), innerRange.upperBound),
+                to: innerReleaseTarget(velocity: velocity),
                 velocity: velocity
             )
         }
+    }
+
+    /// The inner offset a release settles on, by the shared rules; a
+    /// post-commit flick aimed past the strip's far edge queues the next
+    /// crossing for the glide's settle, since the departing sheet still
+    /// occupies the boundary.
+    private func innerReleaseTarget(velocity: CGFloat) -> CGFloat {
+        let innerX = min(max(stripRaw, innerRange.lowerBound), innerRange.upperBound)
+        guard pageWidth > 0 else { return innerX }
+        // `maxPage` rounds, so the last page of a resource whose content
+        // overruns its column grid would otherwise settle past the
+        // scrollable maximum.
+        let maxPage = Int((innerRange.upperBound / pageWidth).rounded())
+        let targetPage = ReaderPagerRules.innerTargetPage(
+            startPage: startPage,
+            offset: innerX,
+            velocity: velocity,
+            pageWidth: pageWidth,
+            maxPage: maxPage
+        )
+        if abs(velocity) >= ReaderPagerRules.flingVelocity {
+            let direction: CGFloat = velocity > 0 ? 1 : -1
+            let page = innerX / pageWidth
+            let flickTarget = velocity > 0
+                ? Int(page.rounded(.down)) + 1
+                : Int(page.rounded(.up)) - 1
+            if (direction > 0 && flickTarget > maxPage) || (direction < 0 && flickTarget < 0),
+               abs(boundaryDisplacement) > 0.5,
+               neighborExists(direction: direction) {
+                pendingTurnDirection = direction
+                pendingTurnVelocity = velocity
+            }
+        }
+        let unclamped = CGFloat(targetPage) * pageWidth
+        return min(max(unclamped, innerRange.lowerBound), innerRange.upperBound)
     }
 
     // MARK: Springs
@@ -608,53 +603,76 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    private func startOuterSpring(from: CGFloat, to target: CGFloat, velocity: CGFloat, role: SpringRole) {
-        springRole = role
+    /// Commits the crossing this instant and rebases the live interaction
+    /// onto the neighbor chapter: the landing page becomes the inner strip
+    /// and the departing page becomes opposite-side boundary travel,
+    /// pixel-identical across the relabel. The remaining travel glides
+    /// home on the strip spring, so further turns chain onto it freely.
+    /// Returns false when the surface refuses the commit; the strip is
+    /// untouched then.
+    private func crossBoundary(direction: CGFloat, velocity: CGFloat) -> Bool {
+        let travelled = min(abs(boundaryDisplacement), pageWidth)
+        guard surface.commitBoundaryCrossing(toRight: direction > 0) else { return false }
+        boundaryHaptic.impactOccurred(intensity: 0.7)
+        guard let inner = surface.innerMetrics(), let outer = surface.outerMetrics(),
+              inner.pageWidth > 0 else {
+            // No strip to glide on after the relabel (a generation flipped
+            // under the commit): resolve the interaction on the landing.
+            cancelInteraction()
+            return true
+        }
+        innerRange = inner.range
+        pageWidth = inner.pageWidth
+        outerHome = outer.offset
+        outerRange = outer.range
+        let entry = direction > 0 ? innerRange.lowerBound : innerRange.upperBound
+        exitBound = entry
+        startPage = Int((entry / pageWidth).rounded())
+        stripRaw = entry - direction * (pageWidth - travelled)
+        // The commit already presented the landing offset.
+        lastInnerWritten = entry
+        neighborVerdictRight = 0
+        neighborVerdictLeft = 0
+        applyStrip()
+        postCommitGlide = abs(boundaryDisplacement) > 0.5
+        startGlideSpring(to: entry, velocity: velocity)
+        return true
+    }
+
+    private func startGlideSpring(to target: CGFloat, velocity: CGFloat) {
+        springRole = .glide
         updateHoldLoop()
         guard !UIAccessibility.isReduceMotionEnabled else {
-            surface.setOuterOffset(target)
-            boundaryDisplacement = target - outerHome
-            outerSpringSettled()
+            applyStripAt(target)
+            glideSettled()
             return
         }
-        spring.start(from: from, velocity: velocity, target: target) { [weak self] position, _ in
+        spring.start(from: stripRaw, velocity: velocity, target: target) { [weak self] position, _ in
             guard let self else { return false }
-            self.surface.setOuterOffset(position)
-            self.boundaryDisplacement = position - self.outerHome
+            self.applyStripAt(position)
             return true
         } onSettle: { [weak self] in
-            self?.outerSpringSettled()
+            self?.glideSettled()
         }
     }
 
-    private func outerSpringSettled() {
-        switch springRole {
-        case .inner:
-            break
-        case .outerReturn:
-            interactionActive = false
-            boundaryDisplacement = 0
-            updateHoldLoop()
-            surface.endPagingInteraction()
-        case let .outerCommit(toRight):
-            boundaryHaptic.impactOccurred(intensity: 0.7)
-            let moved = surface.commitBoundaryCrossing(toRight: toRight)
-            interactionActive = false
-            boundaryDisplacement = 0
-            updateHoldLoop()
-            surface.endPagingInteraction()
-            guard moved else {
-                pendingTurnDirection = 0
-                pendingTurnVelocity = 0
-                return
-            }
-            guard pendingTurnDirection != 0 else { return }
-            let direction = pendingTurnDirection
-            let velocity = pendingTurnVelocity
-            pendingTurnDirection = 0
-            pendingTurnVelocity = 0
-            _ = turn(direction: direction, velocity: velocity)
-        }
+    private func applyStripAt(_ position: CGFloat) {
+        stripRaw = position
+        applyStrip()
+    }
+
+    private func glideSettled() {
+        interactionActive = false
+        boundaryDisplacement = 0
+        postCommitGlide = false
+        updateHoldLoop()
+        surface.endPagingInteraction()
+        guard pendingTurnDirection != 0 else { return }
+        let direction = pendingTurnDirection
+        let velocity = pendingTurnVelocity
+        pendingTurnDirection = 0
+        pendingTurnVelocity = 0
+        _ = turn(direction: direction, velocity: velocity)
     }
 
     // MARK: Hold loop
