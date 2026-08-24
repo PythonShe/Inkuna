@@ -27,8 +27,20 @@ trap 'rm -f "$parity_temp/a.json" "$parity_temp/b.json"; rmdir "$parity_temp"' E
 jq -S . "$1" > "$parity_temp/a.json"
 jq -S . "$2" > "$parity_temp/b.json"
 
-if diff -u "$parity_temp/a.json" "$parity_temp/b.json"; then
-  printf 'PARITY OK (%s books)\n' "$(jq 'length' "$parity_temp/a.json")"
-else
+if ! diff -u "$parity_temp/a.json" "$parity_temp/b.json"; then
   exit 1
 fi
+
+# Matching digests are not enough: a failure sentinel ("TIMEOUT",
+# "ERROR: ...") that reproduced byte-identically on both platforms would
+# diff clean, so reject any such value before declaring parity.
+bad=$(jq -r '[.. | strings | select(startswith("ERROR:") or . == "TIMEOUT")] | length' "$parity_temp/a.json")
+if [[ "$bad" -ne 0 ]]; then
+  echo "PARITY FAILED: $bad failure value(s) present in the matching digests:" >&2
+  jq -r 'paths(strings) as $p | getpath($p) as $v
+         | select(($v | startswith("ERROR:")) or $v == "TIMEOUT")
+         | ($p | map(tostring) | join(".")) + " = " + $v' "$parity_temp/a.json" >&2
+  exit 1
+fi
+
+printf 'PARITY OK (%s books)\n' "$(jq 'length' "$parity_temp/a.json")"
