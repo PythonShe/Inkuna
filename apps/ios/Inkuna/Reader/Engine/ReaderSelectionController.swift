@@ -228,6 +228,9 @@ final class ReaderSelectionController: NSObject, @MainActor UIEditMenuInteractio
         ) { [weak self] _ in
             self?.shareSelection()
         }
+        // `suggestedActions` carries Copy and nothing else — the canvas
+        // validates only `copy:` (see `EnginePageCanvas`), so the entries
+        // below are the reader's single Look Up and Share.
         return UIMenu(children: suggestedActions + [lookUp, share])
     }
 

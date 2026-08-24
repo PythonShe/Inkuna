@@ -137,9 +137,15 @@ final class EnginePageCanvas: UIView {
 
     override var canBecomeFirstResponder: Bool { true }
 
+    /// Copy is the only standard edit action this page answers for. The
+    /// selection lives in `ReaderSelectionController`, not in a
+    /// `UITextInput`, so every other system entry the responder chain
+    /// might validate (Look Up, Translate, Search Web, Select All, Paste)
+    /// has no text to work on — and a system Look Up would arrive
+    /// alongside the working one the selection controller adds, showing
+    /// the reader two. Deferring to `super` here is what let that in.
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        if action == #selector(copy(_:)) { return canCopySelection }
-        return super.canPerformAction(action, withSender: sender)
+        action == #selector(copy(_:)) && canCopySelection
     }
 
     override func copy(_ sender: Any?) {

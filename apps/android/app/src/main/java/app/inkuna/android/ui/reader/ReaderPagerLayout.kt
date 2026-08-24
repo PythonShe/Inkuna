@@ -381,30 +381,20 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
         val currentSurface = surface ?: run { settleDone(); return }
         val from = currentSurface.outerMetrics()?.offset ?: run { settleDone(); return }
         settle = kind
-        val commitDir = when (kind) {
-            Settle.PAGER_COMMIT_PLUS -> 1f
-            Settle.PAGER_COMMIT_MINUS -> -1f
-            else -> 0f
-        }
         spring.start(
             from = from,
             velocity = velocity,
             target = target,
+            // A commit lands on the spring's natural rest, exactly as it
+            // does on iOS — no widened arrival threshold shortening the
+            // flight's tail.
             onFrame = { position, springVelocity ->
                 val live = surface
                 if (live != null && !live.isBusy) {
-                    if (commitDir != 0f && (position - target) * commitDir >= -COMMIT_LAND_DISTANCE_PX) {
-                        spring.cancel()
-                        live.setOuterOffset(target)
-                        boundaryPx = target - outerHome
-                        landPagerSettle(kind)
-                        false
-                    } else {
-                        live.setOuterOffset(position)
-                        boundaryPx = position - outerHome
-                        feedSpringVelocity(this, springVelocity)
-                        true
-                    }
+                    live.setOuterOffset(position)
+                    boundaryPx = position - outerHome
+                    feedSpringVelocity(this, springVelocity)
+                    true
                 } else {
                     false
                 }
@@ -652,6 +642,5 @@ class ReaderPagerLayout(context: Context) : FrameLayout(context) {
     private companion object {
         const val MIN_FLING_VELOCITY_DP_S = 300f
         const val COMMIT_FRACTION = 1f / 3f
-        const val COMMIT_LAND_DISTANCE_PX = 3f
     }
 }
