@@ -17,6 +17,31 @@
 //! LAST id — the fallback chain's terminal face). No Hebrew italics
 //! exist upstream; italic requests map to the regular faces.
 //!
+//! Above the manifest sits the WEIGHT-INSTANCE block: the four Latin
+//! Regular/Italic files are variable (`wght` 100–900) and expose the
+//! seven non-default standard weights as `wght` instances, in this
+//! fixed order (7 ids per face):
+//!
+//! | id    | face                    | wght per id                       |
+//! |-------|-------------------------|-----------------------------------|
+//! | 29–35 | NotoSerif.ttf           | 100, 200, 300, 500, 600, 800, 900 |
+//! | 36–42 | NotoSerif-Italic.ttf    | 100, 200, 300, 500, 600, 800, 900 |
+//! | 43–49 | NotoSans.ttf            | 100, 200, 300, 500, 600, 800, 900 |
+//! | 50–56 | NotoSans-Italic.ttf     | 100, 200, 300, 500, 600, 800, 900 |
+//!
+//! 400 and 700 deliberately have NO instance ids: 400 is the variable
+//! files' default instance (ids 0/1/4/5 unchanged) and 700 keeps the
+//! static Bold files (ids 2/3/6/7), so the two ubiquitous weights render
+//! exactly as they always have and `select()` stays a table lookup.
+//! Instance entries reuse the base face's PostScript name and
+//! default-instance metrics (line metrics stay weight-independent by
+//! design); only `axes` distinguishes them, which both shells already
+//! apply when building platform fonts.
+//!
+//! Allocation rule: blocks are append-only and fixed-size, so every id
+//! is deterministic across runs and platforms. The next dynamic block
+//! (system/publisher faces) starts at [`FIRST_DYNAMIC_ID`] (57).
+//!
 //! The CJK faces live in language-specific OTCs (one file per
 //! family+weight); `collection_index` picks the region face inside the
 //! collection. The Sans OTCs also carry Mono faces at indices 5–9,
@@ -28,16 +53,16 @@ use std::sync::Arc;
 
 use memmap2::Mmap;
 use read_fonts::tables::os2::SelectionFlags;
-use read_fonts::types::NameId;
+use read_fonts::types::{NameId, Tag};
 use read_fonts::{FontRef, TableProvider};
 
 use crate::error::EngineError;
 use crate::settings::FontFamily;
 use crate::style::{FontStyle, FontWeight};
 
-/// One variation-axis coordinate a face is used at. Empty everywhere
-/// today: the variable Latin regular/italic files shape at their
-/// default instances, and the CJK OTCs are static.
+/// One variation-axis coordinate a face is used at. Empty for the
+/// manifest ids 0–28 (default instances / static faces); the
+/// weight-instance ids each carry exactly one `wght` coordinate.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FontAxis {
     pub tag: String,
@@ -68,6 +93,9 @@ pub struct LoadedFace {
     pub ascender: i32,
     pub descender: i32,
     pub collection_index: u32,
+    /// The variation coordinates shaping applies (mirrors the entry's
+    /// `axes`). Empty for manifest faces; `[wght]` for instance ids.
+    pub axes: Vec<FontAxis>,
 }
 
 /// The manifest row: file name and index into a collection (0 for
@@ -135,6 +163,26 @@ const CJK_FAMILY_STRIDE: u32 = 8; // serif block → sans block
 const HEBREW_BASE_ID: u32 = 24;
 const HEBREW_FAMILY_STRIDE: u32 = 2; // serif pair → sans pair
 
+/// The variable Latin faces that grow weight instances, in block order
+/// (the module doc's instance table). The `u32` is the face's manifest
+/// id — its file, metrics, and PostScript name back the instances.
+const VARIABLE_FACES: [u32; 4] = [0, 1, 4, 5];
+/// The static Bold/BoldItalic ids paired with [`VARIABLE_FACES`], used
+/// for weight 700.
+const STATIC_BOLD_IDS: [u32; 4] = [2, 3, 6, 7];
+/// The `wght` coordinates instanced per variable face, in id order.
+/// 400 (default instance) and 700 (static Bold files) are absent on
+/// purpose — see the module doc.
+const INSTANCE_WEIGHTS: [u16; 7] = [100, 200, 300, 500, 600, 800, 900];
+/// First id of the weight-instance block.
+const INSTANCE_BASE_ID: u32 = SYMBOLS_ID + 1;
+/// First id available to future dynamically-registered faces
+/// (system/publisher fonts). Everything below is fixed at load.
+pub const FIRST_DYNAMIC_ID: u32 =
+    INSTANCE_BASE_ID + (VARIABLE_FACES.len() * INSTANCE_WEIGHTS.len()) as u32;
+
+const WGHT: Tag = Tag::new(b"wght");
+
 /// The loaded, validated bundled font set.
 pub struct FontRegistry {
     entries: Vec<FontEntry>,
@@ -147,8 +195,8 @@ impl FontRegistry {
     /// pages in only as parsing and shaping touch them. Load once per
     /// process, off the UI thread.
     pub fn load(font_dir: &Path) -> Result<Arc<FontRegistry>, EngineError> {
-        let mut entries = Vec::with_capacity(MANIFEST.len());
-        let mut faces = Vec::with_capacity(MANIFEST.len());
+        let mut entries = Vec::with_capacity(FIRST_DYNAMIC_ID as usize);
+        let mut faces = Vec::with_capacity(FIRST_DYNAMIC_ID as usize);
         // Maps cached per file: the four OTCs each back eight ids.
         let mut cache: Vec<(&'static str, Arc<Mmap>)> = Vec::new();
         for (id, spec) in MANIFEST.iter().enumerate() {
@@ -188,8 +236,54 @@ impl FontRegistry {
                 ascender,
                 descender,
                 collection_index: spec.collection_index,
+                axes: Vec::new(),
             });
         }
+
+        // The weight-instance block (module doc): seven `wght`
+        // coordinates per variable Latin face, ids issued in fixed
+        // order right above the manifest. Coordinates are validated
+        // against the face's actual fvar range and clamped into it, so
+        // an upstream font swap can narrow rendering but never break
+        // determinism or id allocation.
+        for base_id in VARIABLE_FACES {
+            let base_entry = entries[base_id as usize].clone();
+            let base_face = faces[base_id as usize].clone();
+            let file = MANIFEST[base_id as usize].file;
+            let font =
+                FontRef::from_index(&base_face.data, 0).map_err(|e| missing(file, &e))?;
+            let (min, max) = wght_range(&font).ok_or_else(|| {
+                missing(file, &"expected a variable font with a wght axis")
+            })?;
+            for weight in INSTANCE_WEIGHTS {
+                let axes = vec![FontAxis {
+                    tag: "wght".to_string(),
+                    value: f64::from(weight).clamp(min, max),
+                }];
+                entries.push(FontEntry {
+                    id: entries.len() as u32,
+                    file_path: base_entry.file_path.clone(),
+                    collection_index: 0,
+                    // Instances keep the base face's PostScript
+                    // identity; `axes` is what distinguishes them and
+                    // what the shells instantiate platform fonts with.
+                    post_script_name: base_entry.post_script_name.clone(),
+                    axes: axes.clone(),
+                });
+                // Default-instance metrics on purpose: line metrics
+                // stay weight-independent, so toggling weight never
+                // reflows line heights.
+                faces.push(LoadedFace {
+                    data: Arc::clone(&base_face.data),
+                    upem: base_face.upem,
+                    ascender: base_face.ascender,
+                    descender: base_face.descender,
+                    collection_index: 0,
+                    axes,
+                });
+            }
+        }
+        debug_assert_eq!(entries.len() as u32, FIRST_DYNAMIC_ID);
         Ok(Arc::new(FontRegistry { entries, faces }))
     }
 
@@ -209,21 +303,31 @@ impl FontRegistry {
         }
     }
 
-    /// The reading-face id for a family + style + weight.
+    /// The reading-face id for a family + style + weight. The numeric
+    /// weight maps to the nearest of the nine standard weights via the
+    /// CSS font-matching rule ([`nearest_standard_weight`]); 400 keeps
+    /// the base ids, 700 the static Bold ids, everything else its
+    /// instance id.
     pub fn select(&self, family: FontFamily, style: FontStyle, weight: FontWeight) -> u32 {
-        let base = match family {
-            FontFamily::NotoSerif => 0,
-            FontFamily::NotoSans => 4,
+        let face = match (family, style) {
+            (FontFamily::NotoSerif, FontStyle::Normal) => 0usize,
+            (FontFamily::NotoSerif, FontStyle::Italic) => 1,
+            (FontFamily::NotoSans, FontStyle::Normal) => 2,
+            (FontFamily::NotoSans, FontStyle::Italic) => 3,
         };
-        let bold = match weight {
-            FontWeight::Normal => 0,
-            FontWeight::Bold => 2,
-        };
-        let italic = match style {
-            FontStyle::Normal => 0,
-            FontStyle::Italic => 1,
-        };
-        base + bold + italic
+        match nearest_standard_weight(weight) {
+            400 => VARIABLE_FACES[face],
+            700 => STATIC_BOLD_IDS[face],
+            snapped => {
+                // Present by construction: `snapped` is one of the nine
+                // standard weights and 400/700 matched above.
+                let slot = INSTANCE_WEIGHTS
+                    .iter()
+                    .position(|&w| w == snapped)
+                    .unwrap_or(0);
+                INSTANCE_BASE_ID + (face * INSTANCE_WEIGHTS.len() + slot) as u32
+            }
+        }
     }
 
     /// The CJK face id for a BCP-47 language tag: `ja*` → JP, `ko*` →
@@ -233,10 +337,8 @@ impl FontRegistry {
     pub fn cjk(&self, lang: Option<&str>, style_serif: bool, weight: FontWeight) -> u32 {
         let region = cjk_region(lang);
         let family = if style_serif { 0 } else { CJK_FAMILY_STRIDE };
-        let bold = match weight {
-            FontWeight::Normal => 0,
-            FontWeight::Bold => 1,
-        };
+        // Static R/B pairs threshold at 600 (the WebView-era semantic).
+        let bold = u32::from(weight.is_bold());
         CJK_BASE_ID + family + region * 2 + bold
     }
 
@@ -246,16 +348,46 @@ impl FontRegistry {
     /// construction. `style_serif` picks the family.
     pub fn hebrew(&self, style_serif: bool, weight: FontWeight) -> u32 {
         let family = if style_serif { 0 } else { HEBREW_FAMILY_STRIDE };
-        let bold = match weight {
-            FontWeight::Normal => 0,
-            FontWeight::Bold => 1,
-        };
+        // Static R/B pairs threshold at 600 (the WebView-era semantic).
+        let bold = u32::from(weight.is_bold());
         HEBREW_BASE_ID + family + bold
     }
 
     /// The terminal fallback face before `.notdef`.
     pub fn symbols(&self) -> u32 {
         SYMBOLS_ID
+    }
+}
+
+/// The `wght` axis user-space range from a variable face's fvar, or
+/// `None` when the face is static or has no weight axis.
+fn wght_range(font: &FontRef<'_>) -> Option<(f64, f64)> {
+    let fvar = font.fvar().ok()?;
+    let axes = fvar.axes().ok()?;
+    let axis = axes.iter().find(|axis| axis.axis_tag() == WGHT)?;
+    Some((
+        axis.min_value().to_f64(),
+        axis.max_value().to_f64(),
+    ))
+}
+
+/// The CSS font-matching weight rule (css-fonts-4 §5.2) over the nine
+/// standard weights 100..=900, which the Latin roster covers in full:
+/// - desired 400..=500: 400 stays 400, otherwise the first weight
+///   ascending toward 500 (⇒ 500);
+/// - desired < 400: weights below first (⇒ floor to the lower hundred,
+///   or 100 when nothing sits below);
+/// - desired > 500: weights above first (⇒ ceil to the upper hundred,
+///   or 900 when nothing sits above).
+fn nearest_standard_weight(weight: FontWeight) -> u16 {
+    let w = weight.value();
+    if (100..=900).contains(&w) && w % 100 == 0 {
+        return w;
+    }
+    match w {
+        ..400 => (w / 100 * 100).max(100),
+        400..=500 => 500, // exact 400 returned above
+        _ => (w.div_ceil(100) * 100).min(900),
     }
 }
 
@@ -283,7 +415,9 @@ fn post_script_name(font: &FontRef<'_>) -> Result<Option<String>, read_fonts::Re
 
 /// Matches ttf-parser's default-instance horizontal metric selection:
 /// `USE_TYPO_METRICS`, then hhea, then OS/2 typo metrics, then Windows
-/// metrics. The registry contains no non-default axis coordinates.
+/// metrics. Weight-instance ids reuse their base face's default-instance
+/// metrics deliberately (no MVAR application) — line metrics stay
+/// weight-independent.
 fn font_metrics(font: &FontRef<'_>) -> Result<(u16, i32, i32), read_fonts::ReadError> {
     let upem = font.head()?.units_per_em();
     let hhea = font.hhea()?;

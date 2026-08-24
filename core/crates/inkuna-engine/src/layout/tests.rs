@@ -25,7 +25,7 @@ fn ctx(fonts: &FontRegistry, base_rtl: bool) -> ShapeContext<'_> {
         fonts,
         family: FontFamily::NotoSerif,
         font_style: FontStyle::Normal,
-        font_weight: FontWeight::Normal,
+        font_weight: FontWeight::NORMAL,
         size: Fx::from_pt(16.0),
         letter_spacing: Fx::ZERO,
         word_spacing: Fx::ZERO,

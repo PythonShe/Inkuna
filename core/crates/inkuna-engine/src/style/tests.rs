@@ -48,7 +48,7 @@ fn class_id_descendant_selectors_apply() {
         .unwrap();
     assert_eq!(style_of(&styled, outside).font_style, FontStyle::Normal);
     // Both are UA-bold either way.
-    assert_eq!(style_of(&styled, outside).font_weight, FontWeight::Bold);
+    assert_eq!(style_of(&styled, outside).font_weight, FontWeight::BOLD);
 }
 
 #[test]
@@ -235,8 +235,97 @@ fn cjk_doc_defaults() {
     let style = style_of(&styled, p);
     assert_eq!(style.text_align, TextAlign::Justify);
     assert_eq!(style.direction, Direction::Ltr);
-    assert_eq!(style.font_weight, FontWeight::Normal);
+    assert_eq!(style.font_weight, FontWeight::NORMAL);
     // The h1 is UA-bold.
     let h1 = find(&doc, &ElementName::H1);
-    assert_eq!(style_of(&styled, h1).font_weight, FontWeight::Bold);
+    assert_eq!(style_of(&styled, h1).font_weight, FontWeight::BOLD);
+}
+
+#[test]
+fn numeric_font_weights_cascade() {
+    let doc = parse(
+        br#"<html><body>
+<p class="thin">thin</p>
+<p class="semi">semi</p>
+<p class="frac">frac</p>
+<p class="bad">bad</p>
+</body></html>"#,
+    )
+    .unwrap();
+    let styled = styled(
+        &doc,
+        &[".thin { font-weight: 250 } .semi { font-weight: 600 } \
+           .frac { font-weight: 450.4 } .bad { font-weight: 1200 }"],
+    );
+    let weight_of = |class: &str| {
+        let id = (0..doc.nodes.len() as u32)
+            .map(NodeId)
+            .find(|&id| {
+                doc.element(id)
+                    .is_some_and(|data| data.class.as_deref() == Some(class))
+            })
+            .unwrap();
+        style_of(&styled, id).font_weight
+    };
+    assert_eq!(weight_of("thin"), FontWeight::new(250));
+    assert_eq!(weight_of("semi"), FontWeight::new(600));
+    // Fractional weights are legal CSS and round to the nearest integer.
+    assert_eq!(weight_of("frac"), FontWeight::new(450));
+    // Out-of-range numbers are invalid and drop the declaration.
+    assert_eq!(weight_of("bad"), FontWeight::NORMAL);
+}
+
+#[test]
+fn bolder_and_lighter_resolve_against_the_inherited_weight() {
+    let doc = parse(
+        br#"<html><body>
+<div class="light"><p><span class="up">x</span></p></div>
+<div class="heavy"><p><span class="down">x</span></p></div>
+</body></html>"#,
+    )
+    .unwrap();
+    let styled = styled(
+        &doc,
+        &[".light { font-weight: 300 } .heavy { font-weight: 900 } \
+           .up { font-weight: bolder } .down { font-weight: lighter }"],
+    );
+    let weight_of = |class: &str| {
+        let id = (0..doc.nodes.len() as u32)
+            .map(NodeId)
+            .find(|&id| {
+                doc.element(id)
+                    .is_some_and(|data| data.class.as_deref() == Some(class))
+            })
+            .unwrap();
+        style_of(&styled, id).font_weight
+    };
+    // css-fonts-4 relative table: bolder(300) = 400, lighter(900) = 700.
+    assert_eq!(weight_of("up"), FontWeight::new(400));
+    assert_eq!(weight_of("down"), FontWeight::new(700));
+}
+
+#[test]
+fn font_weight_relative_table() {
+    // The css-fonts-4 relative-weight mapping, spot-checked across all
+    // its bands.
+    let cases = [
+        (100, 400, 100),
+        (300, 400, 100),
+        (400, 700, 100),
+        (500, 700, 100),
+        (600, 900, 400),
+        (700, 900, 400),
+        (800, 900, 700),
+        (900, 900, 700),
+    ];
+    for (inherited, bolder, lighter) in cases {
+        let w = FontWeight::new(inherited);
+        assert_eq!(w.bolder(), FontWeight::new(bolder), "bolder({inherited})");
+        assert_eq!(w.lighter(), FontWeight::new(lighter), "lighter({inherited})");
+    }
+    // Clamping and the bold threshold.
+    assert_eq!(FontWeight::new(0), FontWeight::new(1));
+    assert_eq!(FontWeight::new(2000), FontWeight::new(1000));
+    assert!(!FontWeight::new(599).is_bold());
+    assert!(FontWeight::new(600).is_bold());
 }

@@ -28,7 +28,8 @@ fn registry() -> Arc<FontRegistry> {
 fn loads_repo_font_set() {
     let reg = registry();
     let entries = reg.entries();
-    assert_eq!(entries.len(), 29);
+    assert_eq!(entries.len(), super::FIRST_DYNAMIC_ID as usize);
+    assert_eq!(super::FIRST_DYNAMIC_ID, 57);
     for entry in &entries {
         let face = reg.face(entry.id);
         assert!(face.upem > 0, "face {} upem", entry.id);
@@ -39,7 +40,79 @@ fn loads_repo_font_set() {
             "entry path must be absolute: {}",
             entry.file_path
         );
-        assert!(entry.axes.is_empty());
+        assert_eq!(face.axes, entry.axes, "face/entry axes agree");
+        if entry.id <= 28 {
+            // Manifest faces shape at their default instances.
+            assert!(entry.axes.is_empty(), "manifest id {} has axes", entry.id);
+        } else {
+            // Instance ids carry exactly one wght coordinate.
+            assert_eq!(entry.axes.len(), 1, "instance id {}", entry.id);
+            assert_eq!(entry.axes[0].tag, "wght");
+        }
+    }
+}
+
+/// The weight-instance block, exactly as the module doc's table fixes
+/// it: four variable faces × seven wght coordinates, ids 29..=56, with
+/// each instance backed by its base face's file and identity.
+#[test]
+fn instance_block_is_deterministic() {
+    let reg = registry();
+    let entries = reg.entries();
+    let weights = [100.0, 200.0, 300.0, 500.0, 600.0, 800.0, 900.0];
+    let bases = [0usize, 1, 4, 5]; // Serif R/I, Sans R/I
+    for (b, &base) in bases.iter().enumerate() {
+        for (s, &wght) in weights.iter().enumerate() {
+            let id = 29 + b * weights.len() + s;
+            let entry = &entries[id];
+            assert_eq!(entry.id, id as u32);
+            assert_eq!(entry.file_path, entries[base].file_path);
+            assert_eq!(entry.collection_index, 0);
+            assert_eq!(entry.post_script_name, entries[base].post_script_name);
+            assert_eq!(entry.axes[0].value, wght, "id {id} wght");
+            // Metrics reuse the base face's default instance.
+            let face = reg.face(id as u32);
+            let base_face = reg.face(base as u32);
+            assert_eq!(face.upem, base_face.upem);
+            assert_eq!(face.ascender, base_face.ascender);
+            assert_eq!(face.descender, base_face.descender);
+        }
+    }
+}
+
+/// Every instance coordinate sits inside the face's actual fvar range —
+/// the load-time clamp must be a no-op for the shipped Noto set.
+#[test]
+fn instance_weights_are_within_fvar_range() {
+    let reg = registry();
+    for entry in reg.entries() {
+        if entry.axes.is_empty() {
+            continue;
+        }
+        let face = reg.face(entry.id);
+        let font = match FontRef::from_index(&face.data, face.collection_index) {
+            Ok(f) => f,
+            Err(e) => panic!("face {} must parse: {e}", entry.id),
+        };
+        let fvar = match font.fvar() {
+            Ok(fvar) => fvar,
+            Err(e) => panic!("face {} must be variable: {e}", entry.id),
+        };
+        let axes = match fvar.axes() {
+            Ok(axes) => axes,
+            Err(e) => panic!("face {} axes: {e}", entry.id),
+        };
+        let wght = axes
+            .iter()
+            .find(|a| a.axis_tag() == read_fonts::types::Tag::new(b"wght"))
+            .unwrap_or_else(|| panic!("face {} has no wght axis", entry.id));
+        let (min, max) = (wght.min_value().to_f64(), wght.max_value().to_f64());
+        let v = entry.axes[0].value;
+        assert!(
+            (min..=max).contains(&v),
+            "id {}: wght {v} outside fvar [{min}, {max}]",
+            entry.id
+        );
     }
 }
 
@@ -163,7 +236,7 @@ fn id_order_is_stable() {
 #[test]
 fn cjk_region_mapping() {
     let reg = registry();
-    let serif_reg = |lang: Option<&str>| reg.cjk(lang, true, FontWeight::Normal);
+    let serif_reg = |lang: Option<&str>| reg.cjk(lang, true, FontWeight::NORMAL);
     assert_eq!(serif_reg(Some("ja")), 12);
     assert_eq!(serif_reg(Some("ja-JP")), 12);
     assert_eq!(serif_reg(Some("ko")), 14);
@@ -175,44 +248,88 @@ fn cjk_region_mapping() {
     assert_eq!(serif_reg(Some("en")), 8);
     assert_eq!(serif_reg(None), 8);
     // Sans block and bold offsets.
-    assert_eq!(reg.cjk(Some("ja"), false, FontWeight::Normal), 20);
-    assert_eq!(reg.cjk(Some("ja"), true, FontWeight::Bold), 13);
-    assert_eq!(reg.cjk(None, false, FontWeight::Bold), 17);
+    assert_eq!(reg.cjk(Some("ja"), false, FontWeight::NORMAL), 20);
+    assert_eq!(reg.cjk(Some("ja"), true, FontWeight::BOLD), 13);
+    assert_eq!(reg.cjk(None, false, FontWeight::BOLD), 17);
 }
 
 #[test]
 fn select_bold_italic() {
     let reg = registry();
     assert_eq!(
-        reg.select(FontFamily::NotoSerif, FontStyle::Italic, FontWeight::Bold),
+        reg.select(FontFamily::NotoSerif, FontStyle::Italic, FontWeight::BOLD),
         3
     );
     assert_eq!(
-        reg.select(FontFamily::NotoSerif, FontStyle::Normal, FontWeight::Normal),
+        reg.select(FontFamily::NotoSerif, FontStyle::Normal, FontWeight::NORMAL),
         0
     );
     assert_eq!(
-        reg.select(FontFamily::NotoSerif, FontStyle::Normal, FontWeight::Bold),
+        reg.select(FontFamily::NotoSerif, FontStyle::Normal, FontWeight::BOLD),
         2
     );
     assert_eq!(
-        reg.select(FontFamily::NotoSans, FontStyle::Italic, FontWeight::Normal),
+        reg.select(FontFamily::NotoSans, FontStyle::Italic, FontWeight::NORMAL),
         5
     );
     assert_eq!(
-        reg.select(FontFamily::NotoSans, FontStyle::Italic, FontWeight::Bold),
+        reg.select(FontFamily::NotoSans, FontStyle::Italic, FontWeight::BOLD),
         7
     );
     assert_eq!(reg.symbols(), 28);
 }
 
+/// Numeric selection: exact standard weights hit their instance ids,
+/// 400/700 keep the base/static ids, and odd values follow the CSS
+/// font-matching nearest rule (below-first under 400, 500-first in
+/// 400..=500, above-first over 500).
+#[test]
+fn select_numeric_weights() {
+    let reg = registry();
+    let serif = |w: u16| reg.select(FontFamily::NotoSerif, FontStyle::Normal, FontWeight::new(w));
+    // Exact standard weights: instance block ids for the serif upright
+    // face are 29..=35 = [100, 200, 300, 500, 600, 800, 900].
+    assert_eq!(serif(100), 29);
+    assert_eq!(serif(300), 31);
+    assert_eq!(serif(400), 0);
+    assert_eq!(serif(500), 32);
+    assert_eq!(serif(600), 33);
+    assert_eq!(serif(700), 2);
+    assert_eq!(serif(900), 35);
+    // CSS nearest rule.
+    assert_eq!(serif(350), 31, "below 400 goes down first (350 -> 300)");
+    assert_eq!(serif(50), 29, "clamps up to 100 when nothing sits below");
+    assert_eq!(serif(450), 32, "400..=500 checks toward 500 first");
+    assert_eq!(serif(501), 33, "above 500 goes up first (501 -> 600)");
+    assert_eq!(serif(650), 2, "650 -> 700 (static bold)");
+    assert_eq!(serif(950), 35, "clamps down to 900 when nothing sits above");
+    // Other faces land in their own blocks.
+    assert_eq!(
+        reg.select(FontFamily::NotoSerif, FontStyle::Italic, FontWeight::new(200)),
+        37
+    );
+    assert_eq!(
+        reg.select(FontFamily::NotoSans, FontStyle::Normal, FontWeight::new(900)),
+        49
+    );
+    assert_eq!(
+        reg.select(FontFamily::NotoSans, FontStyle::Italic, FontWeight::new(100)),
+        50
+    );
+    // Static blocks threshold at 600.
+    assert_eq!(reg.cjk(Some("ja"), true, FontWeight::new(599)), 12);
+    assert_eq!(reg.cjk(Some("ja"), true, FontWeight::new(600)), 13);
+    assert_eq!(reg.hebrew(true, FontWeight::new(599)), 24);
+    assert_eq!(reg.hebrew(true, FontWeight::new(600)), 25);
+}
+
 #[test]
 fn hebrew_family_weight() {
     let reg = registry();
-    assert_eq!(reg.hebrew(true, FontWeight::Normal), 24);
-    assert_eq!(reg.hebrew(true, FontWeight::Bold), 25);
-    assert_eq!(reg.hebrew(false, FontWeight::Normal), 26);
-    assert_eq!(reg.hebrew(false, FontWeight::Bold), 27);
+    assert_eq!(reg.hebrew(true, FontWeight::NORMAL), 24);
+    assert_eq!(reg.hebrew(true, FontWeight::BOLD), 25);
+    assert_eq!(reg.hebrew(false, FontWeight::NORMAL), 26);
+    assert_eq!(reg.hebrew(false, FontWeight::BOLD), 27);
     // Every Hebrew face actually maps a Hebrew letter (א) — the
     // fallback stage would be pointless tofu otherwise.
     for id in 24..=27 {

@@ -107,10 +107,11 @@ pub(super) fn shape_paragraph<'a>(
     let mut segments = Vec::new();
     for g in groups {
         let slice = &text[local_bytes[g.range.start as usize]..local_bytes[g.range.end as usize]];
-        // The reader's bold toggle renders all body text bold; the
-        // engine's two-weight model folds publisher emphasis into it.
+        // The reader's bold toggle floors body text at weight 600 (the
+        // transcribed WebView-era semantic) while publisher emphasis
+        // that is already heavier stays heavier.
         let weight = if input.typography.bold_base {
-            FontWeight::Bold
+            g.weight.max(FontWeight::new(600))
         } else {
             g.weight
         };

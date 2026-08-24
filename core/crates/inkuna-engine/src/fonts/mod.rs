@@ -4,4 +4,4 @@
 
 mod registry;
 
-pub use registry::{FontAxis, FontEntry, FontRegistry, LoadedFace};
+pub use registry::{FontAxis, FontEntry, FontRegistry, LoadedFace, FIRST_DYNAMIC_ID};

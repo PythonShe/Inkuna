@@ -33,12 +33,69 @@ pub enum FontStyle {
     Italic,
 }
 
-/// Numeric weights ≥ 600 map to `Bold` at parse time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum FontWeight {
-    #[default]
-    Normal,
-    Bold,
+/// A CSS numeric font weight, clamped to 1..=1000 (the CSS
+/// `font-weight` range). `normal` is 400, `bold` 700; the registry maps
+/// any value onto its nearest available face or `wght` instance, and
+/// the static CJK/Hebrew faces threshold at [`FontWeight::is_bold`]
+/// (≥ 600 → Bold).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FontWeight(u16);
+
+impl FontWeight {
+    /// The CSS initial value (`normal`).
+    pub const NORMAL: FontWeight = FontWeight(400);
+    /// CSS `bold`.
+    pub const BOLD: FontWeight = FontWeight(700);
+
+    /// Clamps into the CSS 1..=1000 range; 0 clamps up to 1.
+    pub const fn new(value: u16) -> Self {
+        Self(if value < 1 {
+            1
+        } else if value > 1000 {
+            1000
+        } else {
+            value
+        })
+    }
+
+    pub const fn value(self) -> u16 {
+        self.0
+    }
+
+    /// The static-face bold threshold: the pre-engine WebView renderer
+    /// treated ≥ 600 as bold, and the static CJK/Hebrew R/B pairs keep
+    /// that semantic.
+    pub const fn is_bold(self) -> bool {
+        self.0 >= 600
+    }
+
+    /// CSS `bolder`, resolved against `self` as the inherited weight
+    /// (css-fonts-4 §font-weight relative-weight table).
+    pub const fn bolder(self) -> Self {
+        match self.0 {
+            0..350 => Self(400),
+            350..550 => Self(700),
+            550..900 => Self(900),
+            _ => self,
+        }
+    }
+
+    /// CSS `lighter`, resolved against `self` as the inherited weight
+    /// (css-fonts-4 §font-weight relative-weight table).
+    pub const fn lighter(self) -> Self {
+        match self.0 {
+            0..100 => self,
+            100..550 => Self(100),
+            550..750 => Self(400),
+            _ => Self(700),
+        }
+    }
+}
+
+impl Default for FontWeight {
+    fn default() -> Self {
+        Self::NORMAL
+    }
 }
 
 /// Inline alignment of a paragraph's lines. `Start`/`End` are
@@ -84,7 +141,7 @@ impl Default for ComputedStyle {
             display_none: false,
             direction: Direction::Ltr,
             font_style: FontStyle::Normal,
-            font_weight: FontWeight::Normal,
+            font_weight: FontWeight::NORMAL,
             text_align: TextAlign::Justify,
             ruby_position: RubyPosition::Over,
         }

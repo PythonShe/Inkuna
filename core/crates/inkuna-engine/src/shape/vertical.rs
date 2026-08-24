@@ -58,9 +58,25 @@ pub(super) fn shape_once(
     if let Some(lang) = ctx.lang.and_then(|l| l.parse::<harfrust::Language>().ok()) {
         buf.set_language(lang);
     }
+    // Weight-instance faces carry `wght` coordinates; shaping must
+    // apply them or advances would come from the default instance.
+    let variations: Vec<harfrust::Variation> = loaded
+        .axes
+        .iter()
+        .filter_map(|axis| {
+            let tag: [u8; 4] = axis.tag.as_bytes().try_into().ok()?;
+            Some(harfrust::Variation {
+                tag: harfrust::Tag::new(&tag),
+                value: axis.value as f32,
+            })
+        })
+        .collect();
+    let instance = (!variations.is_empty())
+        .then(|| harfrust::ShaperInstance::from_variations(&font, &variations));
     let shaper_data = harfrust::ShaperData::new(&font);
     let out = shaper_data
         .shaper(&font)
+        .instance(instance.as_ref())
         .build()
         .shape(buf, harfrust::ShapeOptions::new().features(features));
     let raw = out

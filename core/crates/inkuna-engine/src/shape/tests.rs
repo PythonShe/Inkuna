@@ -26,7 +26,7 @@ fn ctx(fonts: &FontRegistry) -> ShapeContext<'_> {
         fonts,
         family: FontFamily::NotoSerif,
         font_style: FontStyle::Normal,
-        font_weight: FontWeight::Normal,
+        font_weight: FontWeight::NORMAL,
         size: Fx::from_pt(16.0),
         letter_spacing: Fx::ZERO,
         word_spacing: Fx::ZERO,
@@ -224,13 +224,13 @@ fn word_spacing_adds_to_spaces_only() {
 fn bold_selects_bold_face() {
     let fonts = registry();
     let bold_ctx = ShapeContext {
-        font_weight: FontWeight::Bold,
+        font_weight: FontWeight::BOLD,
         ..ctx(fonts)
     };
     let runs = shape_text("Hello", &bold_ctx);
     assert_eq!(runs.len(), 1);
     assert_eq!(runs[0].font_id, 2, "Serif Bold");
-    assert_eq!(runs[0].style.font_weight, FontWeight::Bold);
+    assert_eq!(runs[0].style.font_weight, FontWeight::BOLD);
 }
 
 #[test]
@@ -419,13 +419,13 @@ fn hebrew_falls_back_to_hebrew_face() {
 fn hebrew_fallback_serif_sans_bold_italic() {
     let fonts = registry();
     let mut c = ctx(fonts);
-    c.font_weight = FontWeight::Bold;
+    c.font_weight = FontWeight::BOLD;
     assert!(shape_text("א", &c).iter().all(|r| r.font_id == 25));
     c.family = FontFamily::NotoSans;
     assert!(shape_text("א", &c).iter().all(|r| r.font_id == 27));
     // No Hebrew italics exist: italic requests map to regular.
     c.family = FontFamily::NotoSerif;
-    c.font_weight = FontWeight::Normal;
+    c.font_weight = FontWeight::NORMAL;
     c.font_style = FontStyle::Italic;
     assert!(shape_text("א", &c).iter().all(|r| r.font_id == 24));
 }

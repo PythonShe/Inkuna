@@ -2,7 +2,9 @@
 //! source order) < inline `style` attributes. Infallible by design.
 
 use super::model::{ComputedStyle, Direction, FontStyle, FontWeight, StyledDocument, WritingMode};
-use super::sheet::{parse_declarations, Declaration, Selector, SimpleSelector, Stylesheet};
+use super::sheet::{
+    parse_declarations, Declaration, FontWeightValue, Selector, SimpleSelector, Stylesheet,
+};
 use crate::dom::{Document, ElementData, ElementName, NodeId, NodeKind};
 
 /// Resolves every node's computed style against the publisher sheets, in
@@ -68,7 +70,7 @@ impl Resolver<'_, '_> {
             | ElementName::H3
             | ElementName::H4
             | ElementName::H5
-            | ElementName::H6 => style.font_weight = FontWeight::Bold,
+            | ElementName::H6 => style.font_weight = FontWeight::BOLD,
             _ => {}
         }
         if let Some(rtl) = data.dir_rtl {
@@ -90,14 +92,14 @@ impl Resolver<'_, '_> {
         let is_root_scope = matches!(data.name, ElementName::Html | ElementName::Body);
         for (_, sheet_at, rule_at) in matched {
             for declaration in &self.sheets[sheet_at].rules[rule_at].declarations {
-                self.apply(&mut style, *declaration, is_root_scope);
+                self.apply(&mut style, *declaration, is_root_scope, inherited.font_weight);
             }
         }
 
         // Inline style beats every publisher rule.
         if let Some(inline) = &data.style_attr {
             for declaration in parse_declarations(inline) {
-                self.apply(&mut style, declaration, is_root_scope);
+                self.apply(&mut style, declaration, is_root_scope, inherited.font_weight);
             }
         }
         style
@@ -105,7 +107,15 @@ impl Resolver<'_, '_> {
 
     /// Applies one honored declaration. `writing-mode` never touches the
     /// per-node style: it is per-resource, honored only on `html`/`body`.
-    fn apply(&mut self, style: &mut ComputedStyle, declaration: Declaration, is_root_scope: bool) {
+    /// `inherited_weight` resolves `bolder`/`lighter` — CSS defines them
+    /// against the INHERITED weight, not the cascaded-so-far value.
+    fn apply(
+        &mut self,
+        style: &mut ComputedStyle,
+        declaration: Declaration,
+        is_root_scope: bool,
+        inherited_weight: FontWeight,
+    ) {
         match declaration {
             Declaration::WritingMode(mode) => {
                 if is_root_scope {
@@ -114,7 +124,13 @@ impl Resolver<'_, '_> {
             }
             Declaration::Direction(direction) => style.direction = direction,
             Declaration::FontStyle(font_style) => style.font_style = font_style,
-            Declaration::FontWeight(weight) => style.font_weight = weight,
+            Declaration::FontWeight(weight) => {
+                style.font_weight = match weight {
+                    FontWeightValue::Absolute(weight) => weight,
+                    FontWeightValue::Bolder => inherited_weight.bolder(),
+                    FontWeightValue::Lighter => inherited_weight.lighter(),
+                }
+            }
             Declaration::TextAlign(align) => style.text_align = align,
             Declaration::RubyPosition(position) => style.ruby_position = position,
             // display: none only ever hides; other display values were

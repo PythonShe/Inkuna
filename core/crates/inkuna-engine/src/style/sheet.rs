@@ -46,11 +46,21 @@ pub(crate) enum Declaration {
     WritingMode(WritingMode),
     Direction(Direction),
     FontStyle(FontStyle),
-    FontWeight(FontWeight),
+    FontWeight(FontWeightValue),
     TextAlign(TextAlign),
     RubyPosition(RubyPosition),
     /// `display: none` — the only `display` value honored.
     DisplayNone,
+}
+
+/// A parsed `font-weight` value. `bolder`/`lighter` stay symbolic here
+/// because CSS resolves them against the INHERITED weight, which only
+/// the cascade knows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FontWeightValue {
+    Absolute(FontWeight),
+    Bolder,
+    Lighter,
 }
 
 /// Parses one stylesheet, keeping only what the engine honors. Total CSS
@@ -274,14 +284,27 @@ fn map_declaration(property: &str, value: Option<&Token<'_>>) -> Option<Declarat
             _ => None,
         },
         "font-weight" => match (ident, value) {
-            (Some("normal"), _) => Some(Declaration::FontWeight(FontWeight::Normal)),
-            (Some("bold"), _) => Some(Declaration::FontWeight(FontWeight::Bold)),
+            (Some("normal"), _) => Some(Declaration::FontWeight(FontWeightValue::Absolute(
+                FontWeight::NORMAL,
+            ))),
+            (Some("bold"), _) => Some(Declaration::FontWeight(FontWeightValue::Absolute(
+                FontWeight::BOLD,
+            ))),
+            (Some("bolder"), _) => Some(Declaration::FontWeight(FontWeightValue::Bolder)),
+            (Some("lighter"), _) => Some(Declaration::FontWeight(FontWeightValue::Lighter)),
+            // Numbers outside [1, 1000] are invalid per css-fonts-4 and
+            // drop the declaration, matching browser behavior (they must
+            // not clamp into a different weight than the author wrote).
+            // Fractional weights are legal; they round to the nearest
+            // integer for the engine's u16 model.
             (None, Some(Token::Number { value, .. })) => {
-                Some(Declaration::FontWeight(if *value >= 600.0 {
-                    FontWeight::Bold
+                if value.is_finite() && (1.0..=1000.0).contains(value) {
+                    Some(Declaration::FontWeight(FontWeightValue::Absolute(
+                        FontWeight::new(value.round() as u16),
+                    )))
                 } else {
-                    FontWeight::Normal
-                }))
+                    None
+                }
             }
             _ => None,
         },
