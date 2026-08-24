@@ -121,27 +121,16 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         // touches once it claims a drag, so nothing in the page competes
         // with a page turn; taps never reach the slop and pass through
         // untouched.
+        // Always enabled: engageability is a per-gesture question answered
+        // in `gestureRecognizerShouldBegin`, never a stored state — a
+        // recognizer disabled while the first chapter laid out would need
+        // every readiness event to re-enable it, and missing one leaves
+        // the reader swipe-dead.
         let pan = UIPanGestureRecognizer(target: self, action: #selector(panned))
         pan.maximumNumberOfTouches = 1
         pan.delegate = self
         view.addGestureRecognizer(pan)
         self.pan = pan
-
-        engageIfNeeded()
-    }
-
-    // MARK: Engagement
-
-    /// Suppresses or restores the renderer's native gestures to match
-    /// what is on screen. Called on init, on every navigation change
-    /// (new preloaded views appear with native gestures enabled), after
-    /// preference changes, and at gesture start.
-    func engageIfNeeded() {
-        if surface.isEngageable {
-            pan?.isEnabled = true
-        } else {
-            pan?.isEnabled = false
-        }
     }
 
     /// Cancels any live interaction and puts the strips back on their
@@ -195,7 +184,6 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
 
     private func turn(direction: CGFloat, velocity: CGFloat = 0) -> Bool {
         guard surface.isEngageable, !surface.isBusy else { return false }
-        engageIfNeeded()
         onPageTurnGesture?()
 
         // A turn already in flight: successive taps chain by moving the
