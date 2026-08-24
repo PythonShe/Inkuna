@@ -133,6 +133,57 @@ impl Bookshelf {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl Bookshelf {
+    /// Registers the platform's system faces with the reader engine —
+    /// they serve the roster's "system-serif"/"system-sans" reading
+    /// fonts; the fallback stages stay the bundled Notos.
+    ///
+    /// Call AT MOST ONCE per process, before the first `open_reader`:
+    /// registration loads the whole font registry (bundled set + system
+    /// faces, off the UI thread), so the ids the shells prime from
+    /// `font_registry()` are stable for the process lifetime. Once the
+    /// registry exists — a reader was opened first, or a previous
+    /// registration succeeded — this throws `InvalidState`.
+    ///
+    /// Degrades gracefully: each face that fails to load is skipped and
+    /// reported in the returned warnings (log them); a role left with
+    /// no usable upright face silently falls back to the bundled Noto
+    /// equivalent at selection time. Only a broken BUNDLED set errors.
+    pub async fn register_system_fonts(
+        &self,
+        faces: Vec<crate::fonts::SystemFontFace>,
+    ) -> Result<Vec<crate::fonts::SystemFontWarning>, InkunaError> {
+        let font_dir = self.font_dir.clone();
+        let registry = self.font_registry.clone();
+        blocking(move || {
+            if registry.get().is_some() {
+                return Err(InkunaError::InvalidState {
+                    detail: "font registry already loaded; register system fonts \
+                             before the first reader open"
+                        .to_string(),
+                });
+            }
+            let faces: Vec<inkuna_core::SystemFontFace> =
+                faces.into_iter().map(Into::into).collect();
+            let (loaded, warnings) =
+                inkuna_core::FontRegistry::load_with_system(&font_dir, &faces).map_err(
+                    |e| InkunaError::UnsupportedContent {
+                        detail: format!("font registry: {e}"),
+                    },
+                )?;
+            if registry.set(loaded).is_err() {
+                // A concurrent first reader open won the race and its
+                // registry (without these faces) is already primed.
+                return Err(InkunaError::InvalidState {
+                    detail: "font registry already loaded; register system fonts \
+                             before the first reader open"
+                        .to_string(),
+                });
+            }
+            Ok(warnings.into_iter().map(Into::into).collect())
+        })
+        .await
+    }
+
     /// Opens the reader engine on one publication: resolves the book,
     /// loads the bundled fonts (once per process), and starts the layout
     /// worker at the stored coordinate's chapter (chapter 0 when none).
@@ -234,3 +285,7 @@ pub(crate) async fn blocking<T: Send + 'static>(
 pub fn core_version() -> String {
     inkuna_core::version().to_string()
 }
+
+#[cfg(test)]
+#[path = "bookshelf_tests.rs"]
+mod tests;

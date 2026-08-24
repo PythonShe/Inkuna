@@ -14,6 +14,7 @@ uniffi::setup_scaffolding!("inkuna");
 
 mod bookshelf;
 mod error;
+mod fonts;
 mod format;
 mod import;
 mod library;
@@ -25,6 +26,7 @@ mod stats;
 
 pub use bookshelf::{core_version, Bookshelf};
 pub use error::InkunaError;
+pub use fonts::{SystemFontFace, SystemFontRole, SystemFontWarning};
 pub use format::Format;
 pub use import::{FdImport, ImportOutcome, ImportProgressListener, ShelfImport};
 pub use library::{Bookmark, Chapter, Publication, Shelf, ShelfLibrary, Sort, SpineEntry};

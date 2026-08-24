@@ -41,6 +41,11 @@ pub enum InkunaError {
     Search { detail: String },
     #[error("publication not found: {id}")]
     NotFound { id: String },
+    /// A lifecycle-ordering violation at the FFI boundary itself (e.g.
+    /// registering system fonts after the font registry already loaded)
+    /// — no `CoreError` twin because the core never produces it.
+    #[error("invalid state: {detail}")]
+    InvalidState { detail: String },
 }
 
 impl From<inkuna_core::CoreError> for InkunaError {

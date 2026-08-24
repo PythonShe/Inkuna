@@ -30,7 +30,8 @@ pub use inkuna_engine::{
     A11yBlock, A11yRole, ChapterGeometry, CharRange, ColorRole, Coordinate, Decoration,
     DecorationKind, EngineError, EngineSession, FontAxis, FontEntry, FontRegistry, GlyphRun,
     HitResult, ImagePlacement, LayoutEvents, LayoutSettings, LinkRegion, PageDisplayList,
-    PageLocation, Rect, RunOrientation, SelectionRect, Viewport, WritingMode,
+    PageLocation, Rect, RunOrientation, SelectionRect, SystemFontFace, SystemFontRole,
+    SystemFontWarning, Viewport, WritingMode,
 };
 
 /// The core's own crate version (`CARGO_PKG_VERSION`), which the shells
