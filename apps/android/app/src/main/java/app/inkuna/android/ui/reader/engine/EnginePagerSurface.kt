@@ -146,7 +146,8 @@ class EnginePagerSurface(
         val end = (maxOf(1u, count) - 1u).toFloat() * width
         return when (val state = readiness[spineIdx] ?: ChapterReadiness.Empty) {
             is ChapterReadiness.Complete -> {
-                if (state.geometry.generation != latestGeneration) return null
+                val known = latestGeneration
+                if (known != null && state.geometry.generation != known) return null
                 ReaderPagerStrip(innerOffset, 0f..end, width)
             }
             is ChapterReadiness.Partial ->
