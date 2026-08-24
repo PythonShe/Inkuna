@@ -21,16 +21,24 @@ final class PageImageProvider {
         self.maxPixelSize = Self.displayPixelCap()
     }
 
-    /// 2x the largest connected display dimension in pixels. A page image
-    /// never needs more resolution than the screen can show, and an iOS
-    /// memory overshoot is uncatchable (jetsam) — so oversized images decode
-    /// downsampled while anything within the cap keeps full resolution.
+    /// The maximum downsample factor a source may need before it is
+    /// rejected outright — the same absurd-size bound the Android shell
+    /// enforces (its power-of-2 `inSampleSize` stops at 32), so both
+    /// shells drop the same pathological images.
+    private nonisolated static let maxSampleFactor = 32
+
+    /// 2x the largest connected display dimension in pixels, floored at
+    /// 1024 (a capless context still yields Android's 2048 cap). A page
+    /// image never needs more resolution than the screen can show, and an
+    /// iOS memory overshoot is uncatchable (jetsam) — so oversized images
+    /// decode downsampled while anything within the cap keeps full
+    /// resolution.
     private static func displayPixelCap() -> CGFloat {
         let largest = UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.screen }
             .map { max($0.nativeBounds.width, $0.nativeBounds.height) }
-            .max() ?? 2796
-        return largest * 2
+            .max() ?? 0
+        return max(largest, 1024) * 2
     }
 
     func image(for href: String, onReady: @escaping () -> Void) -> UIImage? {
@@ -89,6 +97,19 @@ final class PageImageProvider {
         await Task.detached(priority: .userInitiated) {
             let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
             guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
+                return nil
+            }
+            // Same contract as the Android shell: a source that would still
+            // exceed the cap at the maximum downsample factor is absurd —
+            // reject it instead of materializing anything.
+            guard
+                let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, sourceOptions) as? [CFString: Any],
+                let pixelWidth = properties[kCGImagePropertyPixelWidth] as? Int,
+                let pixelHeight = properties[kCGImagePropertyPixelHeight] as? Int,
+                pixelWidth > 0, pixelHeight > 0,
+                CGFloat((pixelWidth + Self.maxSampleFactor - 1) / Self.maxSampleFactor) <= maxPixelSize,
+                CGFloat((pixelHeight + Self.maxSampleFactor - 1) / Self.maxSampleFactor) <= maxPixelSize
+            else {
                 return nil
             }
             let thumbnailOptions = [
