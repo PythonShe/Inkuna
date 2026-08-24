@@ -288,9 +288,15 @@ fn open_element_budget_truncates_deep_nesting_promptly() {
 
     let started = Instant::now();
     let doc = parse(xhtml.as_bytes()).unwrap();
+    // That the budget tripped at all is what `truncated` pins, deterministically
+    // and independent of the machine. The clock below is only a hang detector
+    // for the case where the stack does grow unbounded, so its bound is loose
+    // on purpose: a shared CI runner is several times slower than a dev box,
+    // and a ceiling tuned tight enough to be meaningful there is a ceiling that
+    // fails for no reason.
     assert!(doc.truncated);
     assert!(
-        started.elapsed() < Duration::from_secs(1),
+        started.elapsed() < Duration::from_secs(10),
         "open-element budget must stop deeply nested input promptly"
     );
 }

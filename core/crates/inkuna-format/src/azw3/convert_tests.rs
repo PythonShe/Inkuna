@@ -138,26 +138,58 @@ fn css_sanitizer_catches_identifier_escaped_imports_and_urls() {
     assert!(!escaped_url.contains("https://"));
 }
 
+/// Sanitizes `threat` repeated to fill `bytes`, returning the output and the
+/// fastest of two runs. Scheduling noise only ever *adds* time, so the minimum
+/// is the closest reading to the work actually done.
+fn time_sanitize(threat: &str, bytes: usize) -> (String, Duration) {
+    let input = threat.repeat(bytes / threat.len() + 1);
+    let mut run = || {
+        let started = Instant::now();
+        let output = sanitize_css(&input);
+        (output, started.elapsed())
+    };
+    let (_, first) = run();
+    let (output, second) = run();
+    (output, first.min(second))
+}
+
+/// `sanitize_css` iterates its strip to a fixed point, so a careless change
+/// there turns a forward scan into a quadratic one. What pins that down is the
+/// *shape* of the cost curve, not a stopwatch: an absolute wall-clock ceiling
+/// is a property of the machine, and one tuned on a dev box fails on a shared
+/// CI runner several times slower. Quadrupling the input instead cancels
+/// machine speed out — linear work grows about 4x, quadratic work about 16x,
+/// and anything in between is a regression worth failing on.
 #[test]
 fn css_sanitizer_handles_large_repeated_threats_in_linear_time() {
-    let imports = "@import;".repeat(4 * 1024 * 1024 / "@import;".len() + 1);
-    let started = Instant::now();
-    assert!(sanitize_css(&imports).is_empty());
-    assert!(
-        started.elapsed() < Duration::from_secs(1),
-        "sanitizing imports took {:?}",
-        started.elapsed()
-    );
+    const SMALL: usize = 1024 * 1024;
+    const LARGE: usize = 4 * SMALL;
+    // Sits between the 4x linear growth expected and the 16x a quadratic scan
+    // would show, leaning toward the linear end so runner jitter cannot trip
+    // it — a genuinely quadratic pass over 4 MiB overruns any bound by orders
+    // of magnitude, so nothing is lost by being generous here.
+    const TOLERANCE: u32 = 10;
+    // A sub-millisecond baseline is mostly timer noise; dividing by it would
+    // turn jitter into a failure, so the small run never sets a tighter budget
+    // than this floor does.
+    const NOISE_FLOOR: Duration = Duration::from_millis(20);
 
-    let urls = "url(https://x)".repeat(4 * 1024 * 1024 / "url(https://x)".len() + 1);
-    let expected = "none".repeat(urls.len() / "url(https://x)".len());
-    let started = Instant::now();
-    assert_eq!(sanitize_css(&urls), expected);
-    assert!(
-        started.elapsed() < Duration::from_secs(1),
-        "sanitizing remote URLs took {:?}",
-        started.elapsed()
-    );
+    for threat in ["@import;", "url(https://x)"] {
+        let (_, small) = time_sanitize(threat, SMALL);
+        let (output, large) = time_sanitize(threat, LARGE);
+
+        let expected = match threat {
+            "@import;" => String::new(),
+            _ => "none".repeat(LARGE / threat.len() + 1),
+        };
+        assert_eq!(output, expected, "sanitizing {threat:?} at {LARGE} bytes");
+
+        assert!(
+            large < small.max(NOISE_FLOOR) * TOLERANCE,
+            "sanitizing {threat:?} grew super-linearly: \
+             {small:?} at {SMALL} bytes, {large:?} at {LARGE} bytes"
+        );
+    }
 }
 
 #[test]
