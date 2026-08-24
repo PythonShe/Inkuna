@@ -1,5 +1,6 @@
 package app.inkuna.android.ui.reader.engine
 
+import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
@@ -31,8 +32,7 @@ class PageImageLoader(
 
         scope().launch(Dispatchers.Default) {
             val bitmap = runCatching {
-                val bytes = session.resource(href)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                decodeCapped(session.resource(href))
             }.getOrNull()
             withContext(Dispatchers.Main.immediate) {
                 finish(href, bitmap)
@@ -65,7 +65,36 @@ class PageImageLoader(
         ready.forEach { it() }
     }
 
+    /**
+     * Decodes with the dimensions read first, downsampling to the edge cap
+     * before any pixel allocation — a pathological 16000x16000 source must
+     * never materialize at full size ahead of the LruCache's byte budget.
+     * Anything still over the cap at the maximum sample factor is rejected.
+     */
+    private fun decodeCapped(bytes: ByteArray): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        val width = bounds.outWidth
+        val height = bounds.outHeight
+        if (width <= 0 || height <= 0) return null
+        var sample = 1
+        while ((width + sample - 1) / sample > maxEdgePx || (height + sample - 1) / sample > maxEdgePx) {
+            if (sample >= MAX_SAMPLE) return null
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+    }
+
     private companion object {
         const val CACHE_BYTES = 32 * 1024 * 1024
+
+        /** No page image needs more than twice the display's longest edge. */
+        val maxEdgePx: Int = 2 * maxOf(
+            Resources.getSystem().displayMetrics.widthPixels,
+            Resources.getSystem().displayMetrics.heightPixels,
+            1024,
+        )
+        const val MAX_SAMPLE = 32
     }
 }
