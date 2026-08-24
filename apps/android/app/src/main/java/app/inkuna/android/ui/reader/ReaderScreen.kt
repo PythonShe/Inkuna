@@ -286,8 +286,14 @@ private fun ReaderContent(
             display(book.session.locate(jump.coordinate), host, jump.showChrome, jump)
             // Keep a possibly-clamped jump parked so chapter completion
             // re-presents it exactly (a user page turn supersedes it via
-            // onPageSettled).
-            if (!wasReady) pendingJump = jump
+            // onPageSettled). The clamped presentation's settle just adopted
+            // the published-prefix page as the anchor; re-assert the jump's
+            // coordinate as the reader's true place so a relayout captured
+            // before completion anchors there.
+            if (!wasReady) {
+                pendingJump = jump
+                viewModel.restoreAnchor(jump.coordinate)
+            }
         } catch (_: InkunaException.NotReady) {
             pendingJump = jump
             runCatching { book.session.chapter(spineIdx) }
@@ -314,7 +320,14 @@ private fun ReaderContent(
             ReaderViewModel.LayoutEvent.Invalidated -> {
                 host.selection.clear()
                 host.layout.cancelInteraction()
-                pendingJump = viewModel.currentCoordinate()?.let { PendingJump(it, showChrome = false) }
+                // A jump still parked from the previous generation (a restore
+                // whose chapter never finished re-laying, a link waiting on
+                // layout) holds the reader's true destination; a live
+                // coordinate read here could be a page clamped to the old
+                // published prefix — adopting it walks repeated appearance
+                // toggles back to the chapter start.
+                pendingJump = pendingJump?.copy(showChrome = false)
+                    ?: viewModel.currentCoordinate()?.let { PendingJump(it, showChrome = false) }
                 host.surface.layoutInvalidated(0uL)
             }
             is ReaderViewModel.LayoutEvent.FirstPage -> {

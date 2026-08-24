@@ -182,6 +182,10 @@ extension ReaderViewController {
             if spineIdx == targetCoordinate?.spineIdx || pendingJumpTargetsSpine {
                 pagerSurface?.display(spineIdx: spineIdx, pageIdx: 0)
                 loadingIndicator.stopAnimating()
+                // Terminal for the restore too: the chapter it anchored in
+                // will never lay out, so a pinned anchor would shadow the
+                // reader's real position forever.
+                if relayoutAnchor?.spineIdx == spineIdx { relayoutAnchor = nil }
             }
             if pendingJumpTargetsSpine {
                 let parked = pendingJump
@@ -218,13 +222,22 @@ extension ReaderViewController {
     }
 
     func tryPresentTarget() {
-        guard let readerSession, let pagerSurface, let targetCoordinate,
-              let location = try? readerSession.locate(coordinate: targetCoordinate),
+        guard let readerSession, let pagerSurface, let targetCoordinate else { return }
+        // Readiness is read BEFORE locating: a partially laid chapter clamps
+        // `locate` to its published prefix, and readiness is monotonic within
+        // a generation — so this decides race-free whether the presentation
+        // can be a clamped page that completion will re-present exactly.
+        let wasReady = readerSession.isReady(spineIdx: targetCoordinate.spineIdx)
+        guard let location = try? readerSession.locate(coordinate: targetCoordinate),
               accept(generation: location.generation) else { return }
         pagerSurface.display(spineIdx: location.spineIdx, pageIdx: location.pageIdx)
         loadingIndicator.stopAnimating()
         firstPageReadyAt = firstPageReadyAt ?? Date()
-        relayoutAnchor = nil
+        // A clamped presentation keeps the anchor: it is still the reader's
+        // logical place, and a relayout captured mid-refinement must anchor
+        // there — not at the clamped page — or repeated appearance toggles
+        // walk the reader back to the chapter start.
+        if wasReady { relayoutAnchor = nil }
     }
 
     func resolveJump(_ chapter: Chapter, linkToast: Bool = false) throws -> PendingJump {
@@ -312,6 +325,11 @@ extension ReaderViewController {
     }
 
     func currentAnchor() -> Coordinate? {
+        // A pending relayout restore IS the logical position: the surface may
+        // be showing a page clamped to the chapter's published prefix, and a
+        // live read of it would leak the clamp into the next relayout's
+        // anchor. `relayoutAnchor` clears once the restore presents exactly.
+        if let relayoutAnchor { return relayoutAnchor }
         guard let readerSession, let surface = pagerSurface,
               let range = try? readerSession.pageCharRange(spineIdx: surface.spineIdx, pageIdx: surface.pageIdx) else { return nil }
         return Coordinate(spineIdx: surface.spineIdx, charOffset: range.start)

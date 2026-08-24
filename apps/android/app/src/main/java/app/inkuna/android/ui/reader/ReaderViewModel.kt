@@ -293,6 +293,18 @@ class ReaderViewModel(
 
     fun currentCoordinate(): Coordinate? = currentAnchor ?: targetCoordinate
 
+    /**
+     * Re-asserts the reader's true place after a clamped presentation: a jump
+     * into a chapter still laying out displays the published-prefix page, and
+     * that display's settle adopts the clamped page start as the anchor. The
+     * parked jump's coordinate is the honest one, and a relayout captured
+     * before the chapter completes must anchor there.
+     */
+    fun restoreAnchor(coordinate: Coordinate) {
+        currentAnchor = coordinate
+        targetCoordinate = coordinate
+    }
+
     fun onPageSettled(spineIdx: UInt, pageIdx: UInt) {
         val session = runCatching { session() }.getOrNull() ?: return
         val coordinate = runCatching {
