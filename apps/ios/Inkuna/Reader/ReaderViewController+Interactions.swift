@@ -288,7 +288,30 @@ extension ReaderViewController {
             Task { @MainActor in await self?.relayout(anchor: self?.relayoutAnchor) }
         }
         panel.onClose = { [weak self] in self?.presentedViewController?.dismiss(animated: true) }
+        panel.publisherFontProvider = { [weak self] size in self?.publisherReadingFont(size: size) }
+        customizePanel = panel
         return panel
+    }
+
+    /// The face the Publisher roster entry actually reads in: the
+    /// dominant glyph-run face of the current page, resolved through
+    /// the session's primed font store. Sampling the live display list
+    /// is the one honest source — which embedded face carries the body
+    /// depends on the publication's own CSS. `nil` (page not laid out,
+    /// image-only page) leaves the preview on its serif stand-in.
+    func publisherReadingFont(size: CGFloat) -> CTFont? {
+        guard AppSettings.shared.readingFont == .publisher,
+              let readerSession, let surface = pagerSurface,
+              let list = try? readerSession.page(spineIdx: surface.spineIdx, pageIdx: surface.pageIdx)
+        else { return nil }
+        var glyphCounts: [UInt32: Int] = [:]
+        for run in list.glyphRuns {
+            glyphCounts[run.fontId, default: 0] += run.glyphIds.count
+        }
+        guard let dominant = glyphCounts.max(by: {
+            ($0.value, $1.key) < ($1.value, $0.key)
+        })?.key else { return nil }
+        return ReaderFontStore.shared.font(id: dominant, size: size)
     }
 
     func applyTheme(_ theme: ReadingTheme) {

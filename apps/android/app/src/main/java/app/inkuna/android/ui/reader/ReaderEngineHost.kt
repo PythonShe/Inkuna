@@ -1,11 +1,15 @@
 package app.inkuna.android.ui.reader
 
 import android.content.Intent
+import android.graphics.Typeface
+import android.graphics.fonts.FontFamily as PlatformFontFamily
 import android.view.View
 import androidx.compose.runtime.MutableState
+import androidx.compose.ui.text.font.FontFamily as ComposeFontFamily
 import androidx.core.net.toUri
 import app.inkuna.android.ui.reader.engine.EnginePageCanvas
 import app.inkuna.android.ui.reader.engine.EnginePagerSurface
+import app.inkuna.android.ui.reader.engine.ReaderFontStore
 import app.inkuna.android.ui.reader.engine.ReaderSelectionController
 import app.inkuna.core.Coordinate
 import app.inkuna.core.InkunaException
@@ -61,6 +65,31 @@ internal fun ReaderSession.resolveJump(href: String, linkToast: Boolean = false)
     } catch (_: InkunaException.NotReady) {
         PendingJump(chapterStart, anchor = PendingAnchor(path, fragment), linkToast = linkToast)
     }
+}
+
+/**
+ * The face the `publisher` roster entry actually reads in: the dominant
+ * glyph-run face of the current page, resolved through the session's
+ * primed [ReaderFontStore]. Sampling the live display list is the one
+ * honest source — which embedded face carries the body depends on the
+ * publication's own CSS. Null (page not published yet, image-only page,
+ * store not primed) keeps the preview on its serif stand-in.
+ */
+internal fun publisherReadingFamily(
+    session: ReaderSession,
+    host: EngineHost?,
+): ComposeFontFamily? {
+    val surface = host?.surface ?: return null
+    val list = runCatching { session.page(surface.spineIdx, surface.pageIdx) }.getOrNull() ?: return null
+    val glyphCounts = HashMap<UInt, Int>()
+    for (run in list.glyphRuns) glyphCounts.merge(run.fontId, run.glyphIds.size, Int::plus)
+    val dominant = glyphCounts.entries
+        .sortedWith(compareByDescending<Map.Entry<UInt, Int>> { it.value }.thenBy { it.key })
+        .firstOrNull()?.key ?: return null
+    val font = ReaderFontStore.font(dominant) ?: return null
+    return ComposeFontFamily(
+        Typeface.CustomFallbackBuilder(PlatformFontFamily.Builder(font).build()).build(),
+    )
 }
 
 /** Suspends until the view has a non-zero laid-out size. */

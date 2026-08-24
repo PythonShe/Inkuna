@@ -51,15 +51,18 @@ enum class ReadingFont(val id: String, @param:StringRes val nameRes: Int) {
 /**
  * The face the "Aa" specimens and the Font menu items render in. UI-only:
  * the reading surface gets its faces from the engine's registry.
- * [ReadingFont.Publisher] has no knowable face here and stands in with the
- * serif reading face. Deliberately NOT part of [InkSerif]/[InkSans]: a
- * bundled Latin face in the app-wide fallback chain would break CJK UI text.
+ * [ReadingFont.Publisher] renders in [publisher] — the real embedded face
+ * the reader samples from the live session — and stands in with the serif
+ * reading face while none is known. Deliberately NOT part of
+ * [InkSerif]/[InkSans]: a bundled Latin face in the app-wide fallback
+ * chain would break CJK UI text.
  */
 @Composable
-fun ReadingFont.composeFamily(): FontFamily {
+fun ReadingFont.composeFamily(publisher: FontFamily? = null): FontFamily {
     val assets = LocalContext.current.assets
     return when (this) {
-        ReadingFont.Publisher, ReadingFont.SystemSerif -> FontFamily.Serif
+        ReadingFont.Publisher -> publisher ?: FontFamily.Serif
+        ReadingFont.SystemSerif -> FontFamily.Serif
         ReadingFont.SystemSans -> FontFamily.SansSerif
         ReadingFont.NotoSerif -> remember(assets) {
             FontFamily(

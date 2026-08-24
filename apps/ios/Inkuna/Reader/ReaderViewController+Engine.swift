@@ -328,7 +328,11 @@ extension ReaderViewController {
     }
 
     func pageDidDraw(spineIdx: UInt32, pageIdx: UInt32) {
-        guard let surface = pagerSurface, surface.spineIdx == spineIdx, surface.pageIdx == pageIdx, !didLogFirstRender else { return }
+        guard let surface = pagerSurface, surface.spineIdx == spineIdx, surface.pageIdx == pageIdx else { return }
+        // A freshly drawn current page can carry a new layout: let an
+        // open Customize preview re-sample the publisher face.
+        customizePanel?.refreshPreview()
+        guard !didLogFirstRender else { return }
         didLogFirstRender = true
         log("first_page_ready_to_first_render_ms", since: firstPageReadyAt)
         log("tap_to_first_page_ms", since: ReaderLauncher.lastPushTimestamp)

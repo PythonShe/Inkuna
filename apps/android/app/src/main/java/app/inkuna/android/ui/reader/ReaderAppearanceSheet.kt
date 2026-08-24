@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -88,6 +89,7 @@ import kotlin.math.roundToInt
 internal fun CustomizePanel(
     snapshot: AppSettings.Snapshot,
     settings: AppSettings,
+    publisherFamily: FontFamily?,
     onBack: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -132,6 +134,7 @@ internal fun CustomizePanel(
                 theme = snapshot.readingTheme,
                 textSizeSp = AppSettings.TEXT_SIZE_STEPS[snapshot.textSizeStep],
                 draft = draft,
+                publisherFamily = publisherFamily,
             )
             Spacer(Modifier.height(InkSpace.s5))
 
@@ -140,6 +143,7 @@ internal fun CustomizePanel(
             GroupCard {
                 FontRow(
                     current = draft.font,
+                    publisherFamily = publisherFamily,
                     onPick = { font ->
                         haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                         commit(draft.copy(font = font)) { settings.setReadingFont(font) }
@@ -309,6 +313,7 @@ private fun AppearancePreviewCard(
     theme: ReadingTheme,
     textSizeSp: Float,
     draft: ReaderTypeDraft,
+    publisherFamily: FontFamily?,
 ) {
     val a11yPreview = stringResource(R.string.a11y_preview_sample)
     Box(
@@ -326,7 +331,7 @@ private fun AppearancePreviewCard(
     ) {
         Text(
             phrase,
-            fontFamily = draft.font.composeFamily(),
+            fontFamily = draft.font.composeFamily(publisherFamily),
             fontWeight = if (draft.bold) FontWeight.SemiBold else FontWeight.Normal,
             fontSize = textSizeSp.sp,
             lineHeight = (textSizeSp * draft.lineSpacing).sp,
@@ -348,7 +353,11 @@ private fun AppearancePreviewCard(
  * its own typeface so the roster reads as a specimen sheet.
  */
 @Composable
-private fun FontRow(current: ReadingFont, onPick: (ReadingFont) -> Unit) {
+private fun FontRow(
+    current: ReadingFont,
+    publisherFamily: FontFamily?,
+    onPick: (ReadingFont) -> Unit,
+) {
     val ink = InkTheme.colors
     val title = stringResource(R.string.reader_font)
     val value = stringResource(current.nameRes)
@@ -406,7 +415,7 @@ private fun FontRow(current: ReadingFont, onPick: (ReadingFont) -> Unit) {
                     text = {
                         Text(
                             name,
-                            fontFamily = font.composeFamily(),
+                            fontFamily = font.composeFamily(publisherFamily),
                             fontWeight = if (chosen) FontWeight.Medium else FontWeight.Normal,
                             style = InkType.ui,
                             color = ink.textDisplay,

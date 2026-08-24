@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -143,6 +144,7 @@ private enum class ThemeSheetPage { ThemeType, Customize }
 fun ThemeTypeSheet(
     snapshot: AppSettings.Snapshot,
     settings: AppSettings,
+    publisherFamily: FontFamily?,
     onBrightnessPreview: (Float) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -254,6 +256,7 @@ fun ThemeTypeSheet(
                         CustomizePanel(
                             snapshot = snapshot,
                             settings = settings,
+                            publisherFamily = publisherFamily,
                             onBack = { page = ThemeSheetPage.ThemeType },
                         onClose = dismiss,
                     )

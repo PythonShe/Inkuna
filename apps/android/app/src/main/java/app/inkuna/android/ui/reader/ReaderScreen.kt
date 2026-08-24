@@ -82,6 +82,7 @@ import app.inkuna.android.ui.reader.engine.ReaderFontStore
 import app.inkuna.android.ui.reader.engine.ReaderSelectionController
 import app.inkuna.android.ui.theme.InkMotion
 import app.inkuna.android.ui.theme.InkType
+import app.inkuna.android.ui.theme.ReadingFont
 import app.inkuna.core.Chapter
 import app.inkuna.core.Coordinate
 import app.inkuna.core.InkunaException
@@ -537,7 +538,26 @@ private fun ReaderContent(
     }
 
     if (themeSheetOpen) {
-        ThemeTypeSheet(snapshot, settings, onBrightnessPreview = { brightnessPreview = it }) { themeSheetOpen = false }
+        // The Publisher roster entry previews in the face the page is
+        // actually read in: the dominant glyph-run face of the current
+        // page, resolved through the primed font store. Re-sampled on
+        // layout events and font-store builds, so a fresh Publisher pick
+        // settles onto the embedded face once the reflow lands.
+        var layoutTick by remember(book) { mutableIntStateOf(0) }
+        LaunchedEffect(book) { viewModel.layoutEvents.collect { layoutTick += 1 } }
+        val publisherFamily = if (snapshot.readingFont == ReadingFont.Publisher) {
+            remember(book, layoutTick, fontRevision, anchorState.value) {
+                publisherReadingFamily(book.session, hostState.value)
+            }
+        } else {
+            null
+        }
+        ThemeTypeSheet(
+            snapshot,
+            settings,
+            publisherFamily = publisherFamily,
+            onBrightnessPreview = { brightnessPreview = it },
+        ) { themeSheetOpen = false }
     }
     if (contentsSheetOpen) {
         ContentsSheet(

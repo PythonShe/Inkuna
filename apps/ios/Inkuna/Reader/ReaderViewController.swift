@@ -77,6 +77,9 @@ final class ReaderViewController: UIViewController {
     var pendingJump: PendingJump?
     var notedTruncatedChapters: Set<UInt32> = []
     var relayoutAnchor: Coordinate?
+    /// The presented Customize panel, if any — refreshed when a
+    /// reflowed page draws so its preview tracks the live faces.
+    weak var customizePanel: ReaderCustomizeViewController?
     var pendingEvents: [LayoutEvent] = []
     var layoutChangeInFlight = false
     var didLogFirstRender = false

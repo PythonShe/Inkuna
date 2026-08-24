@@ -1,3 +1,4 @@
+import CoreText
 import UIKit
 
 /// The Customize panel's live specimen: a clipped slice of the reading
@@ -9,6 +10,12 @@ final class ReaderPreviewCard: UIView {
     var phrase: String {
         didSet { render() }
     }
+
+    /// The live session's face for the Publisher roster entry, sampled
+    /// from the page being read (see the reader's provider). `nil` —
+    /// no session, page not laid out yet — falls back to the serif
+    /// stand-in of `ReadingFont.previewFont`.
+    var publisherFontProvider: ((CGFloat) -> CTFont?)?
 
     private let theme: ReadingTheme
     private let textSize: ReadingTextSize
@@ -56,8 +63,16 @@ final class ReaderPreviewCard: UIView {
         paragraph.maximumLineHeight = size * settings.lineSpacing
         paragraph.lineBreakMode = .byTruncatingTail
 
+        // CTFont is toll-free bridged to UIFont, so a sampled publisher
+        // face drops straight into the attribute dictionary.
+        let font: Any = if settings.readingFont == .publisher,
+            let publisher = publisherFontProvider?(size) {
+            publisher
+        } else {
+            settings.readingFont.previewFont(size: size, bold: settings.readingBold)
+        }
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: settings.readingFont.previewFont(size: size, bold: settings.readingBold),
+            .font: font,
             .foregroundColor: theme.foreground,
             .paragraphStyle: paragraph,
             .kern: size * settings.letterSpacing,
