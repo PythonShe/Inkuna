@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -175,8 +176,17 @@ private fun ReaderContent(
         configuration.smallestScreenWidthDp >= 600,
     )
     val contentBottom = ReaderMetrics.contentBottom(navPad, configuration.smallestScreenWidthDp >= 600)
-    val touchExploration = remember(context) {
-        context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
+    // Live TalkBack state: read inside the callback bodies below so toggling
+    // touch exploration mid-session changes behavior without leaving the screen.
+    val touchExploration = remember { mutableStateOf(false) }
+    DisposableEffect(context) {
+        val manager = context.getSystemService(AccessibilityManager::class.java)
+        touchExploration.value = manager?.isTouchExplorationEnabled == true
+        val listener = AccessibilityManager.TouchExplorationStateChangeListener { enabled ->
+            touchExploration.value = enabled
+        }
+        manager?.addTouchExplorationStateChangeListener(listener)
+        onDispose { manager?.removeTouchExplorationStateChangeListener(listener) }
     }
 
     fun notifyLinkFailed() {
@@ -415,7 +425,7 @@ private fun ReaderContent(
                     anchorState.value = runCatching {
                         Coordinate(spineIdx, book.session.pageCharRange(spineIdx, pageIdx).start)
                     }.getOrNull()
-                    if (!touchExploration) {
+                    if (!touchExploration.value) {
                         chromeVisible.value = false
                         menuOpen.value = false
                     }
@@ -431,8 +441,11 @@ private fun ReaderContent(
                 canvas.onPageTap = { spineIdx, pageIdx, x, y ->
                     handleCanvasPoint(book, engineHost, x, y, ::notifyLinkFailed, { jump -> attemptJump(jump, engineHost) }, chromeVisible, menuOpen)
                 }
-                layout.onTurnGesture = if (touchExploration) null else {
-                    { chromeVisible.value = false; menuOpen.value = false }
+                layout.onTurnGesture = {
+                    if (!touchExploration.value) {
+                        chromeVisible.value = false
+                        menuOpen.value = false
+                    }
                 }
                 layout.onBoundaryTurnPending = { sign ->
                     // A programmatic turn met a chapter still laying out:
