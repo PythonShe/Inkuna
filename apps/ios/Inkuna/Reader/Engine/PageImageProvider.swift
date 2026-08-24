@@ -1,3 +1,4 @@
+import ImageIO
 import UIKit
 
 /// Caches decoded page images while sharing one resource request per href.
@@ -13,8 +14,23 @@ final class PageImageProvider {
     private var pendingCallbacks: [String: [() -> Void]] = [:]
     private var permanentlyMissing: Set<String> = []
 
+    private let maxPixelSize: CGFloat
+
     init(session: ReaderSession) {
         self.session = session
+        self.maxPixelSize = Self.displayPixelCap()
+    }
+
+    /// 2x the largest connected display dimension in pixels. A page image
+    /// never needs more resolution than the screen can show, and an iOS
+    /// memory overshoot is uncatchable (jetsam) — so oversized images decode
+    /// downsampled while anything within the cap keeps full resolution.
+    private static func displayPixelCap() -> CGFloat {
+        let largest = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.screen }
+            .map { max($0.nativeBounds.width, $0.nativeBounds.height) }
+            .max() ?? 2796
+        return largest * 2
     }
 
     func image(for href: String, onReady: @escaping () -> Void) -> UIImage? {
@@ -29,10 +45,11 @@ final class PageImageProvider {
         guard inFlight[href] == nil else { return nil }
 
         let session = session
+        let maxPixelSize = maxPixelSize
         inFlight[href] = Task { @MainActor [weak self, session] in
             do {
                 let data = try await session.resource(href: href)
-                guard let image = await Self.decodeImage(data) else {
+                guard let image = await Self.decodeImage(data, maxPixelSize: maxPixelSize) else {
                     self?.finish(href: href, image: nil)
                     return
                 }
@@ -59,31 +76,32 @@ final class PageImageProvider {
         callbacks.forEach { $0() }
     }
 
-    private nonisolated static func decodeImage(_ data: Data) async -> UIImage? {
+    /// Decodes through `CGImageSourceCreateThumbnailAtIndex` so an oversized
+    /// image never materializes at full resolution (`UIImage(data:)` +
+    /// `preparingForDisplay()` would). The max-pixel-size cap exceeds any
+    /// on-screen need, so images within it keep full resolution; the
+    /// transform option bakes EXIF orientation into the decoded bitmap and
+    /// the immediate-cache option decodes eagerly off the main thread.
+    private nonisolated static func decodeImage(
+        _ data: Data,
+        maxPixelSize: CGFloat
+    ) async -> UIImage? {
         await Task.detached(priority: .userInitiated) {
-            guard let image = UIImage(data: data) else { return nil }
-            let normalizedImage = normalizedOrientation(of: image)
-            return normalizedImage.preparingForDisplay() ?? normalizedImage
+            let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+            guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
+                return nil
+            }
+            let thumbnailOptions = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceShouldCacheImmediately: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            ] as [CFString: Any] as CFDictionary
+            guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions) else {
+                return nil
+            }
+            return UIImage(cgImage: cgImage)
         }.value
-    }
-
-    private nonisolated static func normalizedOrientation(of image: UIImage) -> UIImage {
-        guard image.imageOrientation != .up else { return image }
-
-        let size: CGSize
-        switch image.imageOrientation {
-        case .left, .right, .leftMirrored, .rightMirrored:
-            size = CGSize(width: image.size.height, height: image.size.width)
-        default:
-            size = image.size
-        }
-
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = image.scale
-        format.opaque = false
-        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
     }
 
     private nonisolated static func decodedByteCost(of image: UIImage) -> Int {
