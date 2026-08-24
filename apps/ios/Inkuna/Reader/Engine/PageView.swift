@@ -12,6 +12,9 @@ final class PageView: UIView {
 
     var imageProvider: PageImageProvider?
     var onDidDraw: ((UInt32, UInt32) -> Void)?
+    /// Set by the canvas; accessibility link activation enters the same
+    /// page-local path a tap takes.
+    var onLinkActivated: ((UInt32, UInt32, CGFloat, CGFloat) -> Void)?
 
     private var displayList: PageDisplayList?
     private var spineIdx: UInt32?
@@ -165,8 +168,25 @@ final class PageView: UIView {
         context.stroke(rect.insetBy(dx: 0.5, dy: 0.5))
     }
 
+    /// A link block's element: VoiceOver's double-tap (and any other
+    /// activation) reaches the same link path a sighted tap takes.
+    internal func activateLink(_ block: A11yBlock) -> Bool {
+        guard block.isLink, let spineIdx, let pageIdx, let onLinkActivated else { return false }
+        onLinkActivated(
+            spineIdx,
+            pageIdx,
+            CGFloat(block.rect.x + block.rect.width / 2),
+            CGFloat(block.rect.y + block.rect.height / 2)
+        )
+        return true
+    }
+
     private func accessibilityElement(for block: A11yBlock) -> UIAccessibilityElement {
-        let element = UIAccessibilityElement(accessibilityContainer: self)
+        let element = block.isLink
+            ? PageLinkAccessibilityElement(accessibilityContainer: self, activate: { [weak self] in
+                self?.activateLink(block) ?? false
+            })
+            : UIAccessibilityElement(accessibilityContainer: self)
         element.accessibilityFrameInContainerSpace = CGRect(
             x: block.rect.x,
             y: block.rect.y,
@@ -230,5 +250,21 @@ final class PageView: UIView {
             width: size.width,
             height: size.height
         )
+    }
+}
+
+/// An accessibility element for a link block, so VoiceOver's activation
+/// gesture actually follows the link instead of announcing "link" and
+/// doing nothing.
+final class PageLinkAccessibilityElement: UIAccessibilityElement {
+    private let activate: () -> Bool
+
+    init(accessibilityContainer: Any, activate: @escaping () -> Bool) {
+        self.activate = activate
+        super.init(accessibilityContainer: accessibilityContainer)
+    }
+
+    override func accessibilityActivate() -> Bool {
+        activate()
     }
 }

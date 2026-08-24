@@ -95,6 +95,13 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     /// tap — so the chrome can clear before the motion, not after it.
     var onPageTurnGesture: (() -> Void)?
 
+    /// Fired when a programmatic turn (edge tap, key, VoiceOver's scroll
+    /// action) meets a boundary whose neighbor chapter exists but has not
+    /// finished laying out. The host schedules that chapter and completes
+    /// the turn on its readiness event; the geometric direction is passed
+    /// through.
+    var onBoundaryTurnPending: ((CGFloat) -> Void)?
+
     init(surface: ReaderPagerSurface, view: UIView) {
         self.surface = surface
         hostView = view
@@ -244,6 +251,14 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
             guard neighborExists(direction: direction) else {
                 interactionActive = false
                 surface.endPagingInteraction()
+                // The neighbor chapter is there but still laying out: hand
+                // the turn to the host, which parks it and completes it on
+                // that chapter's readiness event rather than refusing a
+                // turn the reader asked for.
+                if neighborInOuterRange(direction: direction), let onBoundaryTurnPending {
+                    onBoundaryTurnPending(direction)
+                    return true
+                }
                 return false
             }
             exitBound = direction > 0 ? innerRange.upperBound : innerRange.lowerBound
@@ -430,6 +445,12 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     private var neighborVerdictRight = 0
     private var neighborVerdictLeft = 0
 
+    /// Whether a neighbor chapter exists on this side of the outer range,
+    /// regardless of how far its layout has got.
+    private func neighborInOuterRange(direction: CGFloat) -> Bool {
+        direction > 0 ? outerRange.upperBound > outerHome : outerRange.lowerBound < outerHome
+    }
+
     /// A neighbor the strip can reveal: one exists in the outer range
     /// *and* it is loaded enough to show — the renderer keeps in-flight
     /// preloads transparent, and dragging one in would slide a blank
@@ -458,6 +479,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     /// one resource per gesture, rubber-banded where there is no
     /// neighbor to reveal or past the neighbor's slot.
     private func applyStrip() {
+        adoptInnerGrowth()
         let innerX = min(max(stripRaw, innerRange.lowerBound), innerRange.upperBound)
         let overflow = stripRaw - innerX
 
@@ -483,6 +505,19 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         boundaryDisplacement = displayed
         surface.setOuterOffset(outerHome + displayed)
         updateHoldLoop()
+    }
+
+    /// A chapter's published page count grows while it lays out. The
+    /// surface only ever reports that growth when no existing offset moves
+    /// (LTR appends past the strip's end; RTL stays frozen until the
+    /// interaction ends), so adopting the taller range here lets the drag
+    /// reach pages published under the finger instead of spilling into a
+    /// chapter crossing. The lower bound and the pitch stay as captured.
+    private func adoptInnerGrowth() {
+        guard let fresh = surface.innerMetrics(),
+              fresh.pageWidth == pageWidth,
+              fresh.range.upperBound > innerRange.upperBound else { return }
+        innerRange = innerRange.lowerBound ... fresh.range.upperBound
     }
 
     private var lastInnerWritten: CGFloat = .nan

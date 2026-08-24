@@ -71,6 +71,9 @@ extension ReaderViewController {
         canvas.onPageDrawn = { [weak self] spineIdx, pageIdx in
             self?.pageDidDraw(spineIdx: spineIdx, pageIdx: pageIdx)
         }
+        canvas.onLinkActivated = { [weak self] spineIdx, pageIdx, x, y in
+            self?.activateLink(spineIdx: spineIdx, pageIdx: pageIdx, x: x, y: y)
+        }
         view.insertSubview(canvas, at: 0)
         let top = canvas.topAnchor.constraint(equalTo: view.topAnchor)
         let bottom = canvas.bottomAnchor.constraint(equalTo: view.bottomAnchor)
@@ -103,6 +106,9 @@ extension ReaderViewController {
         pager.onPageTurnGesture = { [weak self] in
             guard !UIAccessibility.isVoiceOverRunning else { return }
             self?.setChrome(visible: false)
+        }
+        pager.onBoundaryTurnPending = { [weak self] direction in
+            self?.parkBoundaryTurn(direction: direction)
         }
         self.pager = pager
     }

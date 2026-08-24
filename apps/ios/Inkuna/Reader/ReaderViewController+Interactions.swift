@@ -24,6 +24,25 @@ extension ReaderViewController {
         followLink(target)
     }
 
+    /// Accessibility activation of a link block. Its point arrives in the
+    /// core's own page-local space — layout points at 1× with y growing
+    /// downward, straight off `A11yBlock.rect` — which is exactly the space
+    /// `hitTest` takes, so it needs no view-space conversion (unlike
+    /// `handleCanvasTap`, whose point starts out canvas-local).
+    func activateLink(spineIdx: UInt32, pageIdx: UInt32, x: CGFloat, y: CGFloat) {
+        guard let readerSession else { return }
+        guard let hit = try? readerSession.hitTest(
+            spineIdx: spineIdx,
+            pageIdx: pageIdx,
+            x: Double(x),
+            y: Double(y)
+        ), let target = hit.linkTarget else {
+            showLinkNotFollowed()
+            return
+        }
+        followLink(target)
+    }
+
     func followLink(_ target: String) {
         if let url = URL(string: target), let scheme = url.scheme?.lowercased() {
             guard scheme == "http" || scheme == "https" else { showLinkNotFollowed(); return }
@@ -49,6 +68,25 @@ extension ReaderViewController {
         if point.x < band { return .left }
         if point.x > view.bounds.width - band { return .right }
         return nil
+    }
+
+    /// A programmatic turn met a chapter still laying out: park it as a
+    /// jump and let that chapter's layout event complete it. A forward
+    /// crossing needs only the target's first page, so it aims at offset
+    /// 0; a backward crossing needs complete geometry to know the last
+    /// page, which `toChapterEnd` waits for.
+    func parkBoundaryTurn(direction: CGFloat) {
+        guard let surface = pagerSurface else { return }
+        let forward = (direction > 0) != surface.isRightToLeft
+        let target = Int64(surface.spineIdx) + (forward ? 1 : -1)
+        guard target >= 0, target < Int64(surface.spineCount) else { return }
+        let jump = PendingJump(
+            coordinate: Coordinate(spineIdx: UInt32(target), charOffset: forward ? 0 : .max),
+            toChapterEnd: !forward,
+            showChrome: false
+        )
+        do { try attemptJump(jump) }
+        catch { logger.warning("Boundary turn to spine \(target, privacy: .public) failed: \(error)") }
     }
 
     func jump(to coordinate: Coordinate) throws {

@@ -43,6 +43,8 @@ final class EnginePageCanvas: UIView {
 
     var onTap: ((CGPoint) -> Void)?
     var onPageDrawn: ((UInt32, UInt32) -> Void)?
+    /// A page's accessibility link activation, in page-local layout points.
+    var onLinkActivated: ((UInt32, UInt32, CGFloat, CGFloat) -> Void)?
     var selectionCopyHandler: (() -> Void)?
     weak var selectionController: ReaderSelectionController?
     var canCopySelection = false
@@ -236,6 +238,9 @@ final class EnginePageCanvas: UIView {
             view.imageProvider = imageProvider
             view.onDidDraw = { [weak self] spineIdx, pageIdx in
                 self?.onPageDrawn?(spineIdx, pageIdx)
+            }
+            view.onLinkActivated = { [weak self] spineIdx, pageIdx, x, y in
+                self?.onLinkActivated?(spineIdx, pageIdx, x, y)
             }
             addSubview(view)
         }

@@ -162,14 +162,14 @@ final class EnginePagerSurface: ReaderPagerSurface {
         guard pageWidth > 0 else { return nil }
         let count = displayedPageCount()
         rebaseInnerOffset(for: count)
+        // The strip's extent comes from the displayed count, so an
+        // interaction's frozen count also freezes the range it can reach.
+        let end = CGFloat(max(1, count) - 1) * pageWidth
         switch readiness[spineIdx] ?? .empty {
         case let .complete(geometry):
             if let latestGeneration, geometry.generation != latestGeneration { return nil }
-            let end = CGFloat(max(1, geometry.pageCount) - 1) * pageWidth
             return ReaderPagerStrip(offset: innerOffset, range: 0 ... end, pageWidth: pageWidth)
-        case let .partial(publishedPages):
-            let published = max(publishedPages, count)
-            let end = CGFloat(max(1, published) - 1) * pageWidth
+        case .partial:
             return ReaderPagerStrip(
                 offset: innerOffset,
                 range: 0 ... max(innerOffset, end),
@@ -206,12 +206,15 @@ final class EnginePagerSurface: ReaderPagerSurface {
         }
     }
 
+    /// The live outer offset — the exact inverse of `setOuterOffset`, so a
+    /// pager that re-reads it mid-flight sees the boundary displacement
+    /// currently on screen instead of the committed home.
     func outerMetrics() -> ReaderPagerStrip? {
         guard pageWidth > 0 else { return nil }
         let leftExists = neighborSpine(toRight: false) != nil
         let rightExists = neighborSpine(toRight: true) != nil
         return ReaderPagerStrip(
-            offset: pageWidth,
+            offset: pageWidth - outerDisplacement,
             range: (leftExists ? 0 : pageWidth) ... (rightExists ? 2 * pageWidth : pageWidth),
             pageWidth: pageWidth
         )
@@ -341,8 +344,19 @@ final class EnginePagerSurface: ReaderPagerSurface {
         innerOffset += CGFloat(pageCount - scenePageCount) * pageWidth
     }
 
+    /// The strip's page count. During a paging interaction it is frozen so
+    /// layout events cannot remap slots under the finger — except that in
+    /// LTR progression newly published pages append past the strip's end
+    /// without moving any existing offset, so growth is adopted live and a
+    /// drag can reach pages published during it. In RTL, growth would
+    /// rebase every offset; it stays deferred to `endPagingInteraction()`.
     private func displayedPageCount() -> UInt32 {
-        interactionPageCount ?? pageCount(for: spineIdx)
+        guard let frozen = interactionPageCount else { return pageCount(for: spineIdx) }
+        guard !isRightToLeft else { return frozen }
+        let live = pageCount(for: spineIdx)
+        guard live > frozen else { return frozen }
+        interactionPageCount = live
+        return live
     }
 
     private func neighborSpine(toRight: Bool) -> UInt32? {

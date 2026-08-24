@@ -61,13 +61,18 @@ final class SelectionOverlayView: UIView {
         present(rects: rects, accentColor: accentColor)
     }
 
+    /// Core geometry is page coordinates in layout points at 1× with y
+    /// growing downward — the same convention UIKit draws in here, since
+    /// this view's context is never flipped (unlike `PageView.draw`, whose
+    /// flipped CTM its own `pageRect(for:)` cancels). Rects therefore go
+    /// straight through, exactly as the Android sibling scales them.
     private func present(rects: [SelectionRect], accentColor: UIColor) {
         highlightRects = rects.compactMap { selectionRect in
             let rect = selectionRect.rect
             guard rect.width > 0, rect.height > 0 else { return nil }
             let pageLocalRect = CGRect(
                 x: rect.x,
-                y: bounds.height - rect.y - rect.height,
+                y: rect.y,
                 width: rect.width,
                 height: rect.height
             )
