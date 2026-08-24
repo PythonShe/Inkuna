@@ -69,19 +69,23 @@ internal fun ReaderChromeLayer(
     onCloseSearch: () -> Unit,
     viewModel: ReaderViewModel,
 ) {
-    // One position/count snapshot per recomposition: both the page-info
-    // line and the menu percent read it, so the chrome crosses the FFI at
-    // most twice (one positionOf + one positionCount) per pass.
-    val position = anchorState.value?.let { runCatching { book.session.positionOf(it) }.getOrNull() }
-    val positionCount = position?.let { book.session.positionCount() }
+    // The anchor and the position FFI reads live INSIDE the visibility
+    // content lambdas: a hidden footer or closed menu then composes no
+    // reader, so a page turn with the chrome away costs zero recomposition
+    // and zero FFI crossings here. Each visible lambda snapshots the
+    // position once and derives count, page info, and percent from that
+    // single pair — never more than one positionOf + one positionCount
+    // per visible consumer per pass.
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(chromeVisible.value, Modifier.preferredFrameRate(FrameRateCategory.High).align(Alignment.BottomCenter).padding(bottom = navPad + ReaderMetrics.footerLift), fadeIn(tween(240)), fadeOut(tween(240))) {
+            val (position, positionCount) = readerPositionSnapshot(book, anchorState.value)
             Text(readerPageInfo(book, position, positionCount), style = InkType.caption, color = foreground.copy(alpha = 0.55f))
         }
         AnimatedVisibility(chromeVisible.value && !searchOpen.value, Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = statusPad + 6.dp), fadeIn(tween(240)), fadeOut(tween(240))) {
             ReaderGlassButton(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.a11y_back), onBack)
         }
         AnimatedVisibility(menuOpen.value, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = contentBottom + 58.dp), fadeIn(tween(240)) + slideInVertically(tween(240)) { it / 10 }, fadeOut(tween(240)) + slideOutVertically(tween(240)) { it / 10 }) {
+            val (position, positionCount) = readerPositionSnapshot(book, anchorState.value)
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.widthIn(max = 320.dp)) {
                 ReaderMenuPill(text = stringResource(R.string.reader_menu_contents, readerPercent(book, position, positionCount)), icon = Icons.AutoMirrored.Outlined.List, onClick = { menuOpen.value = false; onOpenContents() })
                 ReaderMenuPill(text = stringResource(R.string.reader_menu_theme_type), icon = Icons.Outlined.FormatSize, onClick = { menuOpen.value = false; onOpenThemeType() })
@@ -135,11 +139,17 @@ internal fun readerPageInfo(book: ReaderViewModel.ReaderBook, position: UInt?, c
         stringResource(R.string.reader_percent, readerPercent(book, null, null))
     }
 
-/** Convenience over the snapshot form for callers holding only a coordinate. */
-@Composable
-internal fun readerPageInfo(book: ReaderViewModel.ReaderBook, coordinate: Coordinate?): String {
+/**
+ * The single position/count snapshot a coordinate resolves to: exactly one
+ * positionOf plus one positionCount FFI crossing, from which every consumer
+ * derives page info and percent without crossing again.
+ */
+internal fun readerPositionSnapshot(
+    book: ReaderViewModel.ReaderBook,
+    coordinate: Coordinate?,
+): Pair<UInt?, UInt?> {
     val position = coordinate?.let { runCatching { book.session.positionOf(it) }.getOrNull() }
-    return readerPageInfo(book, position, position?.let { book.session.positionCount() })
+    return position to position?.let { book.session.positionCount() }
 }
 
 internal object ReaderPositionFormat {

@@ -560,12 +560,15 @@ private fun ReaderContent(
         ) { themeSheetOpen = false }
     }
     if (contentsSheetOpen) {
+        // One position/count snapshot feeds both the highlight row and the
+        // header line — two FFI crossings for the whole sheet, not three.
+        val (sheetPosition, sheetCount) = readerPositionSnapshot(book, anchorState.value)
         ContentsSheet(
             publication = book.publication,
             chapters = book.chapters,
             positionRanges = book.positionRanges,
-            currentPosition = anchorState.value?.let { runCatching { book.session.positionOf(it) }.getOrNull() },
-            pageInfo = readerPageInfo(book, anchorState.value),
+            currentPosition = sheetPosition,
+            pageInfo = readerPageInfo(book, sheetPosition, sheetCount),
             onSelect = { chapter ->
                 hostState.value?.let { live ->
                     runCatching { book.session.resolveJump(chapter.href, linkToast = true) }
