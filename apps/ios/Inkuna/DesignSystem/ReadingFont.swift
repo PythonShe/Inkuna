@@ -41,8 +41,8 @@ enum ReadingFont: String, CaseIterable {
     /// surface gets its faces from the engine's registry. `.publisher` has
     /// no knowable face here and stands in with the serif reading face.
     func previewFont(size: CGFloat, bold: Bool) -> UIFont {
-        // The reading surface maps the bold toggle to weight 600.
-        let weight: UIFont.Weight = bold ? .semibold : .regular
+        // The reading surface maps the bold toggle to weight 700.
+        let weight: UIFont.Weight = bold ? .bold : .regular
         switch self {
         case .publisher, .systemSerif:
             let base = UIFont.systemFont(ofSize: size, weight: weight)
@@ -64,11 +64,11 @@ enum ReadingFont: String, CaseIterable {
         let variation = UIFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String)
         let descriptor = UIFontDescriptor(fontAttributes: [
             .name: postScriptName,
-            variation: [0x77676874: bold ? 600 : 400], // 'wght'
+            variation: [0x77676874: bold ? 700 : 400], // 'wght'
         ])
         let font = UIFont(descriptor: descriptor, size: size)
         guard font.fontName.hasPrefix("Noto") else {
-            return .systemFont(ofSize: size, weight: bold ? .semibold : .regular)
+            return .systemFont(ofSize: size, weight: bold ? .bold : .regular)
         }
         return font
     }

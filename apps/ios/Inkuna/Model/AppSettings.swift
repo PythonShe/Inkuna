@@ -251,7 +251,7 @@ final class AppSettings {
         set { mutate { $0.readingFont = newValue } }
     }
 
-    /// Whether body text is forced to weight 600 on the reading surface.
+    /// Whether body text is forced to weight 700 on the reading surface.
     var readingBold: Bool {
         get { record.readingBold }
         set { mutate { $0.readingBold = newValue } }

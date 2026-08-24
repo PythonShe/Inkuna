@@ -66,7 +66,7 @@ class AppSettings private constructor(private val context: Context) {
         /** The stored font id verbatim — round-trips opaquely like
          *  [rawReadingTheme], so a newer install's font choice survives. */
         val rawReadingFont: String = ReadingFont.DEFAULT.id,
-        /** Body text forced to weight 600 on the reading surface. */
+        /** Body text forced to weight 700 on the reading surface. */
         val readingBold: Boolean = false,
         /** Line-height multiplier, [MIN_LINE_SPACING]..[MAX_LINE_SPACING]. */
         val lineSpacing: Float = DEFAULT_LINE_SPACING,

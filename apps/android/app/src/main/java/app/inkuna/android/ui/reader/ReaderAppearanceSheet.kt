@@ -332,7 +332,9 @@ private fun AppearancePreviewCard(
         Text(
             phrase,
             fontFamily = draft.font.composeFamily(publisherFamily),
-            fontWeight = if (draft.bold) FontWeight.SemiBold else FontWeight.Normal,
+            // The engine lays the bold toggle out at weight 700 — the
+            // specimen must match.
+            fontWeight = if (draft.bold) FontWeight.Bold else FontWeight.Normal,
             fontSize = textSizeSp.sp,
             lineHeight = (textSizeSp * draft.lineSpacing).sp,
             letterSpacing = draft.letterSpacing.em,
