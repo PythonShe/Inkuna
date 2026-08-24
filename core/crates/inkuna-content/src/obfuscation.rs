@@ -151,14 +151,20 @@ fn idpf_key(identifier: &str) -> Vec<u8> {
     Sha1::digest(stripped.as_bytes()).to_vec()
 }
 
-/// The Adobe key: the identifier stripped of its `urn:uuid:` prefix,
-/// hyphens, and colons must leave exactly 32 hex digits — the UUID's 16
-/// bytes. Anything else yields no key.
+/// The Adobe key: the identifier stripped of its `urn:uuid:` prefix
+/// (ASCII-case-insensitively — `URN:UUID:` is equally legal, RFC 8141
+/// treats the scheme and NID as case-insensitive), hyphens, and colons
+/// must leave exactly 32 hex digits — the UUID's 16 bytes. Anything
+/// else yields no key.
 fn adobe_key(identifier: &str) -> Option<Vec<u8>> {
-    let cleaned: String = identifier
-        .trim()
-        .strip_prefix("urn:uuid:")
-        .unwrap_or(identifier.trim())
+    let trimmed = identifier.trim();
+    let stripped = match trimmed.get(.."urn:uuid:".len()) {
+        Some(prefix) if prefix.eq_ignore_ascii_case("urn:uuid:") => {
+            &trimmed["urn:uuid:".len()..]
+        }
+        _ => trimmed,
+    };
+    let cleaned: String = stripped
         .chars()
         .filter(|c| !matches!(c, '-' | ':'))
         .collect();

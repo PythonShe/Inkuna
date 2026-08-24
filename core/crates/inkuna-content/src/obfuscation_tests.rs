@@ -150,3 +150,19 @@ fn missing_or_unusable_keys_refuse() {
     ));
     assert_eq!(bytes, untouched, "a refused deobfuscation must not write");
 }
+
+/// C7: the `urn:uuid:` prefix strips ASCII-case-insensitively — RFC
+/// 8141 URNs may spell scheme and NID in any case, and an uppercase
+/// spelling must derive the same Adobe key.
+#[test]
+fn adobe_key_strips_urn_prefix_case_insensitively() {
+    let mut upper = sample_font(64);
+    let mut lower = sample_font(64);
+    assert!(deobfuscate(
+        &mut upper,
+        ObfuscationScheme::Adobe,
+        Some("URN:UUID:12345678-90ab-cdef-1234-567890abcdef")
+    ));
+    assert!(deobfuscate(&mut lower, ObfuscationScheme::Adobe, Some(UUID_ID)));
+    assert_eq!(upper, lower);
+}
