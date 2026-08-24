@@ -222,22 +222,20 @@ extension ReaderViewController {
     }
 
     func tryPresentTarget() {
-        guard let readerSession, let pagerSurface, let targetCoordinate else { return }
-        // Readiness is read BEFORE locating: a partially laid chapter clamps
-        // `locate` to its published prefix, and readiness is monotonic within
-        // a generation — so this decides race-free whether the presentation
-        // can be a clamped page that completion will re-present exactly.
-        let wasReady = readerSession.isReady(spineIdx: targetCoordinate.spineIdx)
-        guard let location = try? readerSession.locate(coordinate: targetCoordinate),
+        guard let readerSession, let pagerSurface, let targetCoordinate,
+              let location = try? readerSession.locate(coordinate: targetCoordinate),
               accept(generation: location.generation) else { return }
+        // The restore's own settle must not clear `relayoutAnchor`: the
+        // anchor stays the restore coordinate itself — clamped or exact —
+        // until the reader actually turns a page. Re-deriving it from the
+        // landed page's start would lose up to a page per layout round
+        // trip, ratcheting repeated appearance toggles back to the chapter
+        // start.
+        presentingRestore = true
         pagerSurface.display(spineIdx: location.spineIdx, pageIdx: location.pageIdx)
+        presentingRestore = false
         loadingIndicator.stopAnimating()
         firstPageReadyAt = firstPageReadyAt ?? Date()
-        // A clamped presentation keeps the anchor: it is still the reader's
-        // logical place, and a relayout captured mid-refinement must anchor
-        // there — not at the clamped page — or repeated appearance toggles
-        // walk the reader back to the chapter start.
-        if wasReady { relayoutAnchor = nil }
     }
 
     func resolveJump(_ chapter: Chapter, linkToast: Bool = false) throws -> PendingJump {
@@ -336,6 +334,9 @@ extension ReaderViewController {
     }
 
     func pageSettled(spineIdx: UInt32, pageIdx: UInt32) {
+        // A settle the reader caused — a page turn, a jump — supersedes any
+        // pinned relayout restore; a restore's own presentation does not.
+        if !presentingRestore { relayoutAnchor = nil }
         guard let readerSession,
               let range = try? readerSession.pageCharRange(spineIdx: spineIdx, pageIdx: pageIdx) else { return }
         let coordinate = Coordinate(spineIdx: spineIdx, charOffset: range.start)

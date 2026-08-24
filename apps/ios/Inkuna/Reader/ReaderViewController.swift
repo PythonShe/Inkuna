@@ -77,6 +77,11 @@ final class ReaderViewController: UIViewController {
     var pendingJump: PendingJump?
     var notedTruncatedChapters: Set<UInt32> = []
     var relayoutAnchor: Coordinate?
+    /// True while a relayout restore is being displayed: the settle it fires
+    /// must not clear `relayoutAnchor` — only a user-initiated settle may,
+    /// or re-deriving the anchor from landed page starts loses up to a page
+    /// per appearance-toggle round trip.
+    var presentingRestore = false
     /// The presented Customize panel, if any — refreshed when a
     /// reflowed page draws so its preview tracks the live faces.
     weak var customizePanel: ReaderCustomizeViewController?

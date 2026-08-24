@@ -286,14 +286,16 @@ private fun ReaderContent(
             display(book.session.locate(jump.coordinate), host, jump.showChrome, jump)
             // Keep a possibly-clamped jump parked so chapter completion
             // re-presents it exactly (a user page turn supersedes it via
-            // onPageSettled). The clamped presentation's settle just adopted
-            // the published-prefix page as the anchor; re-assert the jump's
-            // coordinate as the reader's true place so a relayout captured
-            // before completion anchors there.
-            if (!wasReady) {
-                pendingJump = jump
-                viewModel.restoreAnchor(jump.coordinate)
-            }
+            // onPageSettled).
+            if (!wasReady) pendingJump = jump
+            // The presentation's settle just re-derived the anchor from the
+            // landed page's first character — a coordinate at or before the
+            // jump's. Re-assert the jump's own coordinate: re-deriving from
+            // page starts loses up to a page per layout round trip, so each
+            // appearance-toggle pair would otherwise ratchet the reader one
+            // page back until the chapter start. Only a user page turn may
+            // re-derive the anchor.
+            viewModel.restoreAnchor(jump.coordinate)
         } catch (_: InkunaException.NotReady) {
             pendingJump = jump
             runCatching { book.session.chapter(spineIdx) }
