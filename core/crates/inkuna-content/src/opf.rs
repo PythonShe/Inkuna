@@ -32,6 +32,13 @@ pub const MAX_MANIFEST_ITEMS: usize = 100_000;
 /// href is skipped, degrading exactly like an unresolvable idref.
 pub(crate) const MAX_HREF_BYTES: usize = 4096;
 
+/// Upper bound on `<dc:identifier>` entries retained while resolving the
+/// package's Unique Identifier. Real books declare one to three; a
+/// crafted OPF can list millions, each a heap `String` held until the
+/// walk ends. Extras degrade away silently — only the referenced one
+/// (or the first) is ever used.
+const MAX_IDENTIFIERS: usize = 64;
+
 /// Upper bound on `<dc:creator>` entries retained. Large anthologies
 /// credit a few hundred contributors; a crafted OPF can list millions,
 /// each a heap `String` destined for one joined DB column. Extra
@@ -181,6 +188,13 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
     let mut acc_truncated = false;
     // Only the first `rendition:layout` meta decides the layout.
     let mut rendition_seen = false;
+    // Unique-Identifier resolution: the `package@unique-identifier` idref
+    // plus every retained `(id attribute, value)` pair, matched after the
+    // walk. `identifier_id` holds the id of the identifier currently
+    // being accumulated.
+    let mut unique_id_ref: Option<String> = None;
+    let mut identifiers: Vec<(Option<String>, String)> = Vec::new();
+    let mut identifier_id: Option<String> = None;
     // The package-level declaration is distinct from the reflowable
     // default: only an absent declaration allows the retained spine to
     // determine the publication layout.
@@ -191,9 +205,18 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
             Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
                 let is_empty = matches!(&event, Ok(Event::Empty(_)));
                 match e.local_name().as_ref() {
+                    b"package" => {
+                        if unique_id_ref.is_none() {
+                            unique_id_ref = attr_value(e, b"unique-identifier");
+                        }
+                    }
                     b"title" if !is_empty => current = Some("title"),
                     b"creator" if !is_empty => current = Some("creator"),
                     b"language" if !is_empty => current = Some("language"),
+                    b"identifier" if !is_empty => {
+                        current = Some("identifier");
+                        identifier_id = attr_value(e, b"id");
+                    }
                     b"item" => {
                         if opf.items.len() == MAX_MANIFEST_ITEMS {
                             return Err(ContentError::InvalidPublication(format!(
@@ -294,6 +317,11 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
                             "language" if opf.metadata.language.is_none() => {
                                 opf.metadata.language = Some(text)
                             }
+                            "identifier" => {
+                                if identifiers.len() < MAX_IDENTIFIERS {
+                                    identifiers.push((identifier_id.take(), text));
+                                }
+                            }
                             "rendition:layout" => {
                                 package_layout = Some(if text == "pre-paginated" {
                                     RenditionLayout::PrePaginated
@@ -326,6 +354,17 @@ pub(crate) fn parse_opf(opf_xml: &str) -> Result<Opf, ContentError> {
         buf.clear();
     }
     opf.package_layout = package_layout;
+    // The referenced identifier wins; a dangling (or absent) reference
+    // falls back to the first identifier, which is what obfuscating
+    // tools key against in broken-but-real books.
+    opf.metadata.unique_identifier = unique_id_ref
+        .and_then(|wanted| {
+            identifiers
+                .iter()
+                .find(|(id, _)| id.as_deref() == Some(wanted.as_str()))
+                .map(|(_, value)| value.clone())
+        })
+        .or_else(|| identifiers.first().map(|(_, value)| value.clone()));
     Ok(opf)
 }
 

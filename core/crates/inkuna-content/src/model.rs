@@ -14,6 +14,12 @@ pub struct EpubMetadata {
     pub authors: Vec<String>,
     /// `dc:language` as written (a BCP 47 tag in practice), unvalidated.
     pub language: Option<String>,
+    /// The package's Unique Identifier: the `dc:identifier` whose `id`
+    /// matches `package@unique-identifier`, falling back to the first
+    /// `dc:identifier` when the reference dangles (broken books do
+    /// this). Font deobfuscation derives both standard keys from it;
+    /// `None` only when the OPF declares no identifier at all.
+    pub unique_identifier: Option<String>,
 }
 
 /// One entry of the flattened TOC (EPUB 3 nav doc, or NCX fallback), in
@@ -57,6 +63,34 @@ pub struct SpineItem {
 pub struct ManifestItem {
     pub href: String,
     pub media_type: Option<String>,
+}
+
+impl ManifestItem {
+    /// Whether the declared media type marks this item as an embedded
+    /// font: the EPUB 3 core font types plus the legacy aliases real
+    /// books ship with. Case-insensitive; an absent media type is never
+    /// a font (sniffing is the reader engine's job, not the manifest's).
+    pub fn is_font(&self) -> bool {
+        let Some(media_type) = &self.media_type else {
+            return false;
+        };
+        matches!(
+            media_type.to_ascii_lowercase().as_str(),
+            "font/ttf"
+                | "font/otf"
+                | "font/woff"
+                | "font/woff2"
+                | "font/collection"
+                | "application/font-sfnt"
+                | "application/x-font-ttf"
+                | "application/x-font-otf"
+                | "application/x-font-truetype"
+                | "application/x-font-opentype"
+                | "application/vnd.ms-opentype"
+                | "application/font-woff"
+                | "application/font-woff2"
+        )
+    }
 }
 
 /// The OPF `rendition:layout` property. Anything other than an explicit

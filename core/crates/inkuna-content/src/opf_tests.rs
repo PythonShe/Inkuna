@@ -386,3 +386,39 @@ fn page_progression_rtl_detected() {
     .unwrap();
     assert!(!ltr.page_progression_rtl);
 }
+
+/// The Unique Identifier is the `dc:identifier` the package's
+/// `unique-identifier` attribute references; a dangling reference falls
+/// back to the first identifier, and no identifier at all yields `None`.
+#[test]
+fn unique_identifier_resolution() {
+    let referenced = r#"<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="isbn">urn:isbn:9780000000001</dc:identifier>
+    <dc:identifier id="pub-id">urn:uuid:12345678-90ab-cdef-1234-567890abcdef</dc:identifier>
+    <dc:title>T</dc:title>
+  </metadata>
+  <manifest/><spine/>
+</package>"#;
+    let opf = parse_opf(referenced).unwrap();
+    assert_eq!(
+        opf.metadata.unique_identifier.as_deref(),
+        Some("urn:uuid:12345678-90ab-cdef-1234-567890abcdef")
+    );
+
+    let dangling = referenced.replace("unique-identifier=\"pub-id\"", "unique-identifier=\"nope\"");
+    let opf = parse_opf(&dangling).unwrap();
+    assert_eq!(
+        opf.metadata.unique_identifier.as_deref(),
+        Some("urn:isbn:9780000000001"),
+        "a dangling reference falls back to the first identifier"
+    );
+
+    let none = r#"<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>T</dc:title></metadata>
+  <manifest/><spine/>
+</package>"#;
+    assert_eq!(parse_opf(none).unwrap().metadata.unique_identifier, None);
+}

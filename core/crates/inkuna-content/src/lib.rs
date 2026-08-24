@@ -15,6 +15,7 @@ mod cover;
 mod error;
 mod href;
 mod model;
+mod obfuscation;
 mod opf;
 mod package;
 mod toc;
@@ -29,6 +30,7 @@ pub use href::{resolve_href, resolve_relative, split_fragment};
 pub use model::{
     Cover, EpubMetadata, EpubPackage, ManifestItem, RenditionLayout, SpineItem, TocEntry,
 };
+pub use obfuscation::{deobfuscate, read_obfuscations, ObfuscatedResource, ObfuscationScheme};
 pub use opf::{MAX_MANIFEST_ITEMS, MAX_METADATA_VALUE_BYTES, MAX_SPINE_ITEMS};
 pub use package::read_package;
 pub use toc::{MAX_TOC_ENTRIES, MAX_TOC_TOTAL_BYTES};
