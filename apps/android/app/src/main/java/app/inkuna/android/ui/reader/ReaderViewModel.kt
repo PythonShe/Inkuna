@@ -118,6 +118,7 @@ class ReaderViewModel(
     private var sessionId: String? = null
     private val writeLock = Mutex()
     private val relayoutLock = Mutex()
+    private val writeTailLock = Any()
     private var writeTail: Job? = null
     private val pendingProgress = MutableStateFlow<PendingProgress?>(null)
     private var lastPersisted: Coordinate? = null
@@ -471,9 +472,12 @@ class ReaderViewModel(
         }
     }
 
-    private fun enqueueCoreWrite(block: suspend () -> Unit): Job {
+    // Callers span Main.immediate and Default dispatchers, so the tail swap
+    // must be an atomic read-launch-store or two writes can chain off the
+    // same predecessor and run concurrently.
+    private fun enqueueCoreWrite(block: suspend () -> Unit): Job = synchronized(writeTailLock) {
         val previous = writeTail
-        return LibraryStore.writes.launch {
+        LibraryStore.writes.launch {
             previous?.join()
             withContext(NonCancellable) { block() }
         }.also { writeTail = it }
