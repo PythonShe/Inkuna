@@ -141,6 +141,7 @@ extension ReaderViewController {
         pager.onBoundaryTurnPending = { [weak self] direction in
             self?.parkBoundaryTurn(direction: direction)
         }
+        pager.yieldToSystemBackGesture(navigationController?.interactivePopGestureRecognizer)
         self.pager = pager
     }
 

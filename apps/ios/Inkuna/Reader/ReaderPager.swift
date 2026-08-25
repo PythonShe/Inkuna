@@ -144,6 +144,20 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         self.pan = pan
     }
 
+    /// The navigation stack's interactive-pop recognizer, once handed
+    /// over: the screen's left edge belongs to it alone.
+    private weak var systemBackGesture: UIGestureRecognizer?
+
+    /// Hands the left screen edge to the system back gesture: the pan
+    /// waits for it to fail before claiming a drag, so an edge-back swipe
+    /// never doubles as a backward page turn. Touches away from the edge
+    /// fail it immediately, so page turns keep their responsiveness.
+    func yieldToSystemBackGesture(_ recognizer: UIGestureRecognizer?) {
+        guard let recognizer, let pan else { return }
+        systemBackGesture = recognizer
+        pan.require(toFail: recognizer)
+    }
+
     /// Cancels any live interaction and puts the strips back on their
     /// committed alignment — for rotation and teardown, where the
     /// renderer's own re-layout takes over.
@@ -270,7 +284,12 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
         _ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
     ) -> Bool {
-        true
+        // Everything coexists except the pan and the system back gesture:
+        // one finger must never both pop the reader and turn its page.
+        // (The touch observer stays permissive — it begins on every
+        // touch-down, and an exclusive answer there would block the back
+        // gesture entirely.)
+        gestureRecognizer !== pan || otherGestureRecognizer !== systemBackGesture
     }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
