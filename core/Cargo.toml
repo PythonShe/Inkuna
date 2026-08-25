@@ -16,7 +16,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 # A MINIMUM, not an exact pin: cargo only errors when rustc is OLDER than
 # this, and says nothing when it is newer. So this does not and cannot
