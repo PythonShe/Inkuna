@@ -82,6 +82,12 @@ final class ReaderViewController: UIViewController {
     /// or re-deriving the anchor from landed page starts loses up to a page
     /// per appearance-toggle round trip.
     var presentingRestore = false
+    /// True from open/relayout until the reader genuinely settles somewhere:
+    /// the window in which layout events for the target's chapter may
+    /// (re-)present `targetCoordinate`. Once the reader turns a page, the
+    /// restore is spent — a later re-lay of that chapter (cache eviction
+    /// during boundary crossings) must not teleport the reader back to it.
+    var restorePending = false
     /// The presented Customize panel, if any — refreshed when a
     /// reflowed page draws so its preview tracks the live faces.
     weak var customizePanel: ReaderCustomizeViewController?

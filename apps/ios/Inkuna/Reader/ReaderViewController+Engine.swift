@@ -74,6 +74,7 @@ extension ReaderViewController {
             if let targetCoordinate {
                 _ = try? reader.page(spineIdx: targetCoordinate.spineIdx, pageIdx: 0)
             }
+            restorePending = targetCoordinate != nil
             tryPresentTarget()
             fetchChapters()
             let events = pendingEvents
@@ -180,6 +181,7 @@ extension ReaderViewController {
             pagerSurface?.chapterFailed(generation: generation, spineIdx: spineIdx)
             let pendingJumpTargetsSpine = pendingJump?.coordinate.spineIdx == spineIdx
             if spineIdx == targetCoordinate?.spineIdx || pendingJumpTargetsSpine {
+                pager?.cancelInteraction()
                 pagerSurface?.display(spineIdx: spineIdx, pageIdx: 0)
                 loadingIndicator.stopAnimating()
                 // Terminal for the restore too: the chapter it anchored in
@@ -222,9 +224,18 @@ extension ReaderViewController {
     }
 
     func tryPresentTarget() {
+        // A spent restore must stay spent: the target's chapter re-lays
+        // whenever cache eviction cycles it out and back (routine while
+        // crossing chapter boundaries near it), and its readiness events
+        // land here again. Without this gate they would teleport the
+        // reader back to the restore coordinate mid-read.
+        guard restorePending else { return }
         guard let readerSession, let pagerSurface, let targetCoordinate,
               let location = try? readerSession.locate(coordinate: targetCoordinate),
               accept(generation: location.generation) else { return }
+        // The presentation is a hard re-position; a page turn still in
+        // flight would keep writing strip offsets over it.
+        pager?.cancelInteraction()
         // The restore's own settle must not clear `relayoutAnchor`: the
         // anchor stays the restore coordinate itself — clamped or exact —
         // until the reader actually turns a page. Re-deriving it from the
@@ -336,10 +347,16 @@ extension ReaderViewController {
     func pageSettled(spineIdx: UInt32, pageIdx: UInt32) {
         // A settle the reader caused — a page turn, a jump — supersedes any
         // pinned relayout restore; a restore's own presentation does not.
-        if !presentingRestore { relayoutAnchor = nil }
+        if !presentingRestore {
+            relayoutAnchor = nil
+            restorePending = false
+        }
         guard let readerSession,
               let range = try? readerSession.pageCharRange(spineIdx: spineIdx, pageIdx: pageIdx) else { return }
         let coordinate = Coordinate(spineIdx: spineIdx, charOffset: range.start)
+        // Track the settled place so a relayout with no derivable anchor
+        // falls back here, never to the long-superseded open coordinate.
+        if !presentingRestore { targetCoordinate = coordinate }
         updatePageInfo()
         if announcePageWhenSettled {
             announcePageWhenSettled = false
@@ -388,6 +405,7 @@ extension ReaderViewController {
         do {
             try await readerSession.updateLayout(viewport: viewport(), settings: layoutSettings())
             targetCoordinate = relayoutAnchor ?? targetCoordinate
+            restorePending = targetCoordinate != nil
             pagerSurface?.layoutInvalidated(generation: 0)
             layoutChangeInFlight = false
             let events = pendingEvents

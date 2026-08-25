@@ -360,6 +360,11 @@ private fun ReaderContent(
                     if (parked?.linkToast == true) notifyLinkFailed()
                 }
                 if (jumpSpine == event.spineIdx || targetSpine == event.spineIdx || anchorState.value?.spineIdx == event.spineIdx) {
+                    // The placeholder presentation is a hard re-position; a
+                    // page turn still in flight would keep writing strip
+                    // offsets over it.
+                    host.selection.clear()
+                    host.layout.cancelInteraction()
                     host.surface.display(event.spineIdx, 0u)
                 }
             }
