@@ -558,24 +558,23 @@ private fun ReaderContent(
     }
 
     if (themeSheetOpen) {
-        // The Publisher roster entry previews in the face the page is
-        // actually read in: the dominant glyph-run face of the current
-        // page, resolved through the primed font store. Re-sampled on
-        // layout events and font-store builds, so a fresh Publisher pick
-        // settles onto the embedded face once the reflow lands.
+        // The preview card renders in the face the page is actually read
+        // in: the dominant glyph-run face of the current page, resolved
+        // through the primed font store. Re-sampled on layout events and
+        // font-store builds, so any fresh pick settles onto its real face
+        // once the reflow lands. The roster's Publisher specimen shows it
+        // only while Publisher is the applied pick — for any other pick
+        // the live face would misrepresent what Publisher will read in.
         var layoutTick by remember(book) { mutableIntStateOf(0) }
         LaunchedEffect(book) { viewModel.layoutEvents.collect { layoutTick += 1 } }
-        val publisherFamily = if (snapshot.readingFont == ReadingFont.Publisher) {
-            remember(book, layoutTick, fontRevision, anchorState.value) {
-                publisherReadingFamily(book.session, hostState.value)
-            }
-        } else {
-            null
+        val liveFamily = remember(book, layoutTick, fontRevision, anchorState.value) {
+            liveReadingFamily(book.session, hostState.value)
         }
         ThemeTypeSheet(
             snapshot,
             settings,
-            publisherFamily = publisherFamily,
+            liveFamily = liveFamily,
+            publisherFamily = if (snapshot.readingFont == ReadingFont.Publisher) liveFamily else null,
             onBrightnessPreview = { brightnessPreview = it },
         ) { themeSheetOpen = false }
     }

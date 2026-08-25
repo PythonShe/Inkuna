@@ -12,9 +12,9 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     var onCommit: (() -> Void)?
     /// Close (not back): dismiss the whole sheet to the reader.
     var onClose: (() -> Void)?
-    /// The reader's sampled publisher reading face, for the preview
-    /// card (nil falls back to the serif stand-in).
-    var publisherFontProvider: ((CGFloat) -> CTFont?)?
+    /// The reader's sampled live reading face, for the preview card
+    /// (nil falls back to `previewFont`'s stand-in).
+    var readingFontProvider: ((CGFloat) -> CTFont?)?
 
     var sheetDetents: [UISheetPresentationController.Detent] { [.large()] }
     var preferredDetentIdentifier: UISheetPresentationController.Detent.Identifier? { .large }
@@ -117,8 +117,8 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
             textSize: textSize,
             phrase: fallbackPhrase
         )
-        card.publisherFontProvider = { [weak self] size in
-            self?.publisherFontProvider?(size)
+        card.readingFontProvider = { [weak self] size in
+            self?.readingFontProvider?(size)
         }
         previewCard = card
         stack.addArrangedSubview(card)

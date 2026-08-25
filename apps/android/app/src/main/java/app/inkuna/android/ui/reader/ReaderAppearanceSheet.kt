@@ -89,6 +89,7 @@ import kotlin.math.roundToInt
 internal fun CustomizePanel(
     snapshot: AppSettings.Snapshot,
     settings: AppSettings,
+    liveFamily: FontFamily?,
     publisherFamily: FontFamily?,
     onBack: () -> Unit,
     onClose: () -> Unit,
@@ -134,6 +135,7 @@ internal fun CustomizePanel(
                 theme = snapshot.readingTheme,
                 textSizeSp = AppSettings.TEXT_SIZE_STEPS[snapshot.textSizeStep],
                 draft = draft,
+                liveFamily = liveFamily,
                 publisherFamily = publisherFamily,
             )
             Spacer(Modifier.height(InkSpace.s5))
@@ -313,6 +315,7 @@ private fun AppearancePreviewCard(
     theme: ReadingTheme,
     textSizeSp: Float,
     draft: ReaderTypeDraft,
+    liveFamily: FontFamily?,
     publisherFamily: FontFamily?,
 ) {
     val a11yPreview = stringResource(R.string.a11y_preview_sample)
@@ -331,7 +334,12 @@ private fun AppearancePreviewCard(
     ) {
         Text(
             phrase,
-            fontFamily = draft.font.composeFamily(publisherFamily),
+            // The sampled live face is the honest specimen for every
+            // roster entry — a pick reflows immediately, and Compose
+            // stand-ins cannot reach the engine's faces (a CJK page reads
+            // in Noto CJK, not in a Latin family's system fallback). The
+            // stand-in covers the frames before the reflow's sample lands.
+            fontFamily = liveFamily ?: draft.font.composeFamily(publisherFamily),
             // The engine lays the bold toggle out at weight 700 — the
             // specimen must match.
             fontWeight = if (draft.bold) FontWeight.Bold else FontWeight.Normal,

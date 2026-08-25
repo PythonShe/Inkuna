@@ -11,11 +11,14 @@ final class ReaderPreviewCard: UIView {
         didSet { render() }
     }
 
-    /// The live session's face for the Publisher roster entry, sampled
-    /// from the page being read (see the reader's provider). `nil` —
-    /// no session, page not laid out yet — falls back to the serif
-    /// stand-in of `ReadingFont.previewFont`.
-    var publisherFontProvider: ((CGFloat) -> CTFont?)?
+    /// The live session's reading face, sampled from the page being read
+    /// (see the reader's provider). A font pick reflows the page
+    /// immediately, so the sample is the honest specimen for every roster
+    /// entry — UIKit stand-ins cannot reach the engine's faces (on a CJK
+    /// page every stand-in cascades to the same PingFang glyphs). `nil` —
+    /// no session, page not laid out yet — falls back to
+    /// `ReadingFont.previewFont`'s stand-in.
+    var readingFontProvider: ((CGFloat) -> CTFont?)?
 
     private let theme: ReadingTheme
     private let textSize: ReadingTextSize
@@ -63,15 +66,15 @@ final class ReaderPreviewCard: UIView {
         paragraph.maximumLineHeight = size * settings.lineSpacing
         paragraph.lineBreakMode = .byTruncatingTail
 
-        // CTFont is toll-free bridged to UIFont, so a sampled publisher
+        // CTFont is toll-free bridged to UIFont, so a sampled reading
         // face drops straight into the attribute dictionary. Bold applies
-        // over the sampled family exactly as the layout does — a face with
-        // no bold counterpart keeps the sample unmodified.
-        let font: Any = if settings.readingFont == .publisher,
-            let publisher = publisherFontProvider?(size) {
+        // over the sampled family exactly as the layout does — a face
+        // already at 700, or one with no bold counterpart, keeps the
+        // sample unmodified.
+        let font: Any = if let live = readingFontProvider?(size) {
             settings.readingBold
-                ? (CTFontCreateCopyWithSymbolicTraits(publisher, 0, nil, .traitBold, .traitBold) ?? publisher)
-                : publisher
+                ? (CTFontCreateCopyWithSymbolicTraits(live, 0, nil, .traitBold, .traitBold) ?? live)
+                : live
         } else {
             settings.readingFont.previewFont(size: size, bold: settings.readingBold)
         }

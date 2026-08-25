@@ -288,23 +288,25 @@ extension ReaderViewController {
             Task { @MainActor in await self?.relayout(anchor: self?.relayoutAnchor) }
         }
         panel.onClose = { [weak self] in self?.presentedViewController?.dismiss(animated: true) }
-        panel.publisherFontProvider = { [weak self] size in self?.publisherReadingFont(size: size) }
+        panel.readingFontProvider = { [weak self] size in self?.liveReadingFont(size: size) }
         customizePanel = panel
         return panel
     }
 
-    /// The face the Publisher roster entry actually reads in: the
+    /// The face the reading surface actually uses right now: the
     /// dominant glyph-run face of the current page, resolved through
     /// the session's primed font store. Sampling the live display list
-    /// is the one honest source — which embedded face carries the body
-    /// depends on the publication's own CSS. `nil` (page not laid out,
-    /// image-only page) leaves the preview on its serif stand-in.
-    func publisherReadingFont(size: CGFloat) -> CTFont? {
-        guard AppSettings.shared.readingFont == .publisher,
-              let readerSession, let surface = pagerSurface else { return nil }
+    /// is the one honest source for every roster entry, not just
+    /// Publisher — a font pick reflows immediately, and the engine's
+    /// faces are ones UIKit stand-ins cannot mimic (on a CJK page,
+    /// SF/New York/Latin Noto all cascade to the same PingFang glyphs
+    /// while the page reads in Noto CJK). `nil` (page not laid out,
+    /// image-only page) leaves the preview on `previewFont`'s stand-in.
+    func liveReadingFont(size: CGFloat) -> CTFont? {
+        guard let readerSession, let surface = pagerSurface else { return nil }
         let generation = readerSession.generation()
         let dominant: UInt32?
-        if let sample = publisherFontSample,
+        if let sample = readingFontSample,
            sample.spineIdx == surface.spineIdx,
            sample.pageIdx == surface.pageIdx,
            sample.generation == generation {
@@ -323,7 +325,7 @@ extension ReaderViewController {
             dominant = glyphCounts.max(by: {
                 ($0.value, $1.key) < ($1.value, $0.key)
             })?.key
-            publisherFontSample = (surface.spineIdx, surface.pageIdx, generation, dominant)
+            readingFontSample = (surface.spineIdx, surface.pageIdx, generation, dominant)
         }
         guard let dominant else { return nil }
         return ReaderFontStore.shared.font(id: dominant, size: size, owner: readerSession)

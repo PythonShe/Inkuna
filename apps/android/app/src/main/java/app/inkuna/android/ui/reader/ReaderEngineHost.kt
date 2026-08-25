@@ -68,14 +68,16 @@ internal fun ReaderSession.resolveJump(href: String, linkToast: Boolean = false)
 }
 
 /**
- * The face the `publisher` roster entry actually reads in: the dominant
+ * The face the reading surface actually uses right now: the dominant
  * glyph-run face of the current page, resolved through the session's
  * primed [ReaderFontStore]. Sampling the live display list is the one
- * honest source — which embedded face carries the body depends on the
- * publication's own CSS. Null (page not published yet, image-only page,
- * store not primed) keeps the preview on its serif stand-in.
+ * honest source for every roster entry, not just Publisher — a font pick
+ * reflows immediately, and the engine's faces are ones Compose stand-ins
+ * cannot reach (on a CJK page a custom Latin family falls back to the
+ * system's sans CJK whatever the pick). Null (page not published yet,
+ * image-only page, store not primed) keeps the preview on its stand-in.
  */
-internal fun publisherReadingFamily(
+internal fun liveReadingFamily(
     session: ReaderSession,
     host: EngineHost?,
 ): ComposeFontFamily? {

@@ -91,12 +91,12 @@ final class ReaderViewController: UIViewController {
     /// The presented Customize panel, if any — refreshed when a
     /// reflowed page draws so its preview tracks the live faces.
     weak var customizePanel: ReaderCustomizeViewController?
-    /// Memoized Publisher-face sample: the dominant font id of one laid-out
+    /// Memoized reading-face sample: the dominant font id of one laid-out
     /// page. Marshalling a page's whole display list across the FFI is not
     /// free, and every draw of the current page re-samples while Customize
     /// is open — a published page is immutable within its generation, so
     /// one sample per (spine, page, generation) is enough.
-    var publisherFontSample: (spineIdx: UInt32, pageIdx: UInt32, generation: UInt64, fontID: UInt32?)?
+    var readingFontSample: (spineIdx: UInt32, pageIdx: UInt32, generation: UInt64, fontID: UInt32?)?
     var pendingEvents: [LayoutEvent] = []
     var layoutChangeInFlight = false
     var didLogFirstRender = false

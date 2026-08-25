@@ -144,6 +144,7 @@ private enum class ThemeSheetPage { ThemeType, Customize }
 fun ThemeTypeSheet(
     snapshot: AppSettings.Snapshot,
     settings: AppSettings,
+    liveFamily: FontFamily?,
     publisherFamily: FontFamily?,
     onBrightnessPreview: (Float) -> Unit,
     onDismiss: () -> Unit,
@@ -256,6 +257,7 @@ fun ThemeTypeSheet(
                         CustomizePanel(
                             snapshot = snapshot,
                             settings = settings,
+                            liveFamily = liveFamily,
                             publisherFamily = publisherFamily,
                             onBack = { page = ThemeSheetPage.ThemeType },
                         onClose = dismiss,
