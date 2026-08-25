@@ -83,6 +83,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setHaptics(on: Boolean) {
+        settings.setHaptics(on)
+    }
+
     /** Call only with notification permission in hand when [on]; the
      *  sheet owns the permission request. */
     fun setEveningReminder(on: Boolean) {

@@ -12,11 +12,15 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
@@ -51,6 +55,11 @@ private object Routes {
         val base = "reader/${Uri.encode(publicationId)}"
         return if (chapterHref == null) base else "$base?chapter=${Uri.encode(chapterHref)}"
     }
+}
+
+/** What LocalHapticFeedback resolves to while the haptics setting is off. */
+private object SilentHaptics : HapticFeedback {
+    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {}
 }
 
 object ReaderPerf {
@@ -104,6 +113,12 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
         val nav = rememberNavController()
         val pageEasing = InkMotion.easePage
 
+        // The haptics toggle, applied once at the root: every composable
+        // that fires feedback reads LocalHapticFeedback, so swapping in a
+        // silent implementation here turns them all off together (the
+        // reader's one View-layer haptic checks the setting itself).
+        val haptics = if (snapshot.haptics) LocalHapticFeedback.current else SilentHaptics
+        CompositionLocalProvider(LocalHapticFeedback provides haptics) {
         NavHost(
             navController = nav,
             startDestination = if (initial.onboarded) Routes.MAIN else Routes.WELCOME,
@@ -188,6 +203,7 @@ fun InkunaApp(settings: AppSettings, initial: AppSettings.Snapshot) {
                     onBack = { nav.popBackStack() },
                 )
             }
+        }
         }
     }
 }

@@ -28,6 +28,8 @@ pub struct Settings {
     pub word_spacing: f64,
     /// Horizontal page margins in CSS px (16..=48).
     pub reading_margins: u16,
+    /// Whether UI haptic feedback is enabled; firing haptics is shell work.
+    pub haptics: bool,
 }
 
 impl From<inkuna_core::Settings> for Settings {
@@ -47,6 +49,7 @@ impl From<inkuna_core::Settings> for Settings {
             letter_spacing: s.letter_spacing,
             word_spacing: s.word_spacing,
             reading_margins: s.reading_margins,
+            haptics: s.haptics,
         }
     }
 }
@@ -68,6 +71,7 @@ impl From<Settings> for inkuna_core::Settings {
             letter_spacing: s.letter_spacing,
             word_spacing: s.word_spacing,
             reading_margins: s.reading_margins,
+            haptics: s.haptics,
         }
     }
 }

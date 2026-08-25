@@ -142,7 +142,7 @@ fn v8_migrates_from_v7() {
     }
 
     let mut conn = super::open_connection(&db_path).unwrap();
-    super::migrate(&mut conn, &data_dir).unwrap();
+    super::migrate::migrate_to(&mut conn, &data_dir, 8).unwrap();
     let version: i64 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
@@ -191,7 +191,7 @@ fn v8_migrates_from_v7() {
 }
 
 #[test]
-fn v8_fresh_install() {
+fn fresh_install_reaches_latest_schema() {
     let dir = tempfile::tempdir().unwrap();
     let data_dir = dir.path().join("library");
     std::fs::create_dir_all(&data_dir).unwrap();
@@ -201,7 +201,7 @@ fn v8_fresh_install() {
     let version: i64 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 8);
+    assert_eq!(version, super::migrate::SCHEMA_VERSION);
     // The coordinate columns are queryable on a fresh install.
     conn.query_row(
         "SELECT COUNT(position_spine_idx) FROM publications",
@@ -209,6 +209,35 @@ fn v8_fresh_install() {
         |row| row.get::<_, i64>(0),
     )
     .unwrap();
+}
+
+/// A v8 database — settings row included — gains the haptics column with
+/// haptics on, the default every install so far has lived with.
+#[test]
+fn v9_migrates_from_v8() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, 8).unwrap();
+        conn.execute("UPDATE settings SET reading_theme = 'moon'", [])
+            .unwrap();
+    }
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+    let (theme, haptics): (String, bool) = conn
+        .query_row(
+            "SELECT reading_theme, haptics FROM settings WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(theme, "moon");
+    assert!(haptics);
 }
 
 /// A panic inside pooled work must not consume the connection. UniFFI

@@ -76,6 +76,8 @@ class AppSettings private constructor(private val context: Context) {
         val wordSpacing: Float = 0f,
         /** Horizontal page margins in CSS px inside the reading WebView. */
         val readingMargins: Int = DEFAULT_READING_MARGINS,
+        /** Whether UI haptic feedback fires anywhere in the app. */
+        val haptics: Boolean = true,
     )
 
     private val _snapshot = MutableStateFlow(Snapshot())
@@ -195,6 +197,9 @@ class AppSettings private constructor(private val context: Context) {
     fun setReadingMargins(value: Int) =
         update { it.copy(readingMargins = value.coerceIn(MIN_READING_MARGINS, MAX_READING_MARGINS)) }
 
+    fun setHaptics(value: Boolean) =
+        update { it.copy(haptics = value) }
+
     /** Resets only the Customize six — never text size, theme, or
      *  brightness — in one record write. */
     fun setReadingAppearanceDefaults() = update {
@@ -277,6 +282,7 @@ class AppSettings private constructor(private val context: Context) {
         letterSpacing = letterSpacing.toFloat().coerceIn(0f, MAX_LETTER_SPACING),
         wordSpacing = wordSpacing.toFloat().coerceIn(0f, MAX_WORD_SPACING),
         readingMargins = readingMargins.toInt().coerceIn(MIN_READING_MARGINS, MAX_READING_MARGINS),
+        haptics = haptics,
     )
 
     private fun Snapshot.toRecord() = Settings(
@@ -294,6 +300,7 @@ class AppSettings private constructor(private val context: Context) {
         letterSpacing = letterSpacing.toDouble(),
         wordSpacing = wordSpacing.toDouble(),
         readingMargins = readingMargins.toUShort(),
+        haptics = haptics,
     )
 
     private object LegacyKeys {

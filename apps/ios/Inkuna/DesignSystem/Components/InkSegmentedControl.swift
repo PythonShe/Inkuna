@@ -78,7 +78,7 @@ final class InkSegmentedControl: UIControl {
             segment.setNeedsUpdateConfiguration()
         }
         if notify {
-            selectionFeedback.selectionChanged()
+            if AppSettings.shared.hapticsEnabled { selectionFeedback.selectionChanged() }
             selectionFeedback.prepare()
             onSelectIndex?(index)
             onChange?(options[index])

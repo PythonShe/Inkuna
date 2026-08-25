@@ -168,7 +168,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
         boldToggle.accessibilityLabel = String(localized: "a11y_bold_text", defaultValue: "Bold text")
         boldToggle.addAction(UIAction { [weak self] action in
             guard let self, let toggle = action.sender as? UISwitch else { return }
-            self.selectionFeedback.selectionChanged()
+            if AppSettings.shared.hapticsEnabled { self.selectionFeedback.selectionChanged() }
             AppSettings.shared.readingBold = toggle.isOn
             self.commitStyle()
         }, for: .valueChanged)
@@ -205,7 +205,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     /// build does not know reads back as `.notoSerif`, and an explicit
     /// pick is the one thing allowed to overwrite it.
     private func pickFont(_ font: ReadingFont) {
-        selectionFeedback.selectionChanged()
+        if AppSettings.shared.hapticsEnabled { selectionFeedback.selectionChanged() }
         AppSettings.shared.readingFontID = font.rawValue
         setFontDisplay(font)
         commitStyle()
@@ -350,7 +350,7 @@ final class ReaderCustomizeViewController: UIViewController, ReaderSheetPage {
     }
 
     private func resetToDefaults() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if AppSettings.shared.hapticsEnabled { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
         AppSettings.shared.resetReadingCustomization()
         // Rebuild the controls to the fresh values in place.
         boldSwitch?.setOn(false, animated: true)

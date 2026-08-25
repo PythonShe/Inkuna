@@ -91,7 +91,7 @@ final class ThemeTypeSheetViewController: UIViewController, ReaderSheetPage {
             let tile = ThemeTileButton(theme: theme, chosen: theme == settings.readingTheme)
             tile.onPick = { [weak self] picked in
                 guard let self else { return }
-                self.selectionFeedback.selectionChanged()
+                if AppSettings.shared.hapticsEnabled { self.selectionFeedback.selectionChanged() }
                 for tile in self.tiles {
                     tile.isChosen = tile.theme == picked
                 }
@@ -196,7 +196,7 @@ final class ThemeTypeSheetViewController: UIViewController, ReaderSheetPage {
     private func step(_ delta: Int) {
         guard let next = ReadingTextSize(rawValue: textSize.rawValue + delta) else { return }
         textSize = next
-        selectionFeedback.selectionChanged()
+        if AppSettings.shared.hapticsEnabled { selectionFeedback.selectionChanged() }
         updateStepperState()
         onSizeChange?(next)
     }

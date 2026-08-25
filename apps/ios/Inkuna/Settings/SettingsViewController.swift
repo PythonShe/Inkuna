@@ -21,6 +21,7 @@ final class SettingsViewController: UIViewController {
     private var reminderTimeRow = UIView()
     private var reminderTimeSeparator = UIView()
     private let nightSwitch = UISwitch()
+    private let hapticsSwitch = UISwitch()
     private let selectionFeedback = UISelectionFeedbackGenerator()
 
     init() {
@@ -159,6 +160,10 @@ final class SettingsViewController: UIViewController {
         nightSwitch.isOn = settings.readingTheme.isNight
         nightSwitch.addAction(UIAction { [weak self] _ in self?.nightToggled() }, for: .valueChanged)
 
+        hapticsSwitch.onTintColor = InkColor.accentFill
+        hapticsSwitch.isOn = settings.hapticsEnabled
+        hapticsSwitch.addAction(UIAction { [weak self] _ in self?.hapticsToggled() }, for: .valueChanged)
+
         reminderTimePicker.datePickerMode = .time
         reminderTimePicker.preferredDatePickerStyle = .compact
         reminderTimePicker.tintColor = InkColor.accentText
@@ -198,6 +203,12 @@ final class SettingsViewController: UIViewController {
                 title: String(localized: "settings_night", defaultValue: "Night mode"),
                 subtitle: ReadingTheme.moon.subtitle,
                 trailing: nightSwitch
+            ),
+            settingRow(
+                symbol: "iphone.radiowaves.left.and.right",
+                title: String(localized: "settings_haptics", defaultValue: "Haptic feedback"),
+                subtitle: String(localized: "settings_haptics_sub", defaultValue: "Gentle taps for controls and page turns"),
+                trailing: hapticsSwitch
             ),
         ])
         contentStack.addArrangedSubview(group)
@@ -256,7 +267,7 @@ final class SettingsViewController: UIViewController {
             AppSettings.shared.eveningReminder = false
         }
         setReminderTimeVisible(reminderSwitch.isOn)
-        selectionFeedback.selectionChanged()
+        if AppSettings.shared.hapticsEnabled { selectionFeedback.selectionChanged() }
     }
 
     /// Schedules — or, after a time change, reschedules — the reminder at
@@ -322,12 +333,19 @@ final class SettingsViewController: UIViewController {
         ) ?? Date()
     }
 
+    private func hapticsToggled() {
+        AppSettings.shared.hapticsEnabled = hapticsSwitch.isOn
+        // Behind the site gate this ticks once on enable and stays
+        // silent on disable — exactly the confirmation each deserves.
+        if AppSettings.shared.hapticsEnabled { selectionFeedback.selectionChanged() }
+    }
+
     /// The theme flip queued behind the switch's own thumb animation;
     /// cancelled and re-queued when the switch is flipped again first.
     private var pendingNightFlip: DispatchWorkItem?
 
     private func nightToggled() {
-        selectionFeedback.selectionChanged()
+        if AppSettings.shared.hapticsEnabled { selectionFeedback.selectionChanged() }
         let night = nightSwitch.isOn
         // The canonical day/night pair from onboarding: the switch flips
         // between Paper and Moon, exactly like the design's toggle. The

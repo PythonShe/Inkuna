@@ -103,6 +103,7 @@ enum ImportFeedback {
     }
 
     private static func haptic(for report: ImportReport) {
+        guard AppSettings.shared.hapticsEnabled else { return }
         let generator = UINotificationFeedbackGenerator()
         if !report.failures.isEmpty {
             generator.notificationOccurred(.error)

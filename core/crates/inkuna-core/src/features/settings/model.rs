@@ -78,6 +78,9 @@ pub struct Settings {
     /// Horizontal page margins in CSS px,
     /// [`MIN_READING_MARGINS`]..=[`MAX_READING_MARGINS`].
     pub reading_margins: u16,
+    /// Whether UI haptic feedback is enabled. Firing haptics is shell
+    /// work; the core only remembers the choice.
+    pub haptics: bool,
 }
 
 impl Default for Settings {
@@ -97,6 +100,7 @@ impl Default for Settings {
             letter_spacing: 0.0,
             word_spacing: 0.0,
             reading_margins: DEFAULT_READING_MARGINS,
+            haptics: true,
         }
     }
 }

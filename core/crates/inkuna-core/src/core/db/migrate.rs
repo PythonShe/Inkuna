@@ -15,7 +15,7 @@ use rusqlite::{Connection, Transaction};
 use crate::core::files::copy_and_hash_unbounded;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 8;
+pub(crate) const SCHEMA_VERSION: i64 = 9;
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -174,6 +174,13 @@ ALTER TABLE bookmarks    ADD COLUMN position_spine_idx   INTEGER;
 ALTER TABLE bookmarks    ADD COLUMN position_char_offset INTEGER;
 ";
 
+// 0009: app-wide haptic feedback preference. On by default — every install
+// so far has had haptics — and firing them stays shell work; the core only
+// remembers the choice.
+const V9_SQL: &str = "
+ALTER TABLE settings ADD COLUMN haptics INTEGER NOT NULL DEFAULT 1;
+";
+
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
     migrate_upto(conn, data_dir, SCHEMA_VERSION)
 }
@@ -210,6 +217,7 @@ fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(
             5 => tx.execute_batch(V6_SQL)?,
             6 => tx.execute_batch(V7_SQL)?,
             7 => tx.execute_batch(V8_SQL)?,
+            8 => tx.execute_batch(V9_SQL)?,
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }

@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">A quiet nudge at your reading hour</string>
     <string name="settings_reminder_time">Reminder time</string>
     <string name="settings_night">Night mode</string>
+    <string name="settings_haptics">Haptic feedback</string>
+    <string name="settings_haptics_sub">Gentle taps for controls and page turns</string>
     <string name="settings_account_settings">Account settings</string>
     <string name="settings_edit_name">Username</string>
     <string name="settings_edit_email">Email</string>

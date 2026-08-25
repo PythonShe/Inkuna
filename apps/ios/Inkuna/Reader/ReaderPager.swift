@@ -632,7 +632,7 @@ final class ReaderPager: NSObject, UIGestureRecognizerDelegate {
     private func crossBoundary(direction: CGFloat, velocity: CGFloat) -> Bool {
         let travelled = min(abs(boundaryDisplacement), pageWidth)
         guard surface.commitBoundaryCrossing(toRight: direction > 0) else { return false }
-        boundaryHaptic.impactOccurred(intensity: 0.7)
+        if AppSettings.shared.hapticsEnabled { boundaryHaptic.impactOccurred(intensity: 0.7) }
         guard let inner = surface.innerMetrics(), let outer = surface.outerMetrics(),
               inner.pageWidth > 0 else {
             // No strip to glide on after the relabel (a generation flipped

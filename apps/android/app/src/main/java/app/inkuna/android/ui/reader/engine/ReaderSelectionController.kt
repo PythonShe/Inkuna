@@ -26,6 +26,10 @@ class ReaderSelectionController(
     private val session: ReaderSession,
     private val canvas: EnginePageCanvas,
     private val surface: EnginePagerSurface,
+    /** Read at fire time — the app-settings haptic toggle, which Compose
+     *  sites get from the root's LocalHapticFeedback override; this View
+     *  layer checks it directly. */
+    private val hapticsEnabled: () -> Boolean,
 ) {
     private data class ActiveSelection(
         val spineIdx: UInt,
@@ -83,7 +87,7 @@ class ReaderSelectionController(
             if (rects.isEmpty()) return
             active = ActiveSelection(spineIdx, pageIdx, pageRange, word)
             overlay.show(rects, canvas.palette.link)
-            canvas.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            if (hapticsEnabled()) canvas.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             presentActionMode()
         } catch (_: InkunaException) {
             // Published geometry can be invalidated between down and long press.

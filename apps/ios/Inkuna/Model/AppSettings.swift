@@ -28,7 +28,8 @@ final class AppSettings {
         lineSpacing: 1.65,
         letterSpacing: 0,
         wordSpacing: 0,
-        readingMargins: 26
+        readingMargins: 26,
+        haptics: true
     )
 
     /// Whether `record` reflects the stored settings. Stays false when the
@@ -294,6 +295,14 @@ final class AppSettings {
             $0.wordSpacing = 0
             $0.readingMargins = 26
         }
+    }
+
+    /// Whether UI haptic feedback fires anywhere in the app. Every call
+    /// site checks this at the moment it would fire, so the toggle needs
+    /// no fan-out.
+    var hapticsEnabled: Bool {
+        get { record.haptics }
+        set { mutate { $0.haptics = newValue } }
     }
 
     /// Display name of the purely local account; empty means "not set".

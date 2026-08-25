@@ -221,7 +221,7 @@ extension ReaderViewController {
             InkToastView.show(symbol: "bookmark.slash", text: String(localized: "reader_bookmark_empty", defaultValue: "Nothing to bookmark yet."), in: view, topInset: view.safeAreaInsets.top + 56)
             return
         }
-        bookmarkFeedback.impactOccurred()
+        if AppSettings.shared.hapticsEnabled { bookmarkFeedback.impactOccurred() }
         Task { [weak self, id = publication.id, logger] in
             do {
                 let shelf = try await LibraryStore.shared.library()

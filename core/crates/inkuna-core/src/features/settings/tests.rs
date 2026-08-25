@@ -32,6 +32,7 @@ fn defaults_clamping_and_roundtrip() {
             letter_spacing: 1.0,
             word_spacing: -2.0,
             reading_margins: 500,
+            haptics: false,
         })
         .unwrap();
     let stored = library.settings().unwrap();
@@ -92,6 +93,7 @@ fn a_missing_settings_row_reads_as_defaults_and_is_restored_on_write() {
             letter_spacing: 0.02,
             word_spacing: 0.1,
             reading_margins: 40,
+            haptics: false,
         })
         .unwrap();
 
@@ -110,4 +112,5 @@ fn a_missing_settings_row_reads_as_defaults_and_is_restored_on_write() {
     assert_eq!(stored.letter_spacing, 0.02);
     assert_eq!(stored.word_spacing, 0.1);
     assert_eq!(stored.reading_margins, 40);
+    assert!(!stored.haptics);
 }

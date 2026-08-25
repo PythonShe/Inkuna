@@ -449,7 +449,9 @@ private fun ReaderContent(
             factory = { viewContext ->
                 val canvas = EnginePageCanvas(viewContext).apply { palette = PagePalette.from(snapshot.readingTheme) }
                 val surface = EnginePagerSurface(book.session, canvas).apply { spineCount = book.spineCount }
-                val selection = ReaderSelectionController(book.session, canvas, surface)
+                val selection = ReaderSelectionController(book.session, canvas, surface) {
+                    settings.snapshot.value.haptics
+                }
                 val layout = ReaderPagerLayout(viewContext).apply {
                     addView(canvas, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
                     bind(surface)

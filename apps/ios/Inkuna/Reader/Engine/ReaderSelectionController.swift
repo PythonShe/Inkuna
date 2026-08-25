@@ -141,7 +141,7 @@ final class ReaderSelectionController: NSObject, @MainActor UIEditMenuInteractio
             )
             canvas.bringSubviewToFront(overlay)
             overlay.show(rects: rects, accentColor: selectionAccent)
-            selectionFeedback.impactOccurred()
+            if AppSettings.shared.hapticsEnabled { selectionFeedback.impactOccurred() }
             presentMenu()
         } catch {
             // Geometry calls are cache-only. A not-ready page is simply not selectable yet.

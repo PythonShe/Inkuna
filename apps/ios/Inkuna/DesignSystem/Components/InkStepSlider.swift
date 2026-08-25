@@ -109,7 +109,7 @@ final class InkStepSlider: UIControl {
         guard index != lastIndex else { return }
         lastIndex = index
         value = snappedValue
-        feedback.selectionChanged()
+        if AppSettings.shared.hapticsEnabled { feedback.selectionChanged() }
         renderValue()
         onPreview?(snappedValue)
     }

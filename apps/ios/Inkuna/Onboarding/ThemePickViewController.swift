@@ -70,7 +70,7 @@ final class ThemePickViewController: UIViewController {
     }
 
     private func pick(_ theme: ReadingTheme) {
-        selectionFeedback.selectionChanged()
+        if AppSettings.shared.hapticsEnabled { selectionFeedback.selectionChanged() }
         AppSettings.shared.readingTheme = theme
         refreshSelection()
     }

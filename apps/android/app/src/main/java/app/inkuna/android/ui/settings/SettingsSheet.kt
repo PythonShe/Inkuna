@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Vibration
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -211,6 +212,14 @@ fun SettingsSheet(
                         pendingNight = on
                         model.setNightModeDeferred(on)
                     },
+                )
+                GroupHairline()
+                ToggleRow(
+                    icon = { Icon(Icons.Outlined.Vibration, null, tint = ink.textSecondary) },
+                    title = stringResource(R.string.settings_haptics),
+                    subtitle = stringResource(R.string.settings_haptics_sub),
+                    checked = snapshot.haptics,
+                    onCheckedChange = { on -> model.setHaptics(on) },
                 )
                 // TODO(accounts): the design's "Redeem a code" row needs a
                 // redemption backend; the account is purely local today.
