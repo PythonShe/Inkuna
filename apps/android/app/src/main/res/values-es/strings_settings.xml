@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">Un aviso discreto a tu hora de lectura</string>
     <string name="settings_reminder_time">Hora del recordatorio</string>
     <string name="settings_night">Modo noche</string>
+    <string name="settings_haptics">Respuesta háptica</string>
+    <string name="settings_haptics_sub">Toques suaves para controles y cambio de página</string>
     <string name="settings_account_settings">Ajustes de la cuenta</string>
     <string name="settings_edit_name">Nombre de usuario</string>
     <string name="settings_edit_email">Correo electrónico</string>

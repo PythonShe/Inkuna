@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">読書の時間をそっとお知らせ</string>
     <string name="settings_reminder_time">リマインダーの時刻</string>
     <string name="settings_night">ナイトモード</string>
+    <string name="settings_haptics">触覚フィードバック</string>
+    <string name="settings_haptics_sub">操作やページめくりの際にそっと伝わる振動</string>
     <string name="settings_account_settings">アカウント設定</string>
     <string name="settings_edit_name">ユーザー名</string>
     <string name="settings_edit_email">メールアドレス</string>

@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">Lời nhắc nhẹ nhàng vào giờ đọc sách của bạn</string>
     <string name="settings_reminder_time">Giờ nhắc nhở</string>
     <string name="settings_night">Chế độ ban đêm</string>
+    <string name="settings_haptics">Phản hồi xúc giác</string>
+    <string name="settings_haptics_sub">Rung nhẹ khi thao tác và lật trang</string>
     <string name="settings_account_settings">Cài đặt tài khoản</string>
     <string name="settings_edit_name">Tên người dùng</string>
     <string name="settings_edit_email">Email</string>

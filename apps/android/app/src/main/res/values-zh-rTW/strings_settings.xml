@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">在你的閱讀時刻輕聲提醒</string>
     <string name="settings_reminder_time">提醒時間</string>
     <string name="settings_night">夜間模式</string>
+    <string name="settings_haptics">觸覺回饋</string>
+    <string name="settings_haptics_sub">控制項與翻頁時的輕微觸感</string>
     <string name="settings_account_settings">帳戶設定</string>
     <string name="settings_edit_name">使用者名稱</string>
     <string name="settings_edit_email">電子郵件</string>

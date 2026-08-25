@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">Um toque discreto na sua hora de leitura</string>
     <string name="settings_reminder_time">Horário do lembrete</string>
     <string name="settings_night">Modo noturno</string>
+    <string name="settings_haptics">Resposta tátil</string>
+    <string name="settings_haptics_sub">Toques suaves para controles e viradas de página</string>
     <string name="settings_account_settings">Ajustes da conta</string>
     <string name="settings_edit_name">Nome de usuário</string>
     <string name="settings_edit_email">E-mail</string>

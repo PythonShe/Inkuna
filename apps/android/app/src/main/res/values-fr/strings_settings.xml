@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">Un discret rappel à l’heure de votre lecture</string>
     <string name="settings_reminder_time">Heure du rappel</string>
     <string name="settings_night">Mode nuit</string>
+    <string name="settings_haptics">Retour haptique</string>
+    <string name="settings_haptics_sub">De légères vibrations pour les commandes et le changement de page</string>
     <string name="settings_account_settings">Réglages du compte</string>
     <string name="settings_edit_name">Nom d’utilisateur</string>
     <string name="settings_edit_email">E-mail</string>

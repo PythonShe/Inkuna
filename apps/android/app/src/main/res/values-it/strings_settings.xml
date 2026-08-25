@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">Un discreto invito all’ora della lettura</string>
     <string name="settings_reminder_time">Orario del promemoria</string>
     <string name="settings_night">Modalità notte</string>
+    <string name="settings_haptics">Feedback aptico</string>
+    <string name="settings_haptics_sub">Lievi vibrazioni per i controlli e il cambio di pagina</string>
     <string name="settings_account_settings">Impostazioni account</string>
     <string name="settings_edit_name">Nome utente</string>
     <string name="settings_edit_email">E-mail</string>

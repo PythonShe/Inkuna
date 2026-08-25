@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">Eine leise Erinnerung zu Ihrer Lesestunde</string>
     <string name="settings_reminder_time">Erinnerungszeit</string>
     <string name="settings_night">Nachtmodus</string>
+    <string name="settings_haptics">Haptisches Feedback</string>
+    <string name="settings_haptics_sub">Sanfte Vibrationen für Steuerelemente und beim Umblättern</string>
     <string name="settings_account_settings">Kontoeinstellungen</string>
     <string name="settings_edit_name">Benutzername</string>
     <string name="settings_edit_email">E-Mail</string>

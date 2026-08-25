@@ -12,6 +12,8 @@
     <string name="settings_reminder_sub">เตือนเบา ๆ เมื่อถึงเวลาอ่านหนังสือ</string>
     <string name="settings_reminder_time">เวลาแจ้งเตือน</string>
     <string name="settings_night">โหมดกลางคืน</string>
+    <string name="settings_haptics">การสั่นตอบสนอง</string>
+    <string name="settings_haptics_sub">การสั่นเบา ๆ เมื่อใช้ส่วนควบคุมและเปลี่ยนหน้า</string>
     <string name="settings_account_settings">การตั้งค่าบัญชี</string>
     <string name="settings_edit_name">ชื่อผู้ใช้</string>
     <string name="settings_edit_email">อีเมล</string>
