@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Konto</string>
+    <string name="settings_local_account">Na tym urządzeniu</string>
+    <string name="settings_default_name">Czytelnik</string>
+    <string name="settings_preferences">Preferencje</string>
+    <string name="settings_reminder">Wieczorne przypomnienie</string>
+    <string name="settings_reminder_sub">Dyskretne przypomnienie o Twojej porze na czytanie</string>
+    <string name="settings_reminder_time">Czas przypomnienia</string>
+    <string name="settings_night">Tryb nocny</string>
+    <string name="settings_haptics">Reakcje haptyczne</string>
+    <string name="settings_haptics_sub">Delikatne wibracje przy sterowaniu i przewracaniu stron</string>
+    <string name="settings_account_settings">Ustawienia konta</string>
+    <string name="settings_edit_name">Nazwa użytkownika</string>
+    <string name="settings_edit_email">E-mail</string>
+    <string name="settings_save">Zapisz</string>
+    <string name="settings_cancel">Anuluj</string>
+    <string name="settings_about">O programie Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · atrament, światło księżyca i ciche strony</string>
+    <string name="settings_reminder_notif_title">Wieczorne czytanie</string>
+    <string name="settings_reminder_notif_body">Twoja książka czeka. Czas na chwilę spokoju z lekturą?</string>
+    <string name="settings_notif_channel">Przypomnienia o czytaniu</string>
+    <string name="settings_updates">Aktualizacje aplikacji</string>
+    <string name="settings_update_current">Wersja %1$s</string>
+    <string name="settings_update_check">Sprawdź</string>
+    <string name="settings_update_checking">Sprawdzanie…</string>
+    <string name="settings_update_uptodate">Aplikacja jest aktualna</string>
+    <string name="settings_update_available">Wersja %1$s jest gotowa</string>
+    <string name="settings_update_get">Aktualizuj</string>
+    <string name="settings_update_failed">Nie udało się sprawdzić aktualizacji</string>
+    <string name="settings_update_downloading">Pobieranie… %1$d%%</string>
+    <string name="settings_update_installing">Instalowanie…</string>
+    <string name="settings_update_download_failed">Nie udało się pobrać aktualizacji</string>
+    <string name="settings_update_install_failed">Nie udało się zainstalować aktualizacji</string>
+</resources>

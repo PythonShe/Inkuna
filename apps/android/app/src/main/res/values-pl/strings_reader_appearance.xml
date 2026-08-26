@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_customize">Dostosuj</string>
+    <string name="reader_type_section">Typografia</string>
+    <string name="reader_layout_section">Układ</string>
+    <string name="reader_font">Czcionka</string>
+    <string name="reader_font_publisher">Domyślna wydawcy</string>
+    <string name="reader_font_system_serif">Szeryfowa systemowa</string>
+    <string name="reader_font_system_sans">Bezszeryfowa systemowa</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Pogrubiony tekst</string>
+    <string name="reader_line_spacing">Interlinia</string>
+    <string name="reader_letter_spacing">Odstępy między literami</string>
+    <string name="reader_word_spacing">Odstępy między słowami</string>
+    <string name="reader_margins">Marginesy</string>
+    <string name="reader_reset_defaults">Przywróć domyślne</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">Spokojne godziny należą do czytelnika.</string>
+    <string name="a11y_customize_appearance">Dostosuj typografię i układ</string>
+    <string name="a11y_back_to_theme_type">Wróć do motywu i typografii</string>
+    <string name="a11y_bold_text">Pogrubiony tekst</string>
+    <string name="a11y_line_spacing">Interlinia</string>
+    <string name="a11y_letter_spacing">Odstępy między literami</string>
+    <string name="a11y_word_spacing">Odstępy między słowami</string>
+    <string name="a11y_margins">Marginesy strony</string>
+    <string name="a11y_reset_defaults">Przywróć domyślną typografię i układ</string>
+    <string name="a11y_preview_sample">Podgląd</string>
+</resources>

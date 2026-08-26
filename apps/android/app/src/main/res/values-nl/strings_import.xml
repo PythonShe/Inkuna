@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="import_add_books">Boeken toevoegen</string>
+    <string name="import_empty_title">Nog niets op de plank</string>
+    <string name="import_empty_body">Voeg een boek toe uit uw bestanden en het zal hier op u wachten.</string>
+    <string name="import_empty_footnote">Nu beschikbaar voor EPUB, MOBI, AZW3 en TXT. Strips volgen binnenkort.</string>
+    <string name="import_empty_action">Voeg uw eerste boek toe</string>
+    <string name="a11y_import_add_books">Boeken toevoegen aan uw bibliotheek</string>
+    <string name="import_progress_eyebrow">Toevoegen aan uw bibliotheek</string>
+    <string name="import_phase_preparing">Bestand voorbereiden…</string>
+    <string name="import_phase_copying">Bestand kopiëren</string>
+    <string name="import_phase_reading">Boek inlezen</string>
+    <string name="import_progress_count">%1$d van %2$d</string>
+    <string name="import_cancel">Annuleren</string>
+    <string name="a11y_import_progress">Importeren, %1$d van %2$d</string>
+    <string name="import_done">Gereed</string>
+    <string name="import_result_cancelled">Importeren gestopt</string>
+    <string name="import_result_nothing">Niets toegevoegd</string>
+    <string name="import_result_already">Al in uw bibliotheek</string>
+    <plurals name="import_result_added">
+        <item quantity="one">1 boek toegevoegd</item>
+        <item quantity="other">%d boeken toegevoegd</item>
+    </plurals>
+    <string name="import_section_added">Toegevoegd</string>
+    <string name="import_section_duplicates">Al in uw bibliotheek</string>
+    <string name="import_section_failures">Niet toegevoegd</string>
+    <string name="import_unknown_author">Onbekende auteur</string>
+    <string name="import_unnamed_file">Dit bestand</string>
+    <string name="import_fail_unsupported">%1$s-bestanden worden nog niet ondersteund — Inkuna leest momenteel EPUB, MOBI, AZW3 en TXT.</string>
+    <string name="import_fail_unknown_format">Inkuna kon niet bepalen wat voor bestand dit is.</string>
+    <string name="import_fail_broken">Dit boek kan niet worden geopend. Het is mogelijk onvolledig of beveiligd met DRM, wat Inkuna niet ondersteunt.</string>
+    <string name="import_fail_archive">Het bestand is beschadigd en kon niet worden geopend.</string>
+    <string name="import_fail_too_large">Dit bestand is te groot voor Inkuna om toe te voegen.</string>
+    <string name="import_fail_unreadable">Dit bestand kon niet worden gelezen.</string>
+    <string name="import_fail_library">Er kon niet naar uw bibliotheek worden geschreven.</string>
+    <string name="import_intent_label">Toevoegen aan Inkuna</string>
+    <string name="import_intent_open_library">Bibliotheek openen</string>
+    <string name="import_intent_nothing">Er was niets om toe te voegen.</string>
+    <string name="import_dismiss">OK</string>
+    <string name="import_fail_library_unavailable">Uw bibliotheek kon niet worden geopend, dus er is niets toegevoegd.</string>
+    <string name="import_fail_not_found">Het boek is tijdens het importeren verdwenen uit de bibliotheek.</string>
+    <string name="import_fail_storage">Het bestand kon niet worden gelezen. Controleer of het nog beschikbaar is en of er voldoende opslagruimte is.</string>
+    <string name="import_fail_unknown">Er is iets misgegaan: %1$s</string>
+    <string name="import_fail_unsupported_generic">Dit is geen boekbestand dat door Inkuna wordt herkend.</string>
+    <string name="import_format_cbr">CBR-stripboek</string>
+    <string name="import_format_cbz">CBZ-stripboek</string>
+    <string name="import_format_plain_text">Platte tekst</string>
+    <string name="import_progress_title_many">%1$s toevoegen aan uw bibliotheek</string>
+    <string name="import_progress_title_one">Toevoegen aan uw bibliotheek</string>
+    <string name="import_status_added">Toegevoegd aan uw bibliotheek</string>
+    <string name="import_status_duplicate">Al in uw bibliotheek</string>
+    <string name="import_subtitle_cancelled">u heeft de rest geannuleerd</string>
+    <string name="import_subtitle_duplicate_many">%1$d stonden al in uw bibliotheek</string>
+    <string name="import_subtitle_duplicate_one">1 stond al in uw bibliotheek</string>
+    <string name="import_subtitle_failure_many">%1$d konden niet worden toegevoegd</string>
+    <string name="import_subtitle_failure_one">1 kon niet worden toegevoegd</string>
+    <string name="import_toast_added_one">%1$s toegevoegd</string>
+    <string name="import_toast_already">%1$s staat al in uw bibliotheek</string>
+    <string name="import_toast_could_not_add">Kon %1$s niet toevoegen</string>
+    <plurals name="import_books_count">
+        <item quantity="one">1 boek</item>
+        <item quantity="other">%d boeken</item>
+    </plurals>
+</resources>

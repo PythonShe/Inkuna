@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_customize">Aanpassen</string>
+    <string name="reader_type_section">Typografie</string>
+    <string name="reader_layout_section">Lay-out</string>
+    <string name="reader_font">Lettertype</string>
+    <string name="reader_font_publisher">Standaard van uitgever</string>
+    <string name="reader_font_system_serif">Systeem-serif</string>
+    <string name="reader_font_system_sans">Systeem-sans</string>
+    <string name="reader_font_noto_serif">Noto Serif</string>
+    <string name="reader_font_noto_sans">Noto Sans</string>
+    <string name="reader_bold_text">Vette tekst</string>
+    <string name="reader_line_spacing">Regelafstand</string>
+    <string name="reader_letter_spacing">Letterspatiëring</string>
+    <string name="reader_word_spacing">Woordspatiëring</string>
+    <string name="reader_margins">Marges</string>
+    <string name="reader_reset_defaults">Standaardwaarden herstellen</string>
+    <string name="reader_value_px">%1$s px</string>
+    <string name="reader_preview_fallback">De rustige uren zijn voor de lezer.</string>
+    <string name="a11y_customize_appearance">Typografie en lay-out aanpassen</string>
+    <string name="a11y_back_to_theme_type">Terug naar thema en typografie</string>
+    <string name="a11y_bold_text">Vette tekst</string>
+    <string name="a11y_line_spacing">Regelafstand</string>
+    <string name="a11y_letter_spacing">Letterspatiëring</string>
+    <string name="a11y_word_spacing">Woordspatiëring</string>
+    <string name="a11y_margins">Paginamarges</string>
+    <string name="a11y_reset_defaults">Typografie en lay-out herstellen naar standaardwaarden</string>
+    <string name="a11y_preview_sample">Voorvertoning</string>
+</resources>

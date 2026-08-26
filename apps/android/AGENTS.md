@@ -52,7 +52,7 @@ signing.
 
 ## 3. Quality Bar
 
-- CJK audiences are primary: the app ships 14 languages and per-app language
+- CJK audiences are primary: the app ships 16 languages and per-app language
   selection is wired (`res/xml/locales_config.xml`, referenced by
   `android:localeConfig` in the manifest). All user-visible strings go to
   `strings.xml` resources, with each translation in a sibling

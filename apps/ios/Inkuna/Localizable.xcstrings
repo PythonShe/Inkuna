@@ -87,6 +87,18 @@
             "state": "translated",
             "value": "Inkuna"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna"
+          }
         }
       }
     },
@@ -175,6 +187,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Autor desconhecido"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nieznany autor"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onbekende auteur"
           }
         }
       }
@@ -265,6 +289,18 @@
             "state": "translated",
             "value": "Voltar"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wstecz"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terug"
+          }
         }
       }
     },
@@ -353,6 +389,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fechar"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zamknij"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sluiten"
           }
         }
       }
@@ -443,6 +491,18 @@
             "state": "translated",
             "value": "Um leitor de livros minimalista e elegante."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przejrzysty, minimalistyczny czytnik książek."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Een overzichtelijke, minimalistische e-reader."
+          }
         }
       }
     },
@@ -531,6 +591,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Começar"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rozpocznij"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beginnen"
           }
         }
       }
@@ -621,6 +693,18 @@
             "state": "translated",
             "value": "Aparência"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wygląd"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weergave"
+          }
         }
       }
     },
@@ -709,6 +793,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Leia de dia ou de noite"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Czytaj za dnia lub w nocy"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lees overdag of 's nachts"
           }
         }
       }
@@ -799,6 +895,18 @@
             "state": "translated",
             "value": "A luz diminui e a lua ilumina a página."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lampa przygasła, a księżyc przejął zadanie oświetlania strony."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De lamp brandde zacht en de maan nam het verlichten van de bladzijde over."
+          }
         }
       }
     },
@@ -887,6 +995,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Você pode mudar isso a qualquer momento durante a leitura."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Możesz to zmienić w każdej chwili podczas czytania."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U kunt dit tijdens het lezen op elk gewenst moment wijzigen."
           }
         }
       }
@@ -977,6 +1097,18 @@
             "state": "translated",
             "value": "Continuar"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalej"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doorgaan"
+          }
         }
       }
     },
@@ -1065,6 +1197,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Papel"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Papier"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Papier"
           }
         }
       }
@@ -1155,6 +1299,18 @@
             "state": "translated",
             "value": "Ideal para o dia"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ciepłe światło dnia"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warm daglicht"
+          }
         }
       }
     },
@@ -1243,6 +1399,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Calma"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spokój"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rust"
           }
         }
       }
@@ -1333,6 +1501,18 @@
             "state": "translated",
             "value": "Pergaminho suave"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delikatny pergamin"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zacht perkament"
+          }
         }
       }
     },
@@ -1421,6 +1601,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Silêncio"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cisza"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stilte"
           }
         }
       }
@@ -1511,6 +1703,18 @@
             "state": "translated",
             "value": "Grafite escuro"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ciemny grafit"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zacht grafiet"
+          }
         }
       }
     },
@@ -1599,6 +1803,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lua"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Księżyc"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maan"
           }
         }
       }
@@ -1689,6 +1905,18 @@
             "state": "translated",
             "value": "Ideal para a noite"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Światło lampy na późne godziny"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lamplicht voor de late uren"
+          }
         }
       }
     },
@@ -1777,6 +2005,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esta noite"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dziś wieczorem"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vanavond"
           }
         }
       }
@@ -1867,6 +2107,18 @@
             "state": "translated",
             "value": "Biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biblioteka"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliotheek"
+          }
         }
       }
     },
@@ -1955,6 +2207,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Busca"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Szukaj"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoeken"
           }
         }
       }
@@ -2045,6 +2309,18 @@
             "state": "translated",
             "value": "Estatísticas"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statystyki"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistieken"
+          }
         }
       }
     },
@@ -2133,6 +2409,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esta noite"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dziś wieczorem"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vanavond"
           }
         }
       }
@@ -2223,6 +2511,18 @@
             "state": "translated",
             "value": "Continue de onde parou"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wróć do czytania"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verdergaan waar u gebleven was"
+          }
         }
       }
     },
@@ -2311,6 +2611,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Faltam quinze páginas neste capítulo"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pozostało piętnaście stron w tym rozdziale"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog vijftien pagina's in dit hoofdstuk"
           }
         }
       }
@@ -2539,6 +2851,54 @@
               }
             }
           }
+        },
+        "pl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Pozostała %lld strona w tym rozdziale"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Pozostały %lld strony w tym rozdziale"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Pozostało %lld stron w tym rozdziale"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Pozostało %lld stron w tym rozdziale"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Nog %lld pagina in dit hoofdstuk"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Nog %lld pagina's in dit hoofdstuk"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -2627,6 +2987,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld%% lido"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przeczytano %lld%%"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% gelezen"
           }
         }
       }
@@ -2717,6 +3089,18 @@
             "state": "translated",
             "value": "Continuar lendo"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Czytaj dalej"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verder lezen"
+          }
         }
       }
     },
@@ -2805,6 +3189,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Para ler"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do przeczytania"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog te lezen"
           }
         }
       }
@@ -2895,6 +3291,18 @@
             "state": "translated",
             "value": "Ficção"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fikcja"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fictie"
+          }
         }
       }
     },
@@ -2983,6 +3391,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ensaios"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eseje"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Essays"
           }
         }
       }
@@ -3073,6 +3493,18 @@
             "state": "translated",
             "value": "Leituras noturnas"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nocne czytanie"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachtlectuur"
+          }
         }
       }
     },
@@ -3161,6 +3593,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Biblioteca"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biblioteka"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliotheek"
           }
         }
       }
@@ -3251,6 +3695,18 @@
             "state": "translated",
             "value": "Buscar na sua biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Szukaj w bibliotece"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoek in uw bibliotheek"
+          }
         }
       }
     },
@@ -3339,6 +3795,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lendo"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Czytane"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bezig"
           }
         }
       }
@@ -3429,6 +3897,18 @@
             "state": "translated",
             "value": "Concluídos"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przeczytane"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gelezen"
+          }
         }
       }
     },
@@ -3517,6 +3997,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lista de desejos"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do przeczytania"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verlanglijst"
           }
         }
       }
@@ -3607,6 +4099,18 @@
             "state": "translated",
             "value": "Nenhum livro concluído ainda."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brak przeczytanych książek."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog geen uitgelezen boeken."
+          }
         }
       }
     },
@@ -3695,6 +4199,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ainda não há livros na sua lista de desejos."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brak książek na liście życzeń."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog geen boeken op uw verlanglijst."
           }
         }
       }
@@ -3785,6 +4301,18 @@
             "state": "translated",
             "value": "Nenhum livro encontrado."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie znaleziono pasujących książek."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen overeenkomende boeken gevonden."
+          }
         }
       }
     },
@@ -3873,6 +4401,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nada por aqui ainda."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeszcze nic tu nie ma."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog niets hier."
           }
         }
       }
@@ -3963,6 +4503,18 @@
             "state": "translated",
             "value": "Nada por aqui ainda."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeszcze nic tu nie ma."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog niets hier."
+          }
         }
       }
     },
@@ -4051,6 +4603,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não foi possível abrir a biblioteca."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się otworzyć biblioteki."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De bibliotheek kon niet worden geopend."
           }
         }
       }
@@ -4141,6 +4705,18 @@
             "state": "translated",
             "value": "Busca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Szukaj"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoeken"
+          }
         }
       }
     },
@@ -4229,6 +4805,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Títulos, autores"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tytuły, autorzy"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titels, auteurs"
           }
         }
       }
@@ -4319,6 +4907,18 @@
             "state": "translated",
             "value": "Adicionados recentemente"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ostatnio dodane"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onlangs toegevoegd"
+          }
         }
       }
     },
@@ -4407,6 +5007,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nos seus livros"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "W Twoich książkach"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In uw boeken"
           }
         }
       }
@@ -4497,6 +5109,18 @@
             "state": "translated",
             "value": "Estatísticas de leitura"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statystyki czytania"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leesstatistieken"
+          }
         }
       }
     },
@@ -4585,6 +5209,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Em andamento"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "W trakcie"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bezig"
           }
         }
       }
@@ -4675,6 +5311,18 @@
             "state": "translated",
             "value": "páginas nesta semana"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "stron w tym tygodniu"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pagina's deze week"
+          }
         }
       }
     },
@@ -4763,6 +5411,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "horas neste mês"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "godzin w tym miesiącu"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "uur deze maand"
           }
         }
       }
@@ -4853,6 +5513,18 @@
             "state": "translated",
             "value": "livros neste ano"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "książek w tym roku"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "boeken dit jaar"
+          }
         }
       }
     },
@@ -4938,6 +5610,18 @@
           }
         },
         "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@½"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@½"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "%@½"
@@ -5031,6 +5715,18 @@
             "state": "translated",
             "value": "½"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½"
+          }
         }
       }
     },
@@ -5119,6 +5815,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nada em andamento ainda."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brak książek w trakcie czytania."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog niets in uitvoering."
           }
         }
       }
@@ -5209,6 +5917,18 @@
             "state": "translated",
             "value": "Índice"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spis treści"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inhoud"
+          }
         }
       }
     },
@@ -5297,6 +6017,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Este livro não tem índice."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta książka nie zawiera spisu treści."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit boek bevat geen inhoudsopgave."
           }
         }
       }
@@ -5387,6 +6119,18 @@
             "state": "translated",
             "value": "Índice · %lld%%"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spis treści · %lld%%"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inhoud · %lld%%"
+          }
         }
       }
     },
@@ -5475,6 +6219,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tema e tipografia"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motyw i typografia"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thema & typografie"
           }
         }
       }
@@ -5565,6 +6321,18 @@
             "state": "translated",
             "value": "Buscar neste livro"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Szukaj w tej książce"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoek in dit boek"
+          }
         }
       }
     },
@@ -5653,6 +6421,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "A busca não está disponível agora."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wyszukiwanie jest obecnie niedostępne."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoeken is momenteel niet beschikbaar."
           }
         }
       }
@@ -5743,6 +6523,18 @@
             "state": "translated",
             "value": "Nada encontrado neste livro."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nic nie znaleziono w tej książce."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niets gevonden in dit boek."
+          }
         }
       }
     },
@@ -5831,6 +6623,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Marcador adicionado."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodano zakładkę."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer geplaatst."
           }
         }
       }
@@ -5921,6 +6725,18 @@
             "state": "translated",
             "value": "Não foi possível abrir este link."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się otworzyć tego łącza."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deze link kon niet worden geopend."
+          }
         }
       }
     },
@@ -6010,6 +6826,18 @@
             "state": "translated",
             "value": "p. %lld de %lld · %lld%%"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "str. %1$lld z %2$lld · %3$lld%%"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p. %1$lld van %2$lld · %3$lld%%"
+          }
         }
       }
     },
@@ -6095,6 +6923,18 @@
           }
         },
         "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p. %lld"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "str. %lld"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "p. %lld"
@@ -6188,6 +7028,18 @@
             "state": "translated",
             "value": "%lld%%"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
         }
       }
     },
@@ -6277,83 +7129,423 @@
             "state": "translated",
             "value": "Não foi possível abrir este livro."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się otworzyć tej książki."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit boek kon niet worden geopend."
+          }
         }
       }
     },
     "reader_chapter_unreadable": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This chapter can't be displayed." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法显示此章节。" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "無法顯示此章節。" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "この章は表示できません。" } },
-        "ko": { "stringUnit": { "state": "translated", "value": "이 장을 표시할 수 없습니다." } },
-        "es": { "stringUnit": { "state": "translated", "value": "No se puede mostrar este capítulo." } },
-        "fr": { "stringUnit": { "state": "translated", "value": "Ce chapitre ne peut pas être affiché." } },
-        "it": { "stringUnit": { "state": "translated", "value": "Impossibile visualizzare questo capitolo." } },
-        "ru": { "stringUnit": { "state": "translated", "value": "Не удалось отобразить эту главу." } },
-        "th": { "stringUnit": { "state": "translated", "value": "ไม่สามารถแสดงบทนี้ได้" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Không thể hiển thị chương này." } },
-        "de": { "stringUnit": { "state": "translated", "value": "Dieses Kapitel kann nicht angezeigt werden." } },
-        "id": { "stringUnit": { "state": "translated", "value": "Bab ini tidak dapat ditampilkan." } },
-        "pt": { "stringUnit": { "state": "translated", "value": "Não é possível exibir este capítulo." } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This chapter can't be displayed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法显示此章节。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法顯示此章節。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この章は表示できません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 장을 표시할 수 없습니다."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede mostrar este capítulo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce chapitre ne peut pas être affiché."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile visualizzare questo capitolo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось отобразить эту главу."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถแสดงบทนี้ได้"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể hiển thị chương này."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Kapitel kann nicht angezeigt werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bab ini tidak dapat ditampilkan."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não é possível exibir este capítulo."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można wyświetlić tego rozdziału."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit hoofdstuk kan niet worden weergegeven."
+          }
+        }
       }
     },
     "reader_chapter_truncated": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This chapter was too large to display completely." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此章节过大，无法完整显示。" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此章節過大，無法完整顯示。" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "この章は大きすぎるため、すべてを表示できませんでした。" } },
-        "ko": { "stringUnit": { "state": "translated", "value": "이 장은 너무 커서 모두 표시할 수 없습니다." } },
-        "es": { "stringUnit": { "state": "translated", "value": "Este capítulo era demasiado grande para mostrarse por completo." } },
-        "fr": { "stringUnit": { "state": "translated", "value": "Ce chapitre était trop volumineux pour être affiché entièrement." } },
-        "it": { "stringUnit": { "state": "translated", "value": "Questo capitolo era troppo grande per essere visualizzato completamente." } },
-        "ru": { "stringUnit": { "state": "translated", "value": "Эта глава оказалась слишком большой, чтобы отобразить её полностью." } },
-        "th": { "stringUnit": { "state": "translated", "value": "บทนี้มีขนาดใหญ่เกินกว่าจะแสดงได้ทั้งหมด" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Chương này quá lớn để hiển thị toàn bộ." } },
-        "de": { "stringUnit": { "state": "translated", "value": "Dieses Kapitel war zu groß, um vollständig angezeigt zu werden." } },
-        "id": { "stringUnit": { "state": "translated", "value": "Bab ini terlalu besar untuk ditampilkan sepenuhnya." } },
-        "pt": { "stringUnit": { "state": "translated", "value": "Este capítulo era grande demais para ser exibido por completo." } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This chapter was too large to display completely."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此章节过大，无法完整显示。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此章節過大，無法完整顯示。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この章は大きすぎるため、すべてを表示できませんでした。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 장은 너무 커서 모두 표시할 수 없습니다."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este capítulo era demasiado grande para mostrarse por completo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce chapitre était trop volumineux pour être affiché entièrement."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo capitolo era troppo grande per essere visualizzato completamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта глава оказалась слишком большой, чтобы отобразить её полностью."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "บทนี้มีขนาดใหญ่เกินกว่าจะแสดงได้ทั้งหมด"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chương này quá lớn để hiển thị toàn bộ."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Kapitel war zu groß, um vollständig angezeigt zu werden."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bab ini terlalu besar untuk ditampilkan sepenuhnya."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este capítulo era grande demais para ser exibido por completo."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ten rozdział był zbyt duży, aby wyświetlić go w całości."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit hoofdstuk was te groot om volledig te worden weergegeven."
+          }
+        }
       }
     },
     "reader_book_empty": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This book has no readable content." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "这本书没有可阅读的内容。" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "這本書沒有可閱讀的內容。" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "この本には表示できる本文がありません。" } },
-        "ko": { "stringUnit": { "state": "translated", "value": "이 책에는 읽을 수 있는 내용이 없습니다." } },
-        "es": { "stringUnit": { "state": "translated", "value": "Este libro no tiene contenido legible." } },
-        "fr": { "stringUnit": { "state": "translated", "value": "Ce livre ne contient aucun contenu lisible." } },
-        "it": { "stringUnit": { "state": "translated", "value": "Questo libro non contiene contenuti leggibili." } },
-        "ru": { "stringUnit": { "state": "translated", "value": "В этой книге нет содержимого для чтения." } },
-        "th": { "stringUnit": { "state": "translated", "value": "หนังสือเล่มนี้ไม่มีเนื้อหาที่อ่านได้" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Sách này không có nội dung để đọc." } },
-        "de": { "stringUnit": { "state": "translated", "value": "Dieses Buch enthält keine lesbaren Inhalte." } },
-        "id": { "stringUnit": { "state": "translated", "value": "Buku ini tidak memiliki konten yang dapat dibaca." } },
-        "pt": { "stringUnit": { "state": "translated", "value": "Este livro não tem conteúdo legível." } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This book has no readable content."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这本书没有可阅读的内容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這本書沒有可閱讀的內容。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この本には表示できる本文がありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 책에는 읽을 수 있는 내용이 없습니다."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este libro no tiene contenido legible."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce livre ne contient aucun contenu lisible."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo libro non contiene contenuti leggibili."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этой книге нет содержимого для чтения."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "หนังสือเล่มนี้ไม่มีเนื้อหาที่อ่านได้"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sách này không có nội dung để đọc."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Buch enthält keine lesbaren Inhalte."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buku ini tidak memiliki konten yang dapat dibaca."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este livro não tem conteúdo legível."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta książka nie zawiera treści do czytania."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit boek bevat geen leesbare inhoud."
+          }
+        }
       }
     },
     "reader_fixed_layout_unsupported": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This book uses a fixed layout, which Inkuna can't display yet." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此书使用固定版式，Inkuna 暂时无法显示。" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此書使用固定版式，Inkuna 暫時無法顯示。" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "この本は固定レイアウトを使用しているため、Inkunaではまだ表示できません。" } },
-        "ko": { "stringUnit": { "state": "translated", "value": "이 책은 고정 레이아웃을 사용하므로 Inkuna에서 아직 표시할 수 없습니다." } },
-        "es": { "stringUnit": { "state": "translated", "value": "Este libro usa un diseño fijo que Inkuna todavía no puede mostrar." } },
-        "fr": { "stringUnit": { "state": "translated", "value": "Ce livre utilise une mise en page fixe qu’Inkuna ne peut pas encore afficher." } },
-        "it": { "stringUnit": { "state": "translated", "value": "Questo libro usa un layout fisso che Inkuna non può ancora visualizzare." } },
-        "ru": { "stringUnit": { "state": "translated", "value": "В этой книге используется фиксированная верстка, которую Inkuna пока не может отобразить." } },
-        "th": { "stringUnit": { "state": "translated", "value": "หนังสือเล่มนี้ใช้เลย์เอาต์แบบตายตัว ซึ่ง Inkuna ยังแสดงไม่ได้" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Sách này dùng bố cục cố định mà Inkuna chưa thể hiển thị." } },
-        "de": { "stringUnit": { "state": "translated", "value": "Dieses Buch verwendet ein festes Layout, das Inkuna noch nicht anzeigen kann." } },
-        "id": { "stringUnit": { "state": "translated", "value": "Buku ini menggunakan tata letak tetap yang belum dapat ditampilkan Inkuna." } },
-        "pt": { "stringUnit": { "state": "translated", "value": "Este livro usa um layout fixo que o Inkuna ainda não consegue exibir." } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This book uses a fixed layout, which Inkuna can't display yet."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此书使用固定版式，Inkuna 暂时无法显示。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此書使用固定版式，Inkuna 暫時無法顯示。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この本は固定レイアウトを使用しているため、Inkunaではまだ表示できません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 책은 고정 레이아웃을 사용하므로 Inkuna에서 아직 표시할 수 없습니다."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este libro usa un diseño fijo que Inkuna todavía no puede mostrar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce livre utilise une mise en page fixe qu’Inkuna ne peut pas encore afficher."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo libro usa un layout fisso che Inkuna non può ancora visualizzare."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этой книге используется фиксированная верстка, которую Inkuna пока не может отобразить."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "หนังสือเล่มนี้ใช้เลย์เอาต์แบบตายตัว ซึ่ง Inkuna ยังแสดงไม่ได้"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sách này dùng bố cục cố định mà Inkuna chưa thể hiển thị."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Buch verwendet ein festes Layout, das Inkuna noch nicht anzeigen kann."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buku ini menggunakan tata letak tetap yang belum dapat ditampilkan Inkuna."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este livro usa um layout fixo que o Inkuna ainda não consegue exibir."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta książka ma stały układ stron (fixed layout), którego Inkuna jeszcze nie obsługuje."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit boek gebruikt een vaste lay-out die Inkuna nog niet kan weergeven."
+          }
+        }
       }
     },
     "reader_retry": {
@@ -6441,6 +7633,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tentar novamente"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spróbuj ponownie"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opnieuw proberen"
           }
         }
       }
@@ -6531,6 +7735,18 @@
             "state": "translated",
             "value": "Não foi possível mostrar esta página."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się wyświetlić tej strony."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deze pagina kon niet worden weergegeven."
+          }
         }
       }
     },
@@ -6619,6 +7835,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nenhum marcador ainda."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brak zakładek."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog geen bladwijzers."
           }
         }
       }
@@ -6709,6 +7937,18 @@
             "state": "translated",
             "value": "Não foi possível salvar o marcador."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się zapisać zakładki."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De bladwijzer kon niet worden opgeslagen."
+          }
         }
       }
     },
@@ -6797,6 +8037,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Menu de leitura"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menu czytania"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leesmenu"
           }
         }
       }
@@ -6887,6 +8139,18 @@
             "state": "translated",
             "value": "Fechar menu de leitura"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zamknij menu czytania"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leesmenu sluiten"
+          }
         }
       }
     },
@@ -6975,6 +8239,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Colocar marcador"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj zakładkę"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer plaatsen"
           }
         }
       }
@@ -7065,6 +8341,18 @@
             "state": "translated",
             "value": "Buscar neste livro"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Szukaj w tej książce"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoek in dit boek"
+          }
         }
       }
     },
@@ -7153,6 +8441,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Diminuir texto"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mniejszy tekst"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kleinere tekst"
           }
         }
       }
@@ -7243,6 +8543,18 @@
             "state": "translated",
             "value": "Aumentar texto"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Większy tekst"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grotere tekst"
+          }
         }
       }
     },
@@ -7331,6 +8643,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Brilho da página"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jasność strony"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helderheid van de pagina"
           }
         }
       }
@@ -7421,6 +8745,18 @@
             "state": "translated",
             "value": "Não baixado"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niepobrane"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niet gedownload"
+          }
         }
       }
     },
@@ -7506,6 +8842,18 @@
           }
         },
         "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "%@, %@"
@@ -7599,6 +8947,18 @@
             "state": "translated",
             "value": "Capítulo %@, %@, página %lld"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rozdział %@, %@, strona %lld"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoofdstuk %@, %@, pagina %lld"
+          }
         }
       }
     },
@@ -7688,6 +9048,18 @@
             "state": "translated",
             "value": "Capítulo %@, %@"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rozdział %@, %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoofdstuk %@, %@"
+          }
         }
       }
     },
@@ -7773,6 +9145,18 @@
           }
         },
         "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. %@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. %@"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "%@. %@"
@@ -7866,6 +9250,18 @@
             "state": "translated",
             "value": "Sem resultados"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brak wyników"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen resultaten"
+          }
         }
       }
     },
@@ -7954,6 +9350,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mostrar ou ocultar controles de leitura"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokaż lub ukryj elementy sterujące czytaniem"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leesbediening tonen of verbergen"
           }
         }
       }
@@ -8044,6 +9452,18 @@
             "state": "translated",
             "value": "%2$lld de %1$@"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld %1$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld %1$@"
+          }
         }
       }
     },
@@ -8133,6 +9553,18 @@
             "state": "translated",
             "value": "%2$lld de %1$@, lido"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld %1$@, przeczytano"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld %1$@, gelezen"
+          }
         }
       }
     },
@@ -8218,6 +9650,18 @@
           }
         },
         "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ %@"
@@ -8311,6 +9755,18 @@
             "state": "translated",
             "value": "Adicionar livros"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj książki"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boeken toevoegen"
+          }
         }
       }
     },
@@ -8399,6 +9855,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nada na estante ainda"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Na półce jeszcze nic nie ma"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog niets op de plank"
           }
         }
       }
@@ -8489,6 +9957,18 @@
             "state": "translated",
             "value": "Adicione um livro de Arquivos, iCloud Drive ou de onde seus livros estiverem. A Inkuna guarda uma cópia própria, então o original fica onde está."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj książkę z aplikacji Pliki, iCloud Drive lub dowolnego innego miejsca. Inkuna przechowuje własną kopię, więc oryginał pozostaje nienaruszony."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg een boek toe vanuit Bestanden, iCloud Drive of waar uw boeken ook staan. Inkuna bewaart een eigen kopie, zodat het origineel behouden blijft."
+          }
         }
       }
     },
@@ -8577,6 +10057,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "EPUB, MOBI, AZW3 e TXT hoje. Quadrinhos e mais por vir."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obecnie obsługiwane: EPUB, MOBI, AZW3 i TXT. Komiksy wkrótce."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nu beschikbaar voor EPUB, MOBI, AZW3 en TXT. Strips volgen binnenkort."
           }
         }
       }
@@ -8667,6 +10159,18 @@
             "state": "translated",
             "value": "Adicionar seu primeiro livro"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj swoją pierwszą książkę"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg uw eerste boek toe"
+          }
         }
       }
     },
@@ -8755,6 +10259,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adicionar livros à sua biblioteca"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj książki do biblioteki"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boeken toevoegen aan uw bibliotheek"
           }
         }
       }
@@ -8845,6 +10361,18 @@
             "state": "translated",
             "value": "Adicionando à sua biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodawanie do biblioteki"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toevoegen aan uw bibliotheek"
+          }
         }
       }
     },
@@ -8933,6 +10461,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Preparando o arquivo…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przygotowywanie pliku…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bestand voorbereiden…"
           }
         }
       }
@@ -9023,6 +10563,18 @@
             "state": "translated",
             "value": "Copiando o arquivo"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopiowanie pliku"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bestand kopiëren"
+          }
         }
       }
     },
@@ -9111,6 +10663,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lendo o livro"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odczytywanie książki"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boek inlezen"
           }
         }
       }
@@ -9201,6 +10765,18 @@
             "state": "translated",
             "value": "%lld de %lld"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld z %2$lld"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld van %2$lld"
+          }
         }
       }
     },
@@ -9289,6 +10865,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cancelar"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anuluj"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuleren"
           }
         }
       }
@@ -9379,6 +10967,18 @@
             "state": "translated",
             "value": "Importando, %lld de %lld"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importowanie, %1$lld z %2$lld"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importeren, %1$lld van %2$lld"
+          }
         }
       }
     },
@@ -9468,6 +11068,18 @@
             "state": "translated",
             "value": "Concluir"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gotowe"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gereed"
+          }
         }
       }
     },
@@ -9553,6 +11165,18 @@
           }
         },
         "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "OK"
@@ -9646,6 +11270,18 @@
             "state": "translated",
             "value": "Importação interrompida"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importowanie przerwane"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importeren gestopt"
+          }
         }
       }
     },
@@ -9734,6 +11370,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nada adicionado"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nic nie dodano"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niets toegevoegd"
           }
         }
       }
@@ -9824,6 +11472,18 @@
             "state": "translated",
             "value": "Já está na sua biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Już znajduje się w bibliotece"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al in uw bibliotheek"
+          }
         }
       }
     },
@@ -9912,6 +11572,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adicionado %@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodano: %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ toegevoegd"
           }
         }
       }
@@ -10002,6 +11674,18 @@
             "state": "translated",
             "value": "%@ já está na sua biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pozycja „%@” znajduje się już w bibliotece"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ staat al in uw bibliotheek"
+          }
         }
       }
     },
@@ -10090,6 +11774,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não foi possível adicionar %@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się dodać: %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kon %@ niet toevoegen"
           }
         }
       }
@@ -10180,6 +11876,18 @@
             "state": "translated",
             "value": "1 já estava na sua biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 znajdowała się już w bibliotece"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 stond al in uw bibliotheek"
+          }
         }
       }
     },
@@ -10268,6 +11976,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld já estavam na sua biblioteca"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld znajdowało się już w bibliotece"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld stonden al in uw bibliotheek"
           }
         }
       }
@@ -10358,6 +12078,18 @@
             "state": "translated",
             "value": "1 não pôde ser adicionado"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się dodać 1"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 kon niet worden toegevoegd"
+          }
         }
       }
     },
@@ -10446,6 +12178,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld não puderam ser adicionados"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się dodać %lld"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld konden niet worden toegevoegd"
           }
         }
       }
@@ -10536,6 +12280,18 @@
             "state": "translated",
             "value": "você interrompeu o restante"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pozostałe zostały anulowane"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "u heeft de rest geannuleerd"
+          }
         }
       }
     },
@@ -10624,6 +12380,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adicionados"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodano"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toegevoegd"
           }
         }
       }
@@ -10714,6 +12482,18 @@
             "state": "translated",
             "value": "Já está na sua biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Już w bibliotece"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al in uw bibliotheek"
+          }
         }
       }
     },
@@ -10802,6 +12582,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não adicionados"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie dodano"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niet toegevoegd"
           }
         }
       }
@@ -10892,6 +12684,18 @@
             "state": "translated",
             "value": "Autor desconhecido"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nieznany autor"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onbekende auteur"
+          }
         }
       }
     },
@@ -10980,6 +12784,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Este arquivo"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ten plik"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit bestand"
           }
         }
       }
@@ -11070,6 +12886,18 @@
             "state": "translated",
             "value": "Adicionado à sua biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodano do biblioteki"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toegevoegd aan uw bibliotheek"
+          }
         }
       }
     },
@@ -11158,6 +12986,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Já está na sua biblioteca"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Już w bibliotece"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al in uw bibliotheek"
           }
         }
       }
@@ -11248,6 +13088,18 @@
             "state": "translated",
             "value": "Arquivos %@ ainda não são suportados — a Inkuna lê EPUB, MOBI, AZW3 e TXT atualmente."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pliki %@ nie są jeszcze obsługiwane — Inkuna obsługuje obecnie formaty EPUB, MOBI, AZW3 i TXT."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@-bestanden worden nog niet ondersteund — Inkuna leest momenteel EPUB, MOBI, AZW3 en TXT."
+          }
         }
       }
     },
@@ -11336,6 +13188,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Este não é um arquivo de livro que a Inkuna reconhece."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To nie jest plik książki rozpoznawany przez program Inkuna."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit is geen boekbestand dat door Inkuna wordt herkend."
           }
         }
       }
@@ -11426,6 +13290,18 @@
             "state": "translated",
             "value": "A Inkuna não conseguiu identificar este arquivo"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna nie mogła rozpoznać formatu tego pliku."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna kon niet bepalen wat voor bestand dit is."
+          }
         }
       }
     },
@@ -11514,6 +13390,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não é possível abrir este livro. Ele pode estar incompleto ou protegido por DRM, que a Inkuna não suporta."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można otworzyć tej książki. Może być uszkodzona lub chroniona zabezpieczeniem DRM, którego Inkuna nie obsługuje."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit boek kan niet worden geopend. Het is mogelijk onvolledig of beveiligd met DRM, wat Inkuna niet ondersteunt."
           }
         }
       }
@@ -11604,6 +13492,18 @@
             "state": "translated",
             "value": "O arquivo está danificado e não pôde ser aberto."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plik jest uszkodzony i nie można go otworzyć."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Het bestand is beschadigd en kon niet worden geopend."
+          }
         }
       }
     },
@@ -11692,6 +13592,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Este arquivo é grande demais para a Inkuna adicionar."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ten plik jest zbyt duży, aby Inkuna mogła go dodać."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit bestand is te groot voor Inkuna om toe te voegen."
           }
         }
       }
@@ -11782,6 +13694,18 @@
             "state": "translated",
             "value": "Não foi possível ler o arquivo. Verifique se ele ainda está disponível e se este dispositivo tem espaço."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się odczytać pliku. Sprawdź, czy jest nadal dostępny i czy na urządzeniu jest wystarczająco dużo miejsca."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Het bestand kon niet worden gelezen. Controleer of het nog beschikbaar is en of er voldoende opslagruimte is."
+          }
         }
       }
     },
@@ -11870,6 +13794,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não foi possível ler este arquivo."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się odczytać tego pliku."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dit bestand kon niet worden gelezen."
           }
         }
       }
@@ -11960,6 +13896,18 @@
             "state": "translated",
             "value": "Não foi possível gravar na sua biblioteca."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się zapisać danych do biblioteki."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Er kon niet naar uw bibliotheek worden geschreven."
+          }
         }
       }
     },
@@ -12048,6 +13996,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "O livro sumiu da biblioteca no meio da importação."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Książka zniknęła z biblioteki podczas importowania."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Het boek is tijdens het importeren verdwenen uit de bibliotheek."
           }
         }
       }
@@ -12138,6 +14098,18 @@
             "state": "translated",
             "value": "Sua biblioteca não abriu, então nada foi adicionado."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się otworzyć biblioteki, więc nic nie zostało dodane."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uw bibliotheek kon niet worden geopend, dus er is niets toegevoegd."
+          }
         }
       }
     },
@@ -12226,6 +14198,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Algo deu errado: %@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wystąpił błąd: %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Er is iets misgegaan: %@"
           }
         }
       }
@@ -12316,6 +14300,18 @@
             "state": "translated",
             "value": "Texto simples"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zwykły tekst"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Platte tekst"
+          }
         }
       }
     },
@@ -12405,6 +14401,18 @@
             "state": "translated",
             "value": "Quadrinho CBZ"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komiks CBZ"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CBZ-stripboek"
+          }
         }
       }
     },
@@ -12493,6 +14501,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quadrinho CBR"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komiks CBR"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CBR-stripboek"
           }
         }
       }
@@ -12717,6 +14737,54 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "%lld noites de leitura neste mês."
+                }
+              }
+            }
+          }
+        },
+        "pl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wieczór z czytaniem w tym miesiącu."
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wieczory z czytaniem w tym miesiącu."
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wieczorów z czytaniem w tym miesiącu."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wieczorów z czytaniem w tym miesiącu."
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 avond gelezen deze maand."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld avonden gelezen deze maand."
                 }
               }
             }
@@ -12948,6 +15016,54 @@
               }
             }
           }
+        },
+        "pl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wynik"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wyniki"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wyników"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld wyników"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld resultaat"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld resultaten"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -13036,6 +15152,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$lld de %2$lld resultados"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld z %2$lld wyników"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld van %2$lld resultaten"
           }
         }
       }
@@ -13260,6 +15388,54 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "%lld livros adicionados"
+                }
+              }
+            }
+          }
+        },
+        "pl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Dodano %lld książkę"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Dodano %lld książki"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Dodano %lld książek"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Dodano %lld książek"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 boek toegevoegd"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld boeken toegevoegd"
                 }
               }
             }
@@ -13491,6 +15667,54 @@
               }
             }
           }
+        },
+        "pl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld książka"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld książki"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld książek"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld książek"
+                }
+              }
+            }
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 boek"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld boeken"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -13580,6 +15804,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adicionando à sua biblioteca"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodawanie do biblioteki"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toevoegen aan uw bibliotheek"
           }
         }
       }
@@ -13671,6 +15907,18 @@
             "state": "translated",
             "value": "Adicionando %@ à sua biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodawanie: %@ do biblioteki"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ toevoegen aan uw bibliotheek"
+          }
         }
       }
     },
@@ -13759,6 +16007,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adicionar à Inkuna"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj do Inkuna"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toevoegen aan Inkuna"
           }
         }
       }
@@ -13849,6 +16109,18 @@
             "state": "translated",
             "value": "Abrir biblioteca"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz bibliotekę"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliotheek openen"
+          }
         }
       }
     },
@@ -13937,6 +16209,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não havia nada para adicionar."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie znaleziono nic do dodania."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Er was niets om toe te voegen."
           }
         }
       }
@@ -14027,6 +16311,18 @@
             "state": "translated",
             "value": "Conta"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account"
+          }
         }
       }
     },
@@ -14115,6 +16411,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Neste dispositivo"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Na tym urządzeniu"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Op dit apparaat"
           }
         }
       }
@@ -14205,6 +16513,18 @@
             "state": "translated",
             "value": "Leitor"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Czytelnik"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lezer"
+          }
         }
       }
     },
@@ -14293,6 +16613,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Preferências"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preferencje"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voorkeuren"
           }
         }
       }
@@ -14383,6 +16715,18 @@
             "state": "translated",
             "value": "Lembrete noturno"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wieczorne przypomnienie"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herinnering voor de avond"
+          }
         }
       }
     },
@@ -14471,6 +16815,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Um toque discreto na sua hora de leitura"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dyskretne przypomnienie o Twojej porze na czytanie"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Een subtiele herinnering op uw leesuur"
           }
         }
       }
@@ -14561,6 +16917,18 @@
             "state": "translated",
             "value": "Modo noturno"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tryb nocny"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachtmodus"
+          }
         }
       }
     },
@@ -14649,6 +17017,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Resposta tátil"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reakcje haptyczne"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haptische feedback"
           }
         }
       }
@@ -14739,6 +17119,18 @@
             "state": "translated",
             "value": "Toques suaves para controles e viradas de página"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delikatne wibracje przy sterowaniu i przewracaniu stron"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zachte trillingen voor bediening en pagina omslaan"
+          }
         }
       }
     },
@@ -14827,6 +17219,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ajustes da conta"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ustawienia konta"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accountinstellingen"
           }
         }
       }
@@ -14917,6 +17321,18 @@
             "state": "translated",
             "value": "Nome de usuário"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nazwa użytkownika"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gebruikersnaam"
+          }
         }
       }
     },
@@ -15002,6 +17418,18 @@
           }
         },
         "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-mail"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-mail"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "E-mail"
@@ -15095,6 +17523,18 @@
             "state": "translated",
             "value": "Salvar"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zapisz"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opslaan"
+          }
         }
       }
     },
@@ -15183,6 +17623,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cancelar"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anuluj"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuleren"
           }
         }
       }
@@ -15273,6 +17725,18 @@
             "state": "translated",
             "value": "Sobre a Inkuna"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O programie Inkuna"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Over Inkuna"
+          }
         }
       }
     },
@@ -15361,6 +17825,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inkuna %@ · tinta, luar e páginas tranquilas"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna %@ · atrament, światło księżyca i ciche strony"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkuna %@ · inkt, maanlicht en rustige pagina's"
           }
         }
       }
@@ -15451,6 +17927,18 @@
             "state": "translated",
             "value": "Leitura noturna"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wieczorne czytanie"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avondlezen"
+          }
         }
       }
     },
@@ -15539,6 +18027,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Seu livro está esperando. Uma página ou duas?"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twoja książka czeka. Czas na chwilę spokoju z lekturą?"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uw boek ligt klaar. Tijd voor een rustige bladzijde of twee?"
           }
         }
       }
@@ -15629,6 +18129,18 @@
             "state": "translated",
             "value": "Waktu pengingat"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Czas przypomnienia"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tijd van herinnering"
+          }
         }
       }
     },
@@ -15717,6 +18229,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "自訂"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dostosuj"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aanpassen"
           }
         }
       }
@@ -15807,6 +18331,18 @@
             "state": "translated",
             "value": "自訂"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dostosuj"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aanpassen"
+          }
         }
       }
     },
@@ -15895,6 +18431,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "文字"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typografia"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typografie"
           }
         }
       }
@@ -15985,6 +18533,18 @@
             "state": "translated",
             "value": "版式"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Układ"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lay-out"
+          }
         }
       }
     },
@@ -16073,6 +18633,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "字型"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Czcionka"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lettertype"
           }
         }
       }
@@ -16163,6 +18735,18 @@
             "state": "translated",
             "value": "粗體"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pogrubiony tekst"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vette tekst"
+          }
         }
       }
     },
@@ -16251,6 +18835,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "行距"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interlinia"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regelafstand"
           }
         }
       }
@@ -16341,6 +18937,18 @@
             "state": "translated",
             "value": "字距"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstępy między literami"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letterspatiëring"
+          }
         }
       }
     },
@@ -16429,6 +19037,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "詞距"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstępy między słowami"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Woordspatiëring"
           }
         }
       }
@@ -16519,6 +19139,18 @@
             "state": "translated",
             "value": "頁邊距"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marginesy"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marges"
+          }
         }
       }
     },
@@ -16607,6 +19239,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lldpx"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld px"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld px"
           }
         }
       }
@@ -16697,6 +19341,18 @@
             "state": "translated",
             "value": "恢復預設"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przywróć domyślne"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standaardwaarden herstellen"
+          }
         }
       }
     },
@@ -16785,6 +19441,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "靜謐的時光屬於讀書的人。"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spokojne godziny należą do czytelnika."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De rustige uren zijn voor de lezer."
           }
         }
       }
@@ -16875,6 +19543,18 @@
             "state": "translated",
             "value": "出版社預設"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Domyślna wydawcy"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standaard van uitgever"
+          }
         }
       }
     },
@@ -16963,6 +19643,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "系統襯線"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Szeryfowa systemowa"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systeem-serif"
           }
         }
       }
@@ -17053,6 +19745,18 @@
             "state": "translated",
             "value": "系統無襯線"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bezszeryfowa systemowa"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systeem-sans"
+          }
         }
       }
     },
@@ -17138,6 +19842,18 @@
           }
         },
         "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noto Serif"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noto Serif"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "Noto Serif"
@@ -17231,6 +19947,18 @@
             "state": "translated",
             "value": "Noto Sans"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noto Sans"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noto Sans"
+          }
         }
       }
     },
@@ -17319,6 +20047,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "自訂文字與版式"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dostosuj typografię i układ"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typografie en lay-out aanpassen"
           }
         }
       }
@@ -17409,6 +20149,18 @@
             "state": "translated",
             "value": "粗體"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pogrubiony tekst"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vette tekst"
+          }
         }
       }
     },
@@ -17497,6 +20249,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "行距"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interlinia"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regelafstand"
           }
         }
       }
@@ -17587,6 +20351,18 @@
             "state": "translated",
             "value": "字距"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstępy między literami"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letterspatiëring"
+          }
         }
       }
     },
@@ -17675,6 +20451,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "詞距"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstępy między słowami"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Woordspatiëring"
           }
         }
       }
@@ -17765,6 +20553,18 @@
             "state": "translated",
             "value": "頁邊距"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marginesy strony"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paginamarges"
+          }
         }
       }
     },
@@ -17853,6 +20653,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "將文字與版式恢復預設"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przywróć domyślną typografię i układ"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typografie en lay-out herstellen naar standaardwaarden"
           }
         }
       }
@@ -17943,6 +20755,18 @@
             "state": "translated",
             "value": "查詢"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprawdź"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoek op"
+          }
         }
       }
     },
@@ -18032,6 +20856,18 @@
             "state": "translated",
             "value": "分享"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Udostępnij"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delen"
+          }
         }
       }
     },
@@ -18120,6 +20956,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "預覽"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Podgląd"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voorvertoning"
           }
         }
       }

@@ -159,10 +159,10 @@ Generated artifacts are never committed: `apps/ios/Generated/`,
 
 ## Translations
 
-Both apps are fully localized and ship 14 languages: English, German, Spanish,
-French, Indonesian, Italian, Japanese, Korean, Portuguese, Russian, Thai,
-Vietnamese, and Simplified and Traditional Chinese. English is the source
-language everywhere.
+Both apps are fully localized and ship 16 languages: English, German, Spanish,
+French, Indonesian, Italian, Japanese, Korean, Dutch, Polish, Portuguese,
+Russian, Thai, Vietnamese, and Simplified and Traditional Chinese. English is
+the source language everywhere.
 
 - **iOS** — one string catalog, `apps/ios/Inkuna/Localizable.xcstrings`. Open it
   in Xcode rather than editing the JSON by hand; it lists every key with its

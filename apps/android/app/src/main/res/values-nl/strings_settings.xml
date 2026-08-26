@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Account</string>
+    <string name="settings_local_account">Op dit apparaat</string>
+    <string name="settings_default_name">Lezer</string>
+    <string name="settings_preferences">Voorkeuren</string>
+    <string name="settings_reminder">Herinnering voor de avond</string>
+    <string name="settings_reminder_sub">Een subtiele herinnering op uw leesuur</string>
+    <string name="settings_reminder_time">Tijd van herinnering</string>
+    <string name="settings_night">Nachtmodus</string>
+    <string name="settings_haptics">Haptische feedback</string>
+    <string name="settings_haptics_sub">Zachte trillingen voor bediening en pagina omslaan</string>
+    <string name="settings_account_settings">Accountinstellingen</string>
+    <string name="settings_edit_name">Gebruikersnaam</string>
+    <string name="settings_edit_email">E-mail</string>
+    <string name="settings_save">Opslaan</string>
+    <string name="settings_cancel">Annuleren</string>
+    <string name="settings_about">Over Inkuna</string>
+    <string name="settings_footer">Inkuna %1$s · inkt, maanlicht en rustige pagina\'s</string>
+    <string name="settings_reminder_notif_title">Avondlezen</string>
+    <string name="settings_reminder_notif_body">Uw boek ligt klaar. Tijd voor een rustige bladzijde of twee?</string>
+    <string name="settings_notif_channel">Leesherinneringen</string>
+    <string name="settings_updates">App-updates</string>
+    <string name="settings_update_current">Versie %1$s</string>
+    <string name="settings_update_check">Controleren</string>
+    <string name="settings_update_checking">Controleren…</string>
+    <string name="settings_update_uptodate">U bent up-to-date</string>
+    <string name="settings_update_available">Versie %1$s is beschikbaar</string>
+    <string name="settings_update_get">Update downloaden</string>
+    <string name="settings_update_failed">Kon niet controleren op updates</string>
+    <string name="settings_update_downloading">Downloaden… %1$d%%</string>
+    <string name="settings_update_installing">Installeren…</string>
+    <string name="settings_update_download_failed">Kon de update niet downloaden</string>
+    <string name="settings_update_install_failed">Kon de update niet installeren</string>
+</resources>
