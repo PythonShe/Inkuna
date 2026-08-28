@@ -30,6 +30,9 @@ pub struct Settings {
     pub reading_margins: u16,
     /// Whether UI haptic feedback is enabled; firing haptics is shell work.
     pub haptics: bool,
+    /// Whether the library renders as a cover grid instead of the default
+    /// list; layout is shell work.
+    pub library_grid: bool,
 }
 
 impl From<inkuna_core::Settings> for Settings {
@@ -50,6 +53,7 @@ impl From<inkuna_core::Settings> for Settings {
             word_spacing: s.word_spacing,
             reading_margins: s.reading_margins,
             haptics: s.haptics,
+            library_grid: s.library_grid,
         }
     }
 }
@@ -72,6 +76,7 @@ impl From<Settings> for inkuna_core::Settings {
             word_spacing: s.word_spacing,
             reading_margins: s.reading_margins,
             haptics: s.haptics,
+            library_grid: s.library_grid,
         }
     }
 }

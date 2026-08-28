@@ -22,7 +22,7 @@ impl Library {
                     "SELECT onboarded, reading_theme, text_size_step, brightness,
                             evening_reminder, reminder_minutes, account_name, account_email,
                             reading_font, reading_bold, line_spacing, letter_spacing,
-                            word_spacing, reading_margins, haptics
+                            word_spacing, reading_margins, haptics, library_grid
                      FROM settings WHERE id = 1",
                     [],
                     |row| {
@@ -42,6 +42,7 @@ impl Library {
                             word_spacing: row.get(12)?,
                             reading_margins: row.get(13)?,
                             haptics: row.get(14)?,
+                            library_grid: row.get(15)?,
                         })
                     },
                 )
@@ -95,8 +96,8 @@ impl Library {
             "INSERT INTO settings (id, onboarded, reading_theme, text_size_step, brightness,
                                    evening_reminder, reminder_minutes, account_name, account_email,
                                    reading_font, reading_bold, line_spacing, letter_spacing,
-                                   word_spacing, reading_margins, haptics)
-             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+                                   word_spacing, reading_margins, haptics, library_grid)
+             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
              ON CONFLICT(id) DO UPDATE SET
                  onboarded        = excluded.onboarded,
                  reading_theme    = excluded.reading_theme,
@@ -112,7 +113,8 @@ impl Library {
                  letter_spacing   = excluded.letter_spacing,
                  word_spacing     = excluded.word_spacing,
                  reading_margins  = excluded.reading_margins,
-                 haptics          = excluded.haptics",
+                 haptics          = excluded.haptics,
+                 library_grid     = excluded.library_grid",
             rusqlite::params![
                 settings.onboarded,
                 settings.reading_theme,
@@ -129,6 +131,7 @@ impl Library {
                 word_spacing,
                 reading_margins,
                 settings.haptics,
+                settings.library_grid,
             ],
         )?;
         Ok(())

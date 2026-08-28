@@ -15,7 +15,7 @@ use rusqlite::{Connection, Transaction};
 use crate::core::files::copy_and_hash_unbounded;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 9;
+pub(crate) const SCHEMA_VERSION: i64 = 10;
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -181,6 +181,13 @@ const V9_SQL: &str = "
 ALTER TABLE settings ADD COLUMN haptics INTEGER NOT NULL DEFAULT 1;
 ";
 
+// 0010: library view mode. Off (list) by default — the list is what every
+// install so far has rendered — and laying out the grid stays shell work;
+// the core only remembers the choice.
+const V10_SQL: &str = "
+ALTER TABLE settings ADD COLUMN library_grid INTEGER NOT NULL DEFAULT 0;
+";
+
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
     migrate_upto(conn, data_dir, SCHEMA_VERSION)
 }
@@ -218,6 +225,7 @@ fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(
             6 => tx.execute_batch(V7_SQL)?,
             7 => tx.execute_batch(V8_SQL)?,
             8 => tx.execute_batch(V9_SQL)?,
+            9 => tx.execute_batch(V10_SQL)?,
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }

@@ -81,6 +81,9 @@ pub struct Settings {
     /// Whether UI haptic feedback is enabled. Firing haptics is shell
     /// work; the core only remembers the choice.
     pub haptics: bool,
+    /// Whether the library renders as a cover grid instead of the default
+    /// list. Layout is shell work; the core only remembers the choice.
+    pub library_grid: bool,
 }
 
 impl Default for Settings {
@@ -101,6 +104,7 @@ impl Default for Settings {
             word_spacing: 0.0,
             reading_margins: DEFAULT_READING_MARGINS,
             haptics: true,
+            library_grid: false,
         }
     }
 }

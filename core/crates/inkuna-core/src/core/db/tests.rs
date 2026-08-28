@@ -240,6 +240,35 @@ fn v9_migrates_from_v8() {
     assert!(haptics);
 }
 
+/// A v9 database — settings row included — gains the library_grid column
+/// with the grid off, the list every install so far has rendered.
+#[test]
+fn v10_migrates_from_v9() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, 9).unwrap();
+        conn.execute("UPDATE settings SET reading_theme = 'moon'", [])
+            .unwrap();
+    }
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+    let (theme, library_grid): (String, bool) = conn
+        .query_row(
+            "SELECT reading_theme, library_grid FROM settings WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(theme, "moon");
+    assert!(!library_grid);
+}
+
 /// A panic inside pooled work must not consume the connection. UniFFI
 /// catches panics at the boundary and keeps the app alive, so leaking one
 /// connection per panic would silently starve the pool and then block every
