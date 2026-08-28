@@ -164,7 +164,7 @@ final class LibraryViewController: UIViewController {
     private func toggleViewMode() {
         AppSettings.shared.libraryGridEnabled.toggle()
         applyToggleAppearance()
-        applySnapshot(reloadingBooks: true)
+        applySnapshot(recomputingMode: true)
     }
 
     private func applyToggleAppearance() {
@@ -310,8 +310,10 @@ final class LibraryViewController: UIViewController {
         group.interItemSpacing = .fixed(gap)
         let section = NSCollectionLayoutSection(group: group)
         section.interGroupSpacing = InkSpacing.space5
+        // No top inset: the header section's bottom inset already provides
+        // the 8pt gap, matching list mode and Android exactly.
         section.contentInsets = NSDirectionalEdgeInsets(
-            top: InkSpacing.space2,
+            top: 0,
             leading: InkSpacing.pageMargin,
             bottom: InkSpacing.space8,
             trailing: InkSpacing.pageMargin
@@ -414,14 +416,25 @@ final class LibraryViewController: UIViewController {
         // Search results always read as list rows: scan-friendly, author
         // and progress visible — mode applies to browsing, not finding.
         gridActive = AppSettings.shared.libraryGridEnabled && !searching && !rows.isEmpty
-        applySnapshot(reloadingBooks: false)
+        applySnapshot(recomputingMode: false)
     }
 
-    /// Rebuilds the snapshot from the current state. `reloadingBooks`
-    /// forces every book cell to be re-dequeued — required when the same
-    /// items must move between list and grid cell classes.
-    private func applySnapshot(reloadingBooks: Bool) {
-        if reloadingBooks {
+    /// The `gridActive` value the last-applied snapshot was rendered with.
+    /// Whenever a new apply disagrees, every carried book cell must be
+    /// re-dequeued into the other cell class — no matter which caller
+    /// triggered the apply (the toggle, or a search flipping the mode).
+    private var appliedGridActive: Bool?
+
+    /// Rebuilds the snapshot from the current state. `recomputingMode`
+    /// re-derives `gridActive` from the persisted setting first (the
+    /// toggle's path; `render` derives it itself).
+    ///
+    /// Book cells carried over from the previous snapshot are re-dequeued
+    /// (`reloadItems`) whenever the grid/list mode differs from the one
+    /// the last snapshot was applied with — required when the same items
+    /// must move between list and grid cell classes.
+    private func applySnapshot(recomputingMode: Bool) {
+        if recomputingMode {
             gridActive = AppSettings.shared.libraryGridEnabled
                 && query.trimmingCharacters(in: .whitespaces).isEmpty
                 && !publications.isEmpty
@@ -440,9 +453,10 @@ final class LibraryViewController: UIViewController {
             snapshot.appendItems(publications.map { .book($0.id) }, toSection: .books)
         }
 
+        let modeChanged = appliedGridActive != gridActive
         let existing = Set(dataSource.snapshot().itemIdentifiers)
         let carried = snapshot.itemIdentifiers(inSection: .books).filter { existing.contains($0) }
-        if reloadingBooks {
+        if modeChanged {
             snapshot.reloadItems(carried)
         } else {
             // Reconfigure in place: the cells keep their cover views — and
@@ -451,9 +465,12 @@ final class LibraryViewController: UIViewController {
             snapshot.reconfigureItems(carried)
         }
         dataSource.apply(snapshot, animatingDifferences: false)
-        if reloadingBooks {
+        if modeChanged {
+            // The section layout must re-prepare for the other mode even
+            // when the diff itself is empty (every visible book carried).
             collectionView.collectionViewLayout.invalidateLayout()
         }
+        appliedGridActive = gridActive
     }
 
     @objc private func dismissKeyboard() {
