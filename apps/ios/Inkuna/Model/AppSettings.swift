@@ -29,7 +29,8 @@ final class AppSettings {
         letterSpacing: 0,
         wordSpacing: 0,
         readingMargins: 26,
-        haptics: true
+        haptics: true,
+        libraryGrid: false
     )
 
     /// Whether `record` reflects the stored settings. Stays false when the
@@ -295,6 +296,14 @@ final class AppSettings {
             $0.wordSpacing = 0
             $0.readingMargins = 26
         }
+    }
+
+    /// Whether the library renders as a cover grid instead of the default
+    /// list. The library screen reads it on every render, so the toggle
+    /// needs no fan-out.
+    var libraryGridEnabled: Bool {
+        get { record.libraryGrid }
+        set { mutate { $0.libraryGrid = newValue } }
     }
 
     /// Whether UI haptic feedback fires anywhere in the app. Every call

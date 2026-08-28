@@ -3,7 +3,10 @@ import UIKit
 /// Round 40pt icon button (design-system `IconButton`). The active state
 /// gets the accent-soft wash, accent ink, and the filled symbol variant.
 final class InkIconButton: UIButton {
-    private let symbol: String
+    /// Mutable so a mode toggle (list/grid) can swap its glyph in place.
+    var symbol: String {
+        didSet { setNeedsUpdateConfiguration() }
+    }
 
     var isActive: Bool = false {
         didSet { setNeedsUpdateConfiguration() }
