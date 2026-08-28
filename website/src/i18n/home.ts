@@ -11,7 +11,7 @@ const en = {
   intro:
     "Crafted, quiet, literary. Inkuna keeps your library close and stays out of the way of the page — no accounts, no noise, just reading.",
   "features.formats":
-    "EPUB, MOBI, AZW3 (DRM-free), TXT, and PDF today; CBZ/CBR comics planned.",
+    "EPUB, MOBI, AZW3 (DRM-free), and TXT today; PDF and CBZ/CBR comics planned.",
   "features.cjk":
     "First-class CJK typography — vertical writing and CJK-aware search are core goals, not afterthoughts.",
   "features.native": "Fully native on iOS and Android, sharing one Rust core.",
@@ -41,7 +41,7 @@ const ja: typeof en = {
   intro:
     "静かに、丁寧に、文学的に。Inkunaは蔵書をそばに置きながら、ページの邪魔をしません — アカウントもノイズもなく、ただ読むことだけを。",
   "features.formats":
-    "EPUB・MOBI・AZW3（DRMフリー）・TXT・PDFに対応。CBZ/CBRコミックも計画中。",
+    "EPUB・MOBI・AZW3（DRMフリー）・TXTに対応。PDFとCBZ/CBRコミックも計画中。",
   "features.cjk":
     "縦書きやCJK対応検索を後回しにしない、第一級のCJKタイポグラフィ。",
   "features.native": "iOSとAndroidで完全ネイティブ。ひとつのRustコアを共有。",
@@ -71,7 +71,7 @@ const zh: typeof en = {
   intro:
     "克制、安静、有书卷气。Inkuna 让书库常伴左右，却从不打扰页面本身 —— 没有账号，没有噪音，只有阅读。",
   "features.formats":
-    "现已支持 EPUB、MOBI、AZW3（无 DRM）、TXT 与 PDF；CBZ/CBR 漫画在计划中。",
+    "现已支持 EPUB、MOBI、AZW3（无 DRM）与 TXT；PDF 与 CBZ/CBR 漫画在计划中。",
   "features.cjk":
     "一流的 CJK 排版 —— 竖排与 CJK 感知搜索是核心目标，而非事后补充。",
   "features.native": "iOS 与 Android 完全原生，共享同一个 Rust 内核。",

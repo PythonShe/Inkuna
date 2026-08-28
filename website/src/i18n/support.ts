@@ -26,7 +26,7 @@ const en = {
     },
     {
       q: "Which formats are supported?",
-      a: "EPUB, MOBI, AZW3 (DRM-free), TXT, and PDF today; CBZ/CBR comics are planned.",
+      a: "EPUB, MOBI, AZW3 (DRM-free), and TXT today; PDF and CBZ/CBR comics are planned.",
     },
     {
       q: "Do I need an account?",
@@ -65,7 +65,7 @@ const ja: typeof en = {
     },
     {
       q: "対応している形式は？",
-      a: "EPUB・MOBI・AZW3（DRM フリー）・TXT・PDF に対応。CBZ/CBR コミックは計画中です。",
+      a: "EPUB・MOBI・AZW3（DRM フリー）・TXT に対応。PDF と CBZ/CBR コミックは計画中です。",
     },
     {
       q: "アカウントは必要ですか？",
@@ -101,7 +101,7 @@ const zh: typeof en = {
     },
     {
       q: "支持哪些格式？",
-      a: "现已支持 EPUB、MOBI、AZW3（无 DRM）、TXT 与 PDF；CBZ/CBR 漫画在计划中。",
+      a: "现已支持 EPUB、MOBI、AZW3（无 DRM）与 TXT；PDF 与 CBZ/CBR 漫画在计划中。",
     },
     {
       q: "需要账号吗？",
