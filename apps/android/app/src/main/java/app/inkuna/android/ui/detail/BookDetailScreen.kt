@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -156,23 +157,28 @@ fun BookDetailScreen(
                 modifier = Modifier.padding(top = InkSpace.s2),
             )
             Spacer(Modifier.height(18.dp))
-            InkButton(
-                text = stringResource(R.string.tonight_keep_reading),
-                onClick = { onRead(null) },
-                icon = Icons.Outlined.AutoStories,
-            )
-            Spacer(Modifier.height(InkSpace.s2))
-            // Explicit shelf toggle: un-finishing sticks even at
-            // end-of-book, because auto-finish only fires on an upward
-            // crossing of the threshold.
-            InkButton(
-                text = stringResource(
-                    if (state.finished) R.string.detail_move_to_reading else R.string.detail_mark_finished
-                ),
-                onClick = model::toggleFinished,
-                variant = InkButtonVariant.Secondary,
-                icon = if (state.finished) Icons.AutoMirrored.Outlined.Undo else Icons.Outlined.CheckCircle,
-            )
+            // The two capsules read as a unit; the narrower one stretches to match.
+            Column(Modifier.width(IntrinsicSize.Max)) {
+                InkButton(
+                    text = stringResource(R.string.tonight_keep_reading),
+                    onClick = { onRead(null) },
+                    icon = Icons.Outlined.AutoStories,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(InkSpace.s2))
+                // Explicit shelf toggle: un-finishing sticks even at
+                // end-of-book, because auto-finish only fires on an upward
+                // crossing of the threshold.
+                InkButton(
+                    text = stringResource(
+                        if (state.finished) R.string.detail_move_to_reading else R.string.detail_mark_finished
+                    ),
+                    onClick = model::toggleFinished,
+                    variant = InkButtonVariant.Secondary,
+                    icon = if (state.finished) Icons.AutoMirrored.Outlined.Undo else Icons.Outlined.CheckCircle,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         Spacer(Modifier.height(InkSpace.s10))
         SectionTitle(stringResource(R.string.detail_contents))

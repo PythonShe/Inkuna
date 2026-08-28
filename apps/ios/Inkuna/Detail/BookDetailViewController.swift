@@ -141,6 +141,9 @@ final class BookDetailViewController: UIViewController {
         content.addArrangedSubview(coverBlock)
         content.setCustomSpacing(InkSpacing.space10, after: coverBlock)
 
+        // The two capsules read as a unit; the narrower one stretches to match.
+        finishedButton.widthAnchor.constraint(equalTo: readButton.widthAnchor).isActive = true
+
         // MARK: Contents
 
         let contentsTitle = InkLabel()
