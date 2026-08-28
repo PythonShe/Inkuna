@@ -51,22 +51,32 @@ const dateFormat = new Intl.DateTimeFormat(t("dateLocale"), {
     }
 
     {
-      entries.map((entry) => (
-        <article class="release">
-          <header>
-            <h2>
-              {entry.version}
-              <span class="build">({entry.build})</span>
-            </h2>
-            {entry.publishedAt && (
-              <time datetime={entry.publishedAt.slice(0, 10)}>
-                {dateFormat.format(new Date(entry.publishedAt))}
-              </time>
-            )}
-          </header>
-          <div class="notes" set:html={renderNotes(noteFor(entry, lang))} />
-        </article>
-      ))
+      entries.map((entry) => {
+        const note = noteFor(entry, lang);
+        return (
+          <article class="release">
+            <header>
+              <h2>
+                {entry.version}
+                <span class="build">({entry.build})</span>
+              </h2>
+              {entry.publishedAt && (
+                <time datetime={entry.publishedAt.slice(0, 10)}>
+                  {dateFormat.format(new Date(entry.publishedAt))}
+                </time>
+              )}
+            </header>
+            {/* Pre-trilingual releases fall back to English prose; the lang
+                attribute keeps their fonts and screen-reader voice English
+                instead of inheriting the page's ja/zh. */}
+            <div
+              class="notes"
+              lang={note.lang !== lang ? note.lang : undefined}
+              set:html={renderNotes(note.text)}
+            />
+          </article>
+        );
+      })
     }
   </main>
   <Footer lang={lang} path="/changelog" />

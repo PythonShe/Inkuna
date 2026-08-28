@@ -48,8 +48,18 @@ export function splitByLanguage(body: string): Partial<Record<Lang, string>> {
   return notes;
 }
 
-export function noteFor(entry: ChangelogEntry, lang: Lang): string {
-  return entry.notes[lang] ?? entry.notes[defaultLang] ?? "";
+export interface ResolvedNote {
+  /** Notes markdown in `lang`, or the English fallback. */
+  text: string;
+  /** The language `text` is actually written in, so callers can mark
+   *  fallback entries with the right `lang` attribute. */
+  lang: Lang;
+}
+
+export function noteFor(entry: ChangelogEntry, lang: Lang): ResolvedNote {
+  const text = entry.notes[lang];
+  if (text !== undefined) return { text, lang };
+  return { text: entry.notes[defaultLang] ?? "", lang: defaultLang };
 }
 
 export async function changelogEntries(): Promise<ChangelogEntry[]> {
