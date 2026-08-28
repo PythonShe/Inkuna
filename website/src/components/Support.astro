@@ -128,6 +128,11 @@ const faq = t("faq");
     color: var(--paper);
     text-decoration: none;
   }
+  /* The ring hugs the button's own border instead of the text-link offset. */
+  .button:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
   .faq {
     margin-top: 3rem;
   }

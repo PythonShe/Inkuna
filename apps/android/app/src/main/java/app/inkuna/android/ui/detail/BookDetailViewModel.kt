@@ -48,6 +48,9 @@ class BookDetailViewModel(
         val positionCount: Int? = null,
         val chapters: List<DetailChapter> = emptyList(),
         val currentChapterIndex: Int? = null,
+        /** Whether the book sits on the Finished shelf (the core row
+         *  carries a finish timestamp). */
+        val finished: Boolean = false,
         /** The book could not be fetched at all (nothing to stand on). */
         val failed: Boolean = false,
     )
@@ -103,6 +106,7 @@ class BookDetailViewModel(
                         )
                     },
                     currentChapterIndex = currentChapterIndex(chapters, ranges, position),
+                    finished = core.finishedAt != null,
                 )
             } catch (cancellation: CancellationException) {
                 throw cancellation
@@ -114,6 +118,27 @@ class BookDetailViewModel(
                     _state.value = _state.value.copy(failed = true)
                 }
             }
+        }
+    }
+
+    /**
+     * Writes the flipped finished state through the core, then re-fetches
+     * so the button label, shelf membership, and progress all come back
+     * from the same source of truth. Un-finishing sticks even at
+     * end-of-book: auto-finish only fires on an upward crossing of the
+     * threshold.
+     */
+    fun toggleFinished() {
+        viewModelScope.launch {
+            try {
+                val bookshelf = LibraryStore.bookshelf(app)
+                bookshelf.progress().setFinished(publicationId, !_state.value.finished)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
+                Log.w(TAG, "Toggling finished for $publicationId failed", failure)
+            }
+            reload()
         }
     }
 

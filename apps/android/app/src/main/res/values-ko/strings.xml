@@ -77,6 +77,8 @@
     
     <string name="detail_contents">목차</string>
     <string name="detail_no_contents">이 도서에는 목차가 없습니다.</string>
+    <string name="detail_mark_finished">완독으로 표시</string>
+    <string name="detail_move_to_reading">읽는 중으로 되돌리기</string>
 
     
     <string name="reader_menu_contents">목차 · %1$d%%</string>

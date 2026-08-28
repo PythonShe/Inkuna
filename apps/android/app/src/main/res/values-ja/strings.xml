@@ -77,6 +77,8 @@
     
     <string name="detail_contents">目次</string>
     <string name="detail_no_contents">この本には目次がありません。</string>
+    <string name="detail_mark_finished">読了にする</string>
+    <string name="detail_move_to_reading">読書中に戻す</string>
 
     
     <string name="reader_menu_contents">目次 · %1$d%%</string>

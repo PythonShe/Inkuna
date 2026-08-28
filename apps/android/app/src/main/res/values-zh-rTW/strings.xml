@@ -77,6 +77,8 @@
     
     <string name="detail_contents">目錄</string>
     <string name="detail_no_contents">本書未列出目錄。</string>
+    <string name="detail_mark_finished">標記為已讀完</string>
+    <string name="detail_move_to_reading">移回「閱讀中」</string>
 
     
     <string name="reader_menu_contents">目錄 · %1$d%%</string>

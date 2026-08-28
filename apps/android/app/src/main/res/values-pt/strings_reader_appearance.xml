@@ -31,4 +31,5 @@
     <string name="a11y_margins">Margens da página</string>
     <string name="a11y_reset_defaults">Redefinir tipografia e layout</string>
     <string name="a11y_preview_sample">Pré-visualização</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>

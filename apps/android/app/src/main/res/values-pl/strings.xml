@@ -67,6 +67,8 @@
     </plurals>
     <string name="detail_contents">Spis treści</string>
     <string name="detail_no_contents">Ta książka nie zawiera spisu treści.</string>
+    <string name="detail_mark_finished">Oznacz jako przeczytane</string>
+    <string name="detail_move_to_reading">Przywróć do czytanych</string>
     <string name="reader_menu_contents">Spis treści · %1$d%%</string>
     <string name="reader_menu_theme_type">Motyw &amp; typografia</string>
     <string name="reader_search_placeholder">Szukaj w tej książce</string>

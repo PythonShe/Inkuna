@@ -31,4 +31,5 @@
     <string name="a11y_margins">페이지 여백</string>
     <string name="a11y_reset_defaults">글자와 레이아웃을 기본값으로 재설정</string>
     <string name="a11y_preview_sample">미리보기</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>

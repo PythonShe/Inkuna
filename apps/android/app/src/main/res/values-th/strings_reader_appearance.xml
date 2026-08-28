@@ -31,4 +31,5 @@
     <string name="a11y_margins">ระยะขอบหน้า</string>
     <string name="a11y_reset_defaults">รีเซ็ตตัวอักษรและเค้าโครงเป็นค่าเริ่มต้น</string>
     <string name="a11y_preview_sample">ตัวอย่าง</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>

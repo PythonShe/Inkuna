@@ -351,7 +351,8 @@ final class ReaderSearchPanel: UIView, UITextFieldDelegate {
                 whereLabel.textColor = InkColor.textTertiary
                 whereLabel.setContentCompressionResistancePriority(.required, for: .vertical)
                 content.addArrangedSubview(whereLabel)
-                row.accessibilityLabel = "\(spoken), \(pageText)"
+                let pairFormat = NSLocalizedString("a11y_pair", comment: "")
+                row.accessibilityLabel = String.localizedStringWithFormat(pairFormat, spoken, pageText)
             }
             positionTasks.append(task)
         }

@@ -31,4 +31,5 @@
     <string name="a11y_margins">Margin halaman</string>
     <string name="a11y_reset_defaults">Setel ulang tipografi dan tata letak</string>
     <string name="a11y_preview_sample">Pratinjau</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>

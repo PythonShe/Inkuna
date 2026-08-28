@@ -33,4 +33,5 @@
     <string name="a11y_margins">Page margins</string>
     <string name="a11y_reset_defaults">Reset type and layout to defaults</string>
     <string name="a11y_preview_sample">Preview</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>

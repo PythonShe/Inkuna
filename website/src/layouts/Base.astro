@@ -129,4 +129,11 @@ const alternates = localizedPath
   a:hover {
     text-decoration-thickness: 2px;
   }
+  /* Keyboard focus: a quiet ink ring that reads on both paper and
+     moonlight (the tokens flip with the palette). Mouse and touch focus
+     stay unmarked via :focus-visible. */
+  a:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 0.2em;
+  }
 </style>

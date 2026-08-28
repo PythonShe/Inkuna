@@ -61,4 +61,9 @@ const t = useTranslations(footer, lang);
     text-decoration: none;
     color: var(--ink);
   }
+  /* Focused switcher links darken to full ink so the label reads inside
+     the global focus ring even in the footer's softened palette. */
+  .lang-switch a:focus-visible {
+    color: var(--ink);
+  }
 </style>

@@ -100,6 +100,7 @@ final class ReaderPreviewCard: UIView {
         label.attributedText = rendered
 
         let previewName = String(localized: "a11y_preview", defaultValue: "Preview")
-        accessibilityLabel = "\(previewName): \(phrase)"
+        let pairFormat = NSLocalizedString("a11y_label_value", comment: "")
+        accessibilityLabel = String.localizedStringWithFormat(pairFormat, previewName, phrase)
     }
 }

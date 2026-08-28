@@ -31,4 +31,5 @@
     <string name="a11y_margins">Поля страницы</string>
     <string name="a11y_reset_defaults">Сбросить шрифт и макет</string>
     <string name="a11y_preview_sample">Предпросмотр</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>

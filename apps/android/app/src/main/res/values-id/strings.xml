@@ -69,6 +69,8 @@
     
     <string name="detail_contents">Daftar isi</string>
     <string name="detail_no_contents">Buku ini tidak memiliki daftar isi.</string>
+    <string name="detail_mark_finished">Tandai selesai</string>
+    <string name="detail_move_to_reading">Kembalikan ke Sedang dibaca</string>
     
     <string name="reader_menu_contents">Daftar isi · %1$d%%</string>
     <string name="reader_menu_theme_type">Tema &amp; jenis huruf</string>

@@ -77,6 +77,8 @@
     
     <string name="detail_contents">Mục lục</string>
     <string name="detail_no_contents">Cuốn sách này không có mục lục.</string>
+    <string name="detail_mark_finished">Đánh dấu đã xong</string>
+    <string name="detail_move_to_reading">Chuyển lại Đang đọc</string>
 
     
     <string name="reader_menu_contents">Mục lục · %1$d%%</string>

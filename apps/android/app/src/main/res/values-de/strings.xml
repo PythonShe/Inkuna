@@ -71,6 +71,8 @@
     
     <string name="detail_contents">Inhalt</string>
     <string name="detail_no_contents">Dieses Buch enthält kein Inhaltsverzeichnis.</string>
+    <string name="detail_mark_finished">Als beendet markieren</string>
+    <string name="detail_move_to_reading">Zurück zu „Lesen“</string>
     
     <string name="reader_menu_contents">Inhalt · %1$d%%</string>
     <string name="reader_menu_theme_type">Design &amp; Typografie</string>
