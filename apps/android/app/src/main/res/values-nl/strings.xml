@@ -63,6 +63,8 @@
     </plurals>
     <string name="detail_contents">Inhoud</string>
     <string name="detail_no_contents">Dit boek bevat geen inhoudsopgave.</string>
+    <string name="detail_mark_finished">Markeren als gelezen</string>
+    <string name="detail_move_to_reading">Terug naar Bezig</string>
     <string name="reader_menu_contents">Inhoud · %1$d%%</string>
     <string name="reader_menu_theme_type">Thema &amp; typografie</string>
     <string name="reader_search_placeholder">Zoek in dit boek</string>

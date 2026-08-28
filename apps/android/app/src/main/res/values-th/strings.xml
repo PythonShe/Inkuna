@@ -77,6 +77,8 @@
     
     <string name="detail_contents">สารบัญ</string>
     <string name="detail_no_contents">หนังสือเล่มนี้ไม่มีสารบัญ</string>
+    <string name="detail_mark_finished">ทำเครื่องหมายว่าอ่านจบแล้ว</string>
+    <string name="detail_move_to_reading">ย้ายกลับไปที่กำลังอ่าน</string>
 
     
     <string name="reader_menu_contents">สารบัญ · %1$d%%</string>

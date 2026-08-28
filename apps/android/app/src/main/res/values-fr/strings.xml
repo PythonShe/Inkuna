@@ -79,6 +79,8 @@
     
     <string name="detail_contents">Sommaire</string>
     <string name="detail_no_contents">Ce livre ne contient aucun sommaire.</string>
+    <string name="detail_mark_finished">Marquer comme terminé</string>
+    <string name="detail_move_to_reading">Remettre dans « En cours »</string>
 
     
     <string name="reader_menu_contents">Sommaire · %1$d %%</string>

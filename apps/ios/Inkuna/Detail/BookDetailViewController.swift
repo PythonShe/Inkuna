@@ -30,6 +30,13 @@ final class BookDetailViewController: UIViewController {
     private let metaLabel = InkLabel()
     private let contentsStack = UIStackView()
 
+    /// Explicit shelf toggle: "Mark as Finished" until the book is
+    /// finished, "Move back to Reading" once it is. The title tracks the
+    /// re-fetched publication on every refresh.
+    private lazy var finishedButton = InkButton("", variant: .secondary) { [weak self] in
+        self?.toggleFinished()
+    }
+
     private let logger = Logger(subsystem: "app.inkuna.ios", category: "detail")
 
     /// The in-flight refresh, cancelled by its successor.
@@ -122,7 +129,9 @@ final class BookDetailViewController: UIViewController {
             ReaderLauncher.push(self.publication, on: self.navigationController)
         }
 
-        let coverBlock = UIStackView(arrangedSubviews: [cover, titleLabel, authorLabel, progressBar, metaLabel, readButton])
+        updateFinishedButton()
+
+        let coverBlock = UIStackView(arrangedSubviews: [cover, titleLabel, authorLabel, progressBar, metaLabel, readButton, finishedButton])
         coverBlock.axis = .vertical
         coverBlock.alignment = .center
         coverBlock.spacing = InkSpacing.space2
@@ -182,6 +191,7 @@ final class BookDetailViewController: UIViewController {
                 self.chapterRanges = ranges
                 self.progressBar.setProgress(CGFloat(publication.progression), animated: false)
                 self.metaLabel.text = self.positionText()
+                self.updateFinishedButton()
                 self.rebuildContents()
             } catch is CancellationError {
                 // The screen was popped, or a newer refresh took over.
@@ -189,6 +199,47 @@ final class BookDetailViewController: UIViewController {
             } catch {
                 logger.warning("Refreshing detail for \(id, privacy: .public) failed: \(error)")
             }
+        }
+    }
+
+    // MARK: Finished toggle
+
+    /// Repaints the toggle's title and symbol off the current publication.
+    /// Configuration surgery rather than a rebuilt button: the instance
+    /// stays in the stack and keeps its action and press animation.
+    private func updateFinishedButton() {
+        let finished = publication.finishedAt != nil
+        let title = finished
+            ? String(localized: "detail_move_to_reading", defaultValue: "Move back to Reading")
+            : String(localized: "detail_mark_finished", defaultValue: "Mark as Finished")
+        let symbol = finished ? "arrow.uturn.backward" : "checkmark.circle"
+        var config = finishedButton.configuration
+        config?.attributedTitle = AttributedString(title, attributes: AttributeContainer([.font: InkFont.ui]))
+        config?.image = UIImage(
+            systemName: symbol,
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: InkFont.ui.pointSize, weight: .medium)
+        )
+        config?.imagePadding = InkSpacing.space2
+        finishedButton.configuration = config
+    }
+
+    /// Writes the flipped finished state through the core, then re-fetches
+    /// so the title, shelf membership, and progress all come back from the
+    /// same source of truth. Un-finishing sticks even at end-of-book:
+    /// auto-finish only fires on an upward crossing of the threshold.
+    private func toggleFinished() {
+        let target = publication.finishedAt == nil
+        finishedButton.isEnabled = false
+        Task { [weak self, id = publication.id, logger] in
+            do {
+                let bookshelf = try await LibraryStore.shared.library()
+                try await bookshelf.progress().setFinished(id: id, finished: target)
+            } catch {
+                logger.warning("Toggling finished for \(id, privacy: .public) failed: \(error)")
+            }
+            guard let self else { return }
+            self.finishedButton.isEnabled = true
+            self.refresh()
         }
     }
 

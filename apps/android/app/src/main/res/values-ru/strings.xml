@@ -83,6 +83,8 @@
     
     <string name="detail_contents">Оглавление</string>
     <string name="detail_no_contents">В этой книге нет оглавления.</string>
+    <string name="detail_mark_finished">Отметить как прочитанное</string>
+    <string name="detail_move_to_reading">Вернуть в «Читаю»</string>
 
     
     <string name="reader_menu_contents">Оглавление · %1$d%%</string>

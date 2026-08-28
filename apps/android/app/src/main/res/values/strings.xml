@@ -81,6 +81,8 @@
     
     <string name="detail_contents">Contents</string>
     <string name="detail_no_contents">This book lists no contents.</string>
+    <string name="detail_mark_finished">Mark as Finished</string>
+    <string name="detail_move_to_reading">Move back to Reading</string>
 
     
     <string name="reader_menu_contents">Contents · %1$d%%</string>

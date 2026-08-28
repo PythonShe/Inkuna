@@ -18,7 +18,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +41,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.inkuna.android.R
 import app.inkuna.android.ui.components.BookCover
 import app.inkuna.android.ui.components.InkButton
+import app.inkuna.android.ui.components.InkButtonVariant
 import app.inkuna.android.ui.components.InkIconButton
 import app.inkuna.android.ui.components.InkProgressBar
 import app.inkuna.android.ui.main.EmptyState
@@ -157,6 +160,18 @@ fun BookDetailScreen(
                 text = stringResource(R.string.tonight_keep_reading),
                 onClick = { onRead(null) },
                 icon = Icons.Outlined.AutoStories,
+            )
+            Spacer(Modifier.height(InkSpace.s2))
+            // Explicit shelf toggle: un-finishing sticks even at
+            // end-of-book, because auto-finish only fires on an upward
+            // crossing of the threshold.
+            InkButton(
+                text = stringResource(
+                    if (state.finished) R.string.detail_move_to_reading else R.string.detail_mark_finished
+                ),
+                onClick = model::toggleFinished,
+                variant = InkButtonVariant.Secondary,
+                icon = if (state.finished) Icons.AutoMirrored.Outlined.Undo else Icons.Outlined.CheckCircle,
             )
         }
         Spacer(Modifier.height(InkSpace.s10))

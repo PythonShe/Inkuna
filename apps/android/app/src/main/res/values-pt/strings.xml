@@ -71,6 +71,8 @@
     
     <string name="detail_contents">Índice</string>
     <string name="detail_no_contents">Este livro não tem índice.</string>
+    <string name="detail_mark_finished">Marcar como concluído</string>
+    <string name="detail_move_to_reading">Voltar para Lendo</string>
     
     <string name="reader_menu_contents">Índice · %1$d%%</string>
     <string name="reader_menu_theme_type">Tema e tipografia</string>

@@ -79,6 +79,8 @@
     
     <string name="detail_contents">Contenido</string>
     <string name="detail_no_contents">Este libro no incluye un índice de contenido.</string>
+    <string name="detail_mark_finished">Marcar como terminado</string>
+    <string name="detail_move_to_reading">Devolver a Leyendo</string>
 
     
     <string name="reader_menu_contents">Contenido · %1$d %%</string>

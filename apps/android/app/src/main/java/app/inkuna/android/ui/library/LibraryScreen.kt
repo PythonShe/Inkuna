@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.inkuna.android.R
@@ -59,6 +60,14 @@ fun LibraryScreen(
     model: LibraryViewModel = viewModel(),
 ) {
     val state by model.state.collectAsStateWithLifecycle()
+
+    // Shelf membership moves behind this screen's back — a book marked
+    // finished on its detail screen must have changed shelves by the time
+    // the pop lands here (the Tonight tab reloads the same way).
+    LifecycleResumeEffect(Unit) {
+        model.reload()
+        onPauseOrDispose {}
+    }
 
     val segments = LibrarySegment.entries
     // Addressed by index: two shelves may well share a translation, and a
