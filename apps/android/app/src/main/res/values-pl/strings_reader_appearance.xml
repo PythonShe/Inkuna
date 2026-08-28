@@ -26,4 +26,5 @@
     <string name="a11y_margins">Marginesy strony</string>
     <string name="a11y_reset_defaults">Przywróć domyślną typografię i układ</string>
     <string name="a11y_preview_sample">Podgląd</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>

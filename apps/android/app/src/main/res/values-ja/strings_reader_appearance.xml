@@ -31,4 +31,5 @@
     <string name="a11y_margins">ページ余白</string>
     <string name="a11y_reset_defaults">文字とレイアウトをデフォルトに戻す</string>
     <string name="a11y_preview_sample">プレビュー</string>
+    <string name="a11y_label_value">%1$s：%2$s</string>
 </resources>

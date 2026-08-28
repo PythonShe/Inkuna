@@ -31,4 +31,5 @@
     <string name="a11y_margins">Seitenränder</string>
     <string name="a11y_reset_defaults">Schrift und Layout auf Standard zurücksetzen</string>
     <string name="a11y_preview_sample">Vorschau</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>

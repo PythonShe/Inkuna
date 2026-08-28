@@ -318,7 +318,11 @@ private fun AppearancePreviewCard(
     liveFamily: FontFamily?,
     publisherFamily: FontFamily?,
 ) {
-    val a11yPreview = stringResource(R.string.a11y_preview_sample)
+    val a11yPreview = stringResource(
+        R.string.a11y_label_value,
+        stringResource(R.string.a11y_preview_sample),
+        phrase,
+    )
     Box(
         Modifier
             .fillMaxWidth()
@@ -329,7 +333,7 @@ private fun AppearancePreviewCard(
             // height but grows when large type or wide line spacing needs
             // more room, so the third line is never cut mid-glyph.
             .heightIn(min = 118.dp)
-            .clearAndSetSemantics { contentDescription = "$a11yPreview: $phrase" }
+            .clearAndSetSemantics { contentDescription = a11yPreview }
             .padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
         Text(
@@ -371,6 +375,7 @@ private fun FontRow(
     val ink = InkTheme.colors
     val title = stringResource(R.string.reader_font)
     val value = stringResource(current.nameRes)
+    val rowDescription = stringResource(R.string.a11y_label_value, title, value)
     var expanded by remember { mutableStateOf(false) }
     // The anchor Box spans the row, and the menu takes the row's measured
     // width, so it opens as a full-width sheet under the selector.
@@ -389,7 +394,7 @@ private fun FontRow(
                 .fillMaxWidth()
                 .clickable { expanded = true }
                 .clearAndSetSemantics {
-                    contentDescription = "$title: $value"
+                    contentDescription = rowDescription
                     role = Role.Button
                 }
                 .padding(horizontal = InkSpace.s4, vertical = 14.dp),

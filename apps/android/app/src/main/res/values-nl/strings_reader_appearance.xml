@@ -26,4 +26,5 @@
     <string name="a11y_margins">Paginamarges</string>
     <string name="a11y_reset_defaults">Typografie en lay-out herstellen naar standaardwaarden</string>
     <string name="a11y_preview_sample">Voorvertoning</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>

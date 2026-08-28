@@ -31,4 +31,5 @@
     <string name="a11y_margins">页边距</string>
     <string name="a11y_reset_defaults">将文字与版式恢复默认</string>
     <string name="a11y_preview_sample">预览</string>
+    <string name="a11y_label_value">%1$s：%2$s</string>
 </resources>

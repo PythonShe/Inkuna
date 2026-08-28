@@ -75,7 +75,8 @@ final class BookListRowView: UIView {
         cloudBadge.isHidden = downloaded
 
         isAccessibilityElement = true
-        accessibilityLabel = "\(title), \(author)"
+        let bookFormat = NSLocalizedString("a11y_book_row", comment: "")
+        accessibilityLabel = String.localizedStringWithFormat(bookFormat, title, author)
         accessibilityTraits = .button
 
         let identity = (title: title, author: author, seed: seed, coverPath: coverPath)

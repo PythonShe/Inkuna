@@ -302,7 +302,8 @@ final class TonightViewController: ScrollScreenViewController {
 
         // Not a single a11y element: the inner Keep-reading button must stay
         // reachable. The title label doubles as the open affordance.
-        titleLabel.accessibilityLabel = "\(title), \(author)"
+        let bookFormat = NSLocalizedString("a11y_book_row", comment: "")
+        titleLabel.accessibilityLabel = String.localizedStringWithFormat(bookFormat, title, author)
         if let onOpen {
             heroOpenAction = onOpen
             let tap = UITapGestureRecognizer(target: self, action: #selector(openHero))

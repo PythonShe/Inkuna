@@ -31,4 +31,5 @@
     <string name="a11y_margins">Lề trang</string>
     <string name="a11y_reset_defaults">Đặt lại kiểu chữ và bố cục về mặc định</string>
     <string name="a11y_preview_sample">Xem trước</string>
+    <string name="a11y_label_value">%1$s: %2$s</string>
 </resources>
