@@ -32,6 +32,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -72,9 +73,14 @@ private fun emptyMessage(emptiness: LibraryEmptiness): Int = when (emptiness) {
     }
 }
 
-/** The cover width the grid aims for (the shelf tile width); columns are
- *  however many fit, never fewer than two. Matches iOS. */
+/** The cover width the grid aims for on phones (the shelf tile width);
+ *  columns are however many fit, never fewer than two. Matches iOS. */
 private val GRID_CELL_TARGET = 104.dp
+
+/** The airier target on tablets (smallest screen width >= 600dp, the
+ *  platform's own sw600dp convention): an 11" tablet lands on three
+ *  columns in portrait and four in landscape. Matches iOS. */
+private val GRID_CELL_TARGET_TABLET = 250.dp
 
 /** Horizontal gap between grid cells. */
 private val GRID_GAP = InkSpace.s3
@@ -141,10 +147,16 @@ fun LibraryScreen(
                 .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
         ) {
             // Columns adapt to whatever width the window offers — rotation,
-            // split screen, tablets — from the ~104dp tile the shelf uses,
-            // floored at two so covers never balloon on narrow phones.
+            // split screen, tablets — from the target tile width (phone or
+            // tablet), floored at two so covers never balloon on narrow
+            // phones.
+            val cellTarget = if (LocalConfiguration.current.smallestScreenWidthDp >= 600) {
+                GRID_CELL_TARGET_TABLET
+            } else {
+                GRID_CELL_TARGET
+            }
             val available = maxWidth - InkSpace.pageMargin * 2
-            val columns = maxOf(2, ((available + GRID_GAP) / (GRID_CELL_TARGET + GRID_GAP)).toInt())
+            val columns = maxOf(2, ((available + GRID_GAP) / (cellTarget + GRID_GAP)).toInt())
             val cellWidth = (available - GRID_GAP * (columns - 1)) / columns
 
             LazyVerticalGrid(

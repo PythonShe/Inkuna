@@ -45,9 +45,21 @@ final class LibraryViewController: UIViewController {
         case emptyLibrary
     }
 
-    /// Target grid cell width — the Tonight-shelf tile — from which the
-    /// column count is derived.
-    private static let gridCellTarget: CGFloat = 104
+    /// Target grid cell width, from which the column count is derived:
+    /// the Tonight-shelf tile on phones, an airier tile on tablets.
+    private static let gridCellTargetPhone: CGFloat = 104
+    private static let gridCellTargetTablet: CGFloat = 250
+
+    /// Picks the tile target from the device's smaller screen dimension —
+    /// the same sw600dp convention Android uses — so an iPad is airy in
+    /// both orientations while an iPhone Max stays dense in landscape
+    /// (which trait size-classes would get wrong: it is regular-H there).
+    private func gridCellTarget() -> CGFloat {
+        let screen = view.window?.windowScene?.screen.bounds.size ?? view.bounds.size
+        return min(screen.width, screen.height) >= 600
+            ? Self.gridCellTargetTablet
+            : Self.gridCellTargetPhone
+    }
 
     private var collectionView: UICollectionView!
     private var dataSource: UICollectionViewDiffableDataSource<Section, Item>!
@@ -252,7 +264,7 @@ final class LibraryViewController: UIViewController {
                 return Self.headerSection()
             case .books:
                 return self.gridActive
-                    ? Self.gridSection(environment: environment)
+                    ? Self.gridSection(environment: environment, cellTarget: self.gridCellTarget())
                     : Self.listSection()
             }
         }
@@ -292,11 +304,11 @@ final class LibraryViewController: UIViewController {
         return section
     }
 
-    private static func gridSection(environment: NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection {
+    private static func gridSection(environment: NSCollectionLayoutEnvironment, cellTarget: CGFloat) -> NSCollectionLayoutSection {
         let gap = InkSpacing.stackGap
         let available = environment.container.effectiveContentSize.width - 2 * InkSpacing.pageMargin
-        // As many ~104pt tiles as fit, but never fewer than two columns.
-        let columns = max(2, Int((available + gap) / (gridCellTarget + gap)))
+        // As many target-width tiles as fit, but never fewer than two columns.
+        let columns = max(2, Int((available + gap) / (cellTarget + gap)))
         let itemSize = NSCollectionLayoutSize(
             widthDimension: .fractionalWidth(1 / CGFloat(columns)),
             heightDimension: .estimated(210)
