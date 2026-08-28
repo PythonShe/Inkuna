@@ -78,6 +78,8 @@ class AppSettings private constructor(private val context: Context) {
         val readingMargins: Int = DEFAULT_READING_MARGINS,
         /** Whether UI haptic feedback fires anywhere in the app. */
         val haptics: Boolean = true,
+        /** Library shelves as a cover grid rather than list rows. */
+        val libraryGrid: Boolean = false,
     )
 
     private val _snapshot = MutableStateFlow(Snapshot())
@@ -200,6 +202,9 @@ class AppSettings private constructor(private val context: Context) {
     fun setHaptics(value: Boolean) =
         update { it.copy(haptics = value) }
 
+    fun setLibraryGrid(value: Boolean) =
+        update { it.copy(libraryGrid = value) }
+
     /** Resets only the Customize six — never text size, theme, or
      *  brightness — in one record write. */
     fun setReadingAppearanceDefaults() = update {
@@ -283,6 +288,7 @@ class AppSettings private constructor(private val context: Context) {
         wordSpacing = wordSpacing.toFloat().coerceIn(0f, MAX_WORD_SPACING),
         readingMargins = readingMargins.toInt().coerceIn(MIN_READING_MARGINS, MAX_READING_MARGINS),
         haptics = haptics,
+        libraryGrid = libraryGrid,
     )
 
     private fun Snapshot.toRecord() = Settings(
@@ -301,6 +307,7 @@ class AppSettings private constructor(private val context: Context) {
         wordSpacing = wordSpacing.toDouble(),
         readingMargins = readingMargins.toUShort(),
         haptics = haptics,
+        libraryGrid = libraryGrid,
     )
 
     private object LegacyKeys {

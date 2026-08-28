@@ -47,6 +47,8 @@
     <string name="library_seg_reading">読書中</string>
     <string name="library_seg_finished">読了</string>
     <string name="library_seg_wishlist">読みたい</string>
+    <string name="library_view_grid">グリッドで表示</string>
+    <string name="library_view_list">リストで表示</string>
     <string name="library_empty_finished">読了した本はまだありません。</string>
     <string name="library_empty_wishlist">読みたい本リストにはまだ本がありません。</string>
     <string name="library_empty_query">該当する本は見つかりませんでした。</string>

@@ -48,6 +48,8 @@
     <string name="library_seg_reading">En cours</string>
     <string name="library_seg_finished">Terminés</string>
     <string name="library_seg_wishlist">Envies</string>
+    <string name="library_view_grid">Afficher en grille</string>
+    <string name="library_view_list">Afficher en liste</string>
     <string name="library_empty_finished">Aucun livre terminé pour le moment.</string>
     <string name="library_empty_wishlist">Aucun livre dans votre liste d\'envies pour l\'instant.</string>
     <string name="library_empty_query">Aucun livre trouvé.</string>

@@ -40,6 +40,8 @@
     <string name="library_seg_reading">Czytane</string>
     <string name="library_seg_finished">Przeczytane</string>
     <string name="library_seg_wishlist">Do przeczytania</string>
+    <string name="library_view_grid">Pokaż jako siatkę</string>
+    <string name="library_view_list">Pokaż jako listę</string>
     <string name="library_empty_finished">Brak przeczytanych książek.</string>
     <string name="library_empty_wishlist">Brak książek na liście życzeń.</string>
     <string name="library_empty_query">Nie znaleziono pasujących książek.</string>

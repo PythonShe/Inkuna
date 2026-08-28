@@ -42,6 +42,8 @@
     <string name="library_seg_reading">Sedang dibaca</string>
     <string name="library_seg_finished">Selesai</string>
     <string name="library_seg_wishlist">Daftar keinginan</string>
+    <string name="library_view_grid">Tampilkan sebagai kisi</string>
+    <string name="library_view_list">Tampilkan sebagai daftar</string>
     <string name="library_empty_finished">Belum ada buku yang selesai dibaca.</string>
     <string name="library_empty_wishlist">Belum ada buku di daftar keinginan.</string>
     <string name="library_empty_query">Tidak ditemukan buku yang cocok.</string>

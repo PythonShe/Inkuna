@@ -43,6 +43,8 @@
     <string name="library_seg_reading">Lendo</string>
     <string name="library_seg_finished">Concluídos</string>
     <string name="library_seg_wishlist">Lista de desejos</string>
+    <string name="library_view_grid">Mostrar em grade</string>
+    <string name="library_view_list">Mostrar em lista</string>
     <string name="library_empty_finished">Nenhum livro concluído ainda.</string>
     <string name="library_empty_wishlist">Ainda não há livros na sua lista de desejos.</string>
     <string name="library_empty_query">Nenhum livro encontrado.</string>

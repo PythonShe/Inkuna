@@ -47,6 +47,8 @@
     <string name="library_seg_reading">읽는 중</string>
     <string name="library_seg_finished">완독</string>
     <string name="library_seg_wishlist">읽고 싶은 책</string>
+    <string name="library_view_grid">그리드로 보기</string>
+    <string name="library_view_list">목록으로 보기</string>
     <string name="library_empty_finished">아직 완독한 책이 없습니다.</string>
     <string name="library_empty_wishlist">위시리스트에 아직 책이 없습니다.</string>
     <string name="library_empty_query">검색 결과가 없습니다.</string>

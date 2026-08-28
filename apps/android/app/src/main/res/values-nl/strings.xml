@@ -38,6 +38,8 @@
     <string name="library_seg_reading">Bezig</string>
     <string name="library_seg_finished">Gelezen</string>
     <string name="library_seg_wishlist">Verlanglijst</string>
+    <string name="library_view_grid">Als raster weergeven</string>
+    <string name="library_view_list">Als lijst weergeven</string>
     <string name="library_empty_finished">Nog geen uitgelezen boeken.</string>
     <string name="library_empty_wishlist">Nog geen boeken op uw verlanglijst.</string>
     <string name="library_empty_query">Geen overeenkomende boeken gevonden.</string>

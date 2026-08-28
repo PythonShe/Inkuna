@@ -50,6 +50,8 @@
     <string name="library_seg_reading">Читаю</string>
     <string name="library_seg_finished">Прочитано</string>
     <string name="library_seg_wishlist">В планах</string>
+    <string name="library_view_grid">Показать сеткой</string>
+    <string name="library_view_list">Показать списком</string>
     <string name="library_empty_finished">Пока нет прочитанных книг.</string>
     <string name="library_empty_wishlist">В списке желаний пока нет книг.</string>
     <string name="library_empty_query">Книги не найдены.</string>

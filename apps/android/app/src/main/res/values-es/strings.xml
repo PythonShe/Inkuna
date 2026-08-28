@@ -48,6 +48,8 @@
     <string name="library_seg_reading">Leyendo</string>
     <string name="library_seg_finished">Terminados</string>
     <string name="library_seg_wishlist">Deseos</string>
+    <string name="library_view_grid">Mostrar como cuadrícula</string>
+    <string name="library_view_list">Mostrar como lista</string>
     <string name="library_empty_finished">Aún no has terminado ningún libro.</string>
     <string name="library_empty_wishlist">Aún no hay libros en tu lista de deseos.</string>
     <string name="library_empty_query">No se encontraron libros.</string>

@@ -43,6 +43,8 @@
     <string name="library_seg_reading">Lesen</string>
     <string name="library_seg_finished">Beendet</string>
     <string name="library_seg_wishlist">Wunschliste</string>
+    <string name="library_view_grid">Als Raster anzeigen</string>
+    <string name="library_view_list">Als Liste anzeigen</string>
     <string name="library_empty_finished">Noch keine Bücher beendet.</string>
     <string name="library_empty_wishlist">Noch keine Bücher auf der Wunschliste.</string>
     <string name="library_empty_query">Keine passenden Bücher gefunden.</string>

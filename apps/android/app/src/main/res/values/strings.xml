@@ -48,6 +48,8 @@
     <string name="library_seg_reading">Reading</string>
     <string name="library_seg_finished">Finished</string>
     <string name="library_seg_wishlist">Wishlist</string>
+    <string name="library_view_grid">Show as grid</string>
+    <string name="library_view_list">Show as list</string>
     <string name="library_empty_finished">No finished books yet.</string>
     <string name="library_empty_wishlist">No books in your wishlist yet.</string>
     <string name="library_empty_query">No books found.</string>

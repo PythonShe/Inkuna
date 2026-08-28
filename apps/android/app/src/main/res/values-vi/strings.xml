@@ -47,6 +47,8 @@
     <string name="library_seg_reading">Đang đọc</string>
     <string name="library_seg_finished">Đã xong</string>
     <string name="library_seg_wishlist">Muốn đọc</string>
+    <string name="library_view_grid">Hiển thị dạng lưới</string>
+    <string name="library_view_list">Hiển thị dạng danh sách</string>
     <string name="library_empty_finished">Chưa có cuốn sách nào đọc xong.</string>
     <string name="library_empty_wishlist">Chưa có cuốn sách nào trong danh sách muốn đọc.</string>
     <string name="library_empty_query">Không tìm thấy cuốn sách nào.</string>

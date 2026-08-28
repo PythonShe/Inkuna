@@ -47,6 +47,8 @@
     <string name="library_seg_reading">在读</string>
     <string name="library_seg_finished">已读完</string>
     <string name="library_seg_wishlist">愿望单</string>
+    <string name="library_view_grid">以网格显示</string>
+    <string name="library_view_list">以列表显示</string>
     <string name="library_empty_finished">暂无已读完的书籍。</string>
     <string name="library_empty_wishlist">心愿单中暂无书籍。</string>
     <string name="library_empty_query">未找到相关书籍。</string>

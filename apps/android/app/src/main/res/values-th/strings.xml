@@ -47,6 +47,8 @@
     <string name="library_seg_reading">กำลังอ่าน</string>
     <string name="library_seg_finished">อ่านจบแล้ว</string>
     <string name="library_seg_wishlist">อยากอ่าน</string>
+    <string name="library_view_grid">แสดงเป็นตาราง</string>
+    <string name="library_view_list">แสดงเป็นรายการ</string>
     <string name="library_empty_finished">ยังไม่มีหนังสือที่อ่านจบ</string>
     <string name="library_empty_wishlist">ยังไม่มีหนังสือในรายการที่อยากอ่าน</string>
     <string name="library_empty_query">ไม่พบหนังสือที่ค้นหา</string>
