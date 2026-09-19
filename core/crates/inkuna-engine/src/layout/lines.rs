@@ -3,8 +3,9 @@
 //! The paragraph text is measured as a sequence of atoms — one glyph
 //! cluster, or one whole ruby pair — and break candidates are the
 //! UAX-14 opportunities that land on atom boundaries (so ligatures and
-//! ruby stay unbreakable). A single unbreakable stretch wider than the
-//! line overflows rather than force-breaking; the page box clips it.
+//! ruby stay unbreakable). A stretch whose every opportunity is wider
+//! than the line is broken between clusters instead (CSS
+//! `overflow-wrap: anywhere`), so no text is clipped by the page box.
 
 use std::ops::Range;
 
@@ -163,9 +164,10 @@ pub fn break_paragraph(p: &ShapedParagraph<'_>, width: Fx, opts: &LineOptions) -
             ci += 1;
         }
         // Widest candidate that fits; a mandatory break is taken as
-        // soon as it fits; if not even the first candidate fits, take
-        // it anyway (overflow — the page box clips).
+        // soon as it fits. When not even the first candidate fits, the
+        // stretch has no usable opportunity and is broken inside.
         let mut chosen: Option<(usize, bool)> = None;
+        let mut unbreakable = false;
         for &(c, mandatory) in &cands[ci..] {
             if measure(&atoms, &prefix, start, c) <= line_width {
                 chosen = Some((c, mandatory));
@@ -175,13 +177,24 @@ pub fn break_paragraph(p: &ShapedParagraph<'_>, width: Fx, opts: &LineOptions) -
             } else {
                 if chosen.is_none() {
                     chosen = Some((c, mandatory));
+                    unbreakable = true;
                 }
                 break;
             }
         }
         // The end-of-text candidate always exists, so `chosen` is Some;
         // the fallback keeps this panic-free regardless.
-        let (end, forced) = chosen.unwrap_or((atoms.len(), true));
+        let (mut end, mut forced) = chosen.unwrap_or((atoms.len(), true));
+        if unbreakable {
+            // Break between clusters at the widest prefix that fits, so
+            // the tail wraps onto the next line instead of running past
+            // the page box, where the shell would clip it away.
+            let split = force_break(&atoms, &prefix, start, end, line_width);
+            if split < end {
+                end = split;
+                forced = true;
+            }
+        }
         let is_last = end == atoms.len();
         let lo = atoms[start].start;
         let hi = atom_end(&atoms, end, n_chars);
@@ -199,6 +212,18 @@ pub fn break_paragraph(p: &ShapedParagraph<'_>, width: Fx, opts: &LineOptions) -
         start = end;
     }
     lines
+}
+
+/// The widest atom prefix of `[start, end)` that fits `width`, for a
+/// stretch no break opportunity can split. Never returns `start`: a
+/// single atom wider than the line is still taken (and still overflows,
+/// as one cluster cannot be split), so the caller always advances.
+fn force_break(atoms: &[Atom], prefix: &[i64], start: usize, end: usize, width: Fx) -> usize {
+    let mut split = start + 1;
+    while split < end && measure(atoms, prefix, start, split + 1) <= width {
+        split += 1;
+    }
+    split
 }
 
 /// The paragraph-local char offset just past atom index `end`.

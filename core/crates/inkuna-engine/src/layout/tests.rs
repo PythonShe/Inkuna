@@ -265,3 +265,69 @@ fn char_ranges_partition_paragraph() {
     }
     assert_eq!(cursor, p.char_range.end, "lines cover the paragraph");
 }
+
+#[test]
+fn overlong_word_breaks_between_clusters_instead_of_clipping() {
+    let fonts = registry();
+    // A German compound with no interior break opportunity, measured
+    // against a column far too narrow for it — the 360dp-class phone
+    // case that used to overflow the page box and lose the tail.
+    let text = "Geschwindigkeitsbegrenzung";
+    let width = total_advance(text, fonts).mul_ratio(1, 3);
+    let p = paragraph(text, false, 0, fonts);
+    let lines = break_paragraph(&p, width, &opts(TextAlign::Start));
+
+    assert!(lines.len() >= 3, "word wrapped, got {} lines", lines.len());
+    for (i, line) in lines.iter().enumerate() {
+        assert!(
+            line.inline_extent <= width,
+            "line {i} stays inside the column: {:?} > {width:?}",
+            line.inline_extent
+        );
+    }
+    // Every char survives: the lines still partition the paragraph.
+    let mut cursor = p.char_range.start;
+    for line in &lines {
+        assert_eq!(line.char_range.start, cursor, "no gap, no overlap");
+        cursor = line.char_range.end;
+    }
+    assert_eq!(cursor, p.char_range.end, "no char clipped away");
+}
+
+#[test]
+fn single_cluster_wider_than_the_line_still_advances() {
+    let fonts = registry();
+    // One atom that cannot fit cannot be split; the breaker must take
+    // it anyway rather than spin, and the rest must still lay out.
+    let text = "Wörter";
+    let width = one_char_advance("W", fonts).mul_ratio(1, 2);
+    let p = paragraph(text, false, 0, fonts);
+    let lines = break_paragraph(&p, width, &opts(TextAlign::Start));
+
+    assert_eq!(lines.len(), text.chars().count(), "one cluster per line");
+    let mut cursor = p.char_range.start;
+    for line in &lines {
+        assert!(line.char_range.end > line.char_range.start, "progress");
+        assert_eq!(line.char_range.start, cursor);
+        cursor = line.char_range.end;
+    }
+    assert_eq!(cursor, p.char_range.end);
+}
+
+#[test]
+fn breakable_text_is_unaffected_by_the_force_break_path() {
+    let fonts = registry();
+    // Ordinary prose has opportunities that fit, so the force-break
+    // path must never trigger: breaks stay on space boundaries.
+    let text = "aaa bbb ccc ddd eee fff";
+    let width = total_advance("aaa bbb ccc", fonts);
+    let p = paragraph(text, false, 0, fonts);
+    let lines = break_paragraph(&p, width, &opts(TextAlign::Start));
+    let chars: Vec<char> = text.chars().collect();
+    assert!(lines.len() >= 2);
+    for line in lines.iter().skip(1) {
+        let at = line.char_range.start as usize;
+        assert_ne!(chars[at], ' ', "lines start on a word, not mid-run");
+        assert_eq!(chars[at - 1], ' ', "break landed on a space boundary");
+    }
+}
