@@ -90,7 +90,21 @@ final class BookDetailViewController: UIViewController {
         let backButton = InkIconButton(symbol: "chevron.backward", accessibilityLabel: String(localized: "a11y_back", defaultValue: "Back")) { [weak self] in
             self?.navigationController?.popViewController(animated: true)
         }
-        let backRow = UIStackView(arrangedSubviews: [backButton, UIView()])
+        // Destructive work lives behind an overflow menu rather than a
+        // capsule: a red pill would outweigh the two amber ones it sits
+        // beside, on a screen whose job is to invite reading.
+        let moreButton = InkIconButton(
+            symbol: "ellipsis",
+            accessibilityLabel: String(localized: "a11y_book_actions", defaultValue: "Book actions")
+        )
+        moreButton.showsMenuAsPrimaryAction = true
+        moreButton.menu = UIMenu(children: [
+            BookRemoval.action(for: publication, from: self) { [weak self] in
+                self?.navigationController?.popViewController(animated: true)
+            },
+        ])
+
+        let backRow = UIStackView(arrangedSubviews: [backButton, UIView(), moreButton])
         backRow.axis = .horizontal
         content.addArrangedSubview(backRow)
         content.setCustomSpacing(18, after: backRow)

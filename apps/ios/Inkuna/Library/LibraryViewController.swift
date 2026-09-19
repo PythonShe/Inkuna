@@ -528,6 +528,23 @@ extension LibraryViewController: UICollectionViewDelegate {
         if case .book = dataSource.itemIdentifier(for: indexPath) { return true }
         return false
     }
+
+    /// Long-press is the only remove affordance that reads the same in
+    /// list and grid mode — a swipe action would exist on rows and vanish
+    /// on tiles. The header and the empty states get no menu.
+    func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
+        point: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        guard let indexPath = indexPaths.first,
+              case .book(let id) = dataSource.itemIdentifier(for: indexPath),
+              let publication = publicationsByID[id] else { return nil }
+        return UIContextMenuConfiguration(identifier: id as NSString, previewProvider: nil) { [weak self] _ in
+            guard let self else { return nil }
+            return UIMenu(children: [BookRemoval.action(for: publication, from: self)])
+        }
+    }
 }
 
 extension LibraryViewController: UIGestureRecognizerDelegate {
