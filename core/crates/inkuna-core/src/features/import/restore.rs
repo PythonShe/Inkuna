@@ -87,12 +87,22 @@ pub(super) fn coordinates_survive(
 ///
 /// `reconciled_at` is stamped for the same reason a fresh import stamps
 /// it: the corpus about to be written IS the canonical projection. The
-/// exception is a row still holding an unconsumed legacy `locator` — a
+/// exception is a book still holding an unconsumed legacy `locator` — a
 /// pre-V8 book removed before the rebaseline ever reached it. That locator
 /// is the only record of where its reader was, so the stamp is withheld
 /// and the rebaseline converts it at the next open. Reads meanwhile see no
 /// coordinate and fall back to progression, which is the fail-safe
 /// direction.
+///
+/// "Unconsumed" covers the bookmarks as well as the publication row: the
+/// schema permits either half to be legacy on its own (a pre-V8 book that
+/// was bookmarked but never progress-written has a NULL publication
+/// locator and nonempty bookmark ones), and the rebaseline is a whole-book
+/// pass gated on this one stamp — stamping on the publication locator
+/// alone would retire the pass before step 4 ever converted those
+/// bookmarks, stranding them without coordinates for good.
+/// `bookmarks.locator` is NOT NULL, so `<> ''` is its unconsumed test,
+/// matching the rebaseline's own.
 pub(super) fn revive(
     tx: &rusqlite::Transaction,
     publication: &Publication,
@@ -105,7 +115,12 @@ pub(super) fn revive(
                 format = ?5, file_path = ?6, cover_path = ?7, added_at = ?8,
                 removed_at = NULL, corpus_digest = NULL,
                 reconciled_at = CASE
-                    WHEN locator IS NULL OR locator = '' THEN ?9
+                    WHEN (locator IS NULL OR locator = '')
+                     AND NOT EXISTS (
+                         SELECT 1 FROM bookmarks b
+                          WHERE b.publication_id = publications.id
+                            AND b.locator <> ''
+                     ) THEN ?9
                     ELSE NULL
                 END
           WHERE id = ?10 AND removed_at IS NOT NULL",

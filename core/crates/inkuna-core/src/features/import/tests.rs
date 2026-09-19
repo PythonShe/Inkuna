@@ -1748,3 +1748,66 @@ fn restoring_an_unconverted_legacy_book_leaves_it_for_the_rebaseline() {
     );
     assert!(locator.is_some(), "and the locator itself is still there");
 }
+
+/// The other half of the same pre-V8 state: a book bookmarked but never
+/// progress-written has a NULL publication locator while its bookmarks
+/// still carry legacy JSON. Stamping it reconciled on the publication
+/// locator alone would retire the rebaseline before step 4 converted
+/// those bookmarks, leaving them without coordinates for good.
+#[test]
+fn restoring_a_book_with_unconverted_legacy_bookmarks_leaves_it_for_the_rebaseline() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let id = imported(library.import(epub.to_str().unwrap()).unwrap()).id;
+    let bookmark = library.add_bookmark(&id, None, 0.4).unwrap();
+
+    // Age the pair back: the publication never held a locator (nothing
+    // ever wrote its progress), but the bookmark is still legacy.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications
+                SET reconciled_at = NULL, locator = NULL,
+                    position_spine_idx = NULL, position_char_offset = NULL
+              WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE bookmarks
+                SET locator = '{\"href\":\"chapter1.xhtml\",\"progression\":0.4}',
+                    position_spine_idx = NULL, position_char_offset = NULL
+              WHERE id = ?1",
+            [&bookmark.id],
+        )
+        .unwrap();
+    }
+    library.remove(&id).unwrap();
+
+    let (publication, _) = restored(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(publication.id, id);
+
+    let (reconciled_at, locator): (Option<i64>, String) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT p.reconciled_at, b.locator
+                   FROM publications p JOIN bookmarks b ON b.publication_id = p.id
+                  WHERE p.id = ?1",
+                [&id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(
+        reconciled_at, None,
+        "an unconsumed bookmark locator must keep the book on the rebaseline's list"
+    );
+    assert!(
+        !locator.is_empty(),
+        "and the bookmark locator itself is still there to convert"
+    );
+}
