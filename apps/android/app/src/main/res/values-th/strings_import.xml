@@ -57,9 +57,9 @@
     <string name="import_progress_title_one">กำลังเพิ่มไปยังห้องสมุด</string>
     <string name="import_status_added">เพิ่มลงในชั้นหนังสือแล้ว</string>
     <string name="import_status_duplicate">มีอยู่ในชั้นหนังสือแล้ว</string>
-    <string name="import_section_restored">ความคืบหน้ากลับมาแล้ว</string>
+    <string name="import_section_restored">กู้คืนแล้ว</string>
     <string name="import_status_restored">อ่านต่อจากที่ค้างไว้ได้เลย</string>
-    <string name="import_status_restored_partial">ความคืบหน้าการอ่านกลับมาแล้ว แต่ไม่ใช่หน้าเดิมพอดี</string>
+    <string name="import_status_restored_partial">กู้คืนความคืบหน้าแล้ว (ไม่ตรงหน้าเดิม)</string>
     <string name="import_subtitle_cancelled">คุณหยุดส่วนที่เหลือแล้ว</string>
     <string name="import_subtitle_duplicate_many">%1$d เล่มมีอยู่ในชั้นแล้ว</string>
     <string name="import_subtitle_duplicate_one">1 เล่มมีอยู่ในชั้นแล้ว</string>

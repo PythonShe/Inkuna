@@ -141,7 +141,7 @@
     <!-- Removing a book -->
     <string name="remove_action">Remove from Library</string>
     <string name="remove_confirm_title">Remove “%1$s”?</string>
-    <string name="remove_confirm_body">Only the book file is deleted. Your reading progress and bookmarks stay — add the book again to pick up where you left off.</string>
+    <string name="remove_confirm_body">Only the book file will be deleted. Your reading progress and bookmarks will be kept.</string>
     <string name="remove_confirm_button">Remove</string>
     <string name="remove_cancel">Cancel</string>
     <string name="remove_failed">This book couldn\'t be removed.</string>

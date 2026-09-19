@@ -58,9 +58,9 @@
     <string name="import_progress_title_one">Aggiunta alla libreria</string>
     <string name="import_status_added">Aggiunto alla libreria</string>
     <string name="import_status_duplicate">Già nella libreria</string>
-    <string name="import_section_restored">Con i tuoi progressi</string>
+    <string name="import_section_restored">Ripristinati</string>
     <string name="import_status_restored">Riprendi da dove avevi interrotto</string>
-    <string name="import_status_restored_partial">I progressi sono tornati, ma non la pagina esatta</string>
+    <string name="import_status_restored_partial">Progressi ripristinati, pagina esatta non disponibile</string>
     <string name="import_subtitle_cancelled">hai interrotto i restanti</string>
     <string name="import_subtitle_duplicate_many">%1$d erano già nella libreria</string>
     <string name="import_subtitle_duplicate_one">1 era già nella libreria</string>

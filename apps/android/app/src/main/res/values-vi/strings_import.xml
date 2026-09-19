@@ -57,9 +57,9 @@
     <string name="import_progress_title_one">Đang thêm vào thư viện</string>
     <string name="import_status_added">Đã thêm vào thư viện</string>
     <string name="import_status_duplicate">Đã có trong thư viện</string>
-    <string name="import_section_restored">Vẫn còn tiến độ đọc</string>
-    <string name="import_status_restored">Đọc tiếp từ chỗ đang đọc dở</string>
-    <string name="import_status_restored_partial">Tiến độ đọc đã trở lại, nhưng không đúng trang cũ</string>
+    <string name="import_section_restored">Đã khôi phục</string>
+    <string name="import_status_restored">Đọc tiếp từ chỗ đọc dở</string>
+    <string name="import_status_restored_partial">Đã khôi phục tiến độ (không đúng trang cũ)</string>
     <string name="import_subtitle_cancelled">bạn đã dừng các mục còn lại</string>
     <string name="import_subtitle_duplicate_many">%1$d cuốn đã có trong thư viện</string>
     <string name="import_subtitle_duplicate_one">1 cuốn đã có trong thư viện</string>

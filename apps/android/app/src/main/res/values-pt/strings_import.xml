@@ -54,9 +54,9 @@
     <string name="import_progress_title_one">Adicionando à sua biblioteca</string>
     <string name="import_status_added">Adicionado à sua biblioteca</string>
     <string name="import_status_duplicate">Já está na sua biblioteca</string>
-    <string name="import_section_restored">Com seu progresso de volta</string>
-    <string name="import_status_restored">Você retoma de onde parou</string>
-    <string name="import_status_restored_partial">Seu progresso voltou, mas não a página exata</string>
+    <string name="import_section_restored">Restaurados</string>
+    <string name="import_status_restored">Continue de onde parou</string>
+    <string name="import_status_restored_partial">Progresso restaurado, página exata indisponível</string>
     <string name="import_subtitle_cancelled">você interrompeu o restante</string>
     <string name="import_subtitle_duplicate_many">%1$d já estavam na sua biblioteca</string>
     <string name="import_subtitle_duplicate_one">1 já estava na sua biblioteca</string>

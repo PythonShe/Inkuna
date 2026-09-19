@@ -53,9 +53,9 @@
     <string name="import_progress_title_one">Menambahkan ke perpustakaan Anda</string>
     <string name="import_status_added">Ditambahkan ke perpustakaan Anda</string>
     <string name="import_status_duplicate">Sudah ada di perpustakaan Anda</string>
-    <string name="import_section_restored">Kemajuan baca kembali</string>
-    <string name="import_status_restored">Anda bisa langsung melanjutkan</string>
-    <string name="import_status_restored_partial">Kemajuan baca Anda kembali, tetapi tidak persis di halaman yang sama</string>
+    <string name="import_section_restored">Dipulihkan</string>
+    <string name="import_status_restored">Lanjutkan membaca</string>
+    <string name="import_status_restored_partial">Kemajuan baca dipulihkan, halaman tidak persis sama</string>
     <string name="import_subtitle_cancelled">Anda menghentikan sisanya</string>
     <string name="import_subtitle_duplicate_many">%1$d sudah ada di perpustakaan Anda</string>
     <string name="import_subtitle_duplicate_one">1 sudah ada di perpustakaan Anda</string>

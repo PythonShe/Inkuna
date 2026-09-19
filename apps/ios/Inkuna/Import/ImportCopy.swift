@@ -117,7 +117,7 @@ enum ImportCopy {
         // restored book in the run: progress came back. Whether the exact
         // page did is a per-book truth, so it stays on the book's own row.
         if report.restored.count == 1 {
-            parts.append(String(localized: "import_subtitle_restored_one", defaultValue: "1 came back with your progress"))
+            parts.append(String(localized: "import_subtitle_restored_one", defaultValue: "1 restored with progress"))
         } else if report.restored.count > 1 {
             let format = NSLocalizedString("import_subtitle_restored_many", comment: "")
             parts.append(String.localizedStringWithFormat(format, Int64(report.restored.count)))
@@ -157,7 +157,7 @@ enum ImportCopy {
             ? String(localized: "import_status_restored", defaultValue: "Back where you left off")
             : String(
                 localized: "import_status_restored_partial",
-                defaultValue: "Your progress came back, but not the exact page"
+                defaultValue: "Progress restored, exact page unavailable"
             )
     }
 

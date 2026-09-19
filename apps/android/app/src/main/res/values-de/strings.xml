@@ -126,9 +126,9 @@
     <string name="reader_fixed_layout_unsupported">Dieses Buch verwendet ein festes Layout, das Inkuna noch nicht anzeigen kann.</string>
 
     <!-- Removing a book -->
-    <string name="remove_action">Aus Bibliothek entfernen</string>
+    <string name="remove_action">Aus der Bibliothek entfernen</string>
     <string name="remove_confirm_title">„%1$s“ entfernen?</string>
-    <string name="remove_confirm_body">Nur die Buchdatei wird gelöscht. Ihr Lesefortschritt und Ihre Lesezeichen bleiben erhalten – fügen Sie das Buch erneut hinzu und lesen Sie einfach weiter.</string>
+    <string name="remove_confirm_body">Nur die Buchdatei wird gelöscht. Ihr Lesefortschritt und Ihre Lesezeichen bleiben erhalten.</string>
     <string name="remove_confirm_button">Entfernen</string>
     <string name="remove_cancel">Abbrechen</string>
     <string name="remove_failed">Dieses Buch konnte nicht entfernt werden.</string>

@@ -128,7 +128,7 @@
     <!-- Removing a book -->
     <string name="remove_action">Remover da biblioteca</string>
     <string name="remove_confirm_title">Remover “%1$s”?</string>
-    <string name="remove_confirm_body">Só o arquivo do livro é apagado. Seu progresso de leitura e seus marcadores continuam aqui — adicione o livro de novo e você retoma de onde parou.</string>
+    <string name="remove_confirm_body">Apenas o arquivo do livro será excluído. Seu progresso de leitura e marcadores serão mantidos.</string>
     <string name="remove_confirm_button">Remover</string>
     <string name="remove_cancel">Cancelar</string>
     <string name="remove_failed">Não foi possível remover este livro.</string>

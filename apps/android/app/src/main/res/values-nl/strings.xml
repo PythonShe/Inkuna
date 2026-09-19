@@ -118,7 +118,7 @@
     <!-- Removing a book -->
     <string name="remove_action">Verwijderen uit bibliotheek</string>
     <string name="remove_confirm_title">‘%1$s’ verwijderen?</string>
-    <string name="remove_confirm_body">Alleen het boekbestand wordt verwijderd. Je leesvoortgang en bladwijzers blijven bewaard – voeg het boek opnieuw toe en je leest gewoon verder.</string>
+    <string name="remove_confirm_body">Alleen het boekbestand wordt verwijderd. Je leesvoortgang en bladwijzers blijven bewaard.</string>
     <string name="remove_confirm_button">Verwijderen</string>
     <string name="remove_cancel">Annuleren</string>
     <string name="remove_failed">Dit boek kon niet worden verwijderd.</string>
