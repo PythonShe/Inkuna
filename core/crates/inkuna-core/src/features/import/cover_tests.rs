@@ -220,6 +220,15 @@ fn optimize_covers_reencodes_legacy_rows_once() {
 /// and a test that manufactured that row would only be testing itself.
 /// Should a future writer ever be able to leave a cover on a tombstone,
 /// that is when the filter becomes observable and wants its own test.
+///
+/// Re-checked when the pass learned to re-extract a missing cover, since
+/// that gave a row with a `cover_path` and no file real work to do rather
+/// than an error to log: the answer is unchanged, because a tombstone has
+/// no `cover_path` to reach that work with. What the re-extraction *did*
+/// add is a row that goes stale mid-pass — read live, removed before its
+/// turn comes — and that is not this filter's business either: the pass
+/// reads its worklist before the removal exists, so only the guarded
+/// claim under the writer lock can catch it, and that is what does.
 #[test]
 fn a_removal_leaves_the_cover_pass_nothing_to_do() {
     let dir = tempfile::tempdir().unwrap();
@@ -345,4 +354,75 @@ fn a_cover_pass_that_loses_its_book_to_a_restore_leaves_the_new_cover_alone() {
         std::fs::read_dir(data_dir.join("covers")).unwrap().count(),
         1
     );
+}
+
+/// A live row whose cover *file* is gone — the shape a crash between the
+/// rename and the commit leaves, and the shape an older build's cover loss
+/// leaves. Nothing used to heal it: the pass read the missing file, failed,
+/// logged, and skipped it forever, and a re-import of the same book is
+/// refused as a duplicate before it ever parses. So the cover is rebuilt
+/// from the one source that still has it — the stored book.
+#[test]
+fn a_missing_cover_file_is_re_extracted_from_the_book() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let library = Library::open(&data_dir).unwrap();
+
+    let book = dir.path().join("book.epub");
+    write_epub_with_real_cover(&book, &png_bytes(1200, 1800));
+    let publication = imported(library.import(book.to_str().unwrap()).unwrap());
+    let rel = publication.cover_path.clone().unwrap();
+    assert!(data_dir.join(&rel).is_file());
+
+    std::fs::remove_file(data_dir.join(&rel)).unwrap();
+    assert_eq!(library.optimize_covers().unwrap(), 1);
+
+    let live = library.publication(&publication.id).unwrap();
+    let healed = live.cover_path.clone().unwrap();
+    assert!(
+        data_dir.join(&healed).is_file(),
+        "the row points at a cover that exists again"
+    );
+    assert_eq!(
+        dimensions(&std::fs::read(data_dir.join(&healed)).unwrap()),
+        (600, 900)
+    );
+    // And it is a fixed point again: a healed cover is a normalized one.
+    assert_eq!(library.optimize_covers().unwrap(), 0);
+}
+
+/// The other half of the re-extraction: a book that cannot yield a cover,
+/// because its file is gone or is not a readable EPUB. The row must stop
+/// claiming a cover it does not have — otherwise every library open would
+/// pay for the same failed parse again, forever.
+#[test]
+fn a_book_that_cannot_yield_a_cover_stops_claiming_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let library = Library::open(&data_dir).unwrap();
+
+    let gone = dir.path().join("gone.epub");
+    write_epub(&gone, "失われた本", "作者", "zh");
+    let gone = imported(library.import(gone.to_str().unwrap()).unwrap());
+    let damaged = dir.path().join("damaged.epub");
+    write_epub(&damaged, "壊れた本", "作者", "zh");
+    let damaged = imported(library.import(damaged.to_str().unwrap()).unwrap());
+
+    for publication in [&gone, &damaged] {
+        std::fs::remove_file(data_dir.join(publication.cover_path.as_ref().unwrap())).unwrap();
+    }
+    std::fs::remove_file(data_dir.join(&gone.file_path)).unwrap();
+    std::fs::write(data_dir.join(&damaged.file_path), b"not an archive").unwrap();
+
+    assert_eq!(library.optimize_covers().unwrap(), 2);
+    for publication in [&gone, &damaged] {
+        assert_eq!(
+            library.publication(&publication.id).unwrap().cover_path,
+            None,
+            "a row stops pointing at a cover nothing can rebuild"
+        );
+    }
+    // Which is exactly what keeps the next open from retrying the parse:
+    // neither row is the pass's business any more.
+    assert_eq!(library.optimize_covers().unwrap(), 0);
 }

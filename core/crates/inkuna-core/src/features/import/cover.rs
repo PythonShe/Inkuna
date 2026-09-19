@@ -5,12 +5,13 @@
 //! through untouched — a cover is optional data and never fails an
 //! import.
 //!
-//! The background pass at the bottom re-encodes what older versions left
-//! behind. It writes to `covers/<id>.<ext>`, which — because a removed
-//! book's id can be reclaimed by a restore — is shared property, not this
-//! pass's own. So it borrows `commit`'s discipline wholesale: stage under a
-//! unique name, claim the row under the writer lock, place the file,
-//! commit.
+//! The background pass at the bottom keeps stored covers in agreement with
+//! that: it re-encodes what older versions left behind, and rebuilds a
+//! cover whose file has gone missing from the book itself. Both write to
+//! `covers/<id>.<ext>`, which — because a removed book's id can be
+//! reclaimed by a restore — is shared property, not this pass's own. So it
+//! borrows `commit`'s discipline wholesale: stage under a unique name,
+//! claim the row under the writer lock, place the file, commit.
 
 use std::io::Cursor;
 use std::path::Path;
@@ -19,7 +20,7 @@ use std::sync::Mutex;
 use image::imageops::FilterType;
 use image::ImageReader;
 
-use crate::formats::epub::Cover;
+use crate::formats::epub::{self, Cover};
 use crate::{CoreError, Library};
 
 /// Bounding box the stored cover must fit inside, preserving aspect
@@ -116,17 +117,32 @@ struct CoverRow<'a> {
     id: &'a str,
     /// `cover_path`: the file to refresh, and half the claim.
     rel: &'a str,
+    /// `file_path`: the book the cover is re-extracted from when the file
+    /// at `rel` has gone missing.
+    book_rel: &'a str,
 }
 
 impl Library {
-    /// Re-encodes covers persisted before normalization existed (or by
-    /// older versions) into the bounded WebP form, returning how many
-    /// changed. Idempotent — already-normalized covers are skipped — and
-    /// per-cover failures are logged and skipped rather than failing the
-    /// pass: a cover is derived data. Safe to run in the background at
-    /// any time after open, which is exactly what both shells do —
-    /// concurrently with the removals and re-imports the ownership
-    /// discipline below is about.
+    /// Brings every live row's cover back into agreement with what the
+    /// library should hold, returning how many rows it rewrote:
+    ///
+    /// - a cover persisted before normalization existed (or by an older
+    ///   version) is re-encoded into the bounded WebP form;
+    /// - a cover whose *file* has gone missing is re-extracted from the
+    ///   stored book — the same extraction import runs — so a row is never
+    ///   left pointing at art nothing can produce again;
+    /// - a row whose cover can no longer be produced at all (its book is
+    ///   missing, unreadable, or simply carries no cover art) stops
+    ///   claiming one: `cover_path` is cleared, which is both honest and
+    ///   what keeps the re-extraction above from running on every open
+    ///   forever. Its cover comes back with a remove + re-import, which is
+    ///   the only thing that can rebuild it anyway.
+    ///
+    /// Idempotent — an already-normalized cover whose file is there is a
+    /// fixed point — and per-cover failures are logged and skipped rather
+    /// than failing the pass: a cover is derived data. Safe to run in the
+    /// background at any time after open, which is exactly what both
+    /// shells do.
     pub fn optimize_covers(&self) -> Result<u32, CoreError> {
         self.optimize_covers_hooked(&|| {})
     }
@@ -138,13 +154,13 @@ impl Library {
     /// a removal and a restore into exactly that gap. Mirrors
     /// `commit_import_hooked`.
     fn optimize_covers_hooked(&self, before_lock: &dyn Fn()) -> Result<u32, CoreError> {
-        let rows: Vec<(String, String)> = self.readers.with(|conn| {
+        let rows: Vec<(String, String, String)> = self.readers.with(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, cover_path FROM publications_all
+                "SELECT id, cover_path, file_path FROM publications_all
                      WHERE cover_path IS NOT NULL AND removed_at IS NULL",
             )?;
             let rows = stmt
-                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(rows)
         })?;
@@ -153,9 +169,9 @@ impl Library {
         // serializes it anyway, so fanning out on rayon would only pin
         // worker threads against the gate during app startup.
         let mut changed = 0;
-        for (id, rel) in &rows {
-            let row = CoverRow { id, rel };
-            match self.optimize_cover(&row, before_lock) {
+        for (id, rel, book_rel) in &rows {
+            let row = CoverRow { id, rel, book_rel };
+            match self.refresh_cover(&row, before_lock) {
                 Ok(true) => changed += 1,
                 Ok(false) => {}
                 Err(error) => log::warn!("cover optimization skipped for {id}: {error}"),
@@ -164,15 +180,44 @@ impl Library {
         Ok(changed)
     }
 
-    /// One row's normalization: re-encode what is on disk, if it is not
-    /// already the bounded WebP form.
-    fn optimize_cover(&self, row: &CoverRow, before_lock: &dyn Fn()) -> Result<bool, CoreError> {
-        let extension = row.rel.rsplit_once('.').map(|(_, s)| s).unwrap_or("");
-        let bytes = std::fs::read(self.data_dir.join(row.rel))?;
-        let Some(cover) = normalized(&bytes, extension) else {
-            return Ok(false);
-        };
-        self.place_cover(row, &cover, before_lock)
+    /// One row's refresh: re-encode what is on disk, or — when the file is
+    /// gone — rebuild it from the book, or give the claim up.
+    fn refresh_cover(&self, row: &CoverRow, before_lock: &dyn Fn()) -> Result<bool, CoreError> {
+        match std::fs::read(self.data_dir.join(row.rel)) {
+            Ok(bytes) => {
+                let extension = row.rel.rsplit_once('.').map(|(_, s)| s).unwrap_or("");
+                match normalized(&bytes, extension) {
+                    Some(cover) => self.place_cover(row, &cover, before_lock),
+                    None => Ok(false),
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                match self.extracted_cover(row) {
+                    Some(cover) => self.place_cover(row, &cover, before_lock),
+                    None => self.clear_cover(row),
+                }
+            }
+            // Anything else (a permission or I/O failure) is not a
+            // statement about the cover: leave the row alone and let the
+            // next pass try again.
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// The cover art the stored book carries, normalized exactly as import
+    /// normalizes it — the same `read_package` the import pipeline parses
+    /// with, so a re-extracted cover is byte-identical to the one that
+    /// import would have written. `None` (logged) whenever the book cannot
+    /// produce one: the caller then clears the row's claim rather than
+    /// retrying this parse on every open.
+    fn extracted_cover(&self, row: &CoverRow) -> Option<Cover> {
+        match epub::read_package(&self.data_dir.join(row.book_rel)) {
+            Ok(parsed) => parsed.cover.map(normalize_cover),
+            Err(error) => {
+                log::warn!("cover re-extraction failed for {}: {error}", row.id);
+                None
+            }
+        }
     }
 
     /// Stages `cover` under a name no other actor can spell, then hands it
@@ -241,7 +286,7 @@ impl Library {
     ) -> Result<bool, CoreError> {
         let mut conn = self.writer.lock().unwrap();
         let tx = conn.transaction()?;
-        if claim(&tx, row, new_rel)? == 0 {
+        if claim(&tx, row, Some(new_rel))? == 0 {
             return Ok(false);
         }
         // A failure here rolls the claim back with the dropped transaction,
@@ -254,16 +299,25 @@ impl Library {
         Ok(true)
     }
 
+    /// Drops a row's claim on a cover nothing can rebuild. Pure row work —
+    /// the file it named is already gone — under the same guarded claim, so
+    /// a row that was removed or restored meanwhile keeps whatever the
+    /// winner gave it.
+    fn clear_cover(&self, row: &CoverRow) -> Result<bool, CoreError> {
+        let conn = self.writer.lock().unwrap();
+        Ok(claim(&conn, row, None)? == 1)
+    }
 }
 
-/// Points `row`'s publication at the cover file just placed, but only
-/// while it is still the live row this pass read: same id, same `cover_path`, not a tombstone.
+/// Points `row`'s publication at `cover_path` — the file just placed, or
+/// NULL when the pass gave the claim up — but only while it is still the
+/// live row this pass read: same id, same `cover_path`, not a tombstone.
 /// Returns how many rows matched (0 or 1); 0 means the row moved under us
 /// and this pass owns nothing.
 fn claim(
     conn: &rusqlite::Connection,
     row: &CoverRow,
-    cover_path: &str,
+    cover_path: Option<&str>,
 ) -> Result<usize, CoreError> {
     Ok(conn.execute(
         "UPDATE publications_all SET cover_path = ?1
