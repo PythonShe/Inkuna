@@ -390,8 +390,17 @@ fn two_concurrent_removes_claim_the_row_exactly_once() {
 /// and v10's rebaseline pass has no `removed_at` filter, so it would
 /// consume the legacy `locator` that is a tombstone's only record of
 /// where the reader was. Every statement below is v10's own, verbatim from
-/// `git show main:…/library/store.rs` and `…/library/rebaseline.rs`; the
-/// v11 triggers are the whole of what contains them.
+/// `git show main:…/library/store.rs` and `…/library/rebaseline.rs`.
+///
+/// Two distinct defenses contain them, and this test pins both separately
+/// because each one alone would be enough to make the other look like it
+/// worked. The `publications` **view** is what stops v10: it holds no
+/// tombstone row at all, so v10's rebaseline UPDATEs match nothing — the
+/// freeze trigger is never even reached on that path. The
+/// `publications_freeze_tombstone` **trigger** is what stops a v11+ writer,
+/// which names `publications_all` directly and so does see the tombstone;
+/// the second half below replays the very same v10 statements against that
+/// name to reach it.
 #[test]
 fn a_v10_binary_cannot_destroy_a_tombstone() {
     let f = fixture();
@@ -496,6 +505,9 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
 
         // v10 `rebaseline::rebaseline_one`, steps 3 and 5: the conversion
         // pair that consumes the locator, then the `reconciled_at` stamp.
+        // These name `publications`, so it is the view — not the freeze
+        // trigger — that is on trial here: the tombstone is simply not in
+        // the rowset these statements can reach.
         let converted = conn
             .execute(
                 // v10-view-sql: v10's own statement, verbatim.
@@ -505,7 +517,10 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
                 rusqlite::params![0_i64, 0_i64, &f.id],
             )
             .unwrap();
-        assert_eq!(converted, 0, "the freeze trigger swallowed the conversion");
+        assert_eq!(
+            converted, 0,
+            "the view holds no tombstone row, so v10's conversion matched nothing"
+        );
         conn.execute(
             // v10-view-sql: v10's own statement, verbatim.
             "UPDATE publications SET locator = NULL WHERE id = ?1",
@@ -535,6 +550,77 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
             reconciled_at, None,
             "nothing told the tombstone its deleted corpus was canonical"
         );
+
+        // The other defense, on trial on its own. A v11+ pass — a
+        // rebaseline or backfill racing a `remove` — names
+        // `publications_all`, so the view does not stand between it and the
+        // tombstone and `publications_freeze_tombstone` is what has to
+        // catch it. Same three statements, same order, only the table name
+        // differs, so nothing but the trigger can account for the result.
+        let frozen = conn
+            .execute(
+                "UPDATE publications_all
+                    SET position_spine_idx = ?1, position_char_offset = ?2, locator = NULL
+                  WHERE id = ?3 AND position_spine_idx IS NULL",
+                rusqlite::params![0_i64, 0_i64, &f.id],
+            )
+            .unwrap();
+        assert_eq!(
+            frozen, 0,
+            "the row was matched, and the freeze trigger swallowed the write"
+        );
+        assert_eq!(
+            conn.execute(
+                "UPDATE publications_all SET locator = NULL WHERE id = ?1",
+                [&f.id],
+            )
+            .unwrap(),
+            0,
+            "and the unconditional locator clear too"
+        );
+        assert_eq!(
+            conn.execute(
+                "UPDATE publications_all SET reconciled_at = ?1 WHERE id = ?2",
+                rusqlite::params![999_i64, &f.id],
+            )
+            .unwrap(),
+            0,
+            "and the reconciled_at stamp"
+        );
+
+        let (locator, reconciled_at, still_removed): (Option<String>, Option<i64>, Option<i64>) =
+            conn.query_row(
+                "SELECT locator, reconciled_at, removed_at FROM publications_all WHERE id = ?1",
+                [&f.id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            locator.as_deref(),
+            Some(LEGACY_LOCATOR),
+            "the trigger left the position untouched"
+        );
+        assert_eq!(reconciled_at, None);
+        assert!(still_removed.is_some(), "and it is still a tombstone");
+
+        // The freeze is not a blanket write ban: a restore identifies
+        // itself by clearing `removed_at` in the same statement, and that
+        // one statement does land. Without this, a trigger that ignored
+        // *every* update would pass the assertions above just as well.
+        assert_eq!(
+            conn.execute(
+                "UPDATE publications_all SET removed_at = NULL, reconciled_at = ?1 WHERE id = ?2",
+                rusqlite::params![999_i64, &f.id],
+            )
+            .unwrap(),
+            1,
+            "restore is the trigger's one exception"
+        );
+        conn.execute(
+            "UPDATE publications_all SET removed_at = ?1, reconciled_at = NULL WHERE id = ?2",
+            rusqlite::params![1_000_i64, &f.id],
+        )
+        .unwrap();
     }
 
     // And v11 picks the tombstone back up: the same bytes restore onto it,
