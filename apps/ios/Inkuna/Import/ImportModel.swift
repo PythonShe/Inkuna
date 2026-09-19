@@ -52,16 +52,18 @@ enum ImportFailureReason: Error, Sendable, Equatable {
         case .FileTooLarge: self = .tooLarge
         case .Io: self = .storage
         case .Database: self = .database
-        // The library could not open at all, so nothing here was ever
-        // attempted — the shell's open-failure path is what the user meets
-        // (`.libraryUnavailable`), and this arm only catches the case where
-        // one somehow reaches import, with the core's own words.
-        case .SchemaTooNew(let found, let supported):
-            self = .unknown("database schema \(found) is newer than this build supports (\(supported))")
-        // A migration refused its own precondition, so the library never
-        // opened either — same reason as `.SchemaTooNew`, and the core's
-        // own words are what a bug report needs.
-        case .MigrationPrecondition(let detail): self = .unknown(detail)
+        // Neither of these is a fault in the file: the library itself
+        // never opened — a database written by a newer build, or a
+        // migration that refused its own precondition. The open-failure
+        // path already meets the user with that exact sentence, so these
+        // arms — which only catch an error that somehow reaches import
+        // anyway — say it too rather than invent a second one. Their
+        // payloads stay out of the user's way on purpose: the schema
+        // numbers are versions of the database, not of the app, and a
+        // migration's `detail` is for logs. Neither is a sentence anyone
+        // can act on, and `.unknown` would put one on screen verbatim,
+        // untranslated, in every one of our languages.
+        case .SchemaTooNew, .MigrationPrecondition: self = .libraryUnavailable
         case .NotFound: self = .notFound
         // The search index is derived data and no part of import — as the
         // reader engine's own errors are no part of it either; if one of
