@@ -1701,6 +1701,106 @@ fn batch_restoring_the_same_removed_book_twice_yields_one_restore() {
     assert_eq!(live.progression, 0.62);
 }
 
+/// The removal driven into the one window a restore cannot close from the
+/// inside: its files staged, the writer lock not yet taken. The book goes
+/// live again on the first restore, a genuine removal then tombstones it
+/// and deletes its book and cover, and only after that does this restore
+/// take the lock and claim the tombstone. Because a restore adopts the
+/// removed book's id, the removal was deleting the very paths this import
+/// targets — so the files it reports must be the ones on disk. A live
+/// publication whose EPUB is gone cannot be opened and nothing heals it:
+/// the open-time sweep collects only *unreferenced* files.
+#[test]
+fn a_restore_racing_a_removal_still_lands_its_files_on_disk() {
+    use super::budget::PersistBudget;
+    use super::pipeline::Prepared;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (library, epub, id, data_dir) = removed_book(dir.path());
+
+    let prepare = || match library.prepare_import(epub.to_str().unwrap()).unwrap() {
+        Prepared::Fresh(prepared) => *prepared,
+        Prepared::Duplicate(p) => panic!("unexpected duplicate of {}", p.id),
+    };
+    // Both are prepared while the book is still removed, so both adopt the
+    // same tombstone — the same id, the same destination paths.
+    let first = prepare();
+    let second = prepare();
+
+    let (publication, _) = restored(library.commit_import(first).unwrap());
+    assert_eq!(publication.id, id, "the first restore made the book live");
+
+    let outcome = library
+        .commit_import_hooked(second, PersistBudget::for_import(), &|| {
+            library.remove(&id).unwrap();
+        })
+        .unwrap();
+    let (publication, _) = restored(outcome);
+    assert_eq!(publication.id, id);
+    assert!(
+        data_dir.join(&publication.file_path).is_file(),
+        "a restored publication's book is on disk"
+    );
+    assert!(
+        data_dir
+            .join(publication.cover_path.as_ref().unwrap())
+            .is_file(),
+        "and so is its cover"
+    );
+}
+
+/// The losing half of two concurrent restores. Both target the *same*
+/// `books/<id>.epub` and `covers/<id>.<ext>` — the adopted tombstone's id
+/// names them — so a loser that writes there at all can truncate or unlink
+/// a live row's only cover, which nothing regenerates. Sentinel bytes stand
+/// in for the winner's files: anything the loser placed or removed shows up
+/// as a changed byte or a missing file.
+#[test]
+fn a_restore_that_loses_the_revive_race_leaves_the_winners_files_alone() {
+    use super::pipeline::Prepared;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (library, epub, id, data_dir) = removed_book(dir.path());
+
+    // Staged and prepared against the tombstone, then overtaken.
+    let loser = match library.prepare_import(epub.to_str().unwrap()).unwrap() {
+        Prepared::Fresh(prepared) => *prepared,
+        Prepared::Duplicate(p) => panic!("unexpected duplicate of {}", p.id),
+    };
+    let (winner, _) = restored(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(winner.id, id);
+
+    let book = data_dir.join(&winner.file_path);
+    let cover = data_dir.join(winner.cover_path.as_ref().unwrap());
+    std::fs::write(&book, b"winner-book").unwrap();
+    std::fs::write(&cover, b"winner-cover").unwrap();
+
+    match library.commit_import(loser).unwrap() {
+        ImportOutcome::Duplicate(existing) => assert_eq!(existing.id, id),
+        other => panic!("expected Duplicate, got {other:?}"),
+    }
+
+    assert_eq!(
+        std::fs::read(&cover).unwrap(),
+        b"winner-cover",
+        "the live row's only cover is untouched"
+    );
+    assert_eq!(
+        std::fs::read(&book).unwrap(),
+        b"winner-book",
+        "and so is its book"
+    );
+    // The loser's own staged copies go with it.
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        1
+    );
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("covers")).unwrap().count(),
+        1
+    );
+}
+
 /// A pre-V8 book the rebaseline never reached carries its reading position
 /// only in the legacy `locator`. Restoring it must not stamp the book
 /// reconciled, or that locator would never be converted and the position

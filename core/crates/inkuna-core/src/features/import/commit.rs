@@ -1,10 +1,25 @@
 //! The commit stage: the parsed import in hand, put the book on disk and
 //! its rows in the database.
 //!
-//! Ordering is the whole point here. The cover is written and the staged
-//! book renamed into place *first*, and `books/` is flushed, before any row
-//! is written — so a crash or a power loss leaves an unreferenced file
-//! (which the open-time sweep collects) and never a row whose book is gone.
+//! Ordering is the whole point here, and it is not the same on both paths.
+//!
+//! A **fresh** import owns a brand-new UUID, so nothing else in the process
+//! can even name its destination paths. It writes the cover, renames the
+//! staged book into place and flushes `books/` *first*, before any row is
+//! written — so a crash or a power loss leaves an unreferenced file (which
+//! the open-time sweep collects) and never a row whose book is gone.
+//!
+//! A **restore** adopts a *removed* book's id, which makes its destination
+//! paths shared property: a concurrent restore of the same content targets
+//! them too, and `Library::remove` deletes them. Placing files there before
+//! claiming the row is what lets a remove unlink a restore's book, or a
+//! second restore truncate a live row's cover — neither of which anything
+//! heals, since the sweep collects only *unreferenced* files. So a restore
+//! stages both files under names no other actor can spell and renames them
+//! into place under the writer lock, after `revive` reported the tombstone
+//! claimed and before the transaction commits. A failure there rolls the
+//! rows back; a restore that loses the revive race renames nothing and
+//! drops its temps, leaving the winner's files untouched.
 
 use super::budget::PersistBudget;
 use super::model::ImportOutcome;
@@ -38,8 +53,22 @@ impl Library {
     /// the trip path.
     pub(super) fn commit_import_budgeted(
         &self,
+        prepared: PreparedImport,
+        budget: PersistBudget,
+    ) -> Result<ImportOutcome, CoreError> {
+        self.commit_import_hooked(prepared, budget, &|| {})
+    }
+
+    /// [`commit_import_budgeted`](Self::commit_import_budgeted) with a hook
+    /// fired in the one window this stage cannot close from the inside: the
+    /// instant before the writer lock is taken, with the staged files not
+    /// yet placed. The production path passes a no-op; tests pass a closure
+    /// that drives a concurrent removal into exactly that gap.
+    pub(super) fn commit_import_hooked(
+        &self,
         mut prepared: PreparedImport,
         mut budget: PersistBudget,
+        before_lock: &dyn Fn(),
     ) -> Result<ImportOutcome, CoreError> {
         // Taken out of `prepared` so the closures below can borrow it
         // independently of the fields the insert path moves.
@@ -52,27 +81,47 @@ impl Library {
         let coordinates_restored = restore
             .as_ref()
             .is_some_and(|tombstone| restore::coordinates_survive(tombstone, &prepared.spine));
+        // A restore adopts a removed book's id, so every destination path
+        // below is shared with whatever else holds that id; a fresh import
+        // minted its own UUID and owns its paths alone. That difference
+        // decides when the files are placed, and it is the only thing this
+        // flag means.
+        let restoring = restore.is_some();
         let final_path = self.data_dir.join(&prepared.rel_path);
+        // Taken out so the cleanup closures can hold it while the insert
+        // path moves the rest of `prepared` into the row.
+        let staged_book = std::mem::take(&mut prepared.tmp_path);
 
-        let cover_rel = match &prepared.cover {
+        // `(relative path for the row, staged temp awaiting its rename)`.
+        // The temp is `Some` only on a restore.
+        let (cover_rel, staged_cover) = match &prepared.cover {
             Some(cover) => {
                 let rel = format!("covers/{}.{}", prepared.id, cover.extension);
                 let cover_path = self.data_dir.join(&rel);
-                if let Err(e) = std::fs::write(&cover_path, &cover.bytes) {
+                // On a restore that final path may already hold a live
+                // row's only cover, so the bytes go to a name nothing else
+                // can spell and move into place once the row is claimed.
+                let (write_path, staged) = if restoring {
+                    let tmp = self
+                        .data_dir
+                        .join(format!("covers/{}.tmp", uuid::Uuid::new_v4()));
+                    (tmp.clone(), Some((tmp, cover_path)))
+                } else {
+                    (cover_path, None)
+                };
+                if let Err(e) = std::fs::write(&write_path, &cover.bytes) {
                     // A write that fails part-way still leaves a partial
-                    // file, and `cover_rel` never binds, so `cleanup_files`
-                    // below could not reach it: sweep it here or it lingers
-                    // unreferenced until the next Library::open. Safe even
-                    // on a restore, where this path belongs to the adopted
-                    // id: `fs::write` already truncated whatever was there,
-                    // so removing the remnant cannot make it worse.
-                    let _ = std::fs::remove_file(&cover_path);
-                    let _ = std::fs::remove_file(&prepared.tmp_path);
+                    // file, and on a fresh import `cover_rel` never binds,
+                    // so `cleanup_files` below could not reach it: sweep it
+                    // here or it lingers unreferenced until the next
+                    // Library::open. On a restore this is our own temp.
+                    let _ = std::fs::remove_file(&write_path);
+                    let _ = std::fs::remove_file(&staged_book);
                     return Err(e.into());
                 }
-                Some(rel)
+                (Some(rel), staged)
             }
-            None => None,
+            None => (None, None),
         };
         let cleanup_files = |include_book: bool| {
             if include_book {
@@ -82,43 +131,49 @@ impl Library {
                 let _ = std::fs::remove_file(self.data_dir.join(rel));
             }
         };
-
-        // After the rename, `final_path` and the cover sit at the adopted
-        // publication's own paths on a restore — paths a concurrent restore
-        // of the same content may already have claimed with byte-identical
-        // files. Deleting them could therefore strip a live row of its
-        // book, so a failed restore leaves its files to the open-time
-        // sweep (which is exactly what that sweep is for) instead.
-        let cleanup_unless_restoring = |include_book: bool| {
-            if restore.is_none() {
+        // A restore's own files, still under their staging names.
+        let cleanup_staged = || {
+            let _ = std::fs::remove_file(&staged_book);
+            if let Some((tmp, _)) = &staged_cover {
+                let _ = std::fs::remove_file(tmp);
+            }
+        };
+        // Every failure path from here shares one rule: delete only what
+        // this import owns. A fresh import owns what sits at its final
+        // paths; a restore owns only its temps, because it places nothing
+        // at the shared paths until it has claimed the row — and once it
+        // has, whatever it placed belongs to a row it may have failed to
+        // commit, which makes it unreferenced and the sweep's business,
+        // not something to unlink out from under a concurrent winner.
+        let cleanup = |include_book: bool| {
+            if restoring {
+                cleanup_staged();
+            } else {
                 cleanup_files(include_book);
             }
         };
 
-        if let Err(e) = std::fs::rename(&prepared.tmp_path, &final_path) {
-            let _ = std::fs::remove_file(&prepared.tmp_path);
-            // The cover is already at the adopted id's path on a restore,
-            // and a concurrent restore may have made that row live: going
-            // through the restore-aware cleanup is what keeps this failure
-            // from deleting a live book's only cover, which nothing heals
-            // (the sweep collects only *unreferenced* files, and
-            // `optimize_covers` just logs the read failure).
-            cleanup_unless_restoring(false);
-            return Err(e.into());
-        }
-        // `copy_and_hash` fsynced the bytes, but the rename that names them
-        // only lives in the directory cache, so the file-before-row
-        // ordering above is not durable until `books/` is flushed. Doing it
-        // here — before the commit — is what keeps a power loss from
-        // leaving a row whose book is gone; the reverse (an unreferenced
-        // file) is swept at the next open. One extra directory fsync per
-        // import is nothing beside the whole-file copy, hash, and parse the
-        // import already paid, and the book is the irreplaceable artifact.
-        // `covers/` deliberately gets no such flush: a cover is derived
-        // data, re-creatable from the book we just made durable.
-        if let Err(e) = sync_dir(&self.data_dir.join("books")) {
-            cleanup_unless_restoring(true);
-            return Err(e);
+        if !restoring {
+            if let Err(e) = std::fs::rename(&staged_book, &final_path) {
+                let _ = std::fs::remove_file(&staged_book);
+                cleanup_files(false);
+                return Err(e.into());
+            }
+            // `copy_and_hash` fsynced the bytes, but the rename that names
+            // them only lives in the directory cache, so the
+            // file-before-row ordering above is not durable until `books/`
+            // is flushed. Doing it here — before the commit — is what keeps
+            // a power loss from leaving a row whose book is gone; the
+            // reverse (an unreferenced file) is swept at the next open. One
+            // extra directory fsync per import is nothing beside the
+            // whole-file copy, hash, and parse the import already paid, and
+            // the book is the irreplaceable artifact. `covers/`
+            // deliberately gets no such flush: a cover is derived data,
+            // re-creatable from the book we just made durable.
+            if let Err(e) = sync_dir(&self.data_dir.join("books")) {
+                cleanup_files(true);
+                return Err(e);
+            }
         }
 
         // Synthetic positions are a pure function of the canonical
@@ -182,27 +237,53 @@ impl Library {
                 Ok(true)
             };
 
+        // The one window a concurrent `Library::remove` can occupy: the
+        // files are staged and the lock is not yet held. Production passes
+        // a no-op; a test drives the removal in here.
+        before_lock();
+
         let claimed = {
             let mut conn = self.writer.lock().unwrap();
-            // The book and cover are already on disk, so every early exit
-            // from here on must sweep them or they linger unreferenced
-            // until the next Library::open.
+            // A fresh import's book and cover are already on disk, so every
+            // early exit from here on must sweep them or they linger
+            // unreferenced until the next Library::open.
             let tx = match conn.transaction() {
                 Ok(tx) => tx,
                 Err(e) => {
-                    cleanup_unless_restoring(true);
+                    cleanup(true);
                     return Err(e.into());
                 }
             };
             match insert(&tx, &mut budget) {
                 Ok(true) => {
+                    // The row is claimed and the writer lock still held, so
+                    // a restore's files go to their shared final paths
+                    // here: `Library::remove` claims the live row under
+                    // this same lock before it unlinks, which puts it
+                    // strictly before or strictly after this rename, never
+                    // between it and the commit below.
+                    if let Err(e) = place_restored_files(
+                        restoring,
+                        &staged_book,
+                        &final_path,
+                        &staged_cover,
+                        &self.data_dir,
+                    ) {
+                        // Rolls the revive back; anything already renamed
+                        // is left for the sweep (see `cleanup`).
+                        drop(tx);
+                        cleanup(true);
+                        return Err(e);
+                    }
                     if let Err(e) = tx.commit() {
-                        cleanup_unless_restoring(true);
+                        cleanup(true);
                         return Err(e.into());
                     }
                     true
                 }
-                // A restore that found the tombstone already revived.
+                // A restore that found the tombstone already revived. It
+                // placed nothing: the winner's files stay exactly as the
+                // winner left them, and the temps go below.
                 Ok(false) => {
                     drop(tx);
                     false
@@ -215,7 +296,7 @@ impl Library {
                     // Dropping the uncommitted transaction rolls every
                     // write back; budget trips take this path too.
                     drop(tx);
-                    cleanup_unless_restoring(true);
+                    cleanup(true);
                     return Err(e);
                 }
             }
@@ -249,7 +330,7 @@ impl Library {
         } else {
             // Lost the race: another import committed the same content
             // between our dedupe check and this write.
-            cleanup_unless_restoring(true);
+            cleanup(true);
             match self.publication_by_hash(&prepared.content_hash)? {
                 Some(existing) => Ok(ImportOutcome::Duplicate(existing)),
                 None => Err(CoreError::NotFound(prepared.content_hash)),
@@ -270,6 +351,31 @@ impl Library {
             rows.next().transpose().map_err(Into::into)
         })
     }
+}
+
+/// Moves a restored book and cover from their staging names onto the
+/// adopted publication's own paths, then flushes `books/`. A no-op for a
+/// fresh import, which placed its files before the lock.
+///
+/// Called with the row already claimed and the writer lock held, so the
+/// paths it writes are this import's to write. The `books/` flush is what
+/// makes the rename durable ahead of the commit that follows, exactly as on
+/// the fresh path; the cover, being derived data, needs none.
+fn place_restored_files(
+    restoring: bool,
+    staged_book: &std::path::Path,
+    final_path: &std::path::Path,
+    staged_cover: &Option<(std::path::PathBuf, std::path::PathBuf)>,
+    data_dir: &std::path::Path,
+) -> Result<(), CoreError> {
+    if !restoring {
+        return Ok(());
+    }
+    std::fs::rename(staged_book, final_path)?;
+    if let Some((tmp, dest)) = staged_cover {
+        std::fs::rename(tmp, dest)?;
+    }
+    sync_dir(&data_dir.join("books"))
 }
 
 /// A fresh book's row. Rebaselined by construction: its corpus IS the
