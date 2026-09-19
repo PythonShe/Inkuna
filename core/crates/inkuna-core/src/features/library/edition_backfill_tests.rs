@@ -150,10 +150,30 @@ fn an_unreadable_book_is_stamped_and_not_retried() {
     assert_eq!(edition_row(&library, &id), (None, scanned_at));
 }
 
+/// A tombstone whose identity was never derived is the one row this pass
+/// must leave strictly alone: it has no file to read, so it would be
+/// re-opened on every launch forever, and V11's freeze trigger would drop
+/// the stamp that stops the retry.
+///
+/// Since `remove` now derives the identity before it tombstones, the only
+/// way such a row still arises is a shipped v10 binary's delete — its
+/// `DELETE FROM publications` becomes a tombstone through
+/// `publications_soft_delete`, which knows nothing of V12's columns. That
+/// is the row built here.
 #[test]
-fn a_tombstone_is_never_scanned() {
+fn an_unscanned_tombstone_is_never_scanned() {
     let (_dir, library, id) = unscanned_book(UUID);
-    library.remove(&id).unwrap();
+    {
+        let conn = library.writer.lock().unwrap();
+        // v10-view-sql: v10's own `Library::remove`, verbatim.
+        conn.execute("DELETE FROM publications WHERE id = ?1", [&id])
+            .unwrap();
+    }
+    assert_eq!(
+        edition_row(&library, &id),
+        (None, None),
+        "the premise: a tombstone that never had its identity derived"
+    );
 
     run(&library);
 
@@ -166,16 +186,32 @@ fn a_tombstone_is_never_scanned() {
         scanned_at, None,
         "and is not stamped either — it is simply never on the list"
     );
+    assert_eq!(pending_count(&library), 0);
 }
 
 /// The liveness recheck: `removed_at IS NULL` held when the pending
-/// snapshot was taken, and a `remove` landed before the write transaction
+/// snapshot was taken, and a removal landed before the write transaction
 /// opened. The book must be left alone rather than written to and stamped.
+///
+/// The removal is v10's, for the same reason as above — a `Library::remove`
+/// leaves the row stamped, so the `edition_scanned_at` half of the gate
+/// would answer first and the liveness half would never be reached. Here
+/// only liveness can account for the result, and the book's file is still
+/// on disk, so nothing but the gate stands between the pass and the write.
 #[test]
 fn a_book_removed_mid_pass_is_left_alone() {
     let (_dir, library, id) = unscanned_book(UUID);
     let file_path = format!("books/{id}.epub");
-    library.remove(&id).unwrap();
+    {
+        let conn = library.writer.lock().unwrap();
+        // v10-view-sql: v10's own `Library::remove`, verbatim.
+        conn.execute("DELETE FROM publications WHERE id = ?1", [&id])
+            .unwrap();
+    }
+    assert!(
+        library.data_dir.join(&file_path).exists(),
+        "the premise: a readable file, so only the gate can refuse the write"
+    );
 
     // Straight at the per-book step, as the pass reaches it holding a
     // snapshot taken while the book was still live.
@@ -183,6 +219,89 @@ fn a_book_removed_mid_pass_is_left_alone() {
     super::backfill_book(&mut conn, &library.data_dir, &id, &file_path).unwrap();
 
     assert_eq!(edition_row(&library, &id), (None, None));
+}
+
+/// Finding 2's case, end to end through the stat itself. A pre-V12 book
+/// removed before the pass reaches it is the one book that could never be
+/// keyed afterwards: the file is gone and the worklist skips tombstones,
+/// while the tombstone keeps counting in `books_finished_this_year`
+/// (deliberately — a book you finished and deleted is still a book you
+/// finished). A differently encoded copy of the same edition would then
+/// count beside it, which is exactly the double count V12 closes.
+///
+/// So `remove` derives the identity while the file is still there, in the
+/// same statement that makes the row a tombstone — the last statement that
+/// can, because V11's freeze trigger drops every later write.
+#[test]
+fn a_book_removed_before_the_pass_still_merges_with_its_edition() {
+    let (dir, library, old_id) = unscanned_book(UUID);
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications_all SET finished_at = ?1 WHERE id = ?2",
+            rusqlite::params![crate::core::time::unix_now(), &old_id],
+        )
+        .unwrap();
+    }
+
+    // Removed while still unscanned — the pass never got to it.
+    assert_eq!(pending_count(&library), 1);
+    library.remove(&old_id).unwrap();
+    let (key, scanned_at) = edition_row(&library, &old_id);
+    assert_eq!(key.as_deref(), Some(KEY), "the removal derived the identity");
+    assert!(scanned_at.is_some(), "and retired the row from the pass");
+
+    // A differently-encoded copy of the same edition, imported and
+    // finished afterwards.
+    let second = dir.path().join("second.epub");
+    write_identified(&second, UUID, "再版の本文、別のバイト列");
+    let new_id = match library.import(second.to_str().unwrap()).unwrap() {
+        ImportOutcome::Imported(p) => p.id,
+        other => panic!("unexpected {other:?}"),
+    };
+    assert_ne!(new_id, old_id, "a genuinely new row, not a restore");
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications_all SET finished_at = ?1 WHERE id = ?2",
+            rusqlite::params![crate::core::time::unix_now(), &new_id],
+        )
+        .unwrap();
+    }
+
+    // The pass runs and cannot help: the tombstone is not on its worklist.
+    run(&library);
+
+    assert_eq!(
+        library
+            .stats_overview("UTC", chrono::Weekday::Mon)
+            .unwrap()
+            .books_finished_this_year,
+        1,
+        "one edition, finished once — the tombstone carries the key it was \
+         given at removal"
+    );
+}
+
+/// The removal is not allowed to *overwrite* an identity, only to finish a
+/// missing one: a book whose file no longer parses would otherwise have
+/// the key import found replaced by the `None` the removal read.
+#[test]
+fn a_removal_keeps_the_key_the_import_already_found() {
+    let (_dir, library, id) = unscanned_book(UUID);
+    run(&library);
+    let scanned = edition_row(&library, &id);
+    assert_eq!(scanned.0.as_deref(), Some(KEY));
+
+    // The file rots between the scan and the removal.
+    std::fs::write(library.data_dir.join(format!("books/{id}.epub")), b"junk").unwrap();
+    library.remove(&id).unwrap();
+
+    assert_eq!(
+        edition_row(&library, &id),
+        scanned,
+        "the removal left the stamped identity exactly as it found it"
+    );
 }
 
 /// Why the pass exists at all. A library already installed carries books

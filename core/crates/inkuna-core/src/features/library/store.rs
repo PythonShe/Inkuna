@@ -5,13 +5,15 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 use super::corpus::stored_corpus_digest;
+use super::edition::{edition_key, title_key};
 use crate::CoreError;
 use crate::core::db::{migrate, open_connection, ReaderPool, READER_POOL_SIZE};
 use crate::core::time::unix_now;
 use crate::features::search::SearchIndex;
+use crate::formats::epub;
 
 #[cfg(test)]
 #[path = "store_tests.rs"]
@@ -135,18 +137,24 @@ impl Library {
     /// A tombstone is invisible to every library read, so from a shell's
     /// point of view the book is gone.
     ///
-    /// Nothing is read before the writer transaction opens: the paths to
-    /// unlink are read *through* it, and the row is only deleted from
+    /// Every path that drives an unlink is read through the writer
+    /// transaction, never before it, and the row is only deleted from
     /// after the tombstone `UPDATE` reports it claimed. A removed (or
     /// concurrently removing) book is therefore `NotFound`, and two
     /// removes of one book can never both reach the unlinks — which
     /// matters because those paths are exactly the ones a restore of the
-    /// same content adopts.
+    /// same content adopts. The only thing read ahead of the lock is the
+    /// V12 edition identity ([`edition_identity_at_removal`]), which drives
+    /// nothing irreversible and is gated again in the `UPDATE` below.
     ///
     /// File deletion is idempotent — missing files are not an error — and
     /// always confined to the data dir because DB paths are relative by
     /// construction (the font cache path is built from the id here).
     pub fn remove(&self, id: &str) -> Result<(), CoreError> {
+        // Outside the lock, because it opens the book's archive: the last
+        // moment the file exists is the last moment this book's edition
+        // identity can be derived at all (see the function's own doc).
+        let derived_edition_key = self.edition_identity_at_removal(id)?;
         {
             let mut conn = self.writer.lock().unwrap();
             // Immediate: the row this reads is the row it is about to
@@ -159,15 +167,19 @@ impl Library {
             // and these paths drive irreversible unlinks.
             let paths = {
                 let mut stmt = tx.prepare(
-                    "SELECT file_path, cover_path FROM publications_all
+                    "SELECT file_path, cover_path, title FROM publications_all
                       WHERE id = ?1 AND removed_at IS NULL",
                 )?;
                 let mut rows = stmt.query_map([id], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
                 })?;
                 rows.next().transpose()?
             };
-            let Some((file_path, cover_path)) = paths else {
+            let Some((file_path, cover_path, title)) = paths else {
                 return Err(CoreError::NotFound(id.to_string()));
             };
 
@@ -183,12 +195,40 @@ impl Library {
             // `reconciled_at` is cleared as a fail-safe: should any read
             // ever reach a tombstone, it must not be told its (now
             // deleted) corpus is canonical.
+            //
+            // The V12 merge key is finished here, in the same statement
+            // that makes the row a tombstone — the last statement that can.
+            // `publications_freeze_tombstone` drops any later write that
+            // leaves the row a tombstone, and the backfill pass has no file
+            // to read, so a book removed with `edition_key` still NULL
+            // would count as itself in `books_finished_this_year` forever,
+            // double-counting against a re-imported copy of the same
+            // edition. This UPDATE is exempt from the freeze by
+            // construction: `OLD.removed_at` is NULL on the row it claims.
+            //
+            // COALESCE both ways round on purpose. `edition_key` takes the
+            // freshly derived value and falls back to the stored one, since
+            // an unreadable file yields `None` and must not erase what
+            // import or the backfill already found. `edition_scanned_at`
+            // keeps an existing stamp so the pass's own gate reads the
+            // same either way. `title_key` is recomputed outright: it is a
+            // pure function of the title in this very row, so it is never
+            // less current than what is stored.
             let claimed = tx.execute(
                 "UPDATE publications_all
                     SET removed_at = ?1, corpus_digest = ?2, file_path = '',
-                        cover_path = NULL, reconciled_at = NULL
+                        cover_path = NULL, reconciled_at = NULL,
+                        edition_key = COALESCE(?4, edition_key),
+                        title_key = ?5,
+                        edition_scanned_at = COALESCE(edition_scanned_at, ?1)
                   WHERE id = ?3 AND removed_at IS NULL",
-                rusqlite::params![unix_now(), corpus_digest, id],
+                rusqlite::params![
+                    unix_now(),
+                    corpus_digest,
+                    id,
+                    derived_edition_key,
+                    title_key(&title),
+                ],
             )?;
             if claimed != 1 {
                 // Unreachable: the row was read through this very
@@ -232,6 +272,66 @@ impl Library {
             log::warn!("search index delete failed for {id}: {e}");
         }
         Ok(())
+    }
+
+    /// The V12 edition identity of the book about to be removed, read out
+    /// of its file while the file still exists.
+    ///
+    /// This is the last moment it can be derived. `edition_key` comes from
+    /// the book's OPF `dc:identifier`, a tombstone has no file left, and
+    /// [`edition_backfill`](super::edition_backfill) therefore skips
+    /// tombstones — so a book still waiting for that pass when the user
+    /// removes it would keep `edition_key` NULL for the life of the
+    /// install. It would then count as itself in `books_finished_this_year`
+    /// while a later, differently encoded copy of the same edition counted
+    /// by edition key: the double count V12 exists to close.
+    ///
+    /// The archive open is deliberately outside the writer lock, like every
+    /// other one in the crate; the read is advisory and re-gated in SQL by
+    /// the tombstone `UPDATE` that consumes it, so a row that moves
+    /// underneath it costs a wasted zip open and nothing else.
+    /// `edition_scanned_at` gates the work itself: a book import or the
+    /// backfill already looked at has whatever identity the file holds, and
+    /// re-reading it would find the same thing.
+    ///
+    /// The gate is read off the *writer* connection, not the reader pool,
+    /// and it is the one read in `remove` taken before the transaction.
+    /// Both matter: a `remove` must be able to complete with the pool
+    /// drained (`remove_reads_its_paths_through_its_own_transaction` pins
+    /// exactly that), and nothing read here may ever drive an unlink — only
+    /// the transaction's own read does.
+    ///
+    /// Nothing here is an error. A missing, unreadable, or identifier-less
+    /// file yields `None`, which the caller writes as "no identity" —
+    /// exactly what the backfill records for the same file, and a removal
+    /// must not fail because a book the user is throwing away is damaged.
+    fn edition_identity_at_removal(&self, id: &str) -> Result<Option<String>, CoreError> {
+        let unscanned: Option<String> = {
+            let conn = self.writer.lock().unwrap();
+            conn.query_row(
+                "SELECT file_path FROM publications_all
+                  WHERE id = ?1 AND removed_at IS NULL
+                    AND edition_scanned_at IS NULL AND file_path <> ''",
+                [id],
+                |row| row.get(0),
+            )
+            .optional()?
+        };
+        let Some(file_path) = unscanned else {
+            return Ok(None);
+        };
+        let file = self.data_dir.join(&file_path);
+        match epub::read_metadata(&file) {
+            Ok(metadata) => Ok(metadata.unique_identifier.as_deref().and_then(edition_key)),
+            Err(e) => {
+                log::warn!(
+                    "removing {id}: {} could not be read for its edition identity ({e}); \
+                     recording none",
+                    file.display()
+                );
+                Ok(None)
+            }
+        }
     }
 
     /// Deletes files under `books/` and `covers/` that no *live*

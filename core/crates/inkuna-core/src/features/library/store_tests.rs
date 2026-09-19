@@ -1035,8 +1035,10 @@ fn with_pool_drained<T>(pool: &ReaderPool, left: usize, body: &mut dyn FnMut() -
 /// get one, and the whole call has to complete without it. Moving the
 /// read back outside the transaction makes this block rather than trip an
 /// assertion, which is what the timeout is for. (A pre-lock read on some
-/// *fresh* connection would slip past — the reader pool is the only
-/// pre-lock read this code has ever had.)
+/// *fresh* connection would slip past. `remove` has exactly one pre-lock
+/// read — `edition_identity_at_removal`'s gate — and it takes the writer
+/// connection, not a pooled one, so this pin stays sharp: it still fails
+/// the moment anything in `remove` reaches for the reader pool.)
 #[test]
 fn remove_reads_its_paths_through_its_own_transaction() {
     let f = fixture();
