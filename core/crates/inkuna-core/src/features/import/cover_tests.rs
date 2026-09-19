@@ -1,10 +1,11 @@
-use std::io::Cursor;
+use std::io::{Cursor, Write};
+use std::path::Path;
 
 use image::{DynamicImage, ImageFormat, ImageReader, RgbaImage};
 
 use super::{normalize_cover, normalized};
 use crate::formats::epub::Cover;
-use crate::test_support::{imported, write_epub};
+use crate::test_support::{imported, restored, write_epub};
 use crate::Library;
 
 /// A gradient PNG — compressible but photographic enough that lossy WebP
@@ -19,6 +20,58 @@ fn png_bytes(width: u32, height: u32) -> Vec<u8> {
         .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
         .unwrap();
     bytes
+}
+
+/// The stock fixture's cover art is deliberately undecodable, so import
+/// stores it verbatim and its path keeps the source extension. A book whose
+/// cover *survives* normalization — and is therefore stored as
+/// `covers/<id>.webp` — needs its own fixture: the stock structure with
+/// real pixels in place of the placeholder bytes.
+fn write_epub_with_real_cover(path: &Path, cover: &[u8]) {
+    let file = std::fs::File::create(path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+    zip.start_file("mimetype", stored).unwrap();
+    zip.write_all(b"application/epub+zip").unwrap();
+    zip.start_file("META-INF/container.xml", stored).unwrap();
+    zip.write_all(
+        br#"<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>"#,
+    )
+    .unwrap();
+    zip.start_file("OEBPS/content.opf", stored).unwrap();
+    zip.write_all(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="uid">cover-fixture</dc:identifier>
+    <dc:title>書影のある本</dc:title>
+    <dc:creator>作者</dc:creator>
+    <dc:language>zh</dc:language>
+  </metadata>
+  <manifest>
+    <item id="c1" href="text/ch01.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover-img" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+  </manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#
+            .as_bytes(),
+    )
+    .unwrap();
+    zip.start_file("OEBPS/text/ch01.xhtml", stored).unwrap();
+    zip.write_all(
+        r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>ch01</title></head>
+<body><h1>第一章</h1><p>月の光が窓辺に落ちていた。</p></body></html>"#
+            .as_bytes(),
+    )
+    .unwrap();
+    zip.start_file("OEBPS/images/cover.png", stored).unwrap();
+    zip.write_all(cover).unwrap();
+    zip.finish().unwrap();
 }
 
 fn dimensions(bytes: &[u8]) -> (u32, u32) {
@@ -218,4 +271,78 @@ fn a_removal_leaves_the_cover_pass_nothing_to_do() {
         "a removed book is not the cover pass's business"
     );
     assert!(!data_dir.join(format!("covers/{id}.webp")).exists());
+}
+
+/// The cover pass losing its book to a removal and a restore mid-flight:
+/// the re-encode is staged, and only then is the book removed and
+/// re-imported onto the very same id — which is what makes
+/// `covers/<id>.webp`, the path this pass was about to write, the restored
+/// row's own cover.
+///
+/// The pass must notice that the row it read is no longer the row it found
+/// and touch nothing. Placing the file before claiming the row (as it did)
+/// either overwrites that cover or, when the guarded update then misses,
+/// *deletes* it — leaving a live publication whose only cover is gone, with
+/// nothing to heal it: the open-time sweep collects only *unreferenced*
+/// files.
+#[test]
+fn a_cover_pass_that_loses_its_book_to_a_restore_leaves_the_new_cover_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let library = Library::open(&data_dir).unwrap();
+
+    let book = dir.path().join("book.epub");
+    write_epub_with_real_cover(&book, &png_bytes(120, 180));
+    let publication = imported(library.import(book.to_str().unwrap()).unwrap());
+    let id = publication.id.clone();
+    // Its cover decodes, so import normalized it — and a restore of this
+    // same file will write that same path again.
+    let restored_rel = format!("covers/{id}.webp");
+    assert_eq!(
+        publication.cover_path.as_deref(),
+        Some(restored_rel.as_str())
+    );
+
+    // Plant a pre-normalization row: a full-resolution PNG under its own
+    // name. That is what gives the pass something to re-encode, and what
+    // makes its output land on `covers/<id>.webp` rather than in place.
+    let legacy_rel = format!("covers/{id}.png");
+    std::fs::write(data_dir.join(&legacy_rel), png_bytes(1200, 1800)).unwrap();
+    library
+        .writer
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE publications_all SET cover_path = ?1 WHERE id = ?2",
+            rusqlite::params![legacy_rel, id],
+        )
+        .unwrap();
+
+    let changed = library
+        .optimize_covers_hooked(&|| {
+            library.remove(&id).unwrap();
+            let (back, _) = restored(library.import(book.to_str().unwrap()).unwrap());
+            assert_eq!(back.id, id, "the re-import adopted the removed book's id");
+        })
+        .unwrap();
+
+    assert_eq!(changed, 0, "the row it read is not the row it found");
+    let live = library.publication(&id).unwrap();
+    assert_eq!(
+        live.cover_path.as_deref(),
+        Some(restored_rel.as_str()),
+        "the restore's row is untouched"
+    );
+    let stored = std::fs::read(data_dir.join(&restored_rel)).unwrap();
+    assert_eq!(
+        dimensions(&stored),
+        (120, 180),
+        "and so is its cover — neither deleted nor overwritten with the stale re-encode"
+    );
+    // The staged re-encode went with the losing pass; nothing is left
+    // behind for the sweep either.
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("covers")).unwrap().count(),
+        1
+    );
 }
