@@ -742,19 +742,32 @@ fn a_v10_list_query_cannot_see_a_tombstone() {
     }
 }
 
-/// The one place the view alone was not enough. v10's dedupe reads through
-/// it, so the tombstone holding this content is invisible and the import
-/// runs on to its INSERT — which, without the `INSTEAD OF INSERT` trigger,
-/// would hit the base table's `UNIQUE(content_hash)` and fail the import
-/// outright. The trigger drops the tombstone first, which is exactly what
-/// v10 always did: a re-import of a removed book is a new book with fresh
-/// history.
+/// The one place the view alone is not enough, and the one place v10 is
+/// deliberately *not* given the behaviour it expects. v10's dedupe reads
+/// through the view, so the tombstone holding this content is invisible
+/// and the import runs on to its INSERT. Letting that INSERT through would
+/// mean taking the tombstone out of `UNIQUE(content_hash)`'s way, and the
+/// tombstone is not live — `publications_soft_delete` does not fire, the
+/// delete is real, and the sessions and bookmarks it exists to keep
+/// cascade away with it. `publications_view_insert` aborts instead.
+///
+/// The whole v10 sequence is replayed verbatim, INSERT and fallback both,
+/// because "fails safely" is a claim about what the old binary does next,
+/// not just about the row: a constraint violation is the case v10 already
+/// handles — it rolls its transaction back, sweeps the file and cover it
+/// staged, re-reads the view for the duplicate it assumes it lost to,
+/// finds none, and reports the import as failed. Recoverable. The history
+/// the alternative destroys is not.
 #[test]
-fn a_v10_dedupe_reimport_replaces_a_tombstone() {
+fn a_v10_dedupe_reimport_cannot_destroy_a_tombstone() {
     let f = fixture();
     let hash: String = stored(&f.library, "content_hash", &f.id).unwrap();
-    f.library.remove(&f.id).unwrap();
-    assert_eq!(rows_for(&f.library, "sessions", &f.id), 1);
+    let removed_at: i64 = {
+        f.library.remove(&f.id).unwrap();
+        assert_eq!(rows_for(&f.library, "sessions", &f.id), 1);
+        assert_eq!(rows_for(&f.library, "bookmarks", &f.id), 1);
+        stored(&f.library, "removed_at", &f.id).unwrap()
+    };
 
     drop(f.library);
     let conn = open_connection(&f.data_dir.join("inkuna.db")).unwrap();
@@ -764,57 +777,112 @@ fn a_v10_dedupe_reimport_replaces_a_tombstone() {
     // neither open nor re-add.
     // v10-view-sql: v10's own statement, verbatim.
     let sql = format!("SELECT {V10_PUB_COLUMNS} FROM publications WHERE content_hash = ?1");
-    let duplicate: Option<String> = conn
-        .prepare(&sql)
-        .unwrap()
-        .query_map([&hash], |row| row.get::<_, String>(0))
-        .unwrap()
-        .next()
-        .transpose()
-        .unwrap();
-    assert_eq!(duplicate, None, "v10's dedupe misses the tombstone");
+    let by_hash = |conn: &rusqlite::Connection| -> Option<String> {
+        conn.prepare(&sql)
+            .unwrap()
+            .query_map([&hash], |row| row.get::<_, String>(0))
+            .unwrap()
+            .next()
+            .transpose()
+            .unwrap()
+    };
+    assert_eq!(by_hash(&conn), None, "v10's dedupe misses the tombstone");
 
-    // So v10 proceeds to insert. Same bytes, same hash, a brand-new id.
-    conn.execute(
-        V10_INSERT,
-        rusqlite::params![
-            "v10-new-id",
-            "月光書房",
-            "紫式部",
-            "ja",
-            None::<String>,
-            "epub",
-            "books/v10-new-id.epub",
-            None::<String>,
-            &hash,
-            1_000_i64,
-            0.0_f64,
-            1_000_i64,
-        ],
-    )
-    .expect("the UNIQUE(content_hash) tombstone is cleared out of the way");
+    // So v10 proceeds to insert. Same bytes, same hash, a brand-new id —
+    // inside a transaction, because that is where v10 runs it.
+    let tx = conn.unchecked_transaction().unwrap();
+    let refused = tx
+        .execute(
+            V10_INSERT,
+            rusqlite::params![
+                "v10-new-id",
+                "月光書房",
+                "紫式部",
+                "ja",
+                None::<String>,
+                "epub",
+                "books/v10-new-id.epub",
+                None::<String>,
+                &hash,
+                1_000_i64,
+                0.0_f64,
+                1_000_i64,
+            ],
+        )
+        .expect_err("the INSERT must fail rather than clear the tombstone away");
 
-    // Exactly one row holds the hash, and it is the new one.
-    let (rows, id): (i64, String) = conn
+    // v10's `is_constraint_violation` is what routes this to the safe
+    // path: it matches on the PRIMARY result code, and RAISE(ABORT)
+    // reports SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_TRIGGER, 1811)
+    // exactly as the UNIQUE violation v10 was written for. Anything else
+    // would take v10's `Err(e) => return Err(e)` arm instead — still no
+    // data loss, but surfaced as a database error rather than a failed
+    // import.
+    match &refused {
+        rusqlite::Error::SqliteFailure(err, message) => {
+            assert_eq!(err.code, rusqlite::ErrorCode::ConstraintViolation);
+            assert_eq!(err.extended_code, 1811, "SQLITE_CONSTRAINT_TRIGGER");
+            assert!(
+                message
+                    .as_deref()
+                    .is_some_and(|m| m.contains("removed book")),
+                "the abort must say why, got {message:?}"
+            );
+        }
+        other => panic!("expected a constraint violation, got {other:?}"),
+    }
+    // ABORT backs the statement out, not the transaction: v10 drops its
+    // own transaction here and carries on on the same connection.
+    drop(tx);
+    assert_eq!(
+        by_hash(&conn),
+        None,
+        "v10's post-failure lookup still cannot see the tombstone, so it \
+         reports NotFound — a failed import, which the user can retry"
+    );
+
+    // The row and every row hanging off it are untouched.
+    let (rows, id, still_removed_at): (i64, String, i64) = conn
         .query_row(
-            "SELECT COUNT(*), MIN(id) FROM publications_all WHERE content_hash = ?1",
+            "SELECT COUNT(*), MIN(id), MIN(removed_at) FROM publications_all
+              WHERE content_hash = ?1",
             [&hash],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .unwrap();
-    assert_eq!(rows, 1);
-    assert_eq!(id, "v10-new-id");
-
-    // Fresh history, exactly as a v10 re-import always gave: the old row
-    // went, and its sessions and bookmarks cascaded with it.
+    assert_eq!(rows, 1, "no second row, and no lost one either");
+    assert_eq!(id, f.id, "the tombstone, not a v10 replacement");
+    assert_eq!(still_removed_at, removed_at, "not even re-stamped");
     for table in ["sessions", "bookmarks"] {
-        let left: i64 = conn
-            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
-                row.get(0)
-            })
+        let kept: i64 = conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {table} WHERE publication_id = ?1"),
+                [&f.id],
+                |row| row.get(0),
+            )
             .unwrap();
-        assert_eq!(left, 0, "{table} came with the row v10 replaced");
+        assert_eq!(kept, 1, "{table} survived the v10 re-import attempt");
     }
+
+    // And the point of surviving: a current build still restores the book
+    // onto that tombstone, history and all.
+    drop(conn);
+    let library = Library::open(&f.data_dir).unwrap();
+    let (publication, coordinates_restored) =
+        restored(library.import(f.source.to_str().unwrap()).unwrap());
+    assert_eq!(publication.id, f.id);
+    assert!(coordinates_restored, "the corpus digest still matches");
+    assert_eq!(publication.progression, 0.42);
+    assert_eq!(rows_for(&library, "sessions", &f.id), 1);
+    assert_eq!(
+        count(
+            &library,
+            "SELECT COUNT(*) FROM bookmarks WHERE id = ?1",
+            &f.bookmark_id
+        ),
+        1,
+        "the bookmark v10 would have cascaded away is still there"
+    );
 }
 
 /// How the two trigger layers compose. A v10 `DELETE` now lands on the

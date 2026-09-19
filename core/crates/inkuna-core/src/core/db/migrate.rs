@@ -232,6 +232,15 @@ ALTER TABLE settings ADD COLUMN library_grid INTEGER NOT NULL DEFAULT 0;
 // see. Views and triggers are part of the schema, so they bind whichever
 // build opened the file.
 //
+// One case is deliberately NOT made indistinguishable: re-importing the
+// bytes of a book the user removed. v10 cannot see the tombstone, so it
+// would insert a second row for the same `content_hash`, and the only way
+// to let it is to delete the tombstone and cascade away the history the
+// tombstone exists to keep. `publications_view_insert` fails that one
+// import instead — the whole point of the containment is that a v10 build
+// can neither see nor destroy a tombstone, and a failed import is
+// recoverable where the destroyed history is not.
+//
 // Every v11+ read and write names `publications_all` directly; the view
 // exists solely for the old binary. It exposes exactly the v10 columns, in
 // v10 order, so later versions may add columns to the base table without
@@ -352,16 +361,35 @@ END;
 -- The one place the view alone is not enough. v10's dedupe reads through
 -- it, so a tombstone holding this content is invisible and the import
 -- proceeds to INSERT — straight into the base table's
--- UNIQUE(content_hash). Dropping the tombstone first restores v10's own
--- historical behaviour exactly: re-importing a removed book gives a new
--- row with fresh history (the old row's sessions and bookmarks cascade
--- away with it). A partial unique index would instead let two rows share a
--- hash and strand the tombstone for good. The tombstone is not live, so
--- `publications_soft_delete` does not fire and the delete is real.
+-- UNIQUE(content_hash). The import cannot be allowed to succeed: the only
+-- way to make room is to take the tombstone out, and that cascades the
+-- `sessions` and `bookmarks` the tombstone exists to keep (the row is not
+-- live, so `publications_soft_delete` does not fire and the delete is
+-- real). The v11-restores-v10-behaviour argument holds only on a v10
+-- database, where that history was never there; on a v11 database it IS
+-- there, and destroying it is exactly what the view was built to stop.
+--
+-- So the INSERT fails instead, explicitly and with a reason. v10 already
+-- has a path for it: a constraint violation rolls its transaction back,
+-- sweeps the file and cover it had staged, re-reads the view for the
+-- duplicate it lost to, finds none, and surfaces the import as failed —
+-- so the user is told the file could not be imported, retries on a
+-- current build, and gets the whole history back. A failed import is
+-- recoverable; deleted sessions and bookmarks are not.
+--
+-- RAISE(ABORT) rather than the UNIQUE index firing on its own: it says
+-- what happened in the error text, it holds if the index is ever changed,
+-- and it aborts before any row is touched. Its SQLITE_CONSTRAINT_TRIGGER
+-- is the same primary result code as the UNIQUE violation v10 already
+-- classifies as a lost dedupe race, so the old binary needs no new
+-- knowledge to take the safe path. A partial unique index — the other way
+-- to let the INSERT through — would let two rows share a hash and strand
+-- the tombstone for good.
 CREATE TRIGGER publications_view_insert
 INSTEAD OF INSERT ON publications
 BEGIN
-  DELETE FROM publications_all
+  SELECT RAISE(ABORT, 'publications.content_hash belongs to a removed book whose reading history is kept; re-import it with a newer build of Inkuna')
+    FROM publications_all
    WHERE NEW.content_hash IS NOT NULL
      AND content_hash = NEW.content_hash
      AND removed_at IS NOT NULL;
