@@ -88,7 +88,12 @@ class ReaderViewModel(
         val snippetPost: String,
         /** Unicode-scalar length for the engine's future match-rect request. */
         val matchLength: ULong,
-        val position: UInt?,
+        /**
+         * Already narrowed to `Int` for `%d` resources. Kotlin boxes a
+         * `UInt` as `kotlin.UInt`, which `String.format` rejects, so the
+         * conversion happens here rather than at each call site.
+         */
+        val position: Int?,
     )
 
     data class SearchOutcome(
@@ -432,18 +437,22 @@ class ReaderViewModel(
 
     suspend fun search(query: String): SearchOutcome {
         val shelf = bookshelf ?: return SearchOutcome()
-        val results = try {
-            shelf.search().searchInBook(publicationId, query, SEARCH_LIMIT)
+        // The mapping belongs inside the guard too: it crosses the FFI once
+        // per hit, and the panel awaits this from a LaunchedEffect on the
+        // composition's dispatcher, where an escaping throw kills the app
+        // rather than failing the search.
+        return try {
+            val results = shelf.search().searchInBook(publicationId, query, SEARCH_LIMIT)
+            SearchOutcome(
+                hits = results.hits.map { hit -> hit.toSearchHit(results.canonical, shelf) },
+                total = results.total.toInt(),
+            )
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
             Log.w(TAG, "searchInBook failed", failure)
-            return SearchOutcome(unavailable = true)
+            SearchOutcome(unavailable = true)
         }
-        return SearchOutcome(
-            hits = results.hits.map { hit -> hit.toSearchHit(results.canonical, shelf) },
-            total = results.total.toInt(),
-        )
     }
 
     private suspend fun BookSearchHit.toSearchHit(canonical: Boolean, shelf: app.inkuna.core.Bookshelf): SearchHit {
@@ -455,7 +464,9 @@ class ReaderViewModel(
             snippetMatch = snippetMatch,
             snippetPost = snippetPost,
             matchLength = snippetMatch.codePointCount(0, snippetMatch.length).toULong(),
-            position = coordinate?.let { runCatching { ReaderPositions.position(it, publicationId, shelf) }.getOrNull() },
+            position = coordinate
+                ?.let { runCatching { ReaderPositions.position(it, publicationId, shelf) }.getOrNull() }
+                ?.let(ReaderPositionFormat::resourceArg),
         )
     }
 

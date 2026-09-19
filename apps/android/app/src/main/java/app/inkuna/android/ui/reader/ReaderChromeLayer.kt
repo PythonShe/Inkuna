@@ -154,6 +154,16 @@ internal fun readerPositionSnapshot(
 
 internal object ReaderPositionFormat {
     fun resourceArgs(position: UInt, count: UInt): List<Int> = listOf(position.toInt(), count.toInt())
+
+    /**
+     * The single-argument form, for a "p. N" resource with no count beside it.
+     *
+     * Passing a bare [UInt] to `stringResource` boxes it as `kotlin.UInt`,
+     * which `String.format` cannot render with `%d` — it throws
+     * `IllegalFormatConversionException` mid-composition and takes the app
+     * with it. Every core position crosses into a resource through here.
+     */
+    fun resourceArg(position: UInt): Int = position.toInt()
 }
 
 internal enum class ReaderToast { BookmarkPlaced, LinkFailed }
