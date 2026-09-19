@@ -315,7 +315,9 @@ fn v11_migrates_from_v10() {
     }
 
     let mut conn = super::open_connection(&db_path).unwrap();
-    super::migrate(&mut conn, &data_dir).unwrap();
+    // Stopped at 11: this test is about the v10→v11 step alone, and the
+    // `Library::open` at the end still runs the chain out to the latest.
+    super::migrate::migrate_to(&mut conn, &data_dir, 11).unwrap();
     let version: i64 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
@@ -381,6 +383,120 @@ fn v11_migrates_from_v10() {
     assert_eq!(shelf[0].id, "p1");
     assert_eq!(shelf[0].progression, 0.5);
     assert_eq!(library.bookmarks("p1").unwrap().len(), 1);
+}
+
+/// V12 adds the edition-identity columns and backfills `title_key` for
+/// every row it can — a pure normalization of the stored title. The two
+/// columns that need a file (`edition_key`) or a pass (`edition_scanned_at`)
+/// stay NULL, which is what leaves the background backfill work to do.
+#[test]
+fn v12_migrates_from_v11() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, 11).unwrap();
+        conn.execute(
+            "INSERT INTO publications
+                (id, title, authors, format, file_path, content_hash, added_at,
+                 progression, finished_at)
+             VALUES ('p1', '　月光　書房　', '紫式部', 'epub', 'books/p1.epub', 'hash-1',
+                     100, 0.5, 900)",
+            [],
+        )
+        .unwrap();
+        // A tombstone, whose title V11's freeze trigger protects from any
+        // write that leaves it a tombstone — the backfill included.
+        conn.execute(
+            "INSERT INTO publications
+                (id, title, authors, format, file_path, content_hash, added_at,
+                 progression, removed_at)
+             VALUES ('p2', 'Gone', '', 'epub', '', 'hash-2', 100, 0.5, 500)",
+            [],
+        )
+        .unwrap();
+    }
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 12);
+    assert_eq!(version, super::migrate::SCHEMA_VERSION);
+
+    let (edition_key, title_key, scanned_at, title, finished_at): (
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+        String,
+        Option<i64>,
+    ) = conn
+        .query_row(
+            "SELECT edition_key, title_key, edition_scanned_at, title, finished_at
+             FROM publications WHERE id = 'p1'",
+            [],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .unwrap();
+    // Backfilled in the migration: NFKC folds the ideographic spaces to
+    // ASCII ones, which the key then strips.
+    assert_eq!(title_key.as_deref(), Some("月光書房"));
+    // Not backfilled: filling it needs the book's OPF.
+    assert_eq!(edition_key, None);
+    assert_eq!(scanned_at, None, "the background pass still has work to do");
+    // And nothing the migration ran over moved.
+    assert_eq!(title, "　月光　書房　");
+    assert_eq!(finished_at, Some(900));
+
+    // The tombstone comes through frozen, which is harmless: its
+    // `edition_key` can never be filled either, so it counts as itself.
+    let (tomb_title_key, removed_at): (Option<String>, Option<i64>) = conn
+        .query_row(
+            "SELECT title_key, removed_at FROM publications WHERE id = 'p2'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(tomb_title_key, None);
+    assert_eq!(removed_at, Some(500), "the tombstone is still a tombstone");
+
+    // The partial index is live alongside V11's triggers.
+    let indexes: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_publications_edition'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(indexes, 1);
+    let triggers: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(triggers, 2, "V11's triggers survive the column adds");
+
+    // And the library still opens on the live book.
+    drop(conn);
+    let library = Library::open(&data_dir).unwrap();
+    let shelf = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
+    assert_eq!(shelf.len(), 1);
+    assert_eq!(shelf[0].id, "p1");
 }
 
 /// A panic inside pooled work must not consume the connection. UniFFI

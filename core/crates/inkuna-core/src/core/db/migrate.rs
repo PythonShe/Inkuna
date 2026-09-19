@@ -13,9 +13,10 @@ use std::path::Path;
 use rusqlite::{Connection, Transaction};
 
 use crate::core::files::copy_and_hash_unbounded;
+use crate::features::library::title_key;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 11;
+pub(crate) const SCHEMA_VERSION: i64 = 12;
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -258,6 +259,40 @@ WHEN OLD.removed_at IS NOT NULL AND NEW.removed_at IS NOT NULL
 BEGIN SELECT RAISE(IGNORE); END;
 ";
 
+// 0012: edition identity, so the finished-books stat counts editions rather
+// than rows. `content_hash` cannot see that a book you finished, removed,
+// and re-imported as a differently-encoded copy is one book you finished —
+// the two files differ byte for byte — so `finished_at` counted it twice.
+//
+// `edition_key` is the normalized `dc:identifier` (UUID / checksum-valid
+// ISBN / DOI, nothing else — see `features/library/edition.rs`) and
+// `title_key` is the normalized title; the stat merges only on BOTH, so one
+// hardcoded `urn:uuid:` stamped across a publisher's whole catalogue still
+// cannot collapse a shelf. NULL in either means "no identity", and a book
+// with no identity counts as itself — the safe direction.
+//
+// `edition_scanned_at` is the backfill gate, not a timestamp anyone reads:
+// filling `edition_key` needs the book's OPF, which a migration cannot
+// re-open for every row, so a bounded background pass does it (chained
+// after the V8 rebaseline) and stamps every book it looked at, success or
+// failure, so an unreadable file is not retried on every open forever.
+// Tombstones have no file left and are never scanned; they keep
+// `edition_key` NULL and count as themselves.
+//
+// `title_key` IS backfilled here, in the migration: it is a pure function
+// of the stored title with no file access at all.
+//
+// The partial index coexists with V11's triggers — a column add fires no
+// row trigger, and neither trigger references these columns.
+const V12_SQL: &str = "
+ALTER TABLE publications ADD COLUMN edition_key        TEXT;
+ALTER TABLE publications ADD COLUMN title_key          TEXT;
+ALTER TABLE publications ADD COLUMN edition_scanned_at INTEGER;
+
+CREATE INDEX idx_publications_edition ON publications(edition_key)
+  WHERE edition_key IS NOT NULL;
+";
+
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
     migrate_upto(conn, data_dir, SCHEMA_VERSION)
 }
@@ -297,12 +332,39 @@ fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(
             8 => tx.execute_batch(V9_SQL)?,
             9 => tx.execute_batch(V10_SQL)?,
             10 => tx.execute_batch(V11_SQL)?,
+            11 => {
+                tx.execute_batch(V12_SQL)?;
+                backfill_title_keys(&tx)?;
+            }
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }
         tx.pragma_update(None, "user_version", version + 1)?;
         tx.commit()?;
     }
+}
+
+/// Fills `title_key` for every existing row from the title already stored,
+/// inside the V12 transaction: a pure normalization, no file access, so
+/// unlike `edition_key` it needs no background pass.
+///
+/// V11's `publications_freeze_tombstone` trigger silently drops the write
+/// for a tombstone. That is harmless rather than a gap: a tombstone's file
+/// is gone, so its `edition_key` stays NULL forever, and the stat merges
+/// only when BOTH keys are present — a tombstone counts as itself either
+/// way. The loop still covers every row so nothing depends on that trigger
+/// staying as it is.
+fn backfill_title_keys(tx: &Transaction) -> Result<(), CoreError> {
+    let rows: Vec<(String, String)> = {
+        let mut stmt = tx.prepare("SELECT id, title FROM publications")?;
+        let mapped = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        mapped.collect::<Result<_, _>>()?
+    };
+    let mut update = tx.prepare("UPDATE publications SET title_key = ?1 WHERE id = ?2")?;
+    for (id, title) in rows {
+        update.execute(rusqlite::params![title_key(&title), id])?;
+    }
+    Ok(())
 }
 
 /// Adopts every v1 row into core-owned storage: copy the external file into
