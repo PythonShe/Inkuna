@@ -52,6 +52,7 @@ import app.inkuna.android.ui.components.InkButtonVariant
 import app.inkuna.android.ui.components.InkIconButton
 import app.inkuna.android.ui.components.InkProgressBar
 import app.inkuna.android.ui.components.RemoveBookDialog
+import app.inkuna.android.ui.components.RemoveFailedDialog
 import app.inkuna.android.ui.main.EmptyState
 import app.inkuna.android.ui.main.SectionTitle
 import app.inkuna.android.ui.stats.hairlineThickness
@@ -229,19 +230,7 @@ fun BookDetailScreen(
     // The core deletes the file and the cover along with the row, so there
     // is no undo to offer — a failure is reported plainly instead.
     if (state.removeFailed) {
-        AlertDialog(
-            onDismissRequest = model::clearRemoveFailure,
-            containerColor = ink.bgSurface,
-            titleContentColor = ink.textDisplay,
-            title = {
-                Text(stringResource(R.string.remove_failed), style = InkType.heading)
-            },
-            confirmButton = {
-                TextButton(onClick = model::clearRemoveFailure) {
-                    Text(stringResource(R.string.remove_dismiss), color = ink.accentText)
-                }
-            },
-        )
+        RemoveFailedDialog(onDismiss = model::clearRemoveFailure)
     }
 }
 

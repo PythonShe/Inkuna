@@ -38,10 +38,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -49,12 +51,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.inkuna.android.R
 import app.inkuna.android.model.AppSettings
-import app.inkuna.android.model.BookRow
 import app.inkuna.android.ui.components.BookGridCell
 import app.inkuna.android.ui.components.BookListRow
 import app.inkuna.android.ui.components.InkSearchField
 import app.inkuna.android.ui.components.InkSegmentedControl
 import app.inkuna.android.ui.components.RemoveBookDialog
+import app.inkuna.android.ui.components.RemoveFailedDialog
 import app.inkuna.android.ui.importing.AddBooksButton
 import app.inkuna.android.ui.importing.EmptyLibraryInvite
 import app.inkuna.android.ui.importing.ImportBooksHost
@@ -118,10 +120,14 @@ fun LibraryScreen(
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     // Which row's long-press menu is open, and which book a confirmation is
-    // standing in front of. Both are addressed by id so a reload underneath
-    // can only close them, never retarget them at a different book.
+    // standing in front of. Both are ids rather than rows, and both are
+    // saveable: a rotation must not drop a destructive confirmation on the
+    // floor, and resolving the title from the live rows means a reload
+    // underneath can only close the dialog, never retarget it at a
+    // different book.
     var menuRowId by rememberSaveable { mutableStateOf<String?>(null) }
-    var removing by remember { mutableStateOf<BookRow?>(null) }
+    var removingId by rememberSaveable { mutableStateOf<String?>(null) }
+    val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
     val settings = remember(context) { AppSettings.get(context) }
     val prefs by settings.snapshot.collectAsStateWithLifecycle()
@@ -250,7 +256,7 @@ fun LibraryScreen(
                             BookActionsMenu(
                                 expanded = menuRowId == row.id,
                                 onDismiss = { menuRowId = null },
-                                onRemove = { menuRowId = null; removing = row },
+                                onRemove = { menuRowId = null; removingId = row.id },
                             )
                         }
                     }
@@ -272,7 +278,7 @@ fun LibraryScreen(
                             BookActionsMenu(
                                 expanded = menuRowId == row.id,
                                 onDismiss = { menuRowId = null },
-                                onRemove = { menuRowId = null; removing = row },
+                                onRemove = { menuRowId = null; removingId = row.id },
                             )
                         }
                     }
@@ -281,15 +287,25 @@ fun LibraryScreen(
         }
     }
 
-    removing?.let { book ->
+    // Resolved against the live rows, so a book that left the shelf while
+    // the dialog was up takes the dialog with it rather than confirming
+    // against a row that is no longer there.
+    removingId?.let { id -> state.rows.firstOrNull { it.id == id } }?.let { book ->
         RemoveBookDialog(
             title = book.title,
             onConfirm = {
-                removing = null
+                removingId = null
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                 model.remove(book.id)
             },
-            onDismiss = { removing = null },
+            onDismiss = { removingId = null },
         )
+    }
+
+    // The shelf reports a refused removal the same way the detail screen
+    // does: without it the book simply reappears with no explanation.
+    if (state.removeFailed) {
+        RemoveFailedDialog(onDismiss = model::clearRemoveFailure)
     }
 }
 

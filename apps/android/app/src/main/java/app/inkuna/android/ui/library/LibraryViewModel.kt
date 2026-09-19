@@ -12,6 +12,7 @@ import app.inkuna.core.Publication
 import app.inkuna.core.Shelf
 import app.inkuna.core.Sort
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Which segment of the library is on screen. */
 enum class LibrarySegment { Reading, Finished, Wishlist }
@@ -39,6 +41,8 @@ data class LibraryUiState(
     val emptiness: LibraryEmptiness = LibraryEmptiness.Shelf(LibraryEmptiness.Shelf.Kind.Reading),
     val segment: LibrarySegment = LibrarySegment.Reading,
     val query: String = "",
+    /** A removal was attempted and the core refused it. */
+    val removeFailed: Boolean = false,
 )
 
 /**
@@ -153,6 +157,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      */
     fun remove(id: String) {
         LibraryStore.writes.launch {
+            var failed = false
             try {
                 LibraryStore.bookshelf(getApplication()).library().remove(id)
             } catch (cancellation: CancellationException) {
@@ -161,9 +166,25 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 Log.i(TAG, "Removing $id found it already gone", gone)
             } catch (failure: Throwable) {
                 Log.w(TAG, "Removing $id failed", failure)
+                failed = true
             }
-            reload()
+            // `reload` is a plain field every other caller touches from the
+            // main thread; this is the one write that starts elsewhere, so
+            // it hops back before cancelling and replacing the job. Racing
+            // it would lose a cancel and let a stale fetch repaint the
+            // just-deleted book back onto the shelf.
+            withContext(Dispatchers.Main.immediate) {
+                if (failed) {
+                    _state.value = _state.value.copy(removeFailed = true)
+                }
+                reload()
+            }
         }
+    }
+
+    /** Clears the failure dialog once the user has read it. */
+    fun clearRemoveFailure() {
+        _state.value = _state.value.copy(removeFailed = false)
     }
 
     private fun row(publication: Publication) = BookRow.from(

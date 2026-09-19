@@ -46,3 +46,25 @@ fun RemoveBookDialog(
         },
     )
 }
+
+/**
+ * A removal the core refused. There is nothing to retry automatically —
+ * the book is still on the shelf — so this only explains and dismisses.
+ */
+@Composable
+fun RemoveFailedDialog(onDismiss: () -> Unit) {
+    val ink = InkTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = ink.bgSurface,
+        titleContentColor = ink.textDisplay,
+        title = {
+            Text(stringResource(R.string.remove_failed), style = InkType.heading)
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.remove_dismiss), color = ink.accentText)
+            }
+        },
+    )
+}
