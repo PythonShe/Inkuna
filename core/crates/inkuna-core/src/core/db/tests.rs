@@ -904,6 +904,63 @@ fn the_view_supplies_the_base_tables_defaults() {
     assert_eq!(row("through-view"), (String::new(), 0.0));
 }
 
+/// Every route to v12 must land on one schema. A staged upgrade that
+/// diverges from a fresh install by so much as a trigger body gives two
+/// populations of installs whose behaviour differs where nothing says it
+/// should — and V11's view and triggers are exactly the kind of thing a
+/// chain edit desynchronizes silently. `sqlite_master` compared verbatim
+/// is the strongest statement available: it is the schema, text and all.
+#[test]
+fn the_schema_is_identical_across_fresh_and_staged_upgrades() {
+    fn schema_at(stage: Option<i64>) -> (i64, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().join("library");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let db_path = data_dir.join("inkuna.db");
+        if let Some(stage) = stage {
+            let mut conn = super::open_connection(&db_path).unwrap();
+            super::migrate::migrate_to(&mut conn, &data_dir, stage).unwrap();
+        }
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate(&mut conn, &data_dir).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        let mut stmt = conn
+            .prepare(
+                "SELECT type, name, tbl_name, COALESCE(sql, '')
+                   FROM sqlite_master ORDER BY type, name",
+            )
+            .unwrap();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(format!(
+                    "{}\t{}\t{}\n{}\n",
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .unwrap();
+        let schema: String = rows.map(|row| row.unwrap()).collect();
+        (version, schema)
+    }
+
+    let fresh = schema_at(None);
+    assert_eq!(fresh.0, super::migrate::SCHEMA_VERSION);
+    // The view and its triggers must be in the fresh schema at all, or the
+    // comparisons below would agree on nothing.
+    assert!(fresh.1.contains("CREATE VIEW publications"));
+    for stage in [2, 7, 10, 11] {
+        let staged = schema_at(Some(stage));
+        assert_eq!(
+            staged, fresh,
+            "a database staged at v{stage} must reach the same schema as a fresh install"
+        );
+    }
+}
+
 /// A panic inside pooled work must not consume the connection. UniFFI
 /// catches panics at the boundary and keeps the app alive, so leaking one
 /// connection per panic would silently starve the pool and then block every
