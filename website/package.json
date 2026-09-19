@@ -9,9 +9,9 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "astro": "^7.2.2"
+    "astro": "^7.3.3"
   },
   "devDependencies": {
-    "wrangler": "^4.123.0"
+    "wrangler": "^4.135.0"
   }
 }
