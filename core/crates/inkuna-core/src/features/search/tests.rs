@@ -466,3 +466,54 @@ fn in_book_results_report_canonicality() {
     assert_eq!(results.total, 1);
     assert!(results.canonical);
 }
+
+/// A tombstoned book must be invisible to the reconcile pass in BOTH
+/// directions. It is not "missing" (it has no corpus left, so it would be
+/// re-added with zero docs on every open, forever), and its leftover docs
+/// ARE stale — `remove`'s index delete is best-effort, so healing them is
+/// the only thing that keeps a removed book out of library search.
+#[test]
+fn reconcile_never_resurrects_a_removed_book() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let other = dir.path().join("other.epub");
+    write_epub(&other, "生きてる本", "著者", "ja");
+
+    let library = Library::open(&data_dir).unwrap();
+    let id = imported_id(&library, &epub);
+    let live = imported_id(&library, &other);
+    library.search.wait_for_reconcile();
+
+    library.remove(&id).unwrap();
+    // Simulate the best-effort index delete having failed — a crash, or a
+    // locked writer — so reconcile is the only thing left to heal it.
+    library
+        .search
+        .index_publication(&id, [(0u32, "月の光が窓辺に落ちていた。")].into_iter())
+        .unwrap();
+    assert!(indexed_docs(&library, &id) > 0);
+    drop(library);
+
+    // Two opens, because a tombstone counted as "missing" would be re-added
+    // on every single one.
+    for open in 0..2 {
+        let library = Library::open(&data_dir).unwrap();
+        library.search.wait_for_reconcile();
+        assert_eq!(
+            indexed_docs(&library, &id),
+            0,
+            "open {open}: a removed book's docs must be dropped, not restored"
+        );
+        assert!(
+            indexed_docs(&library, &live) > 0,
+            "open {open}: the live book keeps its docs"
+        );
+        // The live book still matches the shared fixture text; the
+        // removed one must not appear among the hits at all.
+        let hits = library.search_all_books("窓辺", 10).unwrap();
+        assert_eq!(hits.len(), 1, "open {open}");
+        assert_eq!(hits[0].publication.id, live, "open {open}");
+    }
+}

@@ -146,3 +146,52 @@ fn optimize_covers_reencodes_legacy_rows_once() {
     // Idempotent: the normalized cover is a fixed point.
     assert_eq!(library.optimize_covers().unwrap(), 0);
 }
+
+/// A tombstone must never reach the cover pass. Its `cover_path` is NULL,
+/// so the `removed_at IS NULL` filter looks redundant — but a tombstone
+/// that a restore is re-covering right now does have one, and the pass
+/// would then rewrite a file the restore owns and point a removed row at
+/// it. The filter is the guarantee; this pins it directly rather than
+/// through `cover_path`.
+#[test]
+fn optimize_covers_skips_a_tombstone() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let library = Library::open(&data_dir).unwrap();
+
+    let book = dir.path().join("book.epub");
+    write_epub(&book, "书名", "作者", "zh");
+    let publication = imported(library.import(book.to_str().unwrap()).unwrap());
+    let id = publication.id.clone();
+    library.remove(&id).unwrap();
+
+    // Put a full-resolution, very much optimizable cover back on the
+    // tombstone — the state a restore passes through, and the only way to
+    // tell the `removed_at` filter apart from the `cover_path IS NOT NULL`
+    // one it sits beside.
+    let legacy_rel = format!("covers/{id}.png");
+    let legacy_path = data_dir.join(&legacy_rel);
+    let original = png_bytes(1200, 1800);
+    std::fs::write(&legacy_path, &original).unwrap();
+    library
+        .writer
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE publications SET cover_path = ?1 WHERE id = ?2",
+            rusqlite::params![legacy_rel, id],
+        )
+        .unwrap();
+
+    assert_eq!(
+        library.optimize_covers().unwrap(),
+        0,
+        "a removed book is not the cover pass's business"
+    );
+    assert_eq!(
+        std::fs::read(&legacy_path).unwrap(),
+        original,
+        "and its file was not touched"
+    );
+    assert!(!data_dir.join(format!("covers/{id}.webp")).exists());
+}

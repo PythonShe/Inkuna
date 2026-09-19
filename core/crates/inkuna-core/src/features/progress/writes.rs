@@ -53,7 +53,8 @@ impl Library {
 
         let previous: Option<(f64, Option<i64>)> = tx
             .query_row(
-                "SELECT progression, finished_at FROM publications WHERE id = ?1",
+                "SELECT progression, finished_at FROM publications
+                 WHERE id = ?1 AND removed_at IS NULL",
                 [id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -141,7 +142,8 @@ impl Library {
         let finished_at = finished.then(unix_now);
         let conn = self.writer.lock().unwrap();
         let changed = conn.execute(
-            "UPDATE publications SET finished_at = ?1 WHERE id = ?2",
+            "UPDATE publications SET finished_at = ?1
+             WHERE id = ?2 AND removed_at IS NULL",
             rusqlite::params![finished_at, id],
         )?;
         if changed == 0 {

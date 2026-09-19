@@ -15,7 +15,7 @@ use rusqlite::{Connection, Transaction};
 use crate::core::files::copy_and_hash_unbounded;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 10;
+pub(crate) const SCHEMA_VERSION: i64 = 11;
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -188,6 +188,33 @@ const V10_SQL: &str = "
 ALTER TABLE settings ADD COLUMN library_grid INTEGER NOT NULL DEFAULT 0;
 ";
 
+// 0011: tombstones. Removing a book frees its disk (file, cover, publisher
+// fonts, search docs) and drops every purely derived row — but keeps the
+// publication row itself, so the reading history hanging off it (sessions,
+// bookmarks, progression, finished state) survives and reattaches when the
+// same bytes come back. `removed_at` NULL means live; every read that means
+// "a book in the library" filters on it. The tombstone keeps its
+// `content_hash`, which is what re-import matches on.
+//
+// `corpus_digest` is what makes the reattachment safe. Every stored
+// coordinate is a `(spine_idx, char_offset)` index into the canonical text
+// projection, and `content_hash` identifies the *pre-conversion* source
+// bytes — so a re-imported MOBI/AZW3/TXT is re-converted and re-projected
+// by whatever build is running now, which may not produce the character
+// stream the coordinates were taken against. Removal therefore stamps a
+// digest of the corpus it is about to delete; restore digests the corpus it
+// just built and reattaches coordinates only on an exact match. NULL means
+// unknown provenance, which degrades exactly like a mismatch.
+//
+// In-table rather than a shelved copy on purpose: the stats overview
+// aggregates `sessions` with no join to `publications`, so moving session
+// rows anywhere would retroactively erase reading time from the weekly and
+// monthly figures.
+const V11_SQL: &str = "
+ALTER TABLE publications ADD COLUMN removed_at    INTEGER;
+ALTER TABLE publications ADD COLUMN corpus_digest TEXT;
+";
+
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
     migrate_upto(conn, data_dir, SCHEMA_VERSION)
 }
@@ -226,6 +253,7 @@ fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(
             7 => tx.execute_batch(V8_SQL)?,
             8 => tx.execute_batch(V9_SQL)?,
             9 => tx.execute_batch(V10_SQL)?,
+            10 => tx.execute_batch(V11_SQL)?,
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }

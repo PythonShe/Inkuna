@@ -269,6 +269,120 @@ fn v10_migrates_from_v9() {
     assert!(!library_grid);
 }
 
+/// The one migration where a wrong default is catastrophic rather than
+/// cosmetic: `removed_at` is what every library read now filters on, so a
+/// non-NULL default would tombstone an existing user's entire library —
+/// every book gone from every shelf, from search, from the reader — behind
+/// a migration they cannot undo. A populated v10 database must come
+/// through it with its books, its history, and its shelves untouched.
+#[test]
+fn v11_migrates_from_v10() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, 10).unwrap();
+        conn.execute(
+            "INSERT INTO publications
+                (id, title, authors, format, file_path, content_hash, added_at,
+                 progression, position_spine_idx, position_char_offset, finished_at)
+             VALUES ('p1', '月光書房', '紫式部', 'epub', 'books/p1.epub', 'hash-1', 100,
+                     0.5, 1, 7, 900)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            // `bookmarks.locator` is still NOT NULL at v10; a rebaselined
+            // bookmark carries both it and its coordinates.
+            "INSERT INTO bookmarks
+                (id, publication_id, locator, progression, created_at,
+                 position_spine_idx, position_char_offset)
+             VALUES ('b1', 'p1', '{\"href\":\"OEBPS/ch01.xhtml\"}', 0.25, 200, 0, 3)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sessions
+                (id, publication_id, started_at, ended_at, updated_at,
+                 start_progression, end_progression)
+             VALUES ('s1', 'p1', 300, 900, 900, 0.1, 0.5)",
+            [],
+        )
+        .unwrap();
+    }
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 11);
+
+    // Both new columns default to NULL. `removed_at` NULL is what "live"
+    // means, and `corpus_digest` NULL is unknown provenance — a book that
+    // was never removed has no coordinates frozen across a removal.
+    let (removed_at, corpus_digest): (Option<i64>, Option<String>) = conn
+        .query_row(
+            "SELECT removed_at, corpus_digest FROM publications WHERE id = 'p1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(removed_at, None, "an existing book is LIVE, not removed");
+    assert_eq!(corpus_digest, None);
+
+    // And nothing the migration ran over moved.
+    let (title, spine_idx, char_offset, finished_at): (
+        String,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+    ) = conn
+        .query_row(
+            "SELECT title, position_spine_idx, position_char_offset, finished_at
+             FROM publications WHERE id = 'p1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .unwrap();
+    assert_eq!(title, "月光書房");
+    assert_eq!(spine_idx, Some(1), "the reading position is untouched");
+    assert_eq!(char_offset, Some(7));
+    assert_eq!(finished_at, Some(900));
+
+    // The history hanging off it survives the migration whole.
+    let (bm_spine_idx, bm_progression): (Option<i64>, f64) = conn
+        .query_row(
+            "SELECT position_spine_idx, progression FROM bookmarks WHERE id = 'b1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(bm_spine_idx, Some(0));
+    assert_eq!(bm_progression, 0.25);
+    let sessions: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sessions WHERE publication_id = 'p1'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(sessions, 1);
+
+    // And the book is still on the shelf — the assertion that would have
+    // caught a bad default from the user's side of the screen.
+    drop(conn);
+    let library = Library::open(&data_dir).unwrap();
+    let shelf = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
+    assert_eq!(shelf.len(), 1, "migrating must not empty the library");
+    assert_eq!(shelf[0].id, "p1");
+    assert_eq!(shelf[0].progression, 0.5);
+    assert_eq!(library.bookmarks("p1").unwrap().len(), 1);
+}
+
 /// A panic inside pooled work must not consume the connection. UniFFI
 /// catches panics at the boundary and keeps the app alive, so leaking one
 /// connection per panic would silently starve the pool and then block every

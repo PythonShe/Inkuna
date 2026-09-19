@@ -289,7 +289,10 @@ fn reconcile(
 ) -> Result<(), CoreError> {
     let conn = open_connection(db_path)?;
     let db_ids: HashSet<String> = {
-        let mut stmt = conn.prepare("SELECT id FROM publications")?;
+        // Live books only. A tombstone has no `resource_text` rows left,
+        // so counting it here would make it permanently "missing": every
+        // open would re-add it with zero documents and never converge.
+        let mut stmt = conn.prepare("SELECT id FROM publications WHERE removed_at IS NULL")?;
         let rows = stmt.query_map([], |row| row.get(0))?;
         rows.collect::<Result<_, _>>()?
     };

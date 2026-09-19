@@ -16,6 +16,20 @@ pub enum ImportOutcome {
     Duplicate {
         publication: Publication,
     },
+    /// The content matched a book that had been removed. It was imported
+    /// in full, and the reading history kept across the removal —
+    /// position, bookmarks, sessions, finished state — is attached to it
+    /// again. Worth telling the reader about: the book comes back where
+    /// they left it, not at page one.
+    Restored {
+        publication: Publication,
+        /// `false` when the exact position and bookmark coordinates could
+        /// not be carried over because the core's canonical text
+        /// projection changed in the meantime; the book still reopens at
+        /// its remembered progress, just not to the character. Never an
+        /// import failure.
+        coordinates_restored: bool,
+    },
     /// Batch-only: one bad file never aborts the rest of a selection.
     /// Carries the same typed error the single-file path throws, so the
     /// two paths classify failures identically.
@@ -68,9 +82,39 @@ fn batch_record(
         inkuna_core::BatchImportOutcome::Duplicate(p) => ImportOutcome::Duplicate {
             publication: publication_record(library, p),
         },
+        inkuna_core::BatchImportOutcome::Restored {
+            publication,
+            coordinates_restored,
+        } => ImportOutcome::Restored {
+            publication: publication_record(library, publication),
+            coordinates_restored,
+        },
         inkuna_core::BatchImportOutcome::Failed { path, error } => ImportOutcome::Failed {
             path,
             error: error.into(),
+        },
+    }
+}
+
+/// Maps a core single-file outcome into the FFI record, absolutizing
+/// paths. `Failed` is batch-only, so this total mapping never yields it.
+fn single_record(
+    library: &inkuna_core::Library,
+    outcome: inkuna_core::ImportOutcome,
+) -> ImportOutcome {
+    match outcome {
+        inkuna_core::ImportOutcome::Imported(p) => ImportOutcome::Imported {
+            publication: publication_record(library, p),
+        },
+        inkuna_core::ImportOutcome::Duplicate(p) => ImportOutcome::Duplicate {
+            publication: publication_record(library, p),
+        },
+        inkuna_core::ImportOutcome::Restored {
+            publication,
+            coordinates_restored,
+        } => ImportOutcome::Restored {
+            publication: publication_record(library, publication),
+            coordinates_restored,
         },
     }
 }
@@ -98,14 +142,8 @@ impl ShelfImport {
     pub async fn import(&self, path: String) -> Result<ImportOutcome, InkunaError> {
         let library = self.0.clone();
         blocking(move || {
-            Ok(match library.import(&path)? {
-                inkuna_core::ImportOutcome::Imported(p) => ImportOutcome::Imported {
-                    publication: publication_record(&library, p),
-                },
-                inkuna_core::ImportOutcome::Duplicate(p) => ImportOutcome::Duplicate {
-                    publication: publication_record(&library, p),
-                },
-            })
+            let outcome = library.import(&path)?;
+            Ok(single_record(&library, outcome))
         })
         .await
     }
@@ -142,16 +180,8 @@ impl ShelfImport {
         let library = self.0.clone();
         blocking(move || {
             let mut file = file_from(item.fd);
-            Ok(
-                match library.import_reader(&mut file, &item.display_name)? {
-                    inkuna_core::ImportOutcome::Imported(p) => ImportOutcome::Imported {
-                        publication: publication_record(&library, p),
-                    },
-                    inkuna_core::ImportOutcome::Duplicate(p) => ImportOutcome::Duplicate {
-                        publication: publication_record(&library, p),
-                    },
-                },
-            )
+            let outcome = library.import_reader(&mut file, &item.display_name)?;
+            Ok(single_record(&library, outcome))
         })
         .await
     }

@@ -60,8 +60,11 @@ fn run_with_hook(
     let mut conn = open_connection(db_path)?;
     let pending: Vec<(String, String)> = {
         let mut stmt = conn.prepare(
+            // A tombstone has no file to extract a corpus from and its
+            // `reconciled_at` is deliberately NULL, so it would otherwise
+            // be retried on every open, forever.
             "SELECT id, file_path FROM publications
-             WHERE reconciled_at IS NULL
+             WHERE reconciled_at IS NULL AND removed_at IS NULL
              ORDER BY last_opened_at DESC NULLS LAST",
         )?;
         let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;

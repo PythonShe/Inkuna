@@ -20,7 +20,7 @@ impl Library {
 
         let progression: f64 = tx
             .query_row(
-                "SELECT progression FROM publications WHERE id = ?1",
+                "SELECT progression FROM publications WHERE id = ?1 AND removed_at IS NULL",
                 [publication_id],
                 |row| row.get(0),
             )

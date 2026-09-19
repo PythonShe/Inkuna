@@ -80,6 +80,13 @@ impl Library {
 
         let horizon = week_start_ts.min(month_start);
         let (sessions, finished): (Vec<SessionRow>, u32) = self.readers.with(|conn| {
+            // DELIBERATELY unfiltered by `publications.removed_at`: this
+            // aggregates sessions with no join to publications at all, and
+            // that is the whole reason removal keeps the publication row in
+            // place instead of moving history aside. Time you actually
+            // spent reading is time you spent reading — deleting the book
+            // afterwards must never retroactively erase it from this week
+            // or this month. Do not "fix" this by adding a join.
             let mut stmt = conn.prepare_cached(
                 "SELECT started_at, ended_at, updated_at, start_position, end_position
                  FROM sessions WHERE started_at >= ?1",
@@ -95,6 +102,10 @@ impl Library {
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
+            // DELIBERATELY unfiltered by `removed_at`: a book you finished
+            // and then deleted is still a book you finished this year, so a
+            // tombstone keeps counting here. This is the one read in the
+            // crate that is meant to see through a tombstone.
             let finished: u32 = conn.query_row(
                 "SELECT COUNT(*) FROM publications WHERE finished_at >= ?1",
                 [year_start],

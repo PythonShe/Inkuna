@@ -13,11 +13,16 @@ impl Library {
     /// freshly imported book appears on `Unfinished` and `All` but not on
     /// `Reading`.
     pub fn list(&self, shelf: Shelf, sort: Sort) -> Result<Vec<Publication>, CoreError> {
+        // Every shelf — `All` included — is a shelf of *live* books: a
+        // tombstoned row still carries a title and a finished date, but
+        // its file is gone and it must not appear anywhere in the library.
         let filter = match shelf {
-            Shelf::Reading => "WHERE last_opened_at IS NOT NULL AND finished_at IS NULL",
-            Shelf::Unfinished => "WHERE finished_at IS NULL",
-            Shelf::Finished => "WHERE finished_at IS NOT NULL",
-            Shelf::All => "",
+            Shelf::Reading => {
+                "WHERE removed_at IS NULL AND last_opened_at IS NOT NULL AND finished_at IS NULL"
+            }
+            Shelf::Unfinished => "WHERE removed_at IS NULL AND finished_at IS NULL",
+            Shelf::Finished => "WHERE removed_at IS NULL AND finished_at IS NOT NULL",
+            Shelf::All => "WHERE removed_at IS NULL",
         };
         let order = match sort {
             Sort::RecentlyOpened => {
@@ -36,11 +41,13 @@ impl Library {
 
     /// One publication by id, including its current progress state.
     /// Returns `NotFound` when the row is gone (removed on another screen,
-    /// or a stale id a shell held across a delete).
+    /// or a stale id a shell held across a delete) — a removed book reads
+    /// as `NotFound` exactly like a deleted one, tombstone or not.
     pub fn publication(&self, id: &str) -> Result<Publication, CoreError> {
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(&format!(
-                "SELECT {PUB_COLUMNS} FROM publications WHERE id = ?1"
+                "SELECT {PUB_COLUMNS} FROM publications
+                 WHERE id = ?1 AND removed_at IS NULL"
             ))?;
             let mut rows = stmt.query_map([id], map_publication)?;
             match rows.next().transpose()? {

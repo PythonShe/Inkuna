@@ -108,8 +108,10 @@ impl Library {
     /// any time after open.
     pub fn optimize_covers(&self) -> Result<u32, CoreError> {
         let rows: Vec<(String, String)> = self.readers.with(|conn| {
-            let mut stmt = conn
-                .prepare("SELECT id, cover_path FROM publications WHERE cover_path IS NOT NULL")?;
+            let mut stmt = conn.prepare(
+                "SELECT id, cover_path FROM publications
+                     WHERE cover_path IS NOT NULL AND removed_at IS NULL",
+            )?;
             let rows = stmt
                 .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
                 .collect::<Result<Vec<_>, _>>()?;

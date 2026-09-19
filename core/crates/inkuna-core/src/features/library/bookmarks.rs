@@ -39,7 +39,7 @@ impl Library {
         };
         let conn = self.writer.lock().unwrap();
         let exists: bool = conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM publications WHERE id = ?1)",
+            "SELECT EXISTS(SELECT 1 FROM publications WHERE id = ?1 AND removed_at IS NULL)",
             [publication_id],
             |row| row.get(0),
         )?;
