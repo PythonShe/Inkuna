@@ -117,7 +117,7 @@ pub(super) fn revive(
     edition_key: Option<&str>,
 ) -> Result<bool, CoreError> {
     let claimed = tx.execute(
-        "UPDATE publications
+        "UPDATE publications_all
             SET title = ?1, authors = ?2, language = ?3, text_encoding = ?4,
                 format = ?5, file_path = ?6, cover_path = ?7, added_at = ?8,
                 removed_at = NULL, corpus_digest = NULL,
@@ -126,7 +126,7 @@ pub(super) fn revive(
                     WHEN (locator IS NULL OR locator = '')
                      AND NOT EXISTS (
                          SELECT 1 FROM bookmarks b
-                          WHERE b.publication_id = publications.id
+                          WHERE b.publication_id = publications_all.id
                             AND b.locator <> ''
                      ) THEN ?9
                     ELSE NULL
@@ -157,7 +157,7 @@ pub(super) fn revive(
         // stays, and every consumer already falls back to it when a
         // coordinate is absent.
         tx.execute(
-            "UPDATE publications
+            "UPDATE publications_all
                 SET position_spine_idx = NULL, position_char_offset = NULL
               WHERE id = ?1",
             [&publication.id],
@@ -207,7 +207,7 @@ impl Library {
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(&format!(
                 "SELECT {PUB_COLUMNS}, removed_at, corpus_digest
-                 FROM publications WHERE content_hash = ?1"
+                 FROM publications_all WHERE content_hash = ?1"
             ))?;
             let mut rows = stmt.query_map([hash], |row| {
                 // `PUB_COLUMNS` supplies indices 0..=14.

@@ -141,7 +141,7 @@ fn remove_keeps_history_drops_derived_rows_and_frees_disk() {
             conn.query_row(
                 "SELECT removed_at, corpus_digest, file_path, cover_path,
                         progression, position_spine_idx
-                 FROM publications WHERE id = ?1",
+                 FROM publications_all WHERE id = ?1",
                 [id],
                 |row| {
                     Ok((
@@ -441,7 +441,7 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
         ) = conn
             .query_row(
                 "SELECT removed_at, corpus_digest, file_path, cover_path, locator
-                 FROM publications WHERE id = ?1",
+                 FROM publications_all WHERE id = ?1",
                 [&f.id],
                 |row| {
                     Ok((
@@ -516,7 +516,7 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
 
         let (locator, reconciled_at): (Option<String>, Option<i64>) = conn
             .query_row(
-                "SELECT locator, reconciled_at FROM publications WHERE id = ?1",
+                "SELECT locator, reconciled_at FROM publications_all WHERE id = ?1",
                 [&f.id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -551,5 +551,288 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
         ),
         1,
         "the bookmark v10 would have cascaded away came back with the book"
+    );
+}
+
+/// Everything below is about the v10 *experience* rather than v10
+/// containment: K1-A already made the old binary harmless, and these are
+/// the tests that it is also unembarrassing. `publications` is a view of
+/// the live rows, so a shipped v10 build on a v11+ database behaves
+/// indistinguishably from one on a v10 database.
+///
+/// Every statement marked "v10's own" is verbatim from
+/// `git show main:…/library/queries.rs` and `…/import/pipeline.rs`, with
+/// `PUB_COLUMNS` expanded — v10 built these by `format!`, and its column
+/// list is byte-identical to today's.
+const V10_PUB_COLUMNS: &str = "id, title, authors, language, text_encoding, format, file_path, \
+     cover_path, added_at, progression, position_spine_idx, position_char_offset, \
+     position_count, finished_at, last_opened_at";
+
+/// v10's `Library::insert_publication`, verbatim.
+const V10_INSERT: &str = "INSERT INTO publications
+                    (id, title, authors, language, text_encoding, format, file_path,
+                     cover_path, content_hash, added_at, progression, reconciled_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)";
+
+fn stored<T: rusqlite::types::FromSql>(library: &Library, column: &str, id: &str) -> Option<T> {
+    library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                &format!("SELECT {column} FROM publications_all WHERE id = ?1"),
+                [id],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap()
+}
+
+/// v10's `Shelf::All` filter is the empty string — it was written when
+/// every row was a live book — so nothing inside the old binary can keep a
+/// tombstone off its shelves; before the view, one showed up as a titled
+/// row with no file behind it. The view is the whole of the fix, and it is
+/// why the view must expose a column literally named `rowid`: v10's tie
+/// break orders by it.
+#[test]
+fn a_v10_list_query_cannot_see_a_tombstone() {
+    let f = fixture();
+    let other = f.source.parent().unwrap().join("other.epub");
+    write_epub(&other, "Second Book", "Author", "en");
+    let live = imported(f.library.import(other.to_str().unwrap()).unwrap()).id;
+    f.library.remove(&f.id).unwrap();
+
+    drop(f.library);
+    let conn = open_connection(&f.data_dir.join("inkuna.db")).unwrap();
+    let listed: Vec<String> = {
+        // v10 `Library::list(Shelf::All, Sort::RecentlyAdded)`, verbatim.
+        let sql = format!(
+            "SELECT {V10_PUB_COLUMNS} FROM publications  ORDER BY added_at DESC, rowid DESC"
+        );
+        let mut stmt = conn.prepare(&sql).unwrap();
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0)).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    assert_eq!(
+        listed,
+        vec![live],
+        "the removed book is not a row v10 can reach"
+    );
+
+    // And the other three shelves, whose filters v10 wrote assuming the
+    // same thing.
+    for filter in [
+        "WHERE last_opened_at IS NOT NULL AND finished_at IS NULL",
+        "WHERE finished_at IS NULL",
+        "WHERE finished_at IS NOT NULL",
+    ] {
+        let count: i64 = conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM publications {filter}"),
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let listed_removed: i64 = conn
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM (SELECT id FROM publications {filter}) WHERE id = ?1"
+                ),
+                [&f.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(listed_removed, 0, "{filter} surfaced the tombstone");
+        assert!(count <= 1);
+    }
+}
+
+/// The one place the view alone was not enough. v10's dedupe reads through
+/// it, so the tombstone holding this content is invisible and the import
+/// runs on to its INSERT — which, without the `INSTEAD OF INSERT` trigger,
+/// would hit the base table's `UNIQUE(content_hash)` and fail the import
+/// outright. The trigger drops the tombstone first, which is exactly what
+/// v10 always did: a re-import of a removed book is a new book with fresh
+/// history.
+#[test]
+fn a_v10_dedupe_reimport_replaces_a_tombstone() {
+    let f = fixture();
+    let hash: String = stored(&f.library, "content_hash", &f.id).unwrap();
+    f.library.remove(&f.id).unwrap();
+    assert_eq!(rows_for(&f.library, "sessions", &f.id), 1);
+
+    drop(f.library);
+    let conn = open_connection(&f.data_dir.join("inkuna.db")).unwrap();
+
+    // v10 `Library::publication_by_hash`, verbatim. It is the check that
+    // used to answer "Already in your library" for a file the user could
+    // neither open nor re-add.
+    let sql = format!("SELECT {V10_PUB_COLUMNS} FROM publications WHERE content_hash = ?1");
+    let duplicate: Option<String> = conn
+        .prepare(&sql)
+        .unwrap()
+        .query_map([&hash], |row| row.get::<_, String>(0))
+        .unwrap()
+        .next()
+        .transpose()
+        .unwrap();
+    assert_eq!(duplicate, None, "v10's dedupe misses the tombstone");
+
+    // So v10 proceeds to insert. Same bytes, same hash, a brand-new id.
+    conn.execute(
+        V10_INSERT,
+        rusqlite::params![
+            "v10-new-id",
+            "月光書房",
+            "紫式部",
+            "ja",
+            None::<String>,
+            "epub",
+            "books/v10-new-id.epub",
+            None::<String>,
+            &hash,
+            1_000_i64,
+            0.0_f64,
+            1_000_i64,
+        ],
+    )
+    .expect("the UNIQUE(content_hash) tombstone is cleared out of the way");
+
+    // Exactly one row holds the hash, and it is the new one.
+    let (rows, id): (i64, String) = conn
+        .query_row(
+            "SELECT COUNT(*), MIN(id) FROM publications_all WHERE content_hash = ?1",
+            [&hash],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(rows, 1);
+    assert_eq!(id, "v10-new-id");
+
+    // Fresh history, exactly as a v10 re-import always gave: the old row
+    // went, and its sessions and bookmarks cascaded with it.
+    for table in ["sessions", "bookmarks"] {
+        let left: i64 = conn
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(left, 0, "{table} came with the row v10 replaced");
+    }
+}
+
+/// How the two trigger layers compose. A v10 `DELETE` now lands on the
+/// view's `INSTEAD OF DELETE` first, which forwards to the base table,
+/// where K1-A's `BEFORE DELETE` turns it into a tombstone and cancels the
+/// row delete with `RAISE(IGNORE)` — abandoning the inner statement alone,
+/// so the outer one still reports success to the old binary. And a v10
+/// delete aimed at a tombstone matches nothing at all: the view has never
+/// heard of that row, so the tombstone cannot be touched a second time.
+#[test]
+fn a_v10_delete_through_the_view_still_preserves_history() {
+    let f = fixture();
+    let other = f.source.parent().unwrap().join("other.epub");
+    write_epub(&other, "Second Book", "Author", "en");
+    let second = imported(f.library.import(other.to_str().unwrap()).unwrap()).id;
+    f.library.remove(&f.id).unwrap();
+    let frozen_removed_at: i64 = stored(&f.library, "removed_at", &f.id).unwrap();
+
+    drop(f.library);
+    let conn = open_connection(&f.data_dir.join("inkuna.db")).unwrap();
+
+    // v10 `Library::remove`, verbatim, over every id it could hold —
+    // including the one it cannot see.
+    for id in [&f.id, &second] {
+        conn.execute("DELETE FROM publications WHERE id = ?1", [id])
+            .expect("a view with no INSTEAD OF DELETE would refuse this outright");
+    }
+
+    let live: i64 = conn
+        .query_row("SELECT COUNT(*) FROM publications", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(live, 0, "both books left the shelf");
+    let tombstones: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM publications_all WHERE removed_at IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(tombstones, 2, "neither row was actually deleted");
+
+    // The already-tombstoned row is bit-identical: the delete aimed at it
+    // matched no view row, so nothing re-stamped it.
+    let restamped: i64 = conn
+        .query_row(
+            "SELECT removed_at FROM publications_all WHERE id = ?1",
+            [&f.id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(restamped, frozen_removed_at);
+
+    // And the history the tombstones exist to keep never cascaded.
+    for (table, expected) in [("sessions", 1), ("bookmarks", 1)] {
+        let kept: i64 = conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {table} WHERE publication_id = ?1"),
+                [&f.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(kept, expected, "{table} survived the v10 delete");
+    }
+}
+
+/// The v11+ side is unmoved by the rename: every read and write names
+/// `publications_all` directly, so `remove`, `list` and the restore path
+/// behave exactly as they did before the view existed — the view is for
+/// the old binary alone and must never become load-bearing for this build.
+#[test]
+fn v11_remove_revive_and_list_still_work_through_publications_all() {
+    let f = fixture();
+    let (library, id) = (&f.library, f.id.as_str());
+
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        1
+    );
+    library.remove(id).unwrap();
+
+    // Gone from every read, but still a row — on the base table, where a
+    // v11 build looks for it.
+    assert!(
+        library
+            .list(Shelf::All, Sort::RecentlyAdded)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(matches!(
+        library.publication(id),
+        Err(CoreError::NotFound(_))
+    ));
+    assert!(stored::<i64>(library, "removed_at", id).is_some());
+    let base_rows = count(
+        library,
+        "SELECT COUNT(*) FROM publications_all WHERE id = ?1",
+        id,
+    );
+    assert_eq!(base_rows, 1, "the tombstone is on the base table");
+
+    // The same bytes come back onto the same row, with its history.
+    let (publication, _) = restored(library.import(f.source.to_str().unwrap()).unwrap());
+    assert_eq!(publication.id, id);
+    assert_eq!(stored::<i64>(library, "removed_at", id), None);
+    let shelf = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
+    assert_eq!(shelf.len(), 1);
+    assert_eq!(shelf[0].id, id);
+    assert_eq!(rows_for(library, "sessions", id), 1);
+    assert_eq!(
+        count(
+            library,
+            "SELECT COUNT(*) FROM bookmarks WHERE id = ?1",
+            &f.bookmark_id
+        ),
+        1
     );
 }

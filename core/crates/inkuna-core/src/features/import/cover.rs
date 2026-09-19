@@ -109,7 +109,7 @@ impl Library {
     pub fn optimize_covers(&self) -> Result<u32, CoreError> {
         let rows: Vec<(String, String)> = self.readers.with(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, cover_path FROM publications
+                "SELECT id, cover_path FROM publications_all
                      WHERE cover_path IS NOT NULL AND removed_at IS NULL",
             )?;
             let rows = stmt
@@ -159,7 +159,7 @@ impl Library {
         let updated = {
             let conn = self.writer.lock().unwrap();
             conn.execute(
-                "UPDATE publications SET cover_path = ?1 WHERE id = ?2 AND cover_path = ?3",
+                "UPDATE publications_all SET cover_path = ?1 WHERE id = ?2 AND cover_path = ?3",
                 rusqlite::params![new_rel, id, rel],
             )?
         };

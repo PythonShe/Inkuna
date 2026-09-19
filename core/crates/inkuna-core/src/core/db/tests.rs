@@ -328,7 +328,7 @@ fn v11_migrates_from_v10() {
     // was never removed has no coordinates frozen across a removal.
     let (removed_at, corpus_digest): (Option<i64>, Option<String>) = conn
         .query_row(
-            "SELECT removed_at, corpus_digest FROM publications WHERE id = 'p1'",
+            "SELECT removed_at, corpus_digest FROM publications_all WHERE id = 'p1'",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -345,7 +345,7 @@ fn v11_migrates_from_v10() {
     ) = conn
         .query_row(
             "SELECT title, position_spine_idx, position_char_offset, finished_at
-             FROM publications WHERE id = 'p1'",
+             FROM publications_all WHERE id = 'p1'",
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
@@ -411,7 +411,7 @@ fn v12_migrates_from_v11() {
         // A tombstone, whose title V11's freeze trigger protects from any
         // write that leaves it a tombstone — the backfill included.
         conn.execute(
-            "INSERT INTO publications
+            "INSERT INTO publications_all
                 (id, title, authors, format, file_path, content_hash, added_at,
                  progression, removed_at)
              VALUES ('p2', 'Gone', '', 'epub', '', 'hash-2', 100, 0.5, 500)",
@@ -437,7 +437,7 @@ fn v12_migrates_from_v11() {
     ) = conn
         .query_row(
             "SELECT edition_key, title_key, edition_scanned_at, title, finished_at
-             FROM publications WHERE id = 'p1'",
+             FROM publications_all WHERE id = 'p1'",
             [],
             |row| {
                 Ok((
@@ -464,7 +464,7 @@ fn v12_migrates_from_v11() {
     // `edition_key` can never be filled either, so it counts as itself.
     let (tomb_title_key, removed_at): (Option<String>, Option<i64>) = conn
         .query_row(
-            "SELECT title_key, removed_at FROM publications WHERE id = 'p2'",
+            "SELECT title_key, removed_at FROM publications_all WHERE id = 'p2'",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -489,7 +489,24 @@ fn v12_migrates_from_v11() {
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(triggers, 2, "V11's triggers survive the column adds");
+    assert_eq!(
+        triggers, 5,
+        "V11's two base-table triggers and three INSTEAD OF ones all survive the column adds"
+    );
+
+    // The compatibility view stays v10-shaped: V12's columns land on the
+    // base table and must not widen what an old binary sees.
+    let view_columns: Vec<String> = {
+        let mut stmt = conn.prepare("PRAGMA table_info(publications)").unwrap();
+        let rows = stmt.query_map([], |row| row.get::<_, String>(1)).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    for added in ["edition_key", "title_key", "edition_scanned_at"] {
+        assert!(
+            !view_columns.contains(&added.to_string()),
+            "{added} must not reach the v10 view"
+        );
+    }
 
     // And the library still opens on the live book.
     drop(conn);

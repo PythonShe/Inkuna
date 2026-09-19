@@ -1886,7 +1886,7 @@ fn restoring_a_book_fills_its_edition_keys() {
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications
+            "UPDATE publications_all
                 SET edition_key = NULL, title_key = NULL, edition_scanned_at = NULL
               WHERE id = ?1",
             [&id],
@@ -1904,7 +1904,7 @@ fn restoring_a_book_fills_its_edition_keys() {
             .with(|conn| {
                 conn.query_row(
                     "SELECT edition_key, title_key, edition_scanned_at
-                     FROM publications WHERE id = ?1",
+                     FROM publications_all WHERE id = ?1",
                     [&id],
                     |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                 )

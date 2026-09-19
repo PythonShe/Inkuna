@@ -56,7 +56,7 @@ fn run_pass(data_dir: &Path, db_path: &Path, cancel: &AtomicBool) -> Result<(), 
             // A tombstone has no file to read an identifier out of, so it
             // is excluded here rather than stamped — it would otherwise be
             // retried on every open, forever.
-            "SELECT id, file_path FROM publications
+            "SELECT id, file_path FROM publications_all
              WHERE edition_scanned_at IS NULL AND removed_at IS NULL
              ORDER BY last_opened_at DESC NULLS LAST",
         )?;
@@ -116,7 +116,7 @@ fn backfill_book(
     // counts as removed for the same reason.
     let live = tx
         .query_row(
-            "SELECT removed_at FROM publications WHERE id = ?1",
+            "SELECT removed_at FROM publications_all WHERE id = ?1",
             [id],
             |row| row.get::<_, Option<i64>>(0),
         )
@@ -129,7 +129,7 @@ fn backfill_book(
     }
 
     tx.execute(
-        "UPDATE publications
+        "UPDATE publications_all
             SET edition_key = ?1, edition_scanned_at = ?2
           WHERE id = ?3 AND removed_at IS NULL",
         rusqlite::params![key, unix_now(), id],

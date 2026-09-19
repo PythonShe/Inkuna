@@ -356,7 +356,7 @@ impl Library {
     pub(super) fn publication_by_hash(&self, hash: &str) -> Result<Option<Publication>, CoreError> {
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(&format!(
-                "SELECT {PUB_COLUMNS} FROM publications
+                "SELECT {PUB_COLUMNS} FROM publications_all
                  WHERE content_hash = ?1 AND removed_at IS NULL"
             ))?;
             let mut rows = stmt.query_map([hash], map_publication)?;
@@ -402,7 +402,7 @@ fn insert_publication(
     edition_key: Option<&str>,
 ) -> Result<(), CoreError> {
     tx.execute(
-        "INSERT INTO publications
+        "INSERT INTO publications_all
             (id, title, authors, language, text_encoding, format, file_path,
              cover_path, content_hash, added_at, progression, reconciled_at,
              edition_key, title_key, edition_scanned_at)
@@ -478,7 +478,7 @@ fn write_position_rows(
         )?;
     }
     tx.execute(
-        "UPDATE publications SET position_count = ?1 WHERE id = ?2",
+        "UPDATE publications_all SET position_count = ?1 WHERE id = ?2",
         rusqlite::params![total, publication_id],
     )?;
     Ok(())

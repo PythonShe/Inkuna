@@ -40,7 +40,7 @@ impl Library {
         };
         let conn = self.writer.lock().unwrap();
         let exists: bool = conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM publications WHERE id = ?1 AND removed_at IS NULL)",
+            "SELECT EXISTS(SELECT 1 FROM publications_all WHERE id = ?1 AND removed_at IS NULL)",
             [publication_id],
             |row| row.get(0),
         )?;
@@ -81,7 +81,7 @@ impl Library {
                 "SELECT id, publication_id, position_spine_idx, position_char_offset,
                         progression, created_at
                  FROM bookmarks WHERE publication_id = ?1
-                   AND EXISTS (SELECT 1 FROM publications p
+                   AND EXISTS (SELECT 1 FROM publications_all p
                                 WHERE p.id = bookmarks.publication_id
                                   AND p.removed_at IS NULL)
                  ORDER BY progression, created_at, rowid",
@@ -120,7 +120,7 @@ impl Library {
         let changed = conn.execute(
             "DELETE FROM bookmarks
               WHERE id = ?1
-                AND EXISTS (SELECT 1 FROM publications p
+                AND EXISTS (SELECT 1 FROM publications_all p
                              WHERE p.id = bookmarks.publication_id
                                AND p.removed_at IS NULL)",
             [bookmark_id],

@@ -32,7 +32,7 @@ impl Library {
         };
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(&format!(
-                "SELECT {PUB_COLUMNS} FROM publications {filter} {order}"
+                "SELECT {PUB_COLUMNS} FROM publications_all {filter} {order}"
             ))?;
             let rows = stmt.query_map([], map_publication)?;
             rows.collect::<Result<_, _>>().map_err(Into::into)
@@ -46,7 +46,7 @@ impl Library {
     pub fn publication(&self, id: &str) -> Result<Publication, CoreError> {
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(&format!(
-                "SELECT {PUB_COLUMNS} FROM publications
+                "SELECT {PUB_COLUMNS} FROM publications_all
                  WHERE id = ?1 AND removed_at IS NULL"
             ))?;
             let mut rows = stmt.query_map([id], map_publication)?;

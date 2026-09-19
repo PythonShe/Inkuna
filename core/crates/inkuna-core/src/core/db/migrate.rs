@@ -211,18 +211,45 @@ ALTER TABLE settings ADD COLUMN library_grid INTEGER NOT NULL DEFAULT 0;
 // aggregates `sessions` with no join to `publications`, so moving session
 // rows anywhere would retroactively erase reading time from the weekly and
 // monthly figures.
+//
+// There is no downgrade gate, and v10 builds are already out in the world:
+// one of them opens this database and runs its own SQL against it. It knows
+// nothing about `removed_at`, so every statement it issues against
+// `publications` is written as if tombstones did not exist. Rather than
+// teach the old binary a filter it cannot learn, v11 makes the name it
+// queries mean what it always meant: the real table becomes
+// `publications_all` and `publications` becomes a v10-shaped view of the
+// live rows. A v10 build on a v11 database then behaves indistinguishably
+// from a v10 build on a v10 database — no ghost rows on the All shelf, no
+// unopenable entries, no "already in your library" for a file it cannot
+// see. Views and triggers are part of the schema, so they bind whichever
+// build opened the file.
+//
+// Every v11+ read and write names `publications_all` directly; the view
+// exists solely for the old binary. It exposes exactly the v10 columns, in
+// v10 order, so later versions may add columns to the base table without
+// widening what v10 sees — and `rowid` explicitly, because v10's shelf
+// ordering breaks ties on it.
 const V11_SQL: &str = "
 ALTER TABLE publications ADD COLUMN removed_at    INTEGER;
 ALTER TABLE publications ADD COLUMN corpus_digest TEXT;
 
--- There is no downgrade gate, and v10 builds are already out in the world:
--- one of them opens this database and runs its own SQL against it. It knows
--- nothing about `removed_at`, so its `remove` is a hard DELETE that would
--- cascade a tombstone's sessions and bookmarks away, and its rebaseline pass
--- would consume the legacy `locator` that is the only record of where the
--- reader was. Both go through SQLite, so v11 legislates them here rather
--- than in Rust the old binary does not have. Triggers are part of the
--- schema: they bind whichever build opened the file.
+-- RENAME TO rewrites the referencing FK clauses in `sessions`, `resources`,
+-- `chapters`, `bookmarks` and `resource_positions` and carries every index
+-- over. Everything below is created *after* it, naming `publications_all`
+-- outright, rather than created first and left to follow the rename — the
+-- schema then says what it means without depending on how RENAME rewrites
+-- a trigger body.
+ALTER TABLE publications RENAME TO publications_all;
+
+CREATE VIEW publications AS
+  SELECT rowid AS rowid,
+         id, title, authors, language, format, file_path, added_at,
+         progression, content_hash, cover_path, finished_at, last_opened_at,
+         locator, position_count, text_encoding, position_spine_idx,
+         position_char_offset, reconciled_at
+    FROM publications_all
+   WHERE removed_at IS NULL;
 
 -- A v10 `DELETE FROM publications WHERE id = ?` becomes the tombstone that
 -- v11 would have written, minus the `corpus_digest` it cannot know — NULL,
@@ -232,13 +259,13 @@ ALTER TABLE publications ADD COLUMN corpus_digest TEXT;
 -- then cancels the delete itself, silently, so the old binary sees the
 -- success it expects.
 CREATE TRIGGER publications_soft_delete
-BEFORE DELETE ON publications
+BEFORE DELETE ON publications_all
 WHEN OLD.removed_at IS NULL
 BEGIN
   DELETE FROM resources          WHERE publication_id = OLD.id;
   DELETE FROM chapters           WHERE publication_id = OLD.id;
   DELETE FROM resource_positions WHERE publication_id = OLD.id;
-  UPDATE publications
+  UPDATE publications_all
      SET removed_at    = CAST(strftime('%s','now') AS INTEGER),
          file_path     = '',
          cover_path    = NULL,
@@ -249,14 +276,85 @@ BEGIN
 END;
 
 -- A tombstone is frozen: any write that would leave it a tombstone is
--- dropped on the floor, which is what keeps a v10 rebaseline from NULLing
--- the locator it is holding or stamping `reconciled_at` over a corpus that
--- no longer exists. Restore is the sole exception and identifies itself by
+-- dropped on the floor. The view already keeps v10 away from tombstones
+-- entirely, so this now guards the v11+ side alone — a rebaseline or
+-- backfill pass that races a `remove` and reaches `publications_all`
+-- directly. Restore is the sole exception and identifies itself by
 -- clearing `removed_at` in the same statement.
 CREATE TRIGGER publications_freeze_tombstone
-BEFORE UPDATE ON publications
+BEFORE UPDATE ON publications_all
 WHEN OLD.removed_at IS NOT NULL AND NEW.removed_at IS NOT NULL
 BEGIN SELECT RAISE(IGNORE); END;
+
+-- A view is only writable through INSTEAD OF triggers, and v10 writes to
+-- this name. Each one forwards to the base table and then lets the
+-- triggers above have the last word: the delete below fires
+-- `publications_soft_delete`, whose RAISE(IGNORE) abandons the inner
+-- statement alone and lets this trigger program continue, so a v10 remove
+-- still lands as a tombstone.
+CREATE TRIGGER publications_view_delete
+INSTEAD OF DELETE ON publications
+BEGIN
+  DELETE FROM publications_all WHERE id = OLD.id;
+END;
+
+-- Writes back exactly the v10 columns; anything v11+ added keeps its
+-- stored value, because the old binary has no opinion about it. The view
+-- only ever yields live rows, so OLD.removed_at is NULL here and the
+-- freeze trigger never fires.
+CREATE TRIGGER publications_view_update
+INSTEAD OF UPDATE ON publications
+BEGIN
+  UPDATE publications_all
+     SET id                   = NEW.id,
+         title                = NEW.title,
+         authors              = NEW.authors,
+         language             = NEW.language,
+         format               = NEW.format,
+         file_path            = NEW.file_path,
+         added_at             = NEW.added_at,
+         progression          = NEW.progression,
+         content_hash         = NEW.content_hash,
+         cover_path           = NEW.cover_path,
+         finished_at          = NEW.finished_at,
+         last_opened_at       = NEW.last_opened_at,
+         locator              = NEW.locator,
+         position_count       = NEW.position_count,
+         text_encoding        = NEW.text_encoding,
+         position_spine_idx   = NEW.position_spine_idx,
+         position_char_offset = NEW.position_char_offset,
+         reconciled_at        = NEW.reconciled_at
+   WHERE id = OLD.id;
+END;
+
+-- The one place the view alone is not enough. v10's dedupe reads through
+-- it, so a tombstone holding this content is invisible and the import
+-- proceeds to INSERT — straight into the base table's
+-- UNIQUE(content_hash). Dropping the tombstone first restores v10's own
+-- historical behaviour exactly: re-importing a removed book gives a new
+-- row with fresh history (the old row's sessions and bookmarks cascade
+-- away with it). A partial unique index would instead let two rows share a
+-- hash and strand the tombstone for good. The tombstone is not live, so
+-- `publications_soft_delete` does not fire and the delete is real.
+CREATE TRIGGER publications_view_insert
+INSTEAD OF INSERT ON publications
+BEGIN
+  DELETE FROM publications_all
+   WHERE NEW.content_hash IS NOT NULL
+     AND content_hash = NEW.content_hash
+     AND removed_at IS NOT NULL;
+  INSERT INTO publications_all
+    (id, title, authors, language, format, file_path, added_at, progression,
+     content_hash, cover_path, finished_at, last_opened_at, locator,
+     position_count, text_encoding, position_spine_idx, position_char_offset,
+     reconciled_at)
+  VALUES
+    (NEW.id, NEW.title, NEW.authors, NEW.language, NEW.format, NEW.file_path,
+     NEW.added_at, NEW.progression, NEW.content_hash, NEW.cover_path,
+     NEW.finished_at, NEW.last_opened_at, NEW.locator, NEW.position_count,
+     NEW.text_encoding, NEW.position_spine_idx, NEW.position_char_offset,
+     NEW.reconciled_at);
+END;
 ";
 
 // 0012: edition identity, so the finished-books stat counts editions rather
@@ -283,13 +381,17 @@ BEGIN SELECT RAISE(IGNORE); END;
 // of the stored title with no file access at all.
 //
 // The partial index coexists with V11's triggers — a column add fires no
-// row trigger, and neither trigger references these columns.
+// row trigger, and neither trigger references these columns. The columns
+// land on `publications_all` (V11 renamed the table out from under the
+// `publications` name, which is now a view); the view is deliberately
+// v10-shaped and needs no change, which is the whole point of listing its
+// columns explicitly.
 const V12_SQL: &str = "
-ALTER TABLE publications ADD COLUMN edition_key        TEXT;
-ALTER TABLE publications ADD COLUMN title_key          TEXT;
-ALTER TABLE publications ADD COLUMN edition_scanned_at INTEGER;
+ALTER TABLE publications_all ADD COLUMN edition_key        TEXT;
+ALTER TABLE publications_all ADD COLUMN title_key          TEXT;
+ALTER TABLE publications_all ADD COLUMN edition_scanned_at INTEGER;
 
-CREATE INDEX idx_publications_edition ON publications(edition_key)
+CREATE INDEX idx_publications_edition ON publications_all(edition_key)
   WHERE edition_key IS NOT NULL;
 ";
 
@@ -356,11 +458,11 @@ fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(
 /// staying as it is.
 fn backfill_title_keys(tx: &Transaction) -> Result<(), CoreError> {
     let rows: Vec<(String, String)> = {
-        let mut stmt = tx.prepare("SELECT id, title FROM publications")?;
+        let mut stmt = tx.prepare("SELECT id, title FROM publications_all")?;
         let mapped = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
         mapped.collect::<Result<_, _>>()?
     };
-    let mut update = tx.prepare("UPDATE publications SET title_key = ?1 WHERE id = ?2")?;
+    let mut update = tx.prepare("UPDATE publications_all SET title_key = ?1 WHERE id = ?2")?;
     for (id, title) in rows {
         update.execute(rusqlite::params![title_key(&title), id])?;
     }
@@ -373,6 +475,10 @@ fn backfill_title_keys(tx: &Transaction) -> Result<(), CoreError> {
 /// content duplicates an already-adopted row — are dropped. After this,
 /// every surviving row is core-owned: `remove()` is always safe and dedupe
 /// always has a hash.
+///
+/// Runs inside the V2 step, where `publications` is still the base table —
+/// V11 is what renames it to `publications_all` — so these statements name
+/// it as it was and must stay that way.
 fn adopt_legacy_rows(tx: &Transaction, data_dir: &Path) -> Result<(), CoreError> {
     let rows: Vec<(String, String, String)> = {
         let mut stmt = tx.prepare("SELECT id, file_path, format FROM publications")?;

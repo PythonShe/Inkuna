@@ -130,7 +130,7 @@ impl Library {
                          THEN 'e:' || edition_key || CHAR(31) || title_key
                          ELSE 'i:' || id
                      END
-                     FROM publications WHERE finished_at >= ?1
+                     FROM publications_all WHERE finished_at >= ?1
                  )",
                 [year_start],
                 |row| row.get(0),

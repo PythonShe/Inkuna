@@ -63,7 +63,7 @@ fn run_with_hook(
             // A tombstone has no file to extract a corpus from and its
             // `reconciled_at` is deliberately NULL, so it would otherwise
             // be retried on every open, forever.
-            "SELECT id, file_path FROM publications
+            "SELECT id, file_path FROM publications_all
              WHERE reconciled_at IS NULL AND removed_at IS NULL
              ORDER BY last_opened_at DESC NULLS LAST",
         )?;
@@ -186,7 +186,7 @@ fn rebaseline_book(
     // A vanished row counts as removed for the same reason.
     let live = tx
         .query_row(
-            "SELECT removed_at FROM publications WHERE id = ?1",
+            "SELECT removed_at FROM publications_all WHERE id = ?1",
             [id],
             |row| row.get::<_, Option<i64>>(0),
         )
@@ -244,7 +244,7 @@ fn rebaseline_book(
         // stamped reconciled — the read-time fallbacks (1/1 when no
         // position rows exist) already cover the degenerate case.
         tx.execute(
-            "UPDATE publications SET position_count = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET position_count = ?1 WHERE id = ?2",
             rusqlite::params![total, id],
         )?;
         counts.into_iter().map(Some).collect()
@@ -261,20 +261,20 @@ fn rebaseline_book(
     // stale legacy locator must never overwrite: then the conversion is
     // skipped and only the consumed locator is NULLed.
     let locator: Option<String> = tx.query_row(
-        "SELECT locator FROM publications WHERE id = ?1",
+        "SELECT locator FROM publications_all WHERE id = ?1",
         [id],
         |row| row.get(0),
     )?;
     if let Some(locator) = locator {
         let (spine_idx, char_offset) = convert_locator(&locator, &resources, &char_lens);
         let converted = tx.execute(
-            "UPDATE publications
+            "UPDATE publications_all
              SET position_spine_idx = ?1, position_char_offset = ?2, locator = NULL
              WHERE id = ?3 AND position_spine_idx IS NULL",
             rusqlite::params![spine_idx, char_offset as i64, id],
         )?;
         if converted == 0 {
-            tx.execute("UPDATE publications SET locator = NULL WHERE id = ?1", [id])?;
+            tx.execute("UPDATE publications_all SET locator = NULL WHERE id = ?1", [id])?;
         }
     }
 
@@ -306,7 +306,7 @@ fn rebaseline_book(
 
     // 5. Stamp: the gate that makes the pass idempotent.
     tx.execute(
-        "UPDATE publications SET reconciled_at = ?1 WHERE id = ?2",
+        "UPDATE publications_all SET reconciled_at = ?1 WHERE id = ?2",
         rusqlite::params![unix_now(), id],
     )?;
     tx.commit()?;
@@ -373,7 +373,7 @@ fn reindex_book(conn: &Connection, index: &IndexWriteHandle, id: &str) {
     if let Err(e) = outcome {
         log::warn!("post-rebaseline reindex of {id} failed: {e}");
         if let Err(clear_error) = conn.execute(
-            "UPDATE publications SET reconciled_at = NULL WHERE id = ?1",
+            "UPDATE publications_all SET reconciled_at = NULL WHERE id = ?1",
             [id],
         ) {
             log::warn!(

@@ -51,7 +51,7 @@ fn publication_row(
         .with(|conn| {
             conn.query_row(
                 "SELECT position_spine_idx, position_char_offset, locator, reconciled_at
-                 FROM publications WHERE id = ?1",
+                 FROM publications_all WHERE id = ?1",
                 [id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )

@@ -143,7 +143,7 @@ impl Library {
             // and these paths drive irreversible unlinks.
             let paths = {
                 let mut stmt = tx.prepare(
-                    "SELECT file_path, cover_path FROM publications
+                    "SELECT file_path, cover_path FROM publications_all
                       WHERE id = ?1 AND removed_at IS NULL",
                 )?;
                 let mut rows = stmt.query_map([id], |row| {
@@ -168,7 +168,7 @@ impl Library {
             // ever reach a tombstone, it must not be told its (now
             // deleted) corpus is canonical.
             let claimed = tx.execute(
-                "UPDATE publications
+                "UPDATE publications_all
                     SET removed_at = ?1, corpus_digest = ?2, file_path = '',
                         cover_path = NULL, reconciled_at = NULL
                   WHERE id = ?3 AND removed_at IS NULL",
@@ -230,7 +230,7 @@ impl Library {
     fn sweep(&self) -> Result<(), CoreError> {
         let referenced: HashSet<String> = self.readers.with(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT file_path, cover_path FROM publications WHERE removed_at IS NULL",
+                "SELECT file_path, cover_path FROM publications_all WHERE removed_at IS NULL",
             )?;
             let rows = stmt.query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
@@ -263,7 +263,8 @@ impl Library {
         // whose id has no row is a leftover of an interrupted delete.
         // The dir is optional (created lazily at first reader open).
         let ids: HashSet<String> = self.readers.with(|conn| {
-            let mut stmt = conn.prepare("SELECT id FROM publications WHERE removed_at IS NULL")?;
+            let mut stmt =
+                conn.prepare("SELECT id FROM publications_all WHERE removed_at IS NULL")?;
             let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
             let mut set = HashSet::new();
             for row in rows {

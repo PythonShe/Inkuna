@@ -53,7 +53,7 @@ fn write_identified(path: &std::path::Path, identifier: &str, filler: &str) {
 fn unscan(library: &Library, id: &str) {
     let conn = library.writer.lock().unwrap();
     conn.execute(
-        "UPDATE publications
+        "UPDATE publications_all
             SET edition_key = NULL, edition_scanned_at = NULL
           WHERE id = ?1",
         [id],
@@ -74,7 +74,7 @@ fn edition_row(library: &Library, id: &str) -> (Option<String>, Option<i64>) {
         .readers
         .with(|conn| {
             conn.query_row(
-                "SELECT edition_key, edition_scanned_at FROM publications WHERE id = ?1",
+                "SELECT edition_key, edition_scanned_at FROM publications_all WHERE id = ?1",
                 [id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -88,7 +88,7 @@ fn pending_count(library: &Library) -> i64 {
         .readers
         .with(|conn| {
             conn.query_row(
-                "SELECT COUNT(*) FROM publications
+                "SELECT COUNT(*) FROM publications_all
                  WHERE edition_scanned_at IS NULL AND removed_at IS NULL",
                 [],
                 |row| row.get(0),
