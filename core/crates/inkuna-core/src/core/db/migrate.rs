@@ -329,6 +329,14 @@ BEGIN
    WHERE id = OLD.id;
 END;
 
+-- `authors` and `progression` are the base table's only NOT NULL columns
+-- carrying a DEFAULT, and a view has no defaults of its own: an INSERT that
+-- omits either one arrives here with NEW.<col> NULL and would fail the
+-- base table's NOT NULL check, where against the v10 table it would have
+-- taken the default. COALESCE is what makes the view a faithful stand-in
+-- rather than a stricter one. (Today's v10 INSERT lists both columns, so
+-- this is the view keeping its promise, not a live bug being fixed.)
+--
 -- The one place the view alone is not enough. v10's dedupe reads through
 -- it, so a tombstone holding this content is invisible and the import
 -- proceeds to INSERT — straight into the base table's
@@ -351,8 +359,9 @@ BEGIN
      position_count, text_encoding, position_spine_idx, position_char_offset,
      reconciled_at)
   VALUES
-    (NEW.id, NEW.title, NEW.authors, NEW.language, NEW.format, NEW.file_path,
-     NEW.added_at, NEW.progression, NEW.content_hash, NEW.cover_path,
+    (NEW.id, NEW.title, COALESCE(NEW.authors, ''), NEW.language, NEW.format,
+     NEW.file_path, NEW.added_at, COALESCE(NEW.progression, 0),
+     NEW.content_hash, NEW.cover_path,
      NEW.finished_at, NEW.last_opened_at, NEW.locator, NEW.position_count,
      NEW.text_encoding, NEW.position_spine_idx, NEW.position_char_offset,
      NEW.reconciled_at);

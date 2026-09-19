@@ -840,6 +840,70 @@ fn the_v11_guard_rejects_child_references_left_behind() {
     }
 }
 
+/// A view has no column defaults of its own, so an INSERT that omits one
+/// arrives at the base table as NULL and trips its NOT NULL check — where
+/// the same statement against the v10 table would have taken the default.
+/// V11's view is a stand-in for that table, not a stricter version of it,
+/// so its INSERT trigger supplies the defaults itself.
+#[test]
+fn the_view_supplies_the_base_tables_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let mut conn = super::open_connection(&data_dir.join("inkuna.db")).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+
+    // Every NOT NULL column of the base table that carries a DEFAULT — so
+    // a future defaulted column cannot be added without this noticing.
+    let defaulted: Vec<String> = {
+        let mut stmt = conn.prepare("PRAGMA table_info(publications_all)").unwrap();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })
+            .unwrap();
+        rows.filter_map(|row| {
+            let (name, not_null, default) = row.unwrap();
+            (not_null == 1 && default.is_some()).then_some(name)
+        })
+        .collect()
+    };
+    assert_eq!(
+        defaulted,
+        vec!["authors".to_string(), "progression".to_string()]
+    );
+
+    // v10-view-sql: the shipped v10 shape, minus the defaulted columns.
+    conn.execute(
+        "INSERT INTO publications (id, title, format, file_path, added_at)
+         VALUES ('through-view', 'Book', 'epub', 'books/v.epub', 100)",
+        [],
+    )
+    .expect("a v10 INSERT omitting a defaulted column must go through the view");
+    // The control: the same statement against the real table.
+    conn.execute(
+        "INSERT INTO publications_all (id, title, format, file_path, added_at)
+         VALUES ('direct', 'Book', 'epub', 'books/d.epub', 100)",
+        [],
+    )
+    .unwrap();
+
+    let row = |id: &str| -> (String, f64) {
+        conn.query_row(
+            "SELECT authors, progression FROM publications_all WHERE id = ?1",
+            [id],
+            |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())),
+        )
+        .unwrap()
+    };
+    assert_eq!(row("through-view"), row("direct"));
+    assert_eq!(row("through-view"), (String::new(), 0.0));
+}
+
 /// A panic inside pooled work must not consume the connection. UniFFI
 /// catches panics at the boundary and keeps the app alive, so leaking one
 /// connection per panic would silently starve the pool and then block every
