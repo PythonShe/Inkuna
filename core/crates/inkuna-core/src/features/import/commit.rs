@@ -27,7 +27,7 @@ use super::pipeline::PreparedImport;
 use super::restore;
 use crate::core::files::sync_dir;
 use crate::core::time::unix_now;
-use crate::features::library::{join_authors, map_publication, Library, PUB_COLUMNS};
+use crate::features::library::{join_authors, map_publication, title_key, Library, PUB_COLUMNS};
 use crate::features::progress::synthetic_positions;
 use crate::{CoreError, Format, Publication};
 
@@ -225,11 +225,23 @@ impl Library {
                         + publication.text_encoding.as_deref().map_or(0, str::len),
                 )?;
                 if restore.is_some() {
-                    if !restore::revive(tx, &publication, &authors, coordinates_restored)? {
+                    if !restore::revive(
+                        tx,
+                        &publication,
+                        &authors,
+                        coordinates_restored,
+                        prepared.edition_key.as_deref(),
+                    )? {
                         return Ok(false);
                     }
                 } else {
-                    insert_publication(tx, &publication, &authors, &prepared.content_hash)?;
+                    insert_publication(
+                        tx,
+                        &publication,
+                        &authors,
+                        &prepared.content_hash,
+                        prepared.edition_key.as_deref(),
+                    )?;
                 }
                 write_spine_rows(tx, budget, &prepared.spine, &publication.id)?;
                 write_position_rows(tx, &position_rows, position_total, &publication.id)?;
@@ -387,12 +399,14 @@ fn insert_publication(
     publication: &Publication,
     authors: &str,
     content_hash: &str,
+    edition_key: Option<&str>,
 ) -> Result<(), CoreError> {
     tx.execute(
         "INSERT INTO publications
             (id, title, authors, language, text_encoding, format, file_path,
-             cover_path, content_hash, added_at, progression, reconciled_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             cover_path, content_hash, added_at, progression, reconciled_at,
+             edition_key, title_key, edition_scanned_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         rusqlite::params![
             publication.id,
             publication.title,
@@ -405,6 +419,14 @@ fn insert_publication(
             content_hash,
             publication.added_at,
             publication.progression,
+            unix_now(),
+            edition_key,
+            title_key(&publication.title),
+            // Scanned by construction: the OPF this import just parsed IS
+            // what the background backfill would re-open the file for, so
+            // the pass skips the book. Stamped even when the key came out
+            // `None` — a junk identifier is a finished scan, not a
+            // pending one.
             unix_now(),
         ],
     )?;

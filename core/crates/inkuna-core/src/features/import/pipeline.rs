@@ -12,7 +12,7 @@ use inkuna_engine::extract_corpus;
 use super::model::{BatchImportOutcome, ImportOutcome};
 use super::restore::{HashMatch, Tombstone};
 use crate::core::files::{copy_and_hash, stream_and_hash};
-use crate::features::library::Library;
+use crate::features::library::{edition_key, Library};
 use crate::formats::{epub, mobi, txt};
 use crate::{CoreError, Format, Publication};
 
@@ -34,6 +34,11 @@ pub(crate) struct PreparedImport {
     pub(super) spine: Vec<(String, Option<String>)>,
     pub(super) toc: Vec<epub::TocEntry>,
     pub(super) cover: Option<epub::Cover>,
+    /// The book's edition identity, normalized off its OPF
+    /// `dc:identifier` — `None` whenever that identifier is absent or is
+    /// not one of the allowlisted schemes, which is most of them. The
+    /// finished-books stat merges on it; nothing else reads it.
+    pub(super) edition_key: Option<String>,
     /// Set when this content matched a tombstone: `id` and `rel_path`
     /// above are then the *removed* publication's, not freshly minted,
     /// and the commit updates that row instead of inserting a new one.
@@ -379,6 +384,15 @@ impl Library {
             // Normalized here, in the parallel parse stage, so the commit
             // under the writer lock only ever writes display-sized bytes.
             cover: parsed.cover.map(super::cover::normalize_cover),
+            // The identifier is already parsed for font deobfuscation;
+            // normalizing it here means the commit writes a key rather
+            // than a raw `dc:identifier`, and the background backfill
+            // pass has nothing to do for a freshly imported book.
+            edition_key: parsed
+                .metadata
+                .unique_identifier
+                .as_deref()
+                .and_then(edition_key),
             restore,
         })))
     }

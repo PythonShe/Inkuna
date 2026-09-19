@@ -1856,6 +1856,72 @@ fn restoring_an_unconverted_legacy_book_leaves_it_for_the_rebaseline() {
     assert!(locator.is_some(), "and the locator itself is still there");
 }
 
+/// A book removed before V12 carries no edition keys — the columns were
+/// added after it was tombstoned, and the backfill can never reach a
+/// tombstone (its file is gone). Restoring it must fill them from the file
+/// that just arrived, alongside the `title` it already refreshes: the keys
+/// and the title they are derived from must never desync.
+#[test]
+fn restoring_a_book_fills_its_edition_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    let opf = r#"<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>月光書房</dc:title>
+    <dc:identifier id="pub-id">urn:uuid:5c9b2f1e-8a3d-4f7b-9e2c-1d0a6b4f8e37</dc:identifier>
+    <dc:language>ja</dc:language>
+  </metadata>
+  <manifest><item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#;
+    let chapter = r#"<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"><body><p>本文</p></body></html>"#;
+    write_epub_parts(&epub, opf, &[("ch01.xhtml", chapter)]);
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let id = imported(library.import(epub.to_str().unwrap()).unwrap()).id;
+    // Age the row back to a pre-V12 one, while it is still live: the
+    // freeze trigger would drop this write against a tombstone.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications
+                SET edition_key = NULL, title_key = NULL, edition_scanned_at = NULL
+              WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+    library.remove(&id).unwrap();
+
+    let (publication, _) = restored(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(publication.id, id);
+
+    let (edition_key, title_key, scanned_at): (Option<String>, Option<String>, Option<i64>) =
+        library
+            .readers
+            .with(|conn| {
+                conn.query_row(
+                    "SELECT edition_key, title_key, edition_scanned_at
+                     FROM publications WHERE id = ?1",
+                    [&id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .map_err(Into::into)
+            })
+            .unwrap();
+    assert_eq!(
+        edition_key.as_deref(),
+        Some("uuid:5c9b2f1e-8a3d-4f7b-9e2c-1d0a6b4f8e37")
+    );
+    assert_eq!(title_key.as_deref(), Some("月光書房"));
+    assert!(
+        scanned_at.is_some(),
+        "this import parsed the OPF, so the backfill has nothing left to do"
+    );
+}
+
 /// The other half of the same pre-V8 state: a book bookmarked but never
 /// progress-written has a NULL publication locator while its bookmarks
 /// still carry legacy JSON. Stamping it reconciled on the publication

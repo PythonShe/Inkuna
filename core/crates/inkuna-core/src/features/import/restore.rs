@@ -20,7 +20,7 @@
 use std::path::Path;
 
 use crate::core::time::unix_now;
-use crate::features::library::{corpus_digest, map_publication, Library, PUB_COLUMNS};
+use crate::features::library::{corpus_digest, map_publication, title_key, Library, PUB_COLUMNS};
 use crate::{CoreError, Publication};
 
 /// A removed publication whose `content_hash` a staged import just matched.
@@ -103,17 +103,25 @@ pub(super) fn coordinates_survive(
 /// bookmarks, stranding them without coordinates for good.
 /// `bookmarks.locator` is NOT NULL, so `<> ''` is its unconsumed test,
 /// matching the rebaseline's own.
+/// The edition keys are refreshed alongside `title`: they are derived from
+/// the file that just arrived, and a tombstone's stored `title_key` was
+/// derived from whichever title the *removed* copy carried. Leaving either
+/// stale would desync it from the title beside it. `edition_scanned_at` is
+/// stamped for the same reason a fresh import stamps it — this import
+/// parsed the OPF, so the background backfill has nothing left to do here.
 pub(super) fn revive(
     tx: &rusqlite::Transaction,
     publication: &Publication,
     authors: &str,
     coordinates_restored: bool,
+    edition_key: Option<&str>,
 ) -> Result<bool, CoreError> {
     let claimed = tx.execute(
         "UPDATE publications
             SET title = ?1, authors = ?2, language = ?3, text_encoding = ?4,
                 format = ?5, file_path = ?6, cover_path = ?7, added_at = ?8,
                 removed_at = NULL, corpus_digest = NULL,
+                edition_key = ?11, title_key = ?12, edition_scanned_at = ?9,
                 reconciled_at = CASE
                     WHEN (locator IS NULL OR locator = '')
                      AND NOT EXISTS (
@@ -135,6 +143,8 @@ pub(super) fn revive(
             publication.added_at,
             unix_now(),
             publication.id,
+            edition_key,
+            title_key(&publication.title),
         ],
     )?;
     if claimed == 0 {
