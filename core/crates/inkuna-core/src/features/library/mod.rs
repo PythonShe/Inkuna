@@ -5,6 +5,7 @@
 mod bookmarks;
 mod corpus;
 mod edition;
+mod edition_backfill;
 mod model;
 mod queries;
 mod rebaseline;

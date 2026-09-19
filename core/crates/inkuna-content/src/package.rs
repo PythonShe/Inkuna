@@ -8,7 +8,7 @@ use crate::archive::{read_entry, read_resource};
 use crate::container::rootfile_path;
 use crate::cover::image_extension;
 use crate::href::{parent_dir, resolve_href};
-use crate::model::{Cover, EpubPackage, ManifestItem, SpineItem};
+use crate::model::{Cover, EpubMetadata, EpubPackage, ManifestItem, SpineItem};
 use crate::opf::{
     effective_layout, parse_opf, OpfItem, MAX_AUTHORS, MAX_HREF_BYTES, MAX_METADATA_VALUE_BYTES,
     MAX_SPINE_ITEMS,
@@ -224,6 +224,26 @@ pub fn read_package(path: &Path) -> Result<EpubPackage, ContentError> {
         toc,
         cover,
     })
+}
+
+/// The OPF metadata alone — container, package document, and nothing
+/// after it. `read_package` goes on to build the spine, flatten the TOC,
+/// and read the cover bytes out of the archive; a caller that only needs
+/// `dc:identifier` (the library's edition backfill, which walks every book
+/// in a library) must not pay for a cover decode per book to get it.
+pub fn read_metadata(path: &Path) -> Result<EpubMetadata, ContentError> {
+    let mut archive = zip::ZipArchive::new(File::open(path)?)?;
+    let container = read_entry(&mut archive, "META-INF/container.xml")?;
+    let opf_path = rootfile_path(&container)?;
+    let opf_xml = read_entry(&mut archive, &opf_path)?;
+    let opf = parse_opf(&opf_xml)?;
+    if let Some(error) = &opf.parse_error {
+        log::warn!(
+            "OPF {opf_path} of {} is not well-formed ({error}); everything after it was skipped — metadata may be incomplete",
+            path.display()
+        );
+    }
+    Ok(opf.metadata)
 }
 
 /// A manifest item's `media-type` as declared: `None` when the attribute

@@ -135,7 +135,7 @@ fn isbn13_key(compact: &str) -> Option<String> {
         .enumerate()
         .map(|(i, d)| if i % 2 == 0 { *d } else { d * 3 })
         .sum();
-    (sum % 10 == 0).then(|| format!("isbn:{compact}"))
+    sum.is_multiple_of(10).then(|| format!("isbn:{compact}"))
 }
 
 fn isbn10_to_13(compact: &str) -> Option<String> {
@@ -153,7 +153,7 @@ fn isbn10_to_13(compact: &str) -> Option<String> {
         .enumerate()
         .map(|(i, d)| (10 - i as u32) * d)
         .sum();
-    if sum % 11 != 0 {
+    if !sum.is_multiple_of(11) {
         return None;
     }
     let mut thirteen = String::with_capacity(13);

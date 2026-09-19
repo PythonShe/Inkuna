@@ -71,11 +71,16 @@ impl Library {
         // reconcile body never indexes a corpus the rebaseline is about
         // to replace; reads meanwhile see NULL coordinate columns and
         // fall back to the read-time default, so nothing waits on it.
+        // The V12 edition backfill chains after it, on the same thread
+        // and the same cancel flag: it touches no corpus, so it has no
+        // ordering constraint against the index at all — it goes last
+        // because the rebaseline is what the reader is waiting on.
         let index_handle = search.write_handle();
         let rebaseline_data_dir = data_dir.clone();
         let rebaseline_db_path = db_path.clone();
         search.spawn_reconcile(db_path, move |cancel| {
             super::rebaseline::run(&rebaseline_data_dir, &rebaseline_db_path, &index_handle, cancel);
+            super::edition_backfill::run(&rebaseline_data_dir, &rebaseline_db_path, cancel);
         });
 
         let library = Library {
