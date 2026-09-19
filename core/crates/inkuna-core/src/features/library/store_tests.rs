@@ -381,3 +381,175 @@ fn two_concurrent_removes_claim_the_row_exactly_once() {
         0
     );
 }
+
+/// There is no downgrade gate — `migrate` returns early when the file is
+/// already at or past the target — so a shipped v10 build opens a v11
+/// database and runs its own SQL against it. That SQL is hostile to a
+/// tombstone: v10's `remove` is a hard `DELETE FROM publications`, which
+/// would cascade the sessions and bookmarks a tombstone exists to keep,
+/// and v10's rebaseline pass has no `removed_at` filter, so it would
+/// consume the legacy `locator` that is a tombstone's only record of
+/// where the reader was. Every statement below is v10's own, verbatim from
+/// `git show main:…/library/store.rs` and `…/library/rebaseline.rs`; the
+/// v11 triggers are the whole of what contains them.
+#[test]
+fn a_v10_binary_cannot_destroy_a_tombstone() {
+    let f = fixture();
+    let db_path = f.data_dir.join("inkuna.db");
+    const LEGACY_LOCATOR: &str = r#"{"href":"OEBPS/ch01.xhtml"}"#;
+
+    // Put the book in the state v10's rebaseline pass goes looking for: a
+    // legacy locator, no coordinates yet, never reconciled.
+    f.library
+        .writer
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE publications
+                SET locator = ?1, position_spine_idx = NULL,
+                    position_char_offset = NULL, reconciled_at = NULL
+              WHERE id = ?2",
+            rusqlite::params![LEGACY_LOCATOR, &f.id],
+        )
+        .unwrap();
+    let sessions_before = rows_for(&f.library, "sessions", &f.id);
+    let bookmarks_before = rows_for(&f.library, "bookmarks", &f.id);
+    assert_eq!(sessions_before, 1, "there is history to lose");
+    assert_eq!(bookmarks_before, 1);
+
+    // The old build has the database to itself, on a connection set up
+    // exactly as it sets one up (`foreign_keys` ON, so a hard delete would
+    // really cascade).
+    drop(f.library);
+    {
+        let conn = open_connection(&db_path).unwrap();
+
+        // v10 `Library::remove`.
+        conn.execute("DELETE FROM publications WHERE id = ?1", [&f.id])
+            .unwrap();
+        let _ = std::fs::remove_file(f.data_dir.join(&f.file_path));
+        let _ = std::fs::remove_file(f.data_dir.join(&f.cover_path));
+        let _ = std::fs::remove_dir_all(f.data_dir.join(PUBLISHER_FONT_DIR).join(&f.id));
+
+        // The row survived as a correct tombstone, and so did the history.
+        let (removed_at, corpus_digest, file_path, cover_path, locator): (
+            Option<i64>,
+            Option<String>,
+            String,
+            Option<String>,
+            Option<String>,
+        ) = conn
+            .query_row(
+                "SELECT removed_at, corpus_digest, file_path, cover_path, locator
+                 FROM publications WHERE id = ?1",
+                [&f.id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert!(removed_at.is_some(), "the delete became a tombstone");
+        assert_eq!(file_path, "", "file_path blanked (the column is NOT NULL)");
+        assert_eq!(cover_path, None);
+        assert_eq!(
+            corpus_digest, None,
+            "v10 cannot digest a corpus; NULL degrades exactly like a mismatch"
+        );
+        assert_eq!(locator.as_deref(), Some(LEGACY_LOCATOR));
+
+        let counted =
+            |sql: &str| -> i64 { conn.query_row(sql, [&f.id], |row| row.get(0)).unwrap() };
+        assert_eq!(
+            counted("SELECT COUNT(*) FROM sessions WHERE publication_id = ?1"),
+            sessions_before,
+            "the cascade never ran"
+        );
+        assert_eq!(
+            counted("SELECT COUNT(*) FROM bookmarks WHERE publication_id = ?1"),
+            bookmarks_before
+        );
+        assert_eq!(
+            counted("SELECT COUNT(*) FROM resources WHERE publication_id = ?1"),
+            0,
+            "derived rows go, exactly as v11's own remove drops them"
+        );
+        assert_eq!(
+            counted("SELECT COUNT(*) FROM chapters WHERE publication_id = ?1"),
+            0
+        );
+        assert_eq!(
+            counted("SELECT COUNT(*) FROM resource_positions WHERE publication_id = ?1"),
+            0
+        );
+        let texts: i64 = conn
+            .query_row("SELECT COUNT(*) FROM resource_text", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(texts, 0, "resource_text still cascades from resources");
+
+        // v10 `rebaseline::rebaseline_one`, steps 3 and 5: the conversion
+        // pair that consumes the locator, then the `reconciled_at` stamp.
+        let converted = conn
+            .execute(
+                "UPDATE publications
+             SET position_spine_idx = ?1, position_char_offset = ?2, locator = NULL
+             WHERE id = ?3 AND position_spine_idx IS NULL",
+                rusqlite::params![0_i64, 0_i64, &f.id],
+            )
+            .unwrap();
+        assert_eq!(converted, 0, "the freeze trigger swallowed the conversion");
+        conn.execute(
+            "UPDATE publications SET locator = NULL WHERE id = ?1",
+            [&f.id],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE publications SET reconciled_at = ?1 WHERE id = ?2",
+            rusqlite::params![999_i64, &f.id],
+        )
+        .unwrap();
+
+        let (locator, reconciled_at): (Option<String>, Option<i64>) = conn
+            .query_row(
+                "SELECT locator, reconciled_at FROM publications WHERE id = ?1",
+                [&f.id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            locator.as_deref(),
+            Some(LEGACY_LOCATOR),
+            "the reading position a restore will rebaseline is still there"
+        );
+        assert_eq!(
+            reconciled_at, None,
+            "nothing told the tombstone its deleted corpus was canonical"
+        );
+    }
+
+    // And v11 picks the tombstone back up: the same bytes restore onto it,
+    // with coordinates degraded because v10 left no digest behind.
+    let library = Library::open(&f.data_dir).unwrap();
+    let (publication, coordinates_restored) =
+        restored(library.import(f.source.to_str().unwrap()).unwrap());
+    assert_eq!(publication.id, f.id);
+    assert!(
+        !coordinates_restored,
+        "unknown provenance degrades like a mismatch"
+    );
+    assert_eq!(rows_for(&library, "sessions", &f.id), sessions_before);
+    assert_eq!(
+        count(
+            &library,
+            "SELECT COUNT(*) FROM bookmarks WHERE id = ?1",
+            &f.bookmark_id
+        ),
+        1,
+        "the bookmark v10 would have cascaded away came back with the book"
+    );
+}

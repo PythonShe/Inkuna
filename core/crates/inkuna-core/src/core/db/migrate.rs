@@ -213,6 +213,49 @@ ALTER TABLE settings ADD COLUMN library_grid INTEGER NOT NULL DEFAULT 0;
 const V11_SQL: &str = "
 ALTER TABLE publications ADD COLUMN removed_at    INTEGER;
 ALTER TABLE publications ADD COLUMN corpus_digest TEXT;
+
+-- There is no downgrade gate, and v10 builds are already out in the world:
+-- one of them opens this database and runs its own SQL against it. It knows
+-- nothing about `removed_at`, so its `remove` is a hard DELETE that would
+-- cascade a tombstone's sessions and bookmarks away, and its rebaseline pass
+-- would consume the legacy `locator` that is the only record of where the
+-- reader was. Both go through SQLite, so v11 legislates them here rather
+-- than in Rust the old binary does not have. Triggers are part of the
+-- schema: they bind whichever build opened the file.
+
+-- A v10 `DELETE FROM publications WHERE id = ?` becomes the tombstone that
+-- v11 would have written, minus the `corpus_digest` it cannot know — NULL,
+-- which restore already treats as unknown provenance and degrades like a
+-- mismatch. The derived rows go by hand exactly as `remove` drops them
+-- (`resource_text` still cascades from `resources`), and RAISE(IGNORE)
+-- then cancels the delete itself, silently, so the old binary sees the
+-- success it expects.
+CREATE TRIGGER publications_soft_delete
+BEFORE DELETE ON publications
+WHEN OLD.removed_at IS NULL
+BEGIN
+  DELETE FROM resources          WHERE publication_id = OLD.id;
+  DELETE FROM chapters           WHERE publication_id = OLD.id;
+  DELETE FROM resource_positions WHERE publication_id = OLD.id;
+  UPDATE publications
+     SET removed_at    = CAST(strftime('%s','now') AS INTEGER),
+         file_path     = '',
+         cover_path    = NULL,
+         corpus_digest = NULL,
+         reconciled_at = NULL
+   WHERE id = OLD.id;
+  SELECT RAISE(IGNORE);
+END;
+
+-- A tombstone is frozen: any write that would leave it a tombstone is
+-- dropped on the floor, which is what keeps a v10 rebaseline from NULLing
+-- the locator it is holding or stamping `reconciled_at` over a corpus that
+-- no longer exists. Restore is the sole exception and identifies itself by
+-- clearing `removed_at` in the same statement.
+CREATE TRIGGER publications_freeze_tombstone
+BEFORE UPDATE ON publications
+WHEN OLD.removed_at IS NOT NULL AND NEW.removed_at IS NOT NULL
+BEGIN SELECT RAISE(IGNORE); END;
 ";
 
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {

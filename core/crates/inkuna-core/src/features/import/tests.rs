@@ -1606,16 +1606,23 @@ fn restore_drops_coordinates_when_the_corpus_changed() {
 #[test]
 fn restore_drops_coordinates_when_the_tombstone_has_no_digest() {
     let dir = tempfile::tempdir().unwrap();
-    let (library, epub, id, _data_dir) = removed_book(dir.path());
+    let epub = dir.path().join("月光書房.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let id = read_and_bookmark(&library, &epub);
 
+    // Reached the way it really happens: the corpus is already gone when
+    // the removal runs, so there is nothing to hash and no digest is
+    // stamped. A tombstone cannot be edited into this state after the
+    // fact — v11's freeze trigger drops any write that would leave it a
+    // tombstone — which is the same reason a pre-v11 build's hard delete
+    // lands here too (its trigger-written tombstone carries no digest).
     {
         let conn = library.writer.lock().unwrap();
-        conn.execute(
-            "UPDATE publications SET corpus_digest = NULL WHERE id = ?1",
-            [&id],
-        )
-        .unwrap();
+        conn.execute("DELETE FROM resources WHERE publication_id = ?1", [&id])
+            .unwrap();
     }
+    library.remove(&id).unwrap();
 
     let (publication, coordinates_restored) =
         restored(library.import(epub.to_str().unwrap()).unwrap());
