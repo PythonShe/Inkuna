@@ -1,6 +1,6 @@
 use super::model::{
-    Settings, MAX_LETTER_SPACING, MAX_LINE_SPACING, MAX_READING_MARGINS, MAX_REMINDER_MINUTES,
-    MAX_TEXT_SIZE_STEP,
+    Settings, DEFAULT_TEXT_SIZE_STEP, MAX_LETTER_SPACING, MAX_LINE_SPACING, MAX_READING_MARGINS,
+    MAX_REMINDER_MINUTES, MAX_TEXT_SIZE_STEP,
 };
 use crate::Library;
 
@@ -117,4 +117,34 @@ fn a_missing_settings_row_reads_as_defaults_and_is_restored_on_write() {
     assert_eq!(stored.reading_margins, 40);
     assert!(!stored.haptics);
     assert!(stored.library_grid);
+}
+
+/// The core's write clamp and the engine's step table must agree on the
+/// ceiling. If the clamp were the lower of the two, a step the shells
+/// offer would be silently clamped away on write; if it were the
+/// higher, a stored step would index past the end of the table.
+#[test]
+fn text_size_clamp_matches_the_engine_step_table() {
+    assert_eq!(
+        MAX_TEXT_SIZE_STEP as usize,
+        inkuna_engine::settings::TEXT_SIZE_STEPS_PT.len() - 1,
+        "MAX_TEXT_SIZE_STEP and TEXT_SIZE_STEPS_PT must be bumped together",
+    );
+}
+
+/// A library created fresh must start on the current default, not on
+/// the historical literal `V2_SQL` seeds. These are two separate values
+/// by design — see `seed_fresh_defaults` — so this pins the one a new
+/// reader actually gets.
+#[test]
+fn fresh_library_starts_on_the_current_default() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let fresh = library.settings().unwrap();
+    assert_eq!(
+        fresh.text_size_step, DEFAULT_TEXT_SIZE_STEP,
+        "a new library starts on the current default",
+    );
+    // And the default must resolve to a real size, not off the end.
+    assert!((DEFAULT_TEXT_SIZE_STEP as usize) < inkuna_engine::settings::TEXT_SIZE_STEPS_PT.len());
 }

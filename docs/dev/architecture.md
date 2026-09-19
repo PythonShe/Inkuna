@@ -106,6 +106,31 @@ deferred (current example: refinery vs rusqlite — schema versioning is
 hand-rolled via `user_version` until refinery catches up). Reserved crates
 for upcoming needs: deadpool-sqlite, notify, rayon, argon2, lofty.
 
+## Reading measure on tablets (2026-09-19)
+
+The reader lays a chapter out across the full viewport width, with only
+the user's page margins (16–48pt) insetting it. There is no column cap
+and no multi-column mode, so line length is whatever the device is wide.
+
+Measured through the engine's own shaper at the default 17.0pt body and
+26pt margins, that puts an 11" iPad in landscape at ~125 Latin
+characters per line and a 13" iPad at ~125 — against a comfortable band
+of roughly 45–75 (CJK: ~60 against a band of ~25–40). Phones are the
+opposite problem: a 360dp Android phone, the narrowest width we
+support, reads ~34 characters per line at the same settings.
+
+One type scale cannot serve both. The decision is that **the ceiling of
+the text-size scale is set by the phone** — the 2026-09-19 large-print
+steps stop at 25.5pt, where a 360dp phone still yields ~22 characters
+per line — and that **tablets are fixed by capping the measure**, not by
+growing the type. Growing the type to rescue a tablet would be a
+workaround that strands anyone who chose it once the cap lands, since
+their lines would abruptly halve.
+
+Not yet implemented. It moves every tablet page boundary, so it needs
+its own parity and progress-anchor pass rather than riding along with a
+settings change.
+
 ## Roadmap (next steps)
 
 1. Readium Swift + Kotlin toolkits: shelf → open EPUB → paginated reading —

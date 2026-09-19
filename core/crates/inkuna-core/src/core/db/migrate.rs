@@ -14,6 +14,7 @@ use rusqlite::{Connection, Transaction};
 
 use crate::core::files::copy_and_hash_unbounded;
 use crate::features::library::title_key;
+use crate::features::settings::DEFAULT_TEXT_SIZE_STEP;
 use crate::CoreError;
 
 pub(crate) const SCHEMA_VERSION: i64 = 12;
@@ -102,6 +103,11 @@ CREATE TABLE settings (
     text_size_step INTEGER NOT NULL,
     brightness     REAL NOT NULL
 );
+-- Historical seed: text_size_step 2 is what the default was when v2
+-- shipped, and it stays 2 because this batch also runs for an existing
+-- v1 library, whose reader must not be reflowed by an upgrade. The
+-- CURRENT default is applied to new libraries only, by
+-- `seed_fresh_defaults`.
 INSERT INTO settings (id, onboarded, reading_theme, text_size_step, brightness)
 VALUES (1, 0, 'paper', 2, 0.78);
 ";
@@ -475,7 +481,32 @@ pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), Core
             supported: SCHEMA_VERSION,
         });
     }
-    migrate_upto(conn, data_dir, SCHEMA_VERSION)
+    migrate_upto(conn, data_dir, SCHEMA_VERSION)?;
+    if version == 0 {
+        seed_fresh_defaults(conn)?;
+    }
+    Ok(())
+}
+
+/// Applies the current product defaults to a library this call just
+/// created from nothing.
+///
+/// A shipped migration's seed row is history: it records what a default
+/// was when that version shipped, and it has to keep that value, because
+/// the batch that seeds `settings` (`V2_SQL`) also runs for an existing
+/// v1 library — one that already holds a reader's books. Moving the
+/// literal would reflow that reader's text on upgrade. A database that
+/// did not exist before this call has no reader to surprise, so it
+/// starts on today's defaults instead.
+///
+/// Only `text_size_step` diverges today. A default that moves later
+/// belongs here too, rather than in a shipped migration.
+fn seed_fresh_defaults(conn: &Connection) -> Result<(), CoreError> {
+    conn.execute(
+        "UPDATE settings SET text_size_step = ?1 WHERE id = 1",
+        [DEFAULT_TEXT_SIZE_STEP],
+    )?;
+    Ok(())
 }
 
 /// Test-only: runs the real migration chain but stops at `target`, so a

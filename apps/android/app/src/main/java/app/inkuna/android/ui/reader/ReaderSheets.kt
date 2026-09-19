@@ -268,7 +268,7 @@ fun ThemeTypeSheet(
     }
 }
 
-/** Split A− / A+ stepper over the five-step reading scale. */
+/** Split A− / A+ stepper over the seven-step reading scale. */
 @Composable
 private fun TextSizeStepper(step: Int, onStep: (Int) -> Unit) {
     val ink = InkTheme.colors

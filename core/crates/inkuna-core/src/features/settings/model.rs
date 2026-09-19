@@ -4,14 +4,22 @@
 /// whatever string it is given, including ids no shell knows yet.
 pub const DEFAULT_READING_THEME: &str = "paper";
 /// Middle of the 0..=[`MAX_TEXT_SIZE_STEP`] scale — the size a reader who
-/// never opens the type sheet gets.
-pub const DEFAULT_TEXT_SIZE_STEP: u8 = 2;
+/// never opens the type sheet gets (18.4 pt at step 3).
+///
+/// Applied to a FRESH database only, by `seed_fresh_defaults` after the
+/// migration chain runs. An existing library keeps the step it already
+/// holds — including a v1 library, whose `settings` row is seeded by
+/// `V2_SQL` with the historical default rather than this one — so
+/// moving this never reflows a reader already on the old default.
+pub const DEFAULT_TEXT_SIZE_STEP: u8 = 3;
 /// Default reading brightness, in 0.0..=1.0.
 pub const DEFAULT_BRIGHTNESS: f64 = 0.78;
 /// Largest accepted `text_size_step`; `set_settings` clamps to it rather
 /// than rejecting, so a shell that grows its scale first cannot fail a
-/// write against an older core.
-pub const MAX_TEXT_SIZE_STEP: u8 = 4;
+/// write against an older core. Kept in step with
+/// `inkuna_engine::settings::TEXT_SIZE_STEPS_PT`, which the scale
+/// resolves against.
+pub const MAX_TEXT_SIZE_STEP: u8 = 6;
 /// Default reminder time, in minutes after midnight: 21:00, the fixed
 /// "evening" the shells shipped with before the hour became configurable.
 pub const DEFAULT_REMINDER_MINUTES: u16 = 21 * 60;

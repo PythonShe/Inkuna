@@ -74,14 +74,24 @@ enum InkFont {
 }
 
 /// Reader body-text sizes (the A− / A+ stepper in the Theme & type sheet):
-/// five steps matching the design's 0.9–1.25rem scale.
+/// seven steps: the design's original 0.9–1.25rem scale, plus two
+/// appended large-print steps.
 enum ReadingTextSize: Int, CaseIterable {
     case xSmall
     case small
     case medium
     case large
     case xLarge
+    case xxLarge
+    case xxxLarge
 
+    /// Mirrors `TEXT_SIZE_STEPS_PT` in the core engine, which resolves
+    /// the persisted step to the size layout actually uses. Raw values
+    /// are persisted, so cases are only ever APPENDED, never reordered.
+    /// (The case names predate the two large-print steps, so `.medium`
+    /// is no longer the middle of the scale. The reader's default is
+    /// `.large`; `InkFont.reading()` keeps its own `.medium` default,
+    /// which sizes static chrome and is not a reading preference.)
     var pointSize: CGFloat {
         switch self {
         case .xSmall: 14.4
@@ -89,6 +99,8 @@ enum ReadingTextSize: Int, CaseIterable {
         case .medium: 17
         case .large: 18.4
         case .xLarge: 20
+        case .xxLarge: 22.5
+        case .xxxLarge: 25.5
         }
     }
 

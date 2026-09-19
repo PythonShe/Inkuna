@@ -318,9 +318,14 @@ class AppSettings private constructor(private val context: Context) {
     }
 
     companion object {
-        /** Five reading sizes, the design's 0.9–1.25rem scale. */
-        val TEXT_SIZE_STEPS = listOf(14.4f, 15.6f, 17f, 18.4f, 20f)
-        const val DEFAULT_TEXT_SIZE_STEP = 2
+        /**
+         * Mirrors `TEXT_SIZE_STEPS_PT` in the core engine, which resolves
+         * the persisted step to the size layout actually uses. Indices are
+         * persisted, so entries are only ever APPENDED, never reordered.
+         * The last two are large-print steps; index 3 is the default.
+         */
+        val TEXT_SIZE_STEPS = listOf(14.4f, 15.6f, 17f, 18.4f, 20f, 22.5f, 25.5f)
+        const val DEFAULT_TEXT_SIZE_STEP = 3
         const val DEFAULT_BRIGHTNESS = 0.78f
 
         /** 21:00, the fixed "evening" before the hour became configurable. */

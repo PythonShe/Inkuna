@@ -155,8 +155,26 @@ pub fn single_chapter_epub(dir: &TempDir, doc: &str) -> PathBuf {
 pub const GOLDEN_VIEWPORT_PT: (f64, f64) = (390.0, 664.0);
 
 /// The exact settings the golden corpus is laid out under.
+/// The golden corpus baseline, pinned explicitly rather than tracking
+/// `LayoutSettings::default()`.
+///
+/// The goldens exist to catch engine changes, so moving a product
+/// default must not invalidate the whole corpus — regenerating it to
+/// absorb a default change is exactly how a real layout regression
+/// would slip through. These are the values the corpus was recorded
+/// at. Listing every field is deliberate: a new `LayoutSettings` field
+/// then fails to compile here, forcing a decision about the goldens
+/// instead of silently changing them.
 pub fn golden_settings() -> crate::settings::LayoutSettings {
-    crate::settings::LayoutSettings::default()
+    crate::settings::LayoutSettings {
+        reading_font: "publisher".to_string(),
+        reading_bold: false,
+        text_size_step: 2,
+        line_spacing: 1.65,
+        letter_spacing: 0.0,
+        word_spacing: 0.0,
+        reading_margins: 26,
+    }
 }
 
 /// One roster entry: a stable name and its deterministic builder.

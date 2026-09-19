@@ -17,7 +17,7 @@ final class AppSettings {
     private var record = Settings(
         onboarded: false,
         readingTheme: ReadingTheme.paper.rawValue,
-        textSizeStep: 2,
+        textSizeStep: 3,
         brightness: 0.78,
         eveningReminder: false,
         reminderMinutes: 21 * 60,
@@ -113,7 +113,8 @@ final class AppSettings {
         if let step = stored[LegacyKey.textSizeStep] as? Int, let size = ReadingTextSize(rawValue: step) {
             migrated.textSizeStep = UInt8(size.rawValue)
         } else if let legacySize = stored[LegacyKey.textSize] as? String {
-            // The pre-stepper S/M/L scale, mapped onto the five steps.
+            // The pre-stepper S/M/L scale, mapped onto the step scale.
+            // Historical: these keep resolving to the sizes S/M/L meant.
             switch legacySize {
             case "S": migrated.textSizeStep = UInt8(ReadingTextSize.small.rawValue)
             case "L": migrated.textSizeStep = UInt8(ReadingTextSize.large.rawValue)
@@ -208,7 +209,7 @@ final class AppSettings {
     }
 
     var textSize: ReadingTextSize {
-        get { ReadingTextSize(rawValue: Int(record.textSizeStep)) ?? .medium }
+        get { ReadingTextSize(rawValue: Int(record.textSizeStep)) ?? .large }
         set { mutate { $0.textSizeStep = UInt8(newValue.rawValue) } }
     }
 

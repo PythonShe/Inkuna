@@ -1,4 +1,4 @@
-use super::{FontFamily, LayoutSettings};
+use super::{FontFamily, LayoutSettings, TEXT_SIZE_STEPS_PT};
 
 #[test]
 fn fingerprint_is_stable_and_sensitive() {
@@ -15,7 +15,9 @@ fn fingerprint_is_stable_and_sensitive() {
             ..base.clone()
         },
         LayoutSettings {
-            text_size_step: 3,
+            // Derived so it cannot silently collide with the default
+            // the way a hardcoded step did when the default moved.
+            text_size_step: base.text_size_step + 1,
             ..base.clone()
         },
         LayoutSettings {
@@ -83,7 +85,13 @@ fn clamps_out_of_range() {
     }
     .clamped();
 
-    assert_eq!(clamped.text_size_step, 4);
+    // Derived, not hardcoded: the table grows when large-print steps
+    // are appended, and this clamp must follow it rather than pin a
+    // stale ceiling.
+    assert_eq!(
+        clamped.text_size_step as usize,
+        TEXT_SIZE_STEPS_PT.len() - 1
+    );
     assert_eq!(clamped.line_spacing, 2.10);
     assert_eq!(clamped.letter_spacing, 0.0);
     assert_eq!(clamped.word_spacing, 0.30);
@@ -155,23 +163,39 @@ fn family_serif_split() {
 
 #[test]
 fn typography_matches_transcription() {
-    // Step 2 is the shells' default: 17 pt body (ReadingTextSize.medium /
-    // TEXT_SIZE_STEPS[2]), 1.65 line spacing → 28.05 pt line height.
+    // Step 3 is the default: 18.4 pt body (the middle of the seven-step
+    // scale), 1.65 line spacing → 30.36 pt line height.
     let typography = LayoutSettings::default().typography();
-    assert_eq!(typography.font_size, 17.0);
-    assert!((typography.line_height - 28.05).abs() < 1e-9);
-    assert_eq!(typography.paragraph_spacing, 17.0);
+    assert_eq!(typography.font_size, 18.4);
+    assert!((typography.line_height - 30.36).abs() < 1e-9);
+    assert_eq!(typography.paragraph_spacing, 18.4);
     assert_eq!(typography.paragraph_indent, 0.0);
     assert_eq!(typography.heading_scale, [2.0, 1.5, 1.17, 1.0, 0.83, 0.67]);
     assert_eq!(typography.ruby_scale, (1, 2));
     assert!(!typography.bold_base);
 
-    // The full transcribed step table.
-    for (step, expected) in [14.4, 15.6, 17.0, 18.4, 20.0].iter().enumerate() {
+    // The full step table. Steps 0..=4 are the transcribed shell scale
+    // and must never move; 5 and 6 were appended for large print.
+    let table = [14.4, 15.6, 17.0, 18.4, 20.0, 22.5, 25.5];
+    for (step, expected) in table.iter().enumerate() {
         let settings = LayoutSettings {
             text_size_step: step as u8,
             ..LayoutSettings::default()
         };
         assert_eq!(settings.typography().font_size, *expected);
     }
+    // The default resolves to 18.4 pt. Pinned as a concrete size, not
+    // as `len / 2`: it was chosen as the midpoint of the seven steps,
+    // but appending an eighth must not silently drag the default along
+    // with it. Moving the default is its own decision — it changes the
+    // size every new library starts on.
+    let default_step = LayoutSettings::default().text_size_step as usize;
+    assert!(default_step < TEXT_SIZE_STEPS_PT.len(), "default in range");
+    assert_eq!(TEXT_SIZE_STEPS_PT[default_step], 18.4);
+    // The scale only ever grows, and stays monotonic.
+    assert!(
+        table.windows(2).all(|w| w[1] > w[0]),
+        "steps ascend: {table:?}"
+    );
 }
+

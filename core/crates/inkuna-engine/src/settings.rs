@@ -20,9 +20,24 @@
 //! - font roster ids: `apps/ios/Inkuna/DesignSystem/ReadingFont.swift` /
 //!   `.../ui/theme/ReadingFont.kt`.
 
-/// Body-text size per `text_size_step`, in layout points. Transcribed —
-/// see the module doc; both shells carry exactly this five-step table.
-pub const TEXT_SIZE_STEPS_PT: [f64; 5] = [14.4, 15.6, 17.0, 18.4, 20.0];
+/// Body-text size per `text_size_step`, in layout points.
+///
+/// Steps 0..=4 are TRANSCRIBED — see the module doc; both shells shipped
+/// exactly those five. Steps 5 and 6 are engine-chosen, appended
+/// 2026-09-19 for readers who reported 20.0 was not large enough: the
+/// old ceiling was only 1.39x the floor, well under what a low-vision
+/// reader needs. They extend the table's own ~1.13 ratio and are
+/// APPENDED, never reordered — `text_size_step` is persisted, so every
+/// stored index must keep meaning the size it meant when it was written.
+///
+/// The ceiling is a phone measure, not a taste call. At the narrowest
+/// supported width (a 360dp Android phone, a 308pt column at the default
+/// margins) 25.5 pt yields ~22 Latin characters per line; past that the
+/// line is too short to read as prose. Tablets want more than 25.5 in
+/// landscape, but the fix there is capping the measure, not growing the
+/// type — see `docs/dev/architecture.md`.
+pub const TEXT_SIZE_STEPS_PT: [f64; 7] =
+    [14.4, 15.6, 17.0, 18.4, 20.0, 22.5, 25.5];
 
 /// The shells' slider bounds, applied by [`LayoutSettings::clamped`].
 const LINE_SPACING_RANGE: (f64, f64) = (1.30, 2.10);
@@ -90,7 +105,7 @@ pub struct LayoutSettings {
     /// Roster font id, opaque (`"noto-serif"`, `"publisher"`, …).
     pub reading_font: String,
     pub reading_bold: bool,
-    /// Index into [`TEXT_SIZE_STEPS_PT`], 0..=4, clamped.
+    /// Index into [`TEXT_SIZE_STEPS_PT`], 0..=6, clamped.
     pub text_size_step: u8,
     /// Line height over body size, 1.30..=2.10, clamped.
     pub line_spacing: f64,
@@ -109,7 +124,7 @@ impl Default for LayoutSettings {
         Self {
             reading_font: "publisher".to_string(),
             reading_bold: false,
-            text_size_step: 2,
+            text_size_step: 3,
             line_spacing: DEFAULT_LINE_SPACING,
             letter_spacing: 0.0,
             word_spacing: 0.0,

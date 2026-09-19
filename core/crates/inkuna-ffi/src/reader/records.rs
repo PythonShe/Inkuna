@@ -60,7 +60,7 @@ pub struct ReaderLayoutSettings {
     /// Roster font id, opaque (`"noto-serif"`, `"publisher"`, …).
     pub reading_font: String,
     pub reading_bold: bool,
-    /// Text size step, 0..=4.
+    /// Text size step, 0..=6.
     pub text_size_step: u8,
     /// Line height over body size, clamped to 1.30..=2.10.
     pub line_spacing: f64,

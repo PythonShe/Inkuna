@@ -60,7 +60,10 @@ fn run_typo(
     let sheets: Vec<_> = css.iter().map(|c| parse_sheet(c)).collect();
     let styled = resolve(&doc, &sheets);
     let projection = project(&styled);
-    let settings = LayoutSettings::default();
+    // The pinned baseline, not the product default: these assertions
+    // are about pagination structure, not about the size a new reader
+    // happens to get.
+    let settings = crate::test_support::golden_settings();
     let mut typography = settings.typography();
     tweak(&mut typography);
     let input = ChapterInput {

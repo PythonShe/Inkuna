@@ -10,3 +10,6 @@ mod store;
 mod tests;
 
 pub use model::Settings;
+/// The current default reading-size step, applied to a library created
+/// fresh — see `core::db::migrate::seed_fresh_defaults`.
+pub(crate) use model::DEFAULT_TEXT_SIZE_STEP;

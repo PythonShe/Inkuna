@@ -1104,3 +1104,57 @@ fn reader_pool_outlives_panicking_work() {
         }
     }
 }
+
+/// Upgrading a library must never move a reader's text size, while a
+/// library created fresh must start on the current default.
+///
+/// These two paths run the same seeding SQL: `V2_SQL` creates and seeds
+/// `settings`, and it runs both for `user_version == 0` (a new file
+/// climbing the whole chain) and for `user_version == 1` (a real library
+/// that already holds books). Moving the seed literal to change the
+/// default for new installs therefore silently reflows every reader
+/// still on the v1 schema — which is why the current default is applied
+/// by `seed_fresh_defaults` instead, keyed on the version the database
+/// was at when it was opened.
+#[test]
+fn upgrading_a_v1_library_keeps_its_text_size() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().to_path_buf();
+    let db_path = data_dir.join("inkuna.db");
+
+    // A real v1 database, via the shipped chain stopped at 1.
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, 1).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 1, "fixture really is a v1 database");
+    }
+
+    // Upgrading it must leave the reader on the historical default.
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate::migrate(&mut conn, &data_dir).unwrap();
+    let upgraded: u8 = conn
+        .query_row("SELECT text_size_step FROM settings WHERE id = 1", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(
+        upgraded, 2,
+        "a v1 upgrade keeps the size its reader was already on",
+    );
+
+    // A library created from nothing starts on the current default.
+    let fresh_dir = tempfile::tempdir().unwrap();
+    let fresh = Library::open(fresh_dir.path().join("library")).unwrap();
+    assert_eq!(
+        fresh.settings().unwrap().text_size_step,
+        crate::features::settings::DEFAULT_TEXT_SIZE_STEP,
+    );
+    assert_ne!(
+        fresh.settings().unwrap().text_size_step,
+        upgraded,
+        "the two paths genuinely differ, or this test proves nothing",
+    );
+}

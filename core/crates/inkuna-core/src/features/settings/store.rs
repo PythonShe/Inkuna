@@ -52,7 +52,7 @@ impl Library {
     }
 
     /// Whole-record write. The core clamps out-of-range values instead of
-    /// erroring: `text_size_step` to 0..=4, `brightness` to 0.0..=1.0
+    /// erroring: `text_size_step` to 0..=6, `brightness` to 0.0..=1.0
     /// (non-finite falls back to the default), `reminder_minutes` to
     /// 0..=1439, `line_spacing` to 1.30..=2.10, `letter_spacing` to
     /// 0.0..=0.06, `word_spacing` to 0.0..=0.30 (non-finite spacings fall
