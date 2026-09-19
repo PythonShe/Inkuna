@@ -71,17 +71,33 @@ impl Library {
         // reconcile body never indexes a corpus the rebaseline is about
         // to replace; reads meanwhile see NULL coordinate columns and
         // fall back to the read-time default, so nothing waits on it.
-        // The V12 edition backfill chains after it, on the same thread
-        // and the same cancel flag: it touches no corpus, so it has no
-        // ordering constraint against the index at all — it goes last
-        // because the rebaseline is what the reader is waiting on.
+        // The V12 edition backfill chains LAST, after the reconcile body,
+        // on the same thread and the same cancel flag: it touches no
+        // corpus, so it has no ordering constraint against the index —
+        // and on a V11→V12 upgrade its pending set is the whole library
+        // while the rebaseline's is empty, so running it ahead of the
+        // reconcile would newly gate search behind a whole-library
+        // zip-open and OPF parse. Ordering is pinned by
+        // `the_post_pass_runs_after_the_reconcile_body`.
         let index_handle = search.write_handle();
         let rebaseline_data_dir = data_dir.clone();
         let rebaseline_db_path = db_path.clone();
-        search.spawn_reconcile(db_path, move |cancel| {
-            super::rebaseline::run(&rebaseline_data_dir, &rebaseline_db_path, &index_handle, cancel);
-            super::edition_backfill::run(&rebaseline_data_dir, &rebaseline_db_path, cancel);
-        });
+        let backfill_data_dir = data_dir.clone();
+        let backfill_db_path = db_path.clone();
+        search.spawn_reconcile(
+            db_path,
+            move |cancel| {
+                super::rebaseline::run(
+                    &rebaseline_data_dir,
+                    &rebaseline_db_path,
+                    &index_handle,
+                    cancel,
+                );
+            },
+            move |cancel| {
+                super::edition_backfill::run(&backfill_data_dir, &backfill_db_path, cancel);
+            },
+        );
 
         let library = Library {
             data_dir,

@@ -12,9 +12,13 @@
 //! same edition as two, which is exactly the case the column was added
 //! for.
 //!
-//! Runs on the search reconcile thread, chained *after* the V8 rebaseline,
-//! because these writes touch no corpus and nothing downstream waits on
-//! them; a book whose key is not filled yet simply counts as itself.
+//! Runs on the search reconcile thread, chained *last* — after the V8
+//! rebaseline and after the search reconcile body — because these writes
+//! touch no corpus and nothing downstream waits on them; a book whose key
+//! is not filled yet simply counts as itself. Ahead of the reconcile it
+//! would be worse than pointless: on a V11→V12 upgrade the rebaseline has
+//! nothing pending while this pass has the entire library, so search would
+//! be newly gated behind a whole-library zip-open.
 //!
 //! Tombstones are never scanned: their file is gone, so there is nothing
 //! to read, and V11 freezes them against writes anyway. They keep
@@ -25,7 +29,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 
-use super::edition::edition_key;
+use super::edition::{edition_key, title_key};
 use crate::CoreError;
 use crate::core::db::open_connection;
 use crate::core::time::unix_now;
@@ -95,8 +99,16 @@ fn backfill_book(
     id: &str,
     file_path: &str,
 ) -> Result<(), CoreError> {
+    let key = read_identity(data_dir, id, file_path);
+    write_identity(conn, id, key)
+}
+
+/// The read half, outside every transaction and every lock: the book's
+/// OPF identifier, normalized, or `None` when the file is missing,
+/// unreadable, or carries nothing allowlisted.
+fn read_identity(data_dir: &Path, id: &str, file_path: &str) -> Option<String> {
     let file = data_dir.join(file_path);
-    let key = match epub::read_metadata(&file) {
+    match epub::read_metadata(&file) {
         Ok(metadata) => metadata.unique_identifier.as_deref().and_then(edition_key),
         Err(e) => {
             log::warn!(
@@ -105,34 +117,56 @@ fn backfill_book(
             );
             None
         }
+    }
+}
+
+/// The write half: one short IMMEDIATE transaction that rechecks the
+/// pass's gate before it writes anything.
+fn write_identity(conn: &mut Connection, id: &str, key: Option<String>) -> Result<(), CoreError> {
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    // The pass's own gate, rechecked under the write lock — both halves of
+    // it. `removed_at IS NULL AND edition_scanned_at IS NULL` held when the
+    // pending snapshot was taken, and either half can have moved since:
+    // a `remove` leaves the row a tombstone (V11's freeze trigger would
+    // silently drop the write anyway; checking explicitly is what keeps the
+    // stamp from appearing to have been written when it was not), and a
+    // remove *plus a re-import* leaves it live again with the real
+    // `edition_key` the restore parsed out of the arriving file. Writing
+    // then would overwrite that key with the `None` this pass's failed read
+    // produced, permanently — the stamp blocks every retry. A vanished row
+    // counts as removed for the same reason.
+    //
+    // `title` comes back with it because the repair writes the whole merge
+    // key: the stat merges only on `edition_key` AND `title_key`, so
+    // stamping a row whose `title_key` is NULL would retire it from the one
+    // pass that could ever fill it.
+    let row = tx
+        .query_row(
+            "SELECT removed_at, edition_scanned_at, title
+               FROM publications_all WHERE id = ?1",
+            [id],
+            |row| {
+                Ok((
+                    row.get::<_, Option<i64>>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some((None, None, title)) = row else {
+        drop(tx);
+        log::info!("edition backfill of {id} skipped: the row is no longer this pass's to write");
+        return Ok(());
     };
 
-    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    // Liveness, rechecked under the write lock: `removed_at IS NULL` held
-    // when the pending snapshot was taken, but a `remove` since then has
-    // left the row a tombstone. V11's freeze trigger would silently drop
-    // the write anyway; checking explicitly is what keeps the stamp from
-    // appearing to have been written when it was not. A vanished row
-    // counts as removed for the same reason.
-    let live = tx
-        .query_row(
-            "SELECT removed_at FROM publications_all WHERE id = ?1",
-            [id],
-            |row| row.get::<_, Option<i64>>(0),
-        )
-        .optional()?
-        .is_some_and(|removed_at| removed_at.is_none());
-    if !live {
-        drop(tx);
-        log::info!("edition backfill of {id} skipped: the book was removed mid-pass");
-        return Ok(());
-    }
-
+    // The gate is repeated in SQL so the write can only ever land on a row
+    // this pass still owns, whatever else reaches the row first.
     tx.execute(
         "UPDATE publications_all
-            SET edition_key = ?1, edition_scanned_at = ?2
-          WHERE id = ?3 AND removed_at IS NULL",
-        rusqlite::params![key, unix_now(), id],
+            SET edition_key = ?1, title_key = ?2, edition_scanned_at = ?3
+          WHERE id = ?4 AND removed_at IS NULL AND edition_scanned_at IS NULL",
+        rusqlite::params![key, title_key(&title), unix_now(), id],
     )?;
     tx.commit()?;
     Ok(())

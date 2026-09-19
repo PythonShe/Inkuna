@@ -169,14 +169,20 @@ impl SearchIndex {
     ///
     /// `pre` runs first on the spawned thread, opening its own resources
     /// — the V8 rebaseline chains here so the reconcile body never
-    /// indexes a corpus the rebaseline is about to replace. It receives
-    /// the index's drop-time cancellation flag and must poll it at its
-    /// own safe points; the reconcile body is skipped entirely once the
-    /// flag is set, so a dropped `Library` joins promptly.
+    /// indexes a corpus the rebaseline is about to replace. `post` runs
+    /// last, after the reconcile body, for a pass nothing downstream
+    /// waits on: the V12 edition backfill chains there so a whole-library
+    /// zip-open never sits between an open and a searchable index.
+    ///
+    /// Both receive the index's drop-time cancellation flag and must poll
+    /// it at their own safe points; the reconcile body and `post` are
+    /// skipped entirely once the flag is set, so a dropped `Library`
+    /// joins promptly.
     pub(crate) fn spawn_reconcile(
         &self,
         db_path: PathBuf,
         pre: impl FnOnce(&AtomicBool) + Send + 'static,
+        post: impl FnOnce(&AtomicBool) + Send + 'static,
     ) {
         let index = self.index.clone();
         let writer = Arc::clone(&self.writer);
@@ -190,6 +196,10 @@ impl SearchIndex {
             if let Err(e) = reconcile(&index, &writer, fields, &db_path) {
                 log::warn!("search index reconcile failed: {e}");
             }
+            if cancel.load(Ordering::Relaxed) {
+                return;
+            }
+            post(&cancel);
         });
         *self.reconcile.lock().unwrap() = Some(handle);
     }

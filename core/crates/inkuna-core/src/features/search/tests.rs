@@ -517,3 +517,61 @@ fn reconcile_never_resurrects_a_removed_book() {
         assert_eq!(hits[0].publication.id, live, "open {open}");
     }
 }
+
+/// The chain the reconcile thread runs is `pre` → reconcile body → `post`,
+/// and the V12 edition backfill rides `post` on purpose: on a V11→V12
+/// upgrade its pending set is the whole library, so running it ahead of the
+/// reconcile would newly gate library search behind a whole-library
+/// zip-open and OPF parse.
+///
+/// Pinned by consequence rather than by a recorded order: `post` re-indexes
+/// the book with no resources at all, which drops its docs. Reached last,
+/// that leaves the index empty for the book; chained as `pre` (or anywhere
+/// before the body) the reconcile that follows would find the book missing
+/// and index it right back.
+#[test]
+fn the_post_pass_runs_after_the_reconcile_body() {
+    use super::SearchIndex;
+
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let id = {
+        let library = Library::open(&data_dir).unwrap();
+        let id = imported_id(&library, &epub);
+        library.search.wait_for_reconcile();
+        id
+    };
+
+    // A missing index is what makes the reconcile body do visible work.
+    std::fs::remove_dir_all(data_dir.join("index")).unwrap();
+    let search = SearchIndex::open(&data_dir).unwrap();
+    let handle = search.write_handle();
+    let target = id.clone();
+    search.spawn_reconcile(
+        data_dir.join("inkuna.db"),
+        |_| {},
+        move |_| {
+            handle
+                .index_publication(&target, std::iter::empty())
+                .unwrap()
+        },
+    );
+    search.wait_for_reconcile();
+
+    let searcher = search.searcher().unwrap();
+    let docs = searcher
+        .search(
+            &tantivy::query::TermQuery::new(
+                tantivy::Term::from_field_text(search.fields().publication_id, &id),
+                tantivy::schema::IndexRecordOption::Basic,
+            ),
+            &tantivy::collector::Count,
+        )
+        .unwrap();
+    assert_eq!(
+        docs, 0,
+        "the post pass must be the last thing the thread does"
+    );
+}

@@ -230,3 +230,84 @@ fn a_backfilled_book_merges_with_a_later_import_of_its_edition() {
         "backfilled, the two copies are one edition finished once"
     );
 }
+
+/// Finding 1's window. The metadata read happens outside the transaction,
+/// so a remove + re-import can land inside it — and the re-import's
+/// `revive` already wrote the real `edition_key` and stamped
+/// `edition_scanned_at`. The row reads live again, so a liveness-only
+/// recheck would let this pass overwrite that key with the `None` its
+/// failed read produced, permanently: the stamp blocks every retry.
+#[test]
+fn a_book_restored_mid_pass_keeps_the_key_its_restore_wrote() {
+    let (dir, library, id) = unscanned_book(UUID);
+    let file_path = format!("books/{id}.epub");
+    // The source the re-import re-reads: `remove` deletes the stored copy,
+    // and the same bytes are what match the tombstone on its content hash.
+    let source = dir.path().join("book.epub");
+
+    // The remove lands first, so the pass's read — which runs outside every
+    // transaction — finds no file and produces no identity.
+    library.remove(&id).unwrap();
+    let key = super::read_identity(&library.data_dir, &id, &file_path);
+    assert_eq!(key, None, "the file was gone when the pass read it");
+
+    // Then the re-import, still inside the pass's window: `revive` writes
+    // the real key off the arriving file and stamps the row scanned.
+    match library.import(source.to_str().unwrap()).unwrap() {
+        ImportOutcome::Restored { publication, .. } => assert_eq!(publication.id, id),
+        other => panic!("unexpected {other:?}"),
+    }
+    let restored = edition_row(&library, &id);
+    assert_eq!(restored.0.as_deref(), Some(KEY), "the restore keyed it");
+    assert!(restored.1.is_some(), "and stamped it scanned");
+
+    // Only now does the pass reach its write transaction, holding the
+    // snapshot it took while the book was live and unscanned.
+    let mut conn = crate::core::db::open_connection(&library.data_dir.join("inkuna.db")).unwrap();
+    super::write_identity(&mut conn, &id, key).unwrap();
+
+    assert_eq!(
+        edition_row(&library, &id),
+        restored,
+        "the row is no longer the pass's to write"
+    );
+}
+
+/// Finding 2. `edition_scanned_at` retires a row from the only pass that
+/// could ever fill its merge key, so the repair must write the key whole:
+/// the stat merges on `edition_key` AND `title_key`, and a row stamped
+/// with a NULL `title_key` could never merge again.
+#[test]
+fn the_repair_writes_the_whole_merge_key() {
+    let (_dir, library, id) = unscanned_book(UUID);
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications_all SET title_key = NULL WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+
+    run(&library);
+
+    let (key, title_key, scanned_at): (Option<String>, Option<String>, Option<i64>) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT edition_key, title_key, edition_scanned_at
+                   FROM publications_all WHERE id = ?1",
+                [&id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(key.as_deref(), Some(KEY));
+    assert_eq!(
+        title_key.as_deref(),
+        Some("月光書房"),
+        "the stamp must never retire a row with half a merge key"
+    );
+    assert!(scanned_at.is_some());
+}
