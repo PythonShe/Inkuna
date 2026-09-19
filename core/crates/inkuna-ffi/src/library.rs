@@ -291,7 +291,9 @@ impl ShelfLibrary {
         .await
     }
 
-    /// Bookmarks sorted by progression through the book.
+    /// Bookmarks sorted by progression through the book. A removed book
+    /// has none: its rows are kept for a later re-import, but a stale id
+    /// reads as an empty list.
     pub async fn bookmarks(&self, id: String) -> Result<Vec<Bookmark>, InkunaError> {
         let library = self.0.clone();
         blocking(move || {
@@ -306,7 +308,9 @@ impl ShelfLibrary {
 
     /// Removes one bookmark by its row id. Not idempotent: an id that no
     /// longer exists throws `NotFound`, so a double-tap or a retry after
-    /// a successful delete must be swallowed shell-side.
+    /// a successful delete must be swallowed shell-side. A bookmark on a
+    /// removed book also throws `NotFound` — it is preserved history, not
+    /// the shell's to delete.
     pub async fn remove_bookmark(&self, bookmark_id: String) -> Result<(), InkunaError> {
         let library = self.0.clone();
         blocking(move || Ok(library.remove_bookmark(&bookmark_id)?)).await

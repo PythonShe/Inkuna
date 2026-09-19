@@ -13,7 +13,8 @@ impl Library {
     /// non-finite value becomes 0.0 rather than failing, because a bad
     /// number must not cost the reader the bookmark. The legacy `locator`
     /// column is NOT NULL, so new rows write it as `''`. Returns
-    /// `NotFound` if no publication has that id.
+    /// `NotFound` if no *live* publication has that id: a tombstoned book
+    /// takes no new bookmarks.
     ///
     /// `coordinate: None` — a caller with no engine coordinate yet —
     /// stores NULL in both coordinate columns rather than the book-start
@@ -68,12 +69,21 @@ impl Library {
     /// rebaseline has not converted yet, or one pinned before the shells
     /// had engine coordinates — reads as `coordinate: None`, never as a
     /// fake book-start `(0, 0)`; `progression` is the fallback.
+    ///
+    /// Only *live* publications have bookmarks to show. A tombstone's
+    /// rows stay in the table for a later re-import to reclaim, but they
+    /// are invisible here, so a shell holding a stale id sees an empty
+    /// list rather than a removed book's marks — the same empty list an
+    /// unknown id has always returned.
     pub fn bookmarks(&self, publication_id: &str) -> Result<Vec<Bookmark>, CoreError> {
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(
                 "SELECT id, publication_id, position_spine_idx, position_char_offset,
                         progression, created_at
                  FROM bookmarks WHERE publication_id = ?1
+                   AND EXISTS (SELECT 1 FROM publications p
+                                WHERE p.id = bookmarks.publication_id
+                                  AND p.removed_at IS NULL)
                  ORDER BY progression, created_at, rowid",
             )?;
             let rows = stmt.query_map([publication_id], |row| {
@@ -101,9 +111,20 @@ impl Library {
     /// Deletes one bookmark by its own id. Deliberately not idempotent:
     /// removing a bookmark that is not there returns `NotFound`, so a
     /// shell swiping a stale row learns its list is out of date.
+    ///
+    /// The delete is scoped to *live* publications: a bookmark hanging off
+    /// a tombstone is history a re-import hands back, so a stale shell
+    /// swiping it gets `NotFound` instead of destroying it.
     pub fn remove_bookmark(&self, bookmark_id: &str) -> Result<(), CoreError> {
         let conn = self.writer.lock().unwrap();
-        let changed = conn.execute("DELETE FROM bookmarks WHERE id = ?1", [bookmark_id])?;
+        let changed = conn.execute(
+            "DELETE FROM bookmarks
+              WHERE id = ?1
+                AND EXISTS (SELECT 1 FROM publications p
+                             WHERE p.id = bookmarks.publication_id
+                               AND p.removed_at IS NULL)",
+            [bookmark_id],
+        )?;
         if changed == 0 {
             return Err(CoreError::NotFound(bookmark_id.to_string()));
         }

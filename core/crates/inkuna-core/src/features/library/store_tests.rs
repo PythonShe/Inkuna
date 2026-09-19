@@ -3,7 +3,7 @@
 //! its row survives for a later re-import to reclaim.
 
 use super::*;
-use crate::test_support::{imported, write_epub};
+use crate::test_support::{imported, restored, write_epub};
 use crate::{CoreError, Shelf, Sort, Weekday};
 use inkuna_engine::Coordinate;
 
@@ -17,6 +17,10 @@ struct Fixture {
     id: String,
     file_path: String,
     cover_path: String,
+    /// The source file the fixture imported, kept so a test can re-import
+    /// the same book and watch its history come back.
+    source: PathBuf,
+    bookmark_id: String,
 }
 
 fn fixture() -> Fixture {
@@ -41,7 +45,7 @@ fn fixture() -> Fixture {
         )
         .unwrap();
     library.session_end(&session).unwrap();
-    library
+    let bookmark_id = library
         .add_bookmark(
             &id,
             Some(Coordinate {
@@ -50,7 +54,8 @@ fn fixture() -> Fixture {
             }),
             0.1,
         )
-        .unwrap();
+        .unwrap()
+        .id;
     library.set_finished(&id, true).unwrap();
 
     Fixture {
@@ -59,6 +64,8 @@ fn fixture() -> Fixture {
         file_path: publication.file_path,
         cover_path: publication.cover_path.unwrap(),
         id,
+        source: epub,
+        bookmark_id,
         _dir: dir,
     }
 }
@@ -220,6 +227,23 @@ fn a_tombstone_is_invisible_to_every_library_read() {
         library.add_bookmark(id, None, 0.5),
         Err(CoreError::NotFound(_))
     ));
+
+    // The bookmark rows survive the removal, but nothing shell-facing can
+    // see them — and nothing shell-facing can destroy the history a
+    // re-import is meant to hand back.
+    assert!(library.bookmarks(id).unwrap().is_empty());
+    assert!(matches!(
+        library.remove_bookmark(&f.bookmark_id),
+        Err(CoreError::NotFound(_))
+    ));
+
+    // Re-importing the same file revives the row, and the bookmark the
+    // stale shell could not delete is there waiting.
+    let (revived, _) = restored(library.import(f.source.to_str().unwrap()).unwrap());
+    assert_eq!(revived.id, f.id, "the same row, revived");
+    let bookmarks = library.bookmarks(id).unwrap();
+    assert_eq!(bookmarks.len(), 1, "the preserved bookmark comes back");
+    assert_eq!(bookmarks[0].id, f.bookmark_id);
 }
 
 /// The whole reason the row stays in `publications` instead of moving
