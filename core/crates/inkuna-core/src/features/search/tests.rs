@@ -194,7 +194,7 @@ fn reconcile_drops_docs_whose_publication_left_the_database() {
     // Drop the row behind the core's back — what a crash mid-remove, or an
     // older build, leaves behind. Only reconcile can heal it.
     let conn = rusqlite::Connection::open(data_dir.join("inkuna.db")).unwrap();
-    conn.execute("DELETE FROM publications WHERE id = ?1", [&id])
+    conn.execute("DELETE FROM publications_all WHERE id = ?1", [&id])
         .unwrap();
     drop(conn);
 
@@ -446,7 +446,7 @@ fn in_book_results_report_canonicality() {
         {
             let conn = library.writer.lock().unwrap();
             conn.execute(
-                "UPDATE publications SET reconciled_at = NULL WHERE id = ?1",
+                "UPDATE publications_all SET reconciled_at = NULL WHERE id = ?1",
                 [&id],
             )
             .unwrap();

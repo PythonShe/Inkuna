@@ -205,7 +205,7 @@ fn a_backfilled_book_merges_with_a_later_import_of_its_edition() {
     for id in [&old_id, &new_id] {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications SET finished_at = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET finished_at = ?1 WHERE id = ?2",
             rusqlite::params![crate::core::time::unix_now(), id],
         )
         .unwrap();

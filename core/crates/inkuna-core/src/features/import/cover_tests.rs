@@ -129,7 +129,7 @@ fn optimize_covers_reencodes_legacy_rows_once() {
         .lock()
         .unwrap()
         .execute(
-            "UPDATE publications SET cover_path = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET cover_path = ?1 WHERE id = ?2",
             rusqlite::params![legacy_rel, publication.id],
         )
         .unwrap();
@@ -178,7 +178,7 @@ fn optimize_covers_skips_a_tombstone() {
         .lock()
         .unwrap()
         .execute(
-            "UPDATE publications SET cover_path = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET cover_path = ?1 WHERE id = ?2",
             rusqlite::params![legacy_rel, id],
         )
         .unwrap();

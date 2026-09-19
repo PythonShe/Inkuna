@@ -198,7 +198,7 @@ fn coordinate_none_preserves_the_stored_coordinate() {
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications
+            "UPDATE publications_all
              SET position_spine_idx = 3, position_char_offset = 500,
                  locator = NULL, reconciled_at = 1
              WHERE id = ?1",

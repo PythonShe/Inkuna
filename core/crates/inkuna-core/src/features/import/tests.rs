@@ -866,7 +866,7 @@ fn duplicate_mobi_dedupes_before_conversion() {
         .lock()
         .unwrap()
         .execute(
-            "UPDATE publications SET content_hash = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET content_hash = ?1 WHERE id = ?2",
             [&locked_hash, &publication.id],
         )
         .unwrap();
@@ -1308,7 +1308,7 @@ fn import_positions_computed() {
         .with(|conn| {
             conn.query_row(
                 "SELECT reconciled_at, position_spine_idx, position_char_offset
-                 FROM publications WHERE id = ?1",
+                 FROM publications_all WHERE id = ?1",
                 [&publication.id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
@@ -1825,7 +1825,7 @@ fn restoring_an_unconverted_legacy_book_leaves_it_for_the_rebaseline() {
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications
+            "UPDATE publications_all
                 SET reconciled_at = NULL, locator = '{\"progression\":0.5}',
                     position_spine_idx = NULL, position_char_offset = NULL
               WHERE id = ?1",
@@ -1842,7 +1842,7 @@ fn restoring_an_unconverted_legacy_book_leaves_it_for_the_rebaseline() {
         .readers
         .with(|conn| {
             conn.query_row(
-                "SELECT reconciled_at, locator FROM publications WHERE id = ?1",
+                "SELECT reconciled_at, locator FROM publications_all WHERE id = ?1",
                 [&id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -1941,7 +1941,7 @@ fn restoring_a_book_with_unconverted_legacy_bookmarks_leaves_it_for_the_rebaseli
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications
+            "UPDATE publications_all
                 SET reconciled_at = NULL, locator = NULL,
                     position_spine_idx = NULL, position_char_offset = NULL
               WHERE id = ?1",
@@ -1967,7 +1967,7 @@ fn restoring_a_book_with_unconverted_legacy_bookmarks_leaves_it_for_the_rebaseli
         .with(|conn| {
             conn.query_row(
                 "SELECT p.reconciled_at, b.locator
-                   FROM publications p JOIN bookmarks b ON b.publication_id = p.id
+                   FROM publications_all p JOIN bookmarks b ON b.publication_id = p.id
                   WHERE p.id = ?1",
                 [&id],
                 |row| Ok((row.get(0)?, row.get(1)?)),

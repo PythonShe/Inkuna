@@ -36,7 +36,7 @@ fn seed_positions(library: &Library, id: &str, counts: &[u32]) {
     }
     if !counts.is_empty() {
         conn.execute(
-            "UPDATE publications SET position_count = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET position_count = ?1 WHERE id = ?2",
             rusqlite::params![start - 1, id],
         )
         .unwrap();

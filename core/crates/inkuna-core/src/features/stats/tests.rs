@@ -63,7 +63,7 @@ fn insert_session(
 fn set_finished_at(library: &Library, publication_id: &str, finished_at: i64) {
     let conn = library.writer.lock().unwrap();
     conn.execute(
-        "UPDATE publications SET finished_at = ?1 WHERE id = ?2",
+        "UPDATE publications_all SET finished_at = ?1 WHERE id = ?2",
         rusqlite::params![finished_at, publication_id],
     )
     .unwrap();

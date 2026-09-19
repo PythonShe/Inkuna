@@ -25,7 +25,7 @@ fn unreconciled_book(locator: Option<&str>) -> (tempfile::TempDir, Library, Stri
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications SET reconciled_at = NULL, locator = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET reconciled_at = NULL, locator = ?1 WHERE id = ?2",
             rusqlite::params![locator, id],
         )
         .unwrap();
@@ -203,7 +203,7 @@ fn two_unreconciled_books() -> (tempfile::TempDir, Library, String, String) {
         };
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications SET reconciled_at = NULL, last_opened_at = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET reconciled_at = NULL, last_opened_at = ?1 WHERE id = ?2",
             rusqlite::params![last_opened, id],
         )
         .unwrap();
@@ -386,7 +386,7 @@ fn book_start_coordinates_survive_legacy_locators() {
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications SET position_spine_idx = 0, position_char_offset = 0 WHERE id = ?1",
+            "UPDATE publications_all SET position_spine_idx = 0, position_char_offset = 0 WHERE id = ?1",
             [&id],
         )
         .unwrap();
@@ -500,7 +500,7 @@ fn fresh_coordinate_survives_stale_locator() {
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications SET position_spine_idx = 0, position_char_offset = 7
+            "UPDATE publications_all SET position_spine_idx = 0, position_char_offset = 7
              WHERE id = ?1",
             [&id],
         )
@@ -570,7 +570,7 @@ fn position_count_recomputed_even_to_zero() {
         conn.execute("DELETE FROM resources WHERE publication_id = ?1", [&id])
             .unwrap();
         conn.execute(
-            "UPDATE publications SET position_count = 999 WHERE id = ?1",
+            "UPDATE publications_all SET position_count = 999 WHERE id = ?1",
             [&id],
         )
         .unwrap();
@@ -583,7 +583,7 @@ fn position_count_recomputed_even_to_zero() {
         .readers
         .with(|conn| {
             conn.query_row(
-                "SELECT position_count FROM publications WHERE id = ?1",
+                "SELECT position_count FROM publications_all WHERE id = ?1",
                 [&id],
                 |row| row.get(0),
             )

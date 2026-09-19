@@ -81,11 +81,13 @@ fn migration_adopts_live_rows_and_drops_dead_ones() {
         )
         .unwrap();
         conn.execute(
+            // v10-view-sql: a v1 fixture — `publications` is still the table here.
             "INSERT INTO publications VALUES ('live-id', '生きてる本', '著者', 'ja', 'epub', ?1, 100, 0.5)",
             [alive.to_str().unwrap()],
         )
         .unwrap();
         conn.execute(
+            // v10-view-sql: same v1 fixture, the row the adoption pass drops.
             "INSERT INTO publications VALUES ('dead-id', 'Gone', '', NULL, 'epub', '/no/such/file.epub', 200, 0.0)",
             [],
         )
@@ -122,6 +124,7 @@ fn v8_migrates_from_v7() {
         let mut conn = super::open_connection(&db_path).unwrap();
         super::migrate::migrate_to(&mut conn, &data_dir, 7).unwrap();
         conn.execute(
+            // v10-view-sql: a v7 fixture, written before the view existed.
             "INSERT INTO publications
                 (id, title, authors, format, file_path, added_at, progression, locator)
              VALUES ('p1', '月光書房', '紫式部', 'epub', 'books/p1.epub', 100, 0.5,
@@ -157,6 +160,7 @@ fn v8_migrates_from_v7() {
         Option<i64>,
     ) = conn
         .query_row(
+            // v10-view-sql: read at v8, where `publications` is the table.
             "SELECT title, locator, position_spine_idx, position_char_offset, reconciled_at
              FROM publications WHERE id = 'p1'",
             [],
@@ -204,7 +208,7 @@ fn fresh_install_reaches_latest_schema() {
     assert_eq!(version, super::migrate::SCHEMA_VERSION);
     // The coordinate columns are queryable on a fresh install.
     conn.query_row(
-        "SELECT COUNT(position_spine_idx) FROM publications",
+        "SELECT COUNT(position_spine_idx) FROM publications_all",
         [],
         |row| row.get::<_, i64>(0),
     )
@@ -286,6 +290,7 @@ fn v11_migrates_from_v10() {
         let mut conn = super::open_connection(&db_path).unwrap();
         super::migrate::migrate_to(&mut conn, &data_dir, 10).unwrap();
         conn.execute(
+            // v10-view-sql: a v10 fixture — the row this migration renames.
             "INSERT INTO publications
                 (id, title, authors, format, file_path, content_hash, added_at,
                  progression, position_spine_idx, position_char_offset, finished_at)
@@ -400,6 +405,8 @@ fn v12_migrates_from_v11() {
         let mut conn = super::open_connection(&db_path).unwrap();
         super::migrate::migrate_to(&mut conn, &data_dir, 11).unwrap();
         conn.execute(
+            // The tombstone below goes to `publications_all` on purpose;
+            // v10-view-sql: this one is LIVE, inserted through the view.
             "INSERT INTO publications
                 (id, title, authors, format, file_path, content_hash, added_at,
                  progression, finished_at)
@@ -561,6 +568,105 @@ fn migrate_refuses_a_future_schema() {
         Err(other) => panic!("`Library::open` must propagate the refusal, got {other:?}"),
         Ok(_) => panic!("`Library::open` opened a database from a newer build"),
     }
+}
+
+/// Since V11 the real table is `publications_all` and `publications` is a
+/// v10-shaped view over the live rows — so SQL that names `publications`
+/// compiles, passes, and silently skips every tombstone. Nothing in the
+/// language stops that, so this walks the crate's own source and stops it
+/// here.
+///
+/// The opt-out is deliberate and per-statement: a test that means to speak
+/// v10 through the view says so with a `v10-view-sql` marker on the line or
+/// the line above it. Skipping test files wholesale would cost the guard
+/// its teeth exactly where the footgun is easiest to fire.
+#[test]
+fn no_sql_bypasses_the_tombstone_view() {
+    /// The word that excuses a match, for SQL that means the view.
+    const MARKER: &str = "v10-view-sql";
+    /// How far above a match the marker may sit.
+    const MARKER_LOOKBACK: usize = 3;
+    /// A bare `publications` after one of these is a statement against the
+    /// view, whatever the author meant.
+    const KEYWORDS: [&str; 4] = ["from", "into", "update", "join"];
+
+    fn rs_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                rs_files(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+
+    /// Splits on everything SQL and Rust use as punctuation, so `publications`
+    /// is a token of its own while `publications_all` stays one word.
+    fn words(line: &str) -> Vec<String> {
+        line.split(|c: char| !c.is_alphanumeric() && c != '_')
+            .filter(|w| !w.is_empty())
+            .map(|w| w.to_ascii_lowercase())
+            .collect()
+    }
+
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    rs_files(&src, &mut files);
+    files.sort();
+
+    let mut offenders = Vec::new();
+    for file in files {
+        // The migrations legitimately name both: every step before V11 runs
+        // when `publications` IS the table, and V11 itself creates the view.
+        if file.ends_with("core/db/migrate.rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&file).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        for (idx, line) in lines.iter().enumerate() {
+            // Prose may name the view freely; only SQL is the hazard.
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("//") || trimmed.starts_with("--") {
+                continue;
+            }
+            let tokens = words(line);
+            let hit = tokens
+                .windows(2)
+                .any(|pair| KEYWORDS.contains(&pair[0].as_str()) && pair[1] == "publications");
+            if !hit {
+                continue;
+            }
+            // The match can land on a continuation line of a multi-line SQL
+            // literal, so the marker is allowed to sit a little above it —
+            // where the statement starts — not on that one line alone.
+            let excused = line.contains(MARKER)
+                || lines[idx.saturating_sub(MARKER_LOOKBACK)..idx]
+                    .iter()
+                    .any(|above| above.contains(MARKER));
+            if !excused {
+                let relative = file.strip_prefix(&src).unwrap_or(&file);
+                offenders.push(format!(
+                    "  {}:{}: {}",
+                    relative.display(),
+                    idx + 1,
+                    line.trim()
+                ));
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "SQL naming the bare table `publications`:\n{}\n\n\
+         Since V11 `publications` is a v10 compatibility VIEW over the live \
+         rows only — it hides every tombstone (`removed_at IS NOT NULL`), so \
+         this SQL silently skips removed books and a removed book can never \
+         be found, counted, or restored. Name `publications_all` instead. If \
+         the statement really does mean the v10 view, put a `{MARKER}` \
+         comment on that line or the line above it.",
+        offenders.join("\n")
+    );
 }
 
 /// A panic inside pooled work must not consume the connection. UniFFI

@@ -405,6 +405,7 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
         .lock()
         .unwrap()
         .execute(
+            // v10-view-sql: v10's own statement, verbatim.
             "UPDATE publications
                 SET locator = ?1, position_spine_idx = NULL,
                     position_char_offset = NULL, reconciled_at = NULL
@@ -425,6 +426,7 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
         let conn = open_connection(&db_path).unwrap();
 
         // v10 `Library::remove`.
+        // v10-view-sql: v10's own statement, verbatim.
         conn.execute("DELETE FROM publications WHERE id = ?1", [&f.id])
             .unwrap();
         let _ = std::fs::remove_file(f.data_dir.join(&f.file_path));
@@ -496,6 +498,7 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
         // pair that consumes the locator, then the `reconciled_at` stamp.
         let converted = conn
             .execute(
+                // v10-view-sql: v10's own statement, verbatim.
                 "UPDATE publications
              SET position_spine_idx = ?1, position_char_offset = ?2, locator = NULL
              WHERE id = ?3 AND position_spine_idx IS NULL",
@@ -504,11 +507,13 @@ fn a_v10_binary_cannot_destroy_a_tombstone() {
             .unwrap();
         assert_eq!(converted, 0, "the freeze trigger swallowed the conversion");
         conn.execute(
+            // v10-view-sql: v10's own statement, verbatim.
             "UPDATE publications SET locator = NULL WHERE id = ?1",
             [&f.id],
         )
         .unwrap();
         conn.execute(
+            // v10-view-sql: v10's own statement, verbatim.
             "UPDATE publications SET reconciled_at = ?1 WHERE id = ?2",
             rusqlite::params![999_i64, &f.id],
         )
@@ -569,6 +574,7 @@ const V10_PUB_COLUMNS: &str = "id, title, authors, language, text_encoding, form
      position_count, finished_at, last_opened_at";
 
 /// v10's `Library::insert_publication`, verbatim.
+// v10-view-sql: v10's own statement, verbatim.
 const V10_INSERT: &str = "INSERT INTO publications
                     (id, title, authors, language, text_encoding, format, file_path,
                      cover_path, content_hash, added_at, progression, reconciled_at)
@@ -607,6 +613,7 @@ fn a_v10_list_query_cannot_see_a_tombstone() {
     let listed: Vec<String> = {
         // v10 `Library::list(Shelf::All, Sort::RecentlyAdded)`, verbatim.
         let sql = format!(
+            // v10-view-sql: v10's own statement, verbatim.
             "SELECT {V10_PUB_COLUMNS} FROM publications  ORDER BY added_at DESC, rowid DESC"
         );
         let mut stmt = conn.prepare(&sql).unwrap();
@@ -628,6 +635,7 @@ fn a_v10_list_query_cannot_see_a_tombstone() {
     ] {
         let count: i64 = conn
             .query_row(
+                // v10-view-sql: v10's own statement, verbatim.
                 &format!("SELECT COUNT(*) FROM publications {filter}"),
                 [],
                 |row| row.get(0),
@@ -636,6 +644,7 @@ fn a_v10_list_query_cannot_see_a_tombstone() {
         let listed_removed: i64 = conn
             .query_row(
                 &format!(
+                    // v10-view-sql: v10's own statement, verbatim.
                     "SELECT COUNT(*) FROM (SELECT id FROM publications {filter}) WHERE id = ?1"
                 ),
                 [&f.id],
@@ -667,6 +676,7 @@ fn a_v10_dedupe_reimport_replaces_a_tombstone() {
     // v10 `Library::publication_by_hash`, verbatim. It is the check that
     // used to answer "Already in your library" for a file the user could
     // neither open nor re-add.
+    // v10-view-sql: v10's own statement, verbatim.
     let sql = format!("SELECT {V10_PUB_COLUMNS} FROM publications WHERE content_hash = ?1");
     let duplicate: Option<String> = conn
         .prepare(&sql)
@@ -743,11 +753,13 @@ fn a_v10_delete_through_the_view_still_preserves_history() {
     // v10 `Library::remove`, verbatim, over every id it could hold —
     // including the one it cannot see.
     for id in [&f.id, &second] {
+        // v10-view-sql: v10's own statement, verbatim.
         conn.execute("DELETE FROM publications WHERE id = ?1", [id])
             .expect("a view with no INSTEAD OF DELETE would refuse this outright");
     }
 
     let live: i64 = conn
+        // v10-view-sql: v10's own statement, verbatim.
         .query_row("SELECT COUNT(*) FROM publications", [], |row| row.get(0))
         .unwrap();
     assert_eq!(live, 0, "both books left the shelf");
