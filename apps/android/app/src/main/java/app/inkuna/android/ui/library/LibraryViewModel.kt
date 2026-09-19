@@ -7,9 +7,11 @@ import androidx.lifecycle.viewModelScope
 import app.inkuna.android.R
 import app.inkuna.android.model.BookRow
 import app.inkuna.android.model.LibraryStore
+import app.inkuna.core.InkunaException
 import app.inkuna.core.Publication
 import app.inkuna.core.Shelf
 import app.inkuna.core.Sort
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -136,6 +138,31 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     emptiness = LibraryEmptiness.Shelf(LibraryEmptiness.Shelf.Kind.Unopenable),
                 )
             }
+        }
+    }
+
+    /**
+     * Removes a book through the core and re-fetches the shelf. The core
+     * deletes the file and the cover with the row, so there is no undo to
+     * offer; the confirmation the shelf shows first is the safety net.
+     *
+     * The write runs on the application-scoped [LibraryStore.writes] rather
+     * than [viewModelScope] so a delete started as the user leaves the tab
+     * still lands. A row that is already gone is not a failure — the user
+     * asked for it to not be there, and it is not.
+     */
+    fun remove(id: String) {
+        LibraryStore.writes.launch {
+            try {
+                LibraryStore.bookshelf(getApplication()).library().remove(id)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (gone: InkunaException.NotFound) {
+                Log.i(TAG, "Removing $id found it already gone", gone)
+            } catch (failure: Throwable) {
+                Log.w(TAG, "Removing $id failed", failure)
+            }
+            reload()
         }
     }
 

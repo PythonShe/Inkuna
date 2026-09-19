@@ -2,6 +2,7 @@ package app.inkuna.android.ui.library
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -21,13 +21,20 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,17 +49,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.inkuna.android.R
 import app.inkuna.android.model.AppSettings
+import app.inkuna.android.model.BookRow
 import app.inkuna.android.ui.components.BookGridCell
 import app.inkuna.android.ui.components.BookListRow
 import app.inkuna.android.ui.components.InkSearchField
 import app.inkuna.android.ui.components.InkSegmentedControl
+import app.inkuna.android.ui.components.RemoveBookDialog
 import app.inkuna.android.ui.importing.AddBooksButton
 import app.inkuna.android.ui.importing.EmptyLibraryInvite
 import app.inkuna.android.ui.importing.ImportBooksHost
 import app.inkuna.android.ui.main.DisplayTitle
 import app.inkuna.android.ui.main.EmptyState
+import app.inkuna.android.ui.theme.InkRadius
 import app.inkuna.android.ui.theme.InkSpace
 import app.inkuna.android.ui.theme.InkTheme
+import app.inkuna.android.ui.theme.InkType
 import kotlinx.coroutines.flow.filter
 
 private val SEGMENT_LABELS: Map<LibrarySegment, Int> = mapOf(
@@ -106,6 +117,11 @@ fun LibraryScreen(
     model: LibraryViewModel = viewModel(),
 ) {
     val state by model.state.collectAsStateWithLifecycle()
+    // Which row's long-press menu is open, and which book a confirmation is
+    // standing in front of. Both are addressed by id so a reload underneath
+    // can only close them, never retarget them at a different book.
+    var menuRowId by rememberSaveable { mutableStateOf<String?>(null) }
+    var removing by remember { mutableStateOf<BookRow?>(null) }
     val context = LocalContext.current
     val settings = remember(context) { AppSettings.get(context) }
     val prefs by settings.snapshot.collectAsStateWithLifecycle()
@@ -216,37 +232,100 @@ fun LibraryScreen(
                     }
                 } else if (grid) {
                     itemsIndexed(state.rows, key = { _, row -> row.id }) { index, row ->
-                        BookGridCell(
-                            title = row.title,
-                            author = row.author,
-                            width = cellWidth,
-                            seed = row.seed,
-                            coverPath = row.coverPath,
-                            onClick = { onOpenBook(row.id) },
-                            // Row gap by hand: spacedBy would also space the
-                            // header items, which keep their own rhythm.
-                            modifier = Modifier.padding(
-                                top = if (index >= columns) GRID_ROW_GAP else 0.dp,
-                            ),
-                        )
+                        Box {
+                            BookGridCell(
+                                title = row.title,
+                                author = row.author,
+                                width = cellWidth,
+                                seed = row.seed,
+                                coverPath = row.coverPath,
+                                onClick = { onOpenBook(row.id) },
+                                onLongClick = { menuRowId = row.id },
+                                // Row gap by hand: spacedBy would also space the
+                                // header items, which keep their own rhythm.
+                                modifier = Modifier.padding(
+                                    top = if (index >= columns) GRID_ROW_GAP else 0.dp,
+                                ),
+                            )
+                            BookActionsMenu(
+                                expanded = menuRowId == row.id,
+                                onDismiss = { menuRowId = null },
+                                onRemove = { menuRowId = null; removing = row },
+                            )
+                        }
                     }
                 } else {
                     itemsIndexed(state.rows, key = { _, row -> row.id }, span = { _, _ -> GridItemSpan(maxLineSpan) }) { _, row ->
-                        BookListRow(
-                            title = row.title,
-                            author = row.author,
-                            progress = row.progress,
-                            seed = row.seed,
-                            coverPath = row.coverPath,
-                            // The core owns every book's file, so a listed book
-                            // is always on disk — no cloud-only state to badge.
-                            downloaded = true,
-                            onClick = { onOpenBook(row.id) },
-                        )
+                        Box {
+                            BookListRow(
+                                title = row.title,
+                                author = row.author,
+                                progress = row.progress,
+                                seed = row.seed,
+                                coverPath = row.coverPath,
+                                // The core owns every book's file, so a listed book
+                                // is always on disk — no cloud-only state to badge.
+                                downloaded = true,
+                                onClick = { onOpenBook(row.id) },
+                                onLongClick = { menuRowId = row.id },
+                            )
+                            BookActionsMenu(
+                                expanded = menuRowId == row.id,
+                                onDismiss = { menuRowId = null },
+                                onRemove = { menuRowId = null; removing = row },
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    removing?.let { book ->
+        RemoveBookDialog(
+            title = book.title,
+            onConfirm = {
+                removing = null
+                model.remove(book.id)
+            },
+            onDismiss = { removing = null },
+        )
+    }
+}
+
+/** The long-press menu on a shelf item. Remove is its only entry today, so
+ *  it stays a menu rather than a swipe: a swipe would exist on rows and
+ *  vanish on grid tiles. */
+@Composable
+private fun BookActionsMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val ink = InkTheme.colors
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        containerColor = ink.bgRaised,
+        shape = InkRadius.mdShape,
+    ) {
+        DropdownMenuItem(
+            text = {
+                Text(
+                    stringResource(R.string.remove_action),
+                    style = InkType.ui,
+                    color = ink.danger,
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    Icons.Outlined.DeleteOutline,
+                    contentDescription = null,
+                    tint = ink.danger,
+                )
+            },
+            onClick = onRemove,
+        )
     }
 }
 

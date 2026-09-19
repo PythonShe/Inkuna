@@ -121,4 +121,14 @@
     <string name="reader_chapter_truncated">Bab ini terlalu besar untuk ditampilkan sepenuhnya.</string>
     <string name="reader_book_empty">Buku ini tidak memiliki konten yang dapat dibaca.</string>
     <string name="reader_fixed_layout_unsupported">Buku ini menggunakan tata letak tetap yang belum dapat ditampilkan Inkuna.</string>
+
+    <!-- Removing a book -->
+    <string name="remove_action">Hapus dari perpustakaan</string>
+    <string name="remove_confirm_title">Hapus “%1$s”?</string>
+    <string name="remove_confirm_body">Buku dan kemajuan baca Anda akan dihapus dari perangkat ini. Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="remove_confirm_button">Hapus</string>
+    <string name="remove_cancel">Batal</string>
+    <string name="remove_failed">Buku ini tidak dapat dihapus.</string>
+    <string name="remove_dismiss">OK</string>
+    <string name="a11y_book_actions">Tindakan buku</string>
 </resources>

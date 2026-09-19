@@ -120,4 +120,14 @@
     <string name="reader_chapter_truncated">Ten rozdział był zbyt duży, aby wyświetlić go w całości.</string>
     <string name="reader_book_empty">Ta książka nie zawiera treści do czytania.</string>
     <string name="reader_fixed_layout_unsupported">Ta książka ma stały układ stron (fixed layout), którego Inkuna jeszcze nie obsługuje.</string>
+
+    <!-- Removing a book -->
+    <string name="remove_action">Usuń z biblioteki</string>
+    <string name="remove_confirm_title">Usunąć „%1$s”?</string>
+    <string name="remove_confirm_body">Książka i Twoje postępy w czytaniu zostaną usunięte z tego urządzenia. Tej operacji nie można cofnąć.</string>
+    <string name="remove_confirm_button">Usuń</string>
+    <string name="remove_cancel">Anuluj</string>
+    <string name="remove_failed">Nie udało się usunąć tej książki.</string>
+    <string name="remove_dismiss">OK</string>
+    <string name="a11y_book_actions">Działania dla książki</string>
 </resources>

@@ -131,4 +131,14 @@
     <string name="reader_chapter_truncated">이 장은 너무 커서 모두 표시할 수 없습니다.</string>
     <string name="reader_book_empty">이 책에는 읽을 수 있는 내용이 없습니다.</string>
     <string name="reader_fixed_layout_unsupported">이 책은 고정 레이아웃을 사용하므로 Inkuna에서 아직 표시할 수 없습니다.</string>
+
+    <!-- Removing a book -->
+    <string name="remove_action">서재에서 삭제</string>
+    <string name="remove_confirm_title">‘%1$s’을(를) 삭제할까요?</string>
+    <string name="remove_confirm_body">이 기기에서 책과 읽은 진도가 삭제됩니다. 되돌릴 수 없습니다.</string>
+    <string name="remove_confirm_button">삭제</string>
+    <string name="remove_cancel">취소</string>
+    <string name="remove_failed">이 책을 삭제하지 못했습니다.</string>
+    <string name="remove_dismiss">확인</string>
+    <string name="a11y_book_actions">책 작업</string>
 </resources>

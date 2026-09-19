@@ -131,4 +131,14 @@
     <string name="reader_chapter_truncated">此章节过大，无法完整显示。</string>
     <string name="reader_book_empty">这本书没有可阅读的内容。</string>
     <string name="reader_fixed_layout_unsupported">此书使用固定版式，Inkuna 暂时无法显示。</string>
+
+    <!-- Removing a book -->
+    <string name="remove_action">从书库中移除</string>
+    <string name="remove_confirm_title">移除《%1$s》？</string>
+    <string name="remove_confirm_body">这会从本设备删除这本书和你的阅读进度，且无法撤销。</string>
+    <string name="remove_confirm_button">移除</string>
+    <string name="remove_cancel">取消</string>
+    <string name="remove_failed">无法移除这本书。</string>
+    <string name="remove_dismiss">确定</string>
+    <string name="a11y_book_actions">图书操作</string>
 </resources>

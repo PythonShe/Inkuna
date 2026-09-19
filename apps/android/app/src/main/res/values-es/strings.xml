@@ -134,4 +134,14 @@
     <string name="reader_chapter_truncated">Este capítulo era demasiado grande para mostrarse por completo.</string>
     <string name="reader_book_empty">Este libro no tiene contenido legible.</string>
     <string name="reader_fixed_layout_unsupported">Este libro usa un diseño fijo que Inkuna todavía no puede mostrar.</string>
+
+    <!-- Removing a book -->
+    <string name="remove_action">Quitar de la biblioteca</string>
+    <string name="remove_confirm_title">¿Quitar «%1$s»?</string>
+    <string name="remove_confirm_body">Se eliminarán el libro y tu progreso de lectura de este dispositivo. No se puede deshacer.</string>
+    <string name="remove_confirm_button">Quitar</string>
+    <string name="remove_cancel">Cancelar</string>
+    <string name="remove_failed">No se pudo quitar este libro.</string>
+    <string name="remove_dismiss">Aceptar</string>
+    <string name="a11y_book_actions">Acciones del libro</string>
 </resources>

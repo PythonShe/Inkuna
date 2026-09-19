@@ -22,9 +22,15 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -45,6 +51,7 @@ import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkButtonVariant
 import app.inkuna.android.ui.components.InkIconButton
 import app.inkuna.android.ui.components.InkProgressBar
+import app.inkuna.android.ui.components.RemoveBookDialog
 import app.inkuna.android.ui.main.EmptyState
 import app.inkuna.android.ui.main.SectionTitle
 import app.inkuna.android.ui.stats.hairlineThickness
@@ -70,6 +77,7 @@ fun BookDetailScreen(
 ) {
     val ink = InkTheme.colors
     val state by model.state.collectAsStateWithLifecycle()
+    var confirmingRemove by rememberSaveable { mutableStateOf(false) }
 
     LifecycleResumeEffect(Unit) {
         model.reload()
@@ -178,6 +186,17 @@ fun BookDetailScreen(
                     icon = if (state.finished) Icons.AutoMirrored.Outlined.Undo else Icons.Outlined.CheckCircle,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Spacer(Modifier.height(InkSpace.s2))
+                // Destructive, so it is quiet ink rather than a third
+                // filled pill, and it sits last — past everything the
+                // screen is actually inviting you to do.
+                InkButton(
+                    text = stringResource(R.string.remove_action),
+                    onClick = { confirmingRemove = true },
+                    variant = InkButtonVariant.Danger,
+                    icon = Icons.Outlined.DeleteOutline,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
         Spacer(Modifier.height(InkSpace.s10))
@@ -194,6 +213,35 @@ fun BookDetailScreen(
                 )
             }
         }
+    }
+
+    if (confirmingRemove) {
+        RemoveBookDialog(
+            title = state.book?.title.orEmpty(),
+            onConfirm = {
+                confirmingRemove = false
+                model.delete(onDone = onBack)
+            },
+            onDismiss = { confirmingRemove = false },
+        )
+    }
+
+    // The core deletes the file and the cover along with the row, so there
+    // is no undo to offer — a failure is reported plainly instead.
+    if (state.removeFailed) {
+        AlertDialog(
+            onDismissRequest = model::clearRemoveFailure,
+            containerColor = ink.bgSurface,
+            titleContentColor = ink.textDisplay,
+            title = {
+                Text(stringResource(R.string.remove_failed), style = InkType.heading)
+            },
+            confirmButton = {
+                TextButton(onClick = model::clearRemoveFailure) {
+                    Text(stringResource(R.string.remove_dismiss), color = ink.accentText)
+                }
+            },
+        )
     }
 }
 

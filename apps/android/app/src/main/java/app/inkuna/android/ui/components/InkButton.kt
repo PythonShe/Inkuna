@@ -31,8 +31,9 @@ import app.inkuna.android.ui.theme.InkTheme
 import app.inkuna.android.ui.theme.InkType
 
 /** [Recessed]: a quiet pill on the recessed ground (the reader's
- *  Customize / Reset buttons). */
-enum class InkButtonVariant { Primary, Secondary, Ghost, Recessed }
+ *  Customize / Reset buttons). [Danger]: destructive ink on no ground —
+ *  a filled red pill would outweigh every amber one it sits beside. */
+enum class InkButtonVariant { Primary, Secondary, Ghost, Recessed, Danger }
 enum class InkButtonSize { Small, Medium, Large }
 
 /** Pill button from the design system: quiet press scale, no bounce. */
@@ -52,6 +53,7 @@ fun InkButton(
         InkButtonVariant.Secondary -> ink.accentSoft to ink.accentText
         InkButtonVariant.Ghost -> Color.Transparent to ink.textBody
         InkButtonVariant.Recessed -> ink.bgRecessed to ink.textDisplay
+        InkButtonVariant.Danger -> Color.Transparent to ink.danger
     }
     val padding = when (size) {
         InkButtonSize.Small -> PaddingValues(horizontal = 14.dp, vertical = 7.dp)

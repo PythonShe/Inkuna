@@ -1,6 +1,7 @@
 package app.inkuna.android.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,7 +26,10 @@ import app.inkuna.android.ui.theme.InkType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 
-/** Library/search result row: cover, title/author, progress, cloud badge. */
+/** Library/search result row: cover, title/author, progress, cloud badge.
+ *  [onLongClick] is optional: only the library shelf hangs a menu off a
+ *  long press, and a row without one keeps its plain click semantics. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BookListRow(
     title: String,
@@ -36,12 +40,13 @@ fun BookListRow(
     downloaded: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val ink = InkTheme.colors
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
+            .combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick)
             .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,

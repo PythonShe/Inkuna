@@ -13,6 +13,7 @@ import app.inkuna.android.model.LibraryStore
 import app.inkuna.android.ui.reader.ReaderPositions
 import app.inkuna.core.Chapter
 import app.inkuna.core.ChapterPositionRange
+import app.inkuna.core.InkunaException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +54,8 @@ class BookDetailViewModel(
         val finished: Boolean = false,
         /** The book could not be fetched at all (nothing to stand on). */
         val failed: Boolean = false,
+        /** A removal was attempted and the core refused it. */
+        val removeFailed: Boolean = false,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -140,6 +143,39 @@ class BookDetailViewModel(
             }
             reload()
         }
+    }
+
+    /**
+     * Removes the book through the core, then hands back so the caller can
+     * leave the screen — there is nothing left here to show, and a reload
+     * would only fetch a `NotFound`. The core deletes the file and the
+     * cover along with the row, so this cannot be offered as an undoable
+     * action; the confirmation before it is the whole safety net.
+     *
+     * `onDone` still runs when the row was already gone: a second confirm
+     * against a stale screen has the same outcome the user asked for.
+     */
+    fun delete(onDone: () -> Unit) {
+        reload?.cancel()
+        viewModelScope.launch {
+            try {
+                LibraryStore.bookshelf(app).library().remove(publicationId)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (gone: InkunaException.NotFound) {
+                Log.i(TAG, "Removing $publicationId found it already gone", gone)
+            } catch (failure: Throwable) {
+                Log.w(TAG, "Removing $publicationId failed", failure)
+                _state.value = _state.value.copy(removeFailed = true)
+                return@launch
+            }
+            onDone()
+        }
+    }
+
+    /** Clears the failure banner once the user has read it. */
+    fun clearRemoveFailure() {
+        _state.value = _state.value.copy(removeFailed = false)
     }
 
     /**

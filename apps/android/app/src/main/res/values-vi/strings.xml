@@ -131,4 +131,14 @@
     <string name="reader_chapter_truncated">Chương này quá lớn để hiển thị toàn bộ.</string>
     <string name="reader_book_empty">Sách này không có nội dung để đọc.</string>
     <string name="reader_fixed_layout_unsupported">Sách này dùng bố cục cố định mà Inkuna chưa thể hiển thị.</string>
+
+    <!-- Removing a book -->
+    <string name="remove_action">Xóa khỏi thư viện</string>
+    <string name="remove_confirm_title">Xóa “%1$s”?</string>
+    <string name="remove_confirm_body">Thao tác này xóa sách và tiến độ đọc khỏi thiết bị này. Không thể hoàn tác.</string>
+    <string name="remove_confirm_button">Xóa</string>
+    <string name="remove_cancel">Hủy</string>
+    <string name="remove_failed">Không thể xóa cuốn sách này.</string>
+    <string name="remove_dismiss">OK</string>
+    <string name="a11y_book_actions">Tác vụ với sách</string>
 </resources>

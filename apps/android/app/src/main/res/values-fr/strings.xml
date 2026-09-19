@@ -134,4 +134,14 @@
     <string name="reader_chapter_truncated">Ce chapitre était trop volumineux pour être affiché entièrement.</string>
     <string name="reader_book_empty">Ce livre ne contient aucun contenu lisible.</string>
     <string name="reader_fixed_layout_unsupported">Ce livre utilise une mise en page fixe qu’Inkuna ne peut pas encore afficher.</string>
+
+    <!-- Removing a book -->
+    <string name="remove_action">Retirer de la bibliothèque</string>
+    <string name="remove_confirm_title">Retirer « %1$s » ?</string>
+    <string name="remove_confirm_body">Le livre et votre progression de lecture seront supprimés de cet appareil. Cette action est irréversible.</string>
+    <string name="remove_confirm_button">Retirer</string>
+    <string name="remove_cancel">Annuler</string>
+    <string name="remove_failed">Ce livre n\'a pas pu être retiré.</string>
+    <string name="remove_dismiss">OK</string>
+    <string name="a11y_book_actions">Actions du livre</string>
 </resources>

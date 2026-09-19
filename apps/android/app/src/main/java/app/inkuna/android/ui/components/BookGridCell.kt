@@ -1,6 +1,7 @@
 package app.inkuna.android.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -11,7 +12,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -26,6 +29,7 @@ import app.inkuna.android.ui.theme.InkType
  * author line, so a wall of covers stays quiet. The author still reaches
  * assistive tech through the row label, matching the list rows.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BookGridCell(
     title: String,
@@ -35,15 +39,25 @@ fun BookGridCell(
     coverPath: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val rowLabel = stringResource(R.string.a11y_book_row, title, author)
+    // clearAndSetSemantics wipes the children's semantics, so a long press
+    // is invisible to TalkBack unless it is re-declared here as a custom
+    // action.
+    val menuLabel = stringResource(R.string.a11y_book_actions)
     Column(
         modifier = modifier
             .width(width)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .clearAndSetSemantics {
                 contentDescription = rowLabel
                 role = Role.Button
+                if (onLongClick != null) {
+                    customActions = listOf(
+                        CustomAccessibilityAction(menuLabel) { onLongClick(); true }
+                    )
+                }
             },
     ) {
         BookCover(

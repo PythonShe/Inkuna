@@ -114,4 +114,14 @@
     <string name="reader_chapter_truncated">Dit hoofdstuk was te groot om volledig te worden weergegeven.</string>
     <string name="reader_book_empty">Dit boek bevat geen leesbare inhoud.</string>
     <string name="reader_fixed_layout_unsupported">Dit boek gebruikt een vaste lay-out die Inkuna nog niet kan weergeven.</string>
+
+    <!-- Removing a book -->
+    <string name="remove_action">Verwijderen uit bibliotheek</string>
+    <string name="remove_confirm_title">‘%1$s’ verwijderen?</string>
+    <string name="remove_confirm_body">Hiermee verdwijnen het boek en je leesvoortgang van dit apparaat. Dit kan niet ongedaan worden gemaakt.</string>
+    <string name="remove_confirm_button">Verwijderen</string>
+    <string name="remove_cancel">Annuleren</string>
+    <string name="remove_failed">Dit boek kon niet worden verwijderd.</string>
+    <string name="remove_dismiss">OK</string>
+    <string name="a11y_book_actions">Boekacties</string>
 </resources>
