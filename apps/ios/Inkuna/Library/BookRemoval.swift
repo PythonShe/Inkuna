@@ -97,6 +97,11 @@ enum BookRemoval {
 
     /// The destructive `UIAction` both menus hang off, so the title and
     /// the trash glyph never drift apart.
+    ///
+    /// `presenter` is captured weakly: the detail screen hands this action
+    /// to a button it owns, so a strong capture would close the cycle
+    /// screen → button → menu → action → screen and leak a whole view
+    /// tree, cover art included, for every book ever opened.
     static func action(
         for publication: Publication,
         from presenter: UIViewController,
@@ -107,7 +112,8 @@ enum BookRemoval {
             image: UIImage(systemName: "trash"),
             identifier: UIAction.Identifier("remove_action"),
             attributes: .destructive
-        ) { _ in
+        ) { [weak presenter] _ in
+            guard let presenter else { return }
             confirm(publication, from: presenter, onRemoved: onRemoved)
         }
     }

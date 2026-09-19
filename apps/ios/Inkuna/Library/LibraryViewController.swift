@@ -476,7 +476,17 @@ final class LibraryViewController: UIViewController {
             // updates text and progress without covers blinking back in.
             snapshot.reconfigureItems(carried)
         }
-        dataSource.apply(snapshot, animatingDifferences: false)
+        // A book leaving the shelf is the one diff worth animating: the
+        // user asked for it, and watching the shelf close the gap is how
+        // they know it happened. Every other apply stays instant — a mode
+        // flip re-dequeues every cell, and the routine refresh would only
+        // flicker.
+        let lost = existing.subtracting(snapshot.itemIdentifiers)
+        let removedBook = lost.contains { if case .book = $0 { true } else { false } }
+        dataSource.apply(
+            snapshot,
+            animatingDifferences: removedBook && !modeChanged && view.window != nil
+        )
         if modeChanged {
             // The section layout must re-prepare for the other mode even
             // when the diff itself is empty (every visible book carried).
