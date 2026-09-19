@@ -177,6 +177,18 @@ fn indexed_docs(library: &Library, publication_id: &str) -> usize {
         .unwrap()
 }
 
+/// A publication id with no row of any kind behind it — not a tombstone,
+/// which is still a row and which reconcile must honour rather than heal
+/// (`reconcile_never_resurrects_a_removed_book` pins that case).
+///
+/// Since v11 the row cannot simply be deleted: `publications_soft_delete`
+/// turns a `DELETE` into a tombstone. The one path that really takes the
+/// row out is `publications_view_insert` — a v10 binary re-importing the
+/// same bytes reads the tombstone-free view, misses the duplicate, and
+/// INSERTs; the trigger hard-deletes the tombstone first, because the base
+/// table's `UNIQUE(content_hash)` would otherwise fail the import. The old
+/// id's docs are then orphaned in the index with nothing left to name
+/// them, and only reconcile can drop them.
 #[test]
 fn reconcile_drops_docs_whose_publication_left_the_database() {
     let dir = tempfile::tempdir().unwrap();
@@ -191,11 +203,52 @@ fn reconcile_drops_docs_whose_publication_left_the_database() {
         id
     };
 
-    // Drop the row behind the core's back — what a crash mid-remove, or an
-    // older build, leaves behind. Only reconcile can heal it.
     let conn = rusqlite::Connection::open(data_dir.join("inkuna.db")).unwrap();
-    conn.execute("DELETE FROM publications_all WHERE id = ?1", [&id])
+    conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+    let hash: String = conn
+        .query_row(
+            "SELECT content_hash FROM publications_all WHERE id = ?1",
+            [&id],
+            |row| row.get(0),
+        )
         .unwrap();
+    // v10's own remove and re-import, both through the name v10 knows.
+    // v10-view-sql: v10's own statements, verbatim.
+    conn.execute("DELETE FROM publications WHERE id = ?1", [&id])
+        .unwrap();
+    conn.execute(
+        // v10-view-sql: v10's own statement, verbatim.
+        "INSERT INTO publications
+             (id, title, authors, language, text_encoding, format, file_path,
+              cover_path, content_hash, added_at, progression, reconciled_at)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        rusqlite::params![
+            "v10-new-id",
+            "月光書房",
+            "紫式部",
+            "ja",
+            None::<String>,
+            "epub",
+            "books/v10-new-id.epub",
+            None::<String>,
+            &hash,
+            1_000_i64,
+            0.0_f64,
+            1_000_i64,
+        ],
+    )
+    .unwrap();
+    let rows_left: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM publications_all WHERE id = ?1",
+            [&id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        rows_left, 0,
+        "the premise: no row at all, not even a tombstone"
+    );
     drop(conn);
 
     let library = Library::open(&data_dir).unwrap();
