@@ -69,8 +69,9 @@ glyph-run display lists; the shells own drawing (Core Text /
   archives with manual signing and uploads to TestFlight, Android builds a
   signed APK attached to a GitHub release.
 - `release-notes.yml` — standalone/reusable AI release-notes generation
-  (OpenAI chat completions; model/endpoint overridable via the `LLM_MODEL` /
-  `LLM_BASE_URL` repo variables), called by both release workflows.
+  (Gemini via its OpenAI-compatible chat-completions endpoint; model/endpoint
+  overridable via the `LLM_MODEL` / `LLM_BASE_URL` repo variables), called by
+  both release workflows.
 - Versions live in the component files (`core/Cargo.toml` workspace version,
   `apps/ios/project.yml`, `apps/android/app/build.gradle.kts`); bump them ONLY
   via `scripts/bump-version.sh <core|ios|android> <major|minor|patch|X.Y.Z>
@@ -79,7 +80,7 @@ glyph-run display lists; the shells own drawing (Core Text /
   from `ANDROID_*` secrets (keystore + credentials also live locally in
   `~/Documents/Dev/inkuna/`), iOS from `APPSTORE_*`/`IOS_*`/`APPLE_TEAM_ID` secrets
   (ExportOptions.plist is generated at CI time), website deploys from
-  `CLOUDFLARE_*` secrets, notes from `OPENAI_API_KEY`.
+  `CLOUDFLARE_*` secrets, notes from `GEMINI_API_KEY`.
 
 ## Git Conventions
 

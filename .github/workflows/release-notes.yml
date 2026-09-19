@@ -15,7 +15,7 @@ name: Release Notes
 # to Test"), release_notes.zh.md, and release_notes.ja.md.
 #
 # The call goes to the Gemini API's OpenAI-compatible chat-completions
-# endpoint with gemini-3.7-flash at high reasoning effort (the compatibility
+# endpoint with gemini-3.8-flash at high reasoning effort (the compatibility
 # layer maps reasoning_effort "high" to Gemini's thinking_level "high"). The
 # repository variables LLM_BASE_URL / LLM_MODEL can override the endpoint and
 # model without a workflow edit.
@@ -82,7 +82,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
-          LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-3.7-flash' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-3.8-flash' }}
           TAG: ${{ inputs.tag }}
           TAG_PATTERN: ${{ inputs.tag_pattern }}
           PATHS: ${{ inputs.paths }}
@@ -202,7 +202,7 @@ jobs:
           # the rule set above rewards deliberation. Gemini's OpenAI-compat
           # layer maps reasoning_effort "high" to thinking_level "high". The
           # completion cap is shared between thinking and the answer; Gemini
-          # 3.7 Flash tops out at 64k output tokens and even the trilingual
+          # 3.8 Flash tops out at 64k output tokens and even the trilingual
           # notes stay under 3k, so it is pure thinking headroom.
           request_notes() {
             curl -s --max-time 600 "${LLM_BASE_URL%/}/chat/completions" \
