@@ -147,14 +147,28 @@ fn optimize_covers_reencodes_legacy_rows_once() {
     assert_eq!(library.optimize_covers().unwrap(), 0);
 }
 
-/// A tombstone must never reach the cover pass. Its `cover_path` is NULL,
-/// so the `removed_at IS NULL` filter looks redundant — but a tombstone
-/// that a restore is re-covering right now does have one, and the pass
-/// would then rewrite a file the restore owns and point a removed row at
-/// it. The filter is the guarantee; this pins it directly rather than
-/// through `cover_path`.
+/// What a removal actually leaves for the cover pass: no `cover_path` and
+/// no file. This is the invariant the pass's `removed_at IS NULL` filter
+/// sits on top of, reached the only way it can be reached — a real
+/// `remove`.
+///
+/// There is deliberately no test for that filter *itself*, because no
+/// reachable state can tell it apart from the `cover_path IS NOT NULL`
+/// clause beside it. Every tombstone producer nulls `cover_path` in the
+/// same statement that stamps `removed_at` (`Library::remove`, and V11's
+/// `publications_soft_delete` trigger for an old binary's hard delete),
+/// and restore is the reverse: `revive` sets `cover_path` and clears
+/// `removed_at` together, so the row is live again the instant it has a
+/// cover. Nor can the state be forced after the fact — V11's
+/// `publications_freeze_tombstone` trigger drops any UPDATE that would
+/// leave a tombstone a tombstone, and the `publications` view hides
+/// tombstones from the other direction. A tombstone carrying a
+/// `cover_path` is therefore unreachable, the filter is defense in depth,
+/// and a test that manufactured that row would only be testing itself.
+/// Should a future writer ever be able to leave a cover on a tombstone,
+/// that is when the filter becomes observable and wants its own test.
 #[test]
-fn optimize_covers_skips_a_tombstone() {
+fn a_removal_leaves_the_cover_pass_nothing_to_do() {
     let dir = tempfile::tempdir().unwrap();
     let data_dir = dir.path().join("data");
     let library = Library::open(&data_dir).unwrap();
@@ -163,16 +177,12 @@ fn optimize_covers_skips_a_tombstone() {
     write_epub(&book, "书名", "作者", "zh");
     let publication = imported(library.import(book.to_str().unwrap()).unwrap());
     let id = publication.id.clone();
-    library.remove(&id).unwrap();
 
-    // Put a full-resolution, very much optimizable cover back on the
-    // tombstone — the state a restore passes through, and the only way to
-    // tell the `removed_at` filter apart from the `cover_path IS NOT NULL`
-    // one it sits beside.
+    // A full-resolution cover the pass would certainly re-encode, planted
+    // while the book is still live — so "nothing to do" below cannot come
+    // from the cover being uninteresting.
     let legacy_rel = format!("covers/{id}.png");
-    let legacy_path = data_dir.join(&legacy_rel);
-    let original = png_bytes(1200, 1800);
-    std::fs::write(&legacy_path, &original).unwrap();
+    std::fs::write(data_dir.join(&legacy_rel), png_bytes(1200, 1800)).unwrap();
     library
         .writer
         .lock()
@@ -183,15 +193,29 @@ fn optimize_covers_skips_a_tombstone() {
         )
         .unwrap();
 
+    library.remove(&id).unwrap();
+
+    let (cover_path, removed_at): (Option<String>, Option<i64>) = library
+        .writer
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT cover_path, removed_at FROM publications_all WHERE id = ?1",
+            [&id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert!(removed_at.is_some(), "the row is a tombstone, not deleted");
+    assert_eq!(
+        cover_path, None,
+        "and a tombstone never keeps a cover to optimize"
+    );
+    assert!(!data_dir.join(&legacy_rel).exists(), "its file went too");
+
     assert_eq!(
         library.optimize_covers().unwrap(),
         0,
         "a removed book is not the cover pass's business"
-    );
-    assert_eq!(
-        std::fs::read(&legacy_path).unwrap(),
-        original,
-        "and its file was not touched"
     );
     assert!(!data_dir.join(format!("covers/{id}.webp")).exists());
 }
