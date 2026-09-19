@@ -65,6 +65,9 @@
     <string name="import_progress_title_one">Adding to your library</string>
     <string name="import_status_added">Added to your library</string>
     <string name="import_status_duplicate">Already in your library</string>
+    <string name="import_section_restored">Back with your progress</string>
+    <string name="import_status_restored">Back where you left off</string>
+    <string name="import_status_restored_partial">Your progress came back, but not the exact page</string>
     <string name="import_subtitle_cancelled">you stopped the rest</string>
     <string name="import_subtitle_duplicate_many">%1$d were already in your library</string>
     <string name="import_subtitle_duplicate_one">1 was already in your library</string>

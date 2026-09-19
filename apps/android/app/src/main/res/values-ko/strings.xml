@@ -135,7 +135,7 @@
     <!-- Removing a book -->
     <string name="remove_action">서재에서 삭제</string>
     <string name="remove_confirm_title">‘%1$s’을(를) 삭제할까요?</string>
-    <string name="remove_confirm_body">이 기기에서 책과 읽은 진도가 삭제됩니다. 되돌릴 수 없습니다.</string>
+    <string name="remove_confirm_body">책 파일만 삭제됩니다. 읽던 위치와 북마크는 그대로 남아 있어, 책을 다시 추가하면 이어서 읽을 수 있습니다.</string>
     <string name="remove_confirm_button">삭제</string>
     <string name="remove_cancel">취소</string>
     <string name="remove_failed">이 책을 삭제하지 못했습니다.</string>

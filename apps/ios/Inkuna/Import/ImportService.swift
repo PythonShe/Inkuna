@@ -187,6 +187,11 @@ enum ImportService {
             .imported(publication, fileName: file.fileName)
         case .success(.duplicate(let publication)):
             .duplicate(publication, fileName: file.fileName)
+        case .success(.restored(let publication, let coordinatesRestored)):
+            .restored(
+                RestoredBook(publication: publication, coordinatesRestored: coordinatesRestored),
+                fileName: file.fileName
+            )
         case .success(.failed(_, let error)):
             // The path in a `.failed` item is our staging path, which means
             // nothing to the user — name the file they picked instead.

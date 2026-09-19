@@ -60,6 +60,9 @@
     <string name="import_progress_title_one">Добавление в медиатеку</string>
     <string name="import_status_added">Добавлено в библиотеку</string>
     <string name="import_status_duplicate">Уже в библиотеке</string>
+    <string name="import_section_restored">Прогресс восстановлен</string>
+    <string name="import_status_restored">Можно продолжить с того места, где вы остановились</string>
+    <string name="import_status_restored_partial">Прогресс вернулся, но не точная страница</string>
     <string name="import_subtitle_cancelled">остальные были отменены вами</string>
     <string name="import_subtitle_duplicate_many">%1$d уже были в библиотеке</string>
     <string name="import_subtitle_duplicate_one">1 уже была в библиотеке</string>

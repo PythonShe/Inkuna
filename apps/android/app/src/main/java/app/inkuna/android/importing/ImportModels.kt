@@ -28,6 +28,28 @@ data class ImportedBook(
 }
 
 /**
+ * A book whose content matched one the reader had removed.
+ *
+ * Removal is a tombstone, not an erasure: the file and cover go, the
+ * reading history stays. Importing the same content again attaches that
+ * history back to it — position, bookmarks, sessions, finished state — so
+ * this is an addition the reader is owed a different sentence about than a
+ * plain import.
+ */
+@Immutable
+data class RestoredBook(
+    val book: ImportedBook,
+    /**
+     * `false` when the exact position and bookmark coordinates could not be
+     * carried over, because the core's canonical text projection changed
+     * while the book was away. The book still reopens at its remembered
+     * progress, just not on the very page — which the report says plainly
+     * rather than promising a place it cannot keep.
+     */
+    val coordinatesRestored: Boolean,
+)
+
+/**
  * Why one file did not become a book.
  *
  * Both failure paths carry the same typed error since the FFI stopped
@@ -132,14 +154,25 @@ data class ImportFailure(
 data class ImportReport(
     val added: List<ImportedBook>,
     val duplicates: List<ImportedBook>,
+    /** Books that came back with the reading history their removal kept. */
+    val restored: List<RestoredBook>,
     val failures: List<ImportFailure>,
     val cancelled: Boolean,
 ) {
-    val total: Int get() = added.size + duplicates.size + failures.size
-    val changedLibrary: Boolean get() = added.isNotEmpty()
+    val total: Int get() = added.size + restored.size + duplicates.size + failures.size
+
+    /**
+     * How many books the shelf actually gained. A restore is an import that
+     * also brought a history back, so it counts here exactly like a plain
+     * one — it is on the shelf, and the report's title says so.
+     */
+    val enteredLibrary: Int get() = added.size + restored.size
+
+    val changedLibrary: Boolean get() = enteredLibrary > 0
 
     companion object {
-        val Empty = ImportReport(emptyList(), emptyList(), emptyList(), cancelled = false)
+        val Empty =
+            ImportReport(emptyList(), emptyList(), emptyList(), emptyList(), cancelled = false)
     }
 }
 

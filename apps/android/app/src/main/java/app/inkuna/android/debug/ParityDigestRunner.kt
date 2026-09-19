@@ -81,6 +81,9 @@ object ParityDigestRunner {
             val publicationId = when (imported) {
                 is ImportOutcome.Imported -> imported.publication.id
                 is ImportOutcome.Duplicate -> imported.publication.id
+                // A parity corpus book that was tombstoned by an earlier
+                // run is the same publication, digested the same way.
+                is ImportOutcome.Restored -> imported.publication.id
                 is ImportOutcome.Failed -> {
                     return ParityBookValue.StringValue("ERROR: ${errorMessage(imported.error)}")
                 }

@@ -124,7 +124,7 @@
     <!-- Removing a book -->
     <string name="remove_action">Usuń z biblioteki</string>
     <string name="remove_confirm_title">Usunąć „%1$s”?</string>
-    <string name="remove_confirm_body">Książka i Twoje postępy w czytaniu zostaną usunięte z tego urządzenia. Tej operacji nie można cofnąć.</string>
+    <string name="remove_confirm_body">Usuwany jest tylko plik książki. Twoje postępy w czytaniu i zakładki zostają zachowane – dodaj książkę ponownie, a wrócisz do ostatnio czytanego miejsca.</string>
     <string name="remove_confirm_button">Usuń</string>
     <string name="remove_cancel">Anuluj</string>
     <string name="remove_failed">Nie udało się usunąć tej książki.</string>

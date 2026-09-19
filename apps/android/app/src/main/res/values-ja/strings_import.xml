@@ -57,6 +57,9 @@
     <string name="import_progress_title_one">ライブラリに追加中</string>
     <string name="import_status_added">本棚に追加しました</string>
     <string name="import_status_duplicate">既に本棚にあります</string>
+    <string name="import_section_restored">進捗を引き継ぎました</string>
+    <string name="import_status_restored">続きから読めます</string>
+    <string name="import_status_restored_partial">進捗は戻りましたが、元のページまでは戻せませんでした</string>
     <string name="import_subtitle_cancelled">残りのインポートを中止しました</string>
     <string name="import_subtitle_duplicate_many">%1$d冊は既に本棚にあります</string>
     <string name="import_subtitle_duplicate_one">1冊は既に本棚にあります</string>

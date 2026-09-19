@@ -135,7 +135,7 @@
     <!-- Removing a book -->
     <string name="remove_action">ลบออกจากคลังหนังสือ</string>
     <string name="remove_confirm_title">ลบ “%1$s” ไหม</string>
-    <string name="remove_confirm_body">การลบจะเอาหนังสือและความคืบหน้าการอ่านออกจากอุปกรณ์นี้ และย้อนกลับไม่ได้</string>
+    <string name="remove_confirm_body">จะลบเฉพาะไฟล์หนังสือเท่านั้น ความคืบหน้าการอ่านและที่คั่นหน้ายังอยู่ครบ เพิ่มหนังสือเล่มนี้อีกครั้งก็อ่านต่อได้เลย</string>
     <string name="remove_confirm_button">ลบ</string>
     <string name="remove_cancel">ยกเลิก</string>
     <string name="remove_failed">ลบหนังสือเล่มนี้ไม่สำเร็จ</string>

@@ -76,17 +76,38 @@ struct ImportFailure: Sendable, Equatable {
 
 // MARK: - Outcomes
 
+/// A book whose content matched one the reader had removed.
+///
+/// Removal is a tombstone, not an erasure: the file and cover go, the
+/// reading history stays. Importing the same content again attaches that
+/// history back to it — position, bookmarks, sessions, finished state — so
+/// this is an addition the reader is owed a different sentence about than
+/// a plain import.
+struct RestoredBook: Sendable {
+    let publication: Publication
+    /// False when the exact position and bookmark coordinates could not be
+    /// carried over, because the core's canonical text projection changed
+    /// while the book was away. The book still reopens at its remembered
+    /// progress, just not on the very page — which the report says plainly
+    /// rather than promising a place it cannot keep.
+    let coordinatesRestored: Bool
+}
+
 /// One requested file's result, after both the shell's staging step and
 /// the core's pipeline have had their say.
 enum ImportItemOutcome: Sendable {
     case imported(Publication, fileName: String)
     /// The library already holds this content; nothing was added.
     case duplicate(Publication, fileName: String)
+    /// Added, and its kept reading history came back with it.
+    case restored(RestoredBook, fileName: String)
     case failed(ImportFailure)
 
     var fileName: String {
         switch self {
-        case .imported(_, let fileName), .duplicate(_, let fileName): fileName
+        case .imported(_, let fileName),
+             .duplicate(_, let fileName),
+             .restored(_, let fileName): fileName
         case .failed(let failure): failure.fileName
         }
     }
@@ -112,23 +133,37 @@ struct ImportReport: Sendable {
         items.compactMap { if case .duplicate(let publication, _) = $0 { publication } else { nil } }
     }
 
+    var restored: [RestoredBook] {
+        items.compactMap { if case .restored(let book, _) = $0 { book } else { nil } }
+    }
+
     var failures: [ImportFailure] {
         items.compactMap { if case .failed(let failure) = $0 { failure } else { nil } }
     }
 
     var isEmpty: Bool { items.isEmpty }
 
+    /// How many books the shelf actually gained. A restore is an import
+    /// that also brought a history back, so it counts here exactly like a
+    /// plain one — it is on the shelf, and the summary's title says so.
+    var addedToLibrary: Int { imported.count + restored.count }
+
     /// True when the library gained something and screens should reload.
-    var didChangeLibrary: Bool { !imported.isEmpty }
+    var didChangeLibrary: Bool { addedToLibrary > 0 }
 
     /// A run that added everything it was given, with nothing to explain.
+    ///
+    /// A restore is a success, but not a silent one: the reader was told
+    /// their progress would survive removal, and the moment it does is
+    /// worth a sentence rather than the same checkmark every import gets.
     var isCleanSuccess: Bool {
-        !items.isEmpty && duplicates.isEmpty && failures.isEmpty && !wasCancelled
+        !items.isEmpty && duplicates.isEmpty && failures.isEmpty && restored.isEmpty && !wasCancelled
     }
 
     /// Anything the user would want itemized — a duplicate they need named,
-    /// a file that did not make it — earns the summary sheet rather than a
-    /// toast that swallows the detail.
+    /// a book that came back with its history, a file that did not make it
+    /// — earns the summary sheet rather than a toast that swallows the
+    /// detail.
     var needsSummary: Bool {
         items.count > 1 && !isCleanSuccess
     }

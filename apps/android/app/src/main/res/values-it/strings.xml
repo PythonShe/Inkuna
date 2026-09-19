@@ -138,7 +138,7 @@
     <!-- Removing a book -->
     <string name="remove_action">Rimuovi dalla libreria</string>
     <string name="remove_confirm_title">Rimuovere «%1$s»?</string>
-    <string name="remove_confirm_body">Il libro e i tuoi progressi di lettura verranno eliminati da questo dispositivo. L\'operazione non è reversibile.</string>
+    <string name="remove_confirm_body">Viene eliminato solo il file del libro. I tuoi progressi di lettura e i segnalibri restano: aggiungi di nuovo il libro e riprenderai dal punto in cui avevi interrotto.</string>
     <string name="remove_confirm_button">Rimuovi</string>
     <string name="remove_cancel">Annulla</string>
     <string name="remove_failed">Non è stato possibile rimuovere questo libro.</string>

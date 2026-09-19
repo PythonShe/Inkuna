@@ -196,6 +196,15 @@ final class ImportSummaryViewController: UIViewController {
                 title = publication.title
                 detail = ImportCopy.statusDuplicate
                 detailColor = InkColor.textSecondary
+            case .restored(let book, _):
+                symbol = "bookmark.circle.fill"
+                tint = InkColor.accentText
+                title = book.publication.title
+                // The status, not the authors: a reader part-way through a
+                // book knows who wrote it, and whether they land back on
+                // their page is the news this row carries.
+                detail = ImportCopy.statusRestored(coordinates: book.coordinatesRestored)
+                detailColor = InkColor.textSecondary
             case .failed(let failure):
                 symbol = "exclamationmark.triangle.fill"
                 tint = InkColor.danger

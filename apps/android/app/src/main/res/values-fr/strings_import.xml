@@ -58,6 +58,9 @@
     <string name="import_progress_title_one">Ajout à la bibliothèque</string>
     <string name="import_status_added">Ajouté à votre bibliothèque</string>
     <string name="import_status_duplicate">Déjà dans votre bibliothèque</string>
+    <string name="import_section_restored">Avec votre progression</string>
+    <string name="import_status_restored">Vous reprenez là où vous en étiez</string>
+    <string name="import_status_restored_partial">Votre progression est revenue, mais pas la page exacte</string>
     <string name="import_subtitle_cancelled">vous avez arrêté le reste</string>
     <string name="import_subtitle_duplicate_many">%1$d étaient déjà dans votre bibliothèque</string>
     <string name="import_subtitle_duplicate_one">1 était déjà dans votre bibliothèque</string>

@@ -135,7 +135,7 @@
     <!-- Removing a book -->
     <string name="remove_action">從書庫中移除</string>
     <string name="remove_confirm_title">移除《%1$s》？</string>
-    <string name="remove_confirm_body">這會從本裝置刪除這本書和你的閱讀進度，且無法復原。</string>
+    <string name="remove_confirm_body">只會刪除書籍檔案。閱讀進度和書籤都會保留，重新加入這本書就能接著讀。</string>
     <string name="remove_confirm_button">移除</string>
     <string name="remove_cancel">取消</string>
     <string name="remove_failed">無法移除這本書。</string>

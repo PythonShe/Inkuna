@@ -73,6 +73,10 @@ enum ParityDigestRunner {
             switch imported {
             case let .imported(publication), let .duplicate(publication):
                 publicationID = publication.id
+            // A corpus book an earlier run tombstoned is the same
+            // publication, digested the same way.
+            case let .restored(publication, _):
+                publicationID = publication.id
             case let .failed(_, error):
                 return .string("ERROR: \(errorMessage(error))")
             }

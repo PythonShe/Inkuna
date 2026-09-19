@@ -49,6 +49,9 @@
     <string name="import_progress_title_one">Toevoegen aan uw bibliotheek</string>
     <string name="import_status_added">Toegevoegd aan uw bibliotheek</string>
     <string name="import_status_duplicate">Al in uw bibliotheek</string>
+    <string name="import_section_restored">Met uw leesvoortgang</string>
+    <string name="import_status_restored">U leest gewoon verder</string>
+    <string name="import_status_restored_partial">Uw leesvoortgang is terug, maar niet de exacte pagina</string>
     <string name="import_subtitle_cancelled">u heeft de rest geannuleerd</string>
     <string name="import_subtitle_duplicate_many">%1$d stonden al in uw bibliotheek</string>
     <string name="import_subtitle_duplicate_one">1 stond al in uw bibliotheek</string>
