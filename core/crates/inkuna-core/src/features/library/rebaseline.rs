@@ -87,7 +87,7 @@ fn run_with_hook(
             // and re-indexing would only put a zero-document tombstone
             // into the index. Move on to the next book.
             Ok(BookOutcome::Removed) => {
-                log::info!("rebaseline of {id} skipped: the book was removed mid-pass");
+                log::info!("rebaseline of {id} skipped: the row is no longer this pass's to write");
             }
             Ok(BookOutcome::Cancelled) => {
                 log::info!("v8 rebaseline cancelled; remaining books resume at the next open");
@@ -105,8 +105,10 @@ fn run_with_hook(
 enum BookOutcome {
     /// Written and committed; the caller re-indexes it.
     Reconciled,
-    /// The book was removed between the pending snapshot and the write
-    /// transaction: nothing was written, and the pass continues.
+    /// The row stopped being this pass's between the pending snapshot and
+    /// the write transaction — removed, or removed and re-imported, which
+    /// stamps `reconciled_at` on the way back in: nothing was written, and
+    /// the pass continues.
     Removed,
     /// Cancellation bailed out after extraction, before anything was
     /// written; the caller stops the pass.
@@ -177,22 +179,37 @@ fn rebaseline_book(
     }
 
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    // Liveness, rechecked under the write lock: `removed_at IS NULL` held
-    // when the pending snapshot was taken, but a `remove` since then has
-    // left the row alive as a tombstone — file and resources gone,
-    // `reconciled_at` deliberately NULL. Rebaselining it would convert the
-    // preserved legacy locators against an empty resource list, overwrite
-    // the coordinates the tombstone is keeping, and stamp it reconciled.
-    // A vanished row counts as removed for the same reason.
-    let live = tx
+    // The pass's own gate, rechecked under the write lock — both halves of
+    // it, not `removed_at` alone. `reconciled_at IS NULL AND removed_at IS
+    // NULL` held when the pending snapshot was taken, and either half can
+    // have moved since.
+    //
+    // A `remove` leaves the row alive as a tombstone — file and resources
+    // gone, `reconciled_at` deliberately NULL. Rebaselining it would
+    // convert the preserved legacy locators against an empty resource list,
+    // overwrite the coordinates the tombstone is keeping, and stamp it
+    // reconciled.
+    //
+    // A remove *plus a re-import* reads live again, which is why
+    // `removed_at` on its own is not the gate: the restore already stamped
+    // `reconciled_at` and wrote a fresh corpus, while this book's
+    // `resources` snapshot and its `None` corpus (the file was gone at
+    // extraction time) are both pre-removal. Proceeding would convert the
+    // restored book's locators with `(0, 0)` defaults and stamp it a second
+    // time. A vanished row counts as removed for the same reason.
+    let gate = tx
         .query_row(
-            "SELECT removed_at FROM publications_all WHERE id = ?1",
+            "SELECT removed_at, reconciled_at FROM publications_all WHERE id = ?1",
             [id],
-            |row| row.get::<_, Option<i64>>(0),
+            |row| {
+                Ok((
+                    row.get::<_, Option<i64>>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                ))
+            },
         )
-        .optional()?
-        .is_some_and(|removed_at| removed_at.is_none());
-    if !live {
+        .optional()?;
+    if !matches!(gate, Some((None, None))) {
         drop(tx);
         return Ok(BookOutcome::Removed);
     }

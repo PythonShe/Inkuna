@@ -708,3 +708,61 @@ fn book_removed_mid_pass_is_left_untouched() {
         .unwrap();
     assert_eq!(bookmark, (bookmark_locator.to_string(), None, None));
 }
+
+/// The other half of the same gate. `removed_at` alone is a proxy for the
+/// pass's gate, not the gate: a book removed **and re-imported** between
+/// the pending snapshot and the write transaction reads live again, and
+/// the restore that brought it back already stamped `reconciled_at` —
+/// its corpus, its `resources` rows and its positions are all freshly
+/// written and canonical. The pass is holding a pre-removal snapshot of
+/// none of that, so proceeding would rewrite a book it no longer owns and
+/// re-stamp the gate that says the work is done. Rechecking
+/// `reconciled_at IS NULL` beside `removed_at IS NULL` is what stops it.
+#[test]
+fn book_restored_mid_pass_is_left_untouched() {
+    let (dir, library, id) = unreconciled_book(None);
+    // The path the pending snapshot captured, before `remove` blanks it.
+    let file_path = library.publication(&id).unwrap().file_path;
+
+    library.remove(&id).unwrap();
+    match library
+        .import(dir.path().join("book.epub").to_str().unwrap())
+        .unwrap()
+    {
+        ImportOutcome::Restored { publication, .. } => assert_eq!(publication.id, id),
+        other => panic!("unexpected {other:?}"),
+    }
+    // The restore's own stamp, pinned to a value a re-stamp cannot
+    // coincide with — `unix_now()` has one-second granularity, so the
+    // rewrite would otherwise be invisible.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications_all SET reconciled_at = 1 WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+
+    let outcome = {
+        let mut conn = library.writer.lock().unwrap();
+        super::rebaseline_book(
+            &mut conn,
+            &library.data_dir,
+            &id,
+            &file_path,
+            &AtomicBool::new(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap()
+    };
+    assert!(
+        matches!(outcome, super::BookOutcome::Removed),
+        "the row stopped being this pass's the moment the restore stamped it"
+    );
+    assert_eq!(
+        publication_row(&library, &id).3,
+        Some(1),
+        "and the restore's stamp is not overwritten"
+    );
+}
