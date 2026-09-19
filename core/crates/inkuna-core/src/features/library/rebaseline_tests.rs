@@ -648,3 +648,63 @@ fn drop_mid_pass_terminates_and_resumes() {
     library.search.wait_for_reconcile();
     assert!(publication_row(&library, &id).3.is_some());
 }
+
+/// A book removed between the pending snapshot and its write transaction
+/// is a tombstone by the time `rebaseline_book` runs: its file and
+/// `resources` rows are gone, so converting its preserved legacy locators
+/// would land them at book start and stamp the tombstone reconciled,
+/// destroying the very history the tombstone exists to keep. The liveness
+/// recheck inside the transaction must leave every row untouched.
+#[test]
+fn book_removed_mid_pass_is_left_untouched() {
+    let locator = r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":0.5}}"#;
+    let (_dir, library, id) = unreconciled_book(Some(locator));
+    let bookmark_locator = r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":0.25}}"#;
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "INSERT INTO bookmarks
+                 (id, publication_id, locator, position_spine_idx, position_char_offset,
+                  progression, created_at)
+             VALUES ('bm-legacy', ?1, ?2, NULL, NULL, 0.25, 100)",
+            rusqlite::params![&id, bookmark_locator],
+        )
+        .unwrap();
+    }
+    // The path the pending snapshot captured, before `remove` blanks it.
+    let file_path = library.publication(&id).unwrap().file_path;
+    library.remove(&id).unwrap();
+
+    let outcome = {
+        let mut conn = library.writer.lock().unwrap();
+        super::rebaseline_book(
+            &mut conn,
+            &library.data_dir,
+            &id,
+            &file_path,
+            &AtomicBool::new(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap()
+    };
+    assert!(matches!(outcome, super::BookOutcome::Removed));
+
+    // The preserved position, its legacy locator, and the fail-safe NULL
+    // `reconciled_at` all survive exactly as `remove` left them.
+    assert_eq!(
+        publication_row(&library, &id),
+        (None, None, Some(locator.to_string()), None)
+    );
+    let bookmark: (String, Option<i64>, Option<i64>) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT locator, position_spine_idx, position_char_offset FROM bookmarks WHERE id = 'bm-legacy'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(bookmark, (bookmark_locator.to_string(), None, None));
+}

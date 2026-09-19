@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use inkuna_content::{MAX_TOTAL_TEXT_BYTES, resolve_href, split_fragment};
 use inkuna_engine::extract_corpus;
-use rusqlite::{Connection, TransactionBehavior};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 
 use crate::CoreError;
 use crate::core::db::open_connection;
@@ -82,8 +82,14 @@ fn run_with_hook(
         // transaction alone; the book retries at the next open because
         // `reconciled_at` was never stamped.
         match rebaseline_book(&mut conn, data_dir, &id, &file_path, cancel, &mut hook) {
-            Ok(true) => reindex_book(&conn, index, &id),
-            Ok(false) => {
+            Ok(BookOutcome::Reconciled) => reindex_book(&conn, index, &id),
+            // Removed after this snapshot was taken: nothing was written,
+            // and re-indexing would only put a zero-document tombstone
+            // into the index. Move on to the next book.
+            Ok(BookOutcome::Removed) => {
+                log::info!("rebaseline of {id} skipped: the book was removed mid-pass");
+            }
+            Ok(BookOutcome::Cancelled) => {
                 log::info!("v8 rebaseline cancelled; remaining books resume at the next open");
                 return Ok(());
             }
@@ -93,6 +99,20 @@ fn run_with_hook(
     Ok(())
 }
 
+/// What one book's attempt did, as the pass needs to tell the three
+/// apart: only a reconciled book is re-indexed, and only cancellation
+/// stops the pass.
+enum BookOutcome {
+    /// Written and committed; the caller re-indexes it.
+    Reconciled,
+    /// The book was removed between the pending snapshot and the write
+    /// transaction: nothing was written, and the pass continues.
+    Removed,
+    /// Cancellation bailed out after extraction, before anything was
+    /// written; the caller stops the pass.
+    Cancelled,
+}
+
 /// One book: corpus extraction first, OUTSIDE any transaction, then all
 /// writes inside one IMMEDIATE transaction — a crash retries the whole
 /// book at the next open. Extraction is a whole book's parse + style +
@@ -100,8 +120,6 @@ fn run_with_hook(
 /// writers against the 5s busy_timeout; running it first changes nothing
 /// about idempotency (`reconciled_at` still gates, and a crash between
 /// extraction and the transaction just re-extracts at the next open).
-/// Returns `false` when cancellation bailed out after extraction, before
-/// anything was written.
 fn rebaseline_book(
     conn: &mut Connection,
     data_dir: &Path,
@@ -109,10 +127,10 @@ fn rebaseline_book(
     file_path: &str,
     cancel: &AtomicBool,
     hook: &mut impl FnMut(&str) -> Result<(), CoreError>,
-) -> Result<bool, CoreError> {
-    // Read outside the transaction too: a book deleted concurrently just
-    // makes this book's writes affect nothing — per-book fault isolation
-    // already covers that shape.
+) -> Result<BookOutcome, CoreError> {
+    // Read outside the transaction: a book removed concurrently is caught
+    // by the liveness recheck inside the write transaction below, before
+    // anything is written.
     let resources: Vec<ResourceRow> = {
         let mut stmt = conn.prepare_cached(
             "SELECT id, spine_idx, href FROM resources
@@ -155,10 +173,29 @@ fn rebaseline_book(
         None
     };
     if cancel.load(Ordering::Relaxed) {
-        return Ok(false);
+        return Ok(BookOutcome::Cancelled);
     }
 
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    // Liveness, rechecked under the write lock: `removed_at IS NULL` held
+    // when the pending snapshot was taken, but a `remove` since then has
+    // left the row alive as a tombstone — file and resources gone,
+    // `reconciled_at` deliberately NULL. Rebaselining it would convert the
+    // preserved legacy locators against an empty resource list, overwrite
+    // the coordinates the tombstone is keeping, and stamp it reconciled.
+    // A vanished row counts as removed for the same reason.
+    let live = tx
+        .query_row(
+            "SELECT removed_at FROM publications WHERE id = ?1",
+            [id],
+            |row| row.get::<_, Option<i64>>(0),
+        )
+        .optional()?
+        .is_some_and(|removed_at| removed_at.is_none());
+    if !live {
+        drop(tx);
+        return Ok(BookOutcome::Removed);
+    }
     hook(id)?;
 
     let char_lens: Vec<Option<u64>> = if let Some(corpus) = &corpus {
@@ -273,7 +310,7 @@ fn rebaseline_book(
         rusqlite::params![unix_now(), id],
     )?;
     tx.commit()?;
-    Ok(true)
+    Ok(BookOutcome::Reconciled)
 }
 
 /// Legacy locator JSON → content coordinate, never failing:
