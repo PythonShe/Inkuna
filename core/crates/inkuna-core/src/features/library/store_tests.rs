@@ -934,3 +934,71 @@ fn v11_remove_revive_and_list_still_work_through_publications_all() {
         1
     );
 }
+
+/// Runs `body` with every pooled reader connection checked out, so any
+/// code that reaches for one blocks until this returns.
+fn with_pool_drained<T>(pool: &ReaderPool, left: usize, body: &mut dyn FnMut() -> T) -> T {
+    if left == 0 {
+        return body();
+    }
+    let mut out = None;
+    pool.with(|_| {
+        out = Some(with_pool_drained(pool, left - 1, body));
+        Ok(())
+    })
+    .unwrap();
+    out.expect("the pool ran the closure")
+}
+
+/// `remove` reads the paths it is about to unlink *through its own writer
+/// transaction*, not off the reader pool before taking the lock.
+///
+/// The `claimed != 1` guard underneath it does not cover this. That guard
+/// only notices a row that stopped being live; a row whose *paths* moved
+/// while it stayed live claims perfectly well, and the unlinks then run
+/// against the stale names. That race is real: `cover::backfill` rewrites
+/// `cover_path` on a live row under the writer lock and deletes the old
+/// file itself, so a `remove` holding a pre-lock read would unlink a name
+/// that is already gone and strand the cover the row actually points at.
+///
+/// Reaching in to time that race would mean pausing production code, so
+/// the invariant is pinned at its cause instead: with the reader pool
+/// drained to empty, a `remove` that wanted a pooled connection cannot
+/// get one, and the whole call has to complete without it. Moving the
+/// read back outside the transaction makes this block rather than trip an
+/// assertion, which is what the timeout is for. (A pre-lock read on some
+/// *fresh* connection would slip past — the reader pool is the only
+/// pre-lock read this code has ever had.)
+#[test]
+fn remove_reads_its_paths_through_its_own_transaction() {
+    let f = fixture();
+    let book = f.data_dir.join(&f.file_path);
+    let cover = f.data_dir.join(&f.cover_path);
+    assert!(book.exists() && cover.exists(), "there are files to unlink");
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let library = &f.library;
+    let id = f.id.as_str();
+    let finished = std::thread::scope(|scope| {
+        with_pool_drained(&library.readers, READER_POOL_SIZE, &mut || {
+            let tx = tx.clone();
+            scope.spawn(move || {
+                let _ = tx.send(library.remove(id));
+            });
+            // On the failing path this waits out the timeout, then lets
+            // the pool go so the blocked thread can finish and the scope
+            // can join it — the assertion happens after, not here.
+            rx.recv_timeout(std::time::Duration::from_secs(10))
+        })
+    });
+
+    finished
+        .expect(
+            "remove blocked with the reader pool empty: it is reading the paths \
+             it unlinks off a pooled connection before taking the writer lock, \
+             not through its own transaction",
+        )
+        .unwrap();
+    assert!(!book.exists(), "the file the row named is gone");
+    assert!(!cover.exists(), "and the cover it named");
+}
