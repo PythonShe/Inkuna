@@ -18,6 +18,12 @@ use crate::CoreError;
 
 pub(crate) const SCHEMA_VERSION: i64 = 12;
 
+// tombstone-guard-off:begin — V1 through V10 ran when `publications` WAS
+// the base table; V11 is what renames it. Every step below is shipped and
+// never edited, so the name stays as it was. The fence closes after V10:
+// V12 and everything after it name `publications_all` and are guarded like
+// any other code (see `no_sql_bypasses_the_tombstone_view`).
+
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
 CREATE TABLE publications (
@@ -188,6 +194,7 @@ ALTER TABLE settings ADD COLUMN haptics INTEGER NOT NULL DEFAULT 1;
 const V10_SQL: &str = "
 ALTER TABLE settings ADD COLUMN library_grid INTEGER NOT NULL DEFAULT 0;
 ";
+// tombstone-guard-off:end
 
 // 0011: tombstones. Removing a book frees its disk (file, cover, publisher
 // fonts, search docs) and drops every purely derived row — but keeps the
@@ -230,6 +237,11 @@ ALTER TABLE settings ADD COLUMN library_grid INTEGER NOT NULL DEFAULT 0;
 // v10 order, so later versions may add columns to the base table without
 // widening what v10 sees — and `rowid` explicitly, because v10's shelf
 // ordering breaks ties on it.
+//
+// tombstone-guard-off:begin — V11 is the one step that legitimately says
+// `publications` meaning something other than the base table: it renames
+// the table away from that name, creates the view under it, and hangs the
+// `INSTEAD OF` triggers off it.
 const V11_SQL: &str = "
 ALTER TABLE publications ADD COLUMN removed_at    INTEGER;
 ALTER TABLE publications ADD COLUMN corpus_digest TEXT;
@@ -367,6 +379,7 @@ BEGIN
      NEW.reconciled_at);
 END;
 ";
+// tombstone-guard-off:end
 
 // 0012: edition identity, so the finished-books stat counts editions rather
 // than rows. `content_hash` cannot see that a book you finished, removed,
@@ -604,6 +617,8 @@ fn backfill_title_keys(tx: &Transaction) -> Result<(), CoreError> {
 /// Runs inside the V2 step, where `publications` is still the base table —
 /// V11 is what renames it to `publications_all` — so these statements name
 /// it as it was and must stay that way.
+// tombstone-guard-off:begin — same reason as the V1–V10 SQL above: this
+// body only ever executes at V2.
 fn adopt_legacy_rows(tx: &Transaction, data_dir: &Path) -> Result<(), CoreError> {
     let rows: Vec<(String, String, String)> = {
         let mut stmt = tx.prepare("SELECT id, file_path, format FROM publications")?;
@@ -639,3 +654,4 @@ fn adopt_legacy_rows(tx: &Transaction, data_dir: &Path) -> Result<(), CoreError>
     }
     Ok(())
 }
+// tombstone-guard-off:end

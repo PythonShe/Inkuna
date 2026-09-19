@@ -579,16 +579,31 @@ fn migrate_refuses_a_future_schema() {
 /// The opt-out is deliberate and per-statement: a test that means to speak
 /// v10 through the view says so with a `v10-view-sql` marker on the line or
 /// the line above it. Skipping test files wholesale would cost the guard
-/// its teeth exactly where the footgun is easiest to fire.
+/// its teeth exactly where the footgun is easiest to fire — and so would
+/// skipping `migrate.rs`, which is where V13 and everything after it gets
+/// written. The historical SQL there is fenced by name instead, between a
+/// `tombstone-guard-off:begin` / `:end` pair, so new migration steps sit
+/// outside the fence and are guarded like any other code.
+///
+/// Matching is over a token stream for the whole file, not line by line:
+/// SQL in this crate is written as multi-line string literals, and a
+/// `FROM` that ends one line with `publications` opening the next is the
+/// same statement and the same bug.
 #[test]
 fn no_sql_bypasses_the_tombstone_view() {
     /// The word that excuses a match, for SQL that means the view.
     const MARKER: &str = "v10-view-sql";
-    /// How far above a match the marker may sit.
+    /// How far above the start of a match the marker may sit.
     const MARKER_LOOKBACK: usize = 3;
+    /// Opens/closes a fenced region where `publications` is not the view —
+    /// only the pre-V11 migration SQL, where it is still the base table,
+    /// and V11 itself, which creates the view and its `INSTEAD OF` triggers.
+    const FENCE_BEGIN: &str = "tombstone-guard-off:begin";
+    const FENCE_END: &str = "tombstone-guard-off:end";
     /// A bare `publications` after one of these is a statement against the
-    /// view, whatever the author meant.
-    const KEYWORDS: [&str; 4] = ["from", "into", "update", "join"];
+    /// view, whatever the author meant. `references` and `on` catch the
+    /// schema-level names — a child table's FK clause, an index, a trigger.
+    const KEYWORDS: [&str; 6] = ["from", "into", "update", "join", "references", "on"];
 
     fn rs_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         for entry in std::fs::read_dir(dir).unwrap() {
@@ -617,44 +632,58 @@ fn no_sql_bypasses_the_tombstone_view() {
 
     let mut offenders = Vec::new();
     for file in files {
-        // The migrations legitimately name both: every step before V11 runs
-        // when `publications` IS the table, and V11 itself creates the view.
-        if file.ends_with("core/db/migrate.rs") {
-            continue;
-        }
         let text = std::fs::read_to_string(&file).unwrap();
         let lines: Vec<&str> = text.lines().collect();
+
+        // One flat token stream, each token tagged with the line it came
+        // from, so an adjacent pair may straddle a newline. Comment lines
+        // never enter it: prose may name the view freely.
+        let mut fenced = false;
+        let mut tokens: Vec<(String, usize)> = Vec::new();
+        let mut fence: Vec<bool> = Vec::with_capacity(lines.len());
         for (idx, line) in lines.iter().enumerate() {
-            // Prose may name the view freely; only SQL is the hazard.
+            if line.contains(FENCE_BEGIN) {
+                fenced = true;
+            } else if line.contains(FENCE_END) {
+                fenced = false;
+            }
+            fence.push(fenced);
             let trimmed = line.trim_start();
             if trimmed.starts_with("//") || trimmed.starts_with("--") {
                 continue;
             }
-            let tokens = words(line);
-            let hit = tokens
-                .windows(2)
-                .any(|pair| KEYWORDS.contains(&pair[0].as_str()) && pair[1] == "publications");
-            if !hit {
+            tokens.extend(words(line).into_iter().map(|w| (w, idx)));
+        }
+        assert!(!fenced, "unclosed {FENCE_BEGIN} in {}", file.display());
+
+        for pair in tokens.windows(2) {
+            let (keyword, keyword_line) = &pair[0];
+            let (name, name_line) = &pair[1];
+            if !KEYWORDS.contains(&keyword.as_str()) || name != "publications" {
                 continue;
             }
-            // The match can land on a continuation line of a multi-line SQL
-            // literal, so the marker is allowed to sit a little above it —
-            // where the statement starts — not on that one line alone.
-            let excused = line.contains(MARKER)
-                || lines[idx.saturating_sub(MARKER_LOOKBACK)..idx]
-                    .iter()
-                    .any(|above| above.contains(MARKER));
-            if !excused {
-                let relative = file.strip_prefix(&src).unwrap_or(&file);
-                offenders.push(format!(
-                    "  {}:{}: {}",
-                    relative.display(),
-                    idx + 1,
-                    line.trim()
-                ));
+            if fence[*name_line] {
+                continue;
             }
+            // The marker may sit anywhere from a little above where the
+            // statement starts down to the line the name itself lands on.
+            let from = keyword_line.saturating_sub(MARKER_LOOKBACK);
+            if lines[from..=*name_line]
+                .iter()
+                .any(|line| line.contains(MARKER))
+            {
+                continue;
+            }
+            let relative = file.strip_prefix(&src).unwrap_or(&file);
+            offenders.push(format!(
+                "  {}:{}: {}",
+                relative.display(),
+                name_line + 1,
+                lines[*name_line].trim()
+            ));
         }
     }
+    offenders.dedup();
 
     assert!(
         offenders.is_empty(),
