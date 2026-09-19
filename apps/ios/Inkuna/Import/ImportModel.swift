@@ -58,6 +58,10 @@ enum ImportFailureReason: Error, Sendable, Equatable {
         // one somehow reaches import, with the core's own words.
         case .SchemaTooNew(let found, let supported):
             self = .unknown("database schema \(found) is newer than this build supports (\(supported))")
+        // A migration refused its own precondition, so the library never
+        // opened either — same reason as `.SchemaTooNew`, and the core's
+        // own words are what a bug report needs.
+        case .MigrationPrecondition(let detail): self = .unknown(detail)
         case .NotFound: self = .notFound
         // The search index is derived data and no part of import — as the
         // reader engine's own errors are no part of it either; if one of

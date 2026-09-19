@@ -121,6 +121,7 @@ data class ImportFailure(
             // to the user.
             is InkunaException.Database,
             is InkunaException.SchemaTooNew,
+            is InkunaException.MigrationPrecondition,
             is InkunaException.NotFound,
             is InkunaException.Search,
             is InkunaException.NotReady,
