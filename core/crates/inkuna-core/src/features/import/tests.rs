@@ -1984,3 +1984,74 @@ fn restoring_a_book_with_unconverted_legacy_bookmarks_leaves_it_for_the_rebaseli
         "and the bookmark locator itself is still there to convert"
     );
 }
+
+/// The content-hash race whose winner is a *tombstone*. This import is
+/// prepared while nothing holds the hash, so it takes the fresh path; by
+/// the time it reaches the writer lock another import has committed the
+/// same content and that book has been removed, which leaves the hash on a
+/// row no live-only lookup can see. Resolving the lost race against live
+/// rows alone reported `NotFound(<blake3 digest>)` — a raw hash surfaced to
+/// the reader as an error, for content the library demonstrably holds.
+///
+/// The coherent answer is the one `prepare_staged` would have given had it
+/// looked one moment later: a tombstone hit is not a duplicate, it is a
+/// restore, so the attempt starts over onto the removed book's id.
+#[test]
+fn a_tombstone_taking_the_hash_mid_import_resolves_to_a_restore() {
+    use super::budget::PersistBudget;
+    use super::pipeline::Prepared;
+
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("月光書房.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+
+    let prepared = match library.prepare_import(epub.to_str().unwrap()).unwrap() {
+        Prepared::Fresh(prepared) => *prepared,
+        Prepared::Duplicate(p) => panic!("unexpected duplicate of {}", p.id),
+    };
+    let loser_id = prepared.id.clone();
+
+    // Driven into the one window this stage cannot close from the inside:
+    // the staged files placed, the writer lock not yet taken.
+    let winner = std::cell::RefCell::new(String::new());
+    let outcome = library
+        .commit_import_hooked(prepared, PersistBudget::for_import(), &|| {
+            let id = imported(library.import(epub.to_str().unwrap()).unwrap()).id;
+            library.remove(&id).unwrap();
+            *winner.borrow_mut() = id;
+        })
+        .unwrap();
+    let winner = winner.into_inner();
+    assert_ne!(winner, loser_id, "the winner minted its own id");
+
+    let (publication, _) = restored(outcome);
+    assert_eq!(publication.id, winner, "restored onto the tombstone's id");
+    assert!(
+        data_dir.join(&publication.file_path).is_file(),
+        "a restored publication's book is on disk"
+    );
+    assert!(
+        data_dir
+            .join(publication.cover_path.as_ref().unwrap())
+            .is_file(),
+        "and so is its cover"
+    );
+    // Exactly one book, and nothing left over under the abandoned id.
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        1
+    );
+    assert!(!data_dir.join(format!("books/{loser_id}.epub")).exists());
+    assert!(
+        std::fs::read_dir(data_dir.join("covers"))
+            .unwrap()
+            .all(|entry| !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(&loser_id)),
+        "the abandoned attempt's cover goes with it"
+    );
+}

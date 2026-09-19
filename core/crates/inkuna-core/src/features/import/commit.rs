@@ -24,12 +24,18 @@
 use super::budget::PersistBudget;
 use super::model::ImportOutcome;
 use super::pipeline::PreparedImport;
-use super::restore;
+use super::restore::{self, HashMatch};
 use crate::core::files::sync_dir;
 use crate::core::time::unix_now;
-use crate::features::library::{join_authors, map_publication, title_key, Library, PUB_COLUMNS};
+use crate::features::library::{join_authors, title_key, Library};
 use crate::features::progress::synthetic_positions;
 use crate::{CoreError, Format, Publication};
+
+/// How many times one `commit_import` call may start over as a restore
+/// after losing the content-hash race to a tombstone. Two is already
+/// generous: each retry needs a *further* concurrent removal to land
+/// inside the same window.
+const MAX_COMMIT_ATTEMPTS: u8 = 2;
 
 impl Library {
     /// Writes the cover, renames the staged book into place and flushes
@@ -66,9 +72,24 @@ impl Library {
     /// that drives a concurrent removal into exactly that gap.
     pub(super) fn commit_import_hooked(
         &self,
+        prepared: PreparedImport,
+        budget: PersistBudget,
+        before_lock: &dyn Fn(),
+    ) -> Result<ImportOutcome, CoreError> {
+        self.commit_import_attempt(prepared, budget, before_lock, 0)
+    }
+
+    /// One commit attempt. `attempt` bounds the one path that starts over:
+    /// a commit that lost the content-hash race to a *tombstone* re-enters
+    /// here as a restore (see the lost-race arm below). Each retry needs
+    /// another concurrent removal to happen, so the bound is a guard rail,
+    /// not a expected-to-be-hit limit.
+    fn commit_import_attempt(
+        &self,
         mut prepared: PreparedImport,
         mut budget: PersistBudget,
         before_lock: &dyn Fn(),
+        attempt: u8,
     ) -> Result<ImportOutcome, CoreError> {
         // Taken out of `prepared` so the closures below can borrow it
         // independently of the fields the insert path moves.
@@ -341,27 +362,72 @@ impl Library {
             Ok(ImportOutcome::Imported(publication))
         } else {
             // Lost the race: another import committed the same content
-            // between our dedupe check and this write.
-            cleanup(true);
-            match self.publication_by_hash(&prepared.content_hash)? {
-                Some(existing) => Ok(ImportOutcome::Duplicate(existing)),
-                None => Err(CoreError::NotFound(prepared.content_hash)),
+            // between our dedupe check and this write. Read through the
+            // write to learn what it committed, tombstones included — the
+            // live-only lookup would report "no such hash" for content the
+            // library demonstrably holds and surface a raw BLAKE3 digest to
+            // the reader as `NotFound`.
+            match self.match_by_hash(&prepared.content_hash)? {
+                // The ordinary case: a live row holds the content.
+                HashMatch::Live(existing) => {
+                    cleanup(true);
+                    Ok(ImportOutcome::Duplicate(*existing))
+                }
+                // The winner committed and the book was removed again (or
+                // the winner was itself a restore that has since been
+                // removed). These bytes still belong on that tombstone's
+                // id — exactly what `prepare_staged` would have decided had
+                // it looked one moment later — so this attempt starts over
+                // as a restore rather than reporting a failure. The book
+                // this attempt already has on disk is handed to the retry;
+                // everything else it owns goes.
+                HashMatch::Removed(tombstone) if attempt < MAX_COMMIT_ATTEMPTS => {
+                    let source = if restoring {
+                        if let Some((tmp, _)) = &staged_cover {
+                            let _ = std::fs::remove_file(tmp);
+                        }
+                        staged_book.clone()
+                    } else {
+                        cleanup_files(false);
+                        final_path.clone()
+                    };
+                    let retry = PreparedImport {
+                        rel_path: format!("books/{}.epub", tombstone.id),
+                        id: tombstone.id.clone(),
+                        tmp_path: self
+                            .data_dir
+                            .join(format!("books/{}.tmp", uuid::Uuid::new_v4())),
+                        content_hash: prepared.content_hash,
+                        // Cloned, not moved: `publication` is this
+                        // attempt's record and the closures above still
+                        // borrow it. Four small strings on a path taken
+                        // only when a removal lands inside the race window.
+                        title: publication.title.clone(),
+                        authors: publication.authors.clone(),
+                        language: publication.language.clone(),
+                        text_encoding: publication.text_encoding.clone(),
+                        spine: prepared.spine,
+                        toc: prepared.toc,
+                        cover: prepared.cover,
+                        edition_key: prepared.edition_key,
+                        restore: Some(tombstone),
+                    };
+                    if let Err(e) = std::fs::rename(&source, &retry.tmp_path) {
+                        let _ = std::fs::remove_file(&source);
+                        return Err(e.into());
+                    }
+                    // A no-op hook: `before_lock` is this attempt's
+                    // injected race, already fired and not to be re-run.
+                    self.commit_import_attempt(retry, budget.restart(), &|| {}, attempt + 1)
+                }
+                // Out of retries, or the row vanished behind the core's
+                // back (a hard DELETE no import path performs).
+                _ => {
+                    cleanup(true);
+                    Err(CoreError::NotFound(prepared.content_hash))
+                }
             }
         }
-    }
-
-    /// The live publication holding this content, if any. Tombstones are
-    /// excluded on purpose: this answers "is it already in the library",
-    /// and a removed book is not.
-    pub(super) fn publication_by_hash(&self, hash: &str) -> Result<Option<Publication>, CoreError> {
-        self.readers.with(|conn| {
-            let mut stmt = conn.prepare_cached(&format!(
-                "SELECT {PUB_COLUMNS} FROM publications_all
-                 WHERE content_hash = ?1 AND removed_at IS NULL"
-            ))?;
-            let mut rows = stmt.query_map([hash], map_publication)?;
-            rows.next().transpose().map_err(Into::into)
-        })
     }
 }
 

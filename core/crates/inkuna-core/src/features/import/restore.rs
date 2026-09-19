@@ -203,7 +203,7 @@ impl Library {
     /// Everything the library knows about this content hash: nothing, a
     /// live duplicate, or a tombstone to restore onto. `content_hash` is
     /// uniquely indexed, so there is at most one row either way.
-    fn match_by_hash(&self, hash: &str) -> Result<HashMatch, CoreError> {
+    pub(super) fn match_by_hash(&self, hash: &str) -> Result<HashMatch, CoreError> {
         self.readers.with(|conn| {
             let mut stmt = conn.prepare_cached(&format!(
                 "SELECT {PUB_COLUMNS}, removed_at, corpus_digest
