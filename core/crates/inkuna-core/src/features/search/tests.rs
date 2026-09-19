@@ -628,3 +628,89 @@ fn the_post_pass_runs_after_the_reconcile_body() {
         "the post pass must be the last thing the thread does"
     );
 }
+
+/// The recorded `ANALYZER_ID` is what makes a stale index rebuild, and a
+/// recorded value nothing checks is a value that quietly stops being
+/// true. This is the check: bump jieba (or touch the folding, or a script
+/// range) in a way that moves one token and this test goes red, naming the
+/// value to write back — which is what discards every index already on
+/// disk. A jieba bump that moves nothing leaves it green and costs no
+/// reader a rebuild.
+#[test]
+fn the_recorded_analyzer_id_is_what_the_tokenizers_produce() {
+    let live = super::tokenize::analyzer_fingerprint();
+    assert_eq!(
+        live,
+        super::tokenize::ANALYZER_ID,
+        "the tokenizers no longer cut the probe corpus the way the recorded \
+         ANALYZER_ID says they do — segmentation changed, so every search \
+         index on disk is stale. Set ANALYZER_ID to {live:?} (in \
+         features/search/tokenize.rs); that is what makes those indexes \
+         rebuild on the next open."
+    );
+}
+
+/// The index's segment files, which are named after random segment ids —
+/// so a rebuilt index shares none of them. Tantivy's fixed bookkeeping
+/// names (`meta.json`, `.managed.json`, the lock files) are left out
+/// because they survive any rebuild and would make every set overlap.
+fn index_files(data_dir: &std::path::Path) -> std::collections::BTreeSet<String> {
+    let files: std::collections::BTreeSet<String> = std::fs::read_dir(data_dir.join("index"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| !name.starts_with('.') && name != "meta.json")
+        .collect();
+    assert!(!files.is_empty(), "the index has segments to compare");
+    files
+}
+
+/// An index built by a different segmenter is not stale data to be healed
+/// — every term in it was cut by rules this build no longer speaks — so it
+/// is discarded whole and rebuilt from `resource_text`.
+#[test]
+fn an_index_from_another_segmenter_is_discarded_and_rebuilt() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    {
+        let library = Library::open(&data_dir).unwrap();
+        imported_id(&library, &epub);
+        library.search.wait_for_reconcile();
+    }
+    let marker = data_dir.join("index.analyzer");
+    assert_eq!(
+        std::fs::read_to_string(&marker).unwrap(),
+        super::tokenize::ANALYZER_ID,
+        "the index is stamped with the analysis that built it"
+    );
+    let built = index_files(&data_dir);
+
+    // Control: the same build reopening its own index keeps it, segment
+    // files and all. Without this the assertion below would pass for an
+    // implementation that simply rebuilt every time.
+    {
+        let library = Library::open(&data_dir).unwrap();
+        library.search.wait_for_reconcile();
+        assert_eq!(index_files(&data_dir), built, "an index of ours is kept");
+    }
+
+    // Now the same index, stamped by some other segmenter.
+    std::fs::write(&marker, "some-other-segmenter").unwrap();
+    let library = Library::open(&data_dir).unwrap();
+    library.search.wait_for_reconcile();
+    assert!(
+        index_files(&data_dir).is_disjoint(&built),
+        "nothing of the old index survived: it was discarded, not reconciled"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&marker).unwrap(),
+        super::tokenize::ANALYZER_ID,
+        "and restamped, so the next open keeps it"
+    );
+
+    // And it really was rebuilt, not merely emptied.
+    let hits = library.search_all_books("窓辺", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].publication.title, "月光書房");
+}

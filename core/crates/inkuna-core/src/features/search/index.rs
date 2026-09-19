@@ -19,7 +19,7 @@ use tantivy::schema::{
 use tantivy::tokenizer::TextAnalyzer;
 use tantivy::{doc, Index, IndexReader, IndexWriter, ReloadPolicy, Searcher, TantivyDocument};
 
-use super::tokenize::{CjkUnigramTokenizer, WordTokenizer};
+use super::tokenize::{CjkUnigramTokenizer, WordTokenizer, ANALYZER_ID};
 use crate::core::db::open_connection;
 use crate::CoreError;
 
@@ -76,6 +76,34 @@ fn register_tokenizers(index: &Index) {
     );
 }
 
+/// Names the analysis the index on disk was built with — see
+/// `tokenize::analyzer_fingerprint`. It sits *beside* the index directory,
+/// not in it, so that wiping the index never takes the marker with it and
+/// tantivy never sees a file it does not manage.
+fn analyzer_marker(data_dir: &Path) -> PathBuf {
+    data_dir.join("index.analyzer")
+}
+
+/// An index is only as good as the segmentation that built it: jieba cuts
+/// 月光書房 into the terms a query is later cut into, so if that cutting
+/// ever changes, every term already on disk is from a different language
+/// than the one being asked. The index is derived data and always
+/// rebuildable, so the answer is simply to discard it — the same treatment
+/// an unopenable index gets, and the reconcile pass refills it from
+/// `resource_text`. CJK search is a product promise; a silently stale
+/// index is the one failure that would keep answering, wrongly.
+fn discard_index_from_another_analyzer(data_dir: &Path, dir: &Path) -> Result<(), CoreError> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    let stored = std::fs::read_to_string(analyzer_marker(data_dir)).ok();
+    if stored.as_deref() == Some(ANALYZER_ID) {
+        return Ok(());
+    }
+    std::fs::remove_dir_all(dir)?;
+    Ok(())
+}
+
 fn open_index(dir: &Path) -> Result<Index, CoreError> {
     std::fs::create_dir_all(dir)?;
     let mmap = tantivy::directory::MmapDirectory::open(dir)
@@ -86,10 +114,12 @@ fn open_index(dir: &Path) -> Result<Index, CoreError> {
 impl SearchIndex {
     /// Opens (creating if needed) the index at `<data_dir>/index/`. An
     /// index that cannot be opened — corrupt, or an incompatible older
-    /// schema — is deleted and recreated empty; the reconcile pass then
+    /// schema — is deleted and recreated empty; so is one segmented by a
+    /// different analyzer than this build's. The reconcile pass then
     /// re-fills it from `resource_text`.
     pub(crate) fn open(data_dir: &Path) -> Result<SearchIndex, CoreError> {
         let dir = data_dir.join("index");
+        discard_index_from_another_analyzer(data_dir, &dir)?;
         let index = match open_index(&dir) {
             Ok(index) => index,
             Err(_) => {
@@ -97,6 +127,9 @@ impl SearchIndex {
                 open_index(&dir)?
             }
         };
+        // Stamped only once the index is open, so a failure above leaves
+        // the old marker standing and the next open discards it again.
+        std::fs::write(analyzer_marker(data_dir), ANALYZER_ID)?;
         register_tokenizers(&index);
         let (_, fields) = schema();
         let writer = index
