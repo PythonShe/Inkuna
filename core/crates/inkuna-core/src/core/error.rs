@@ -35,6 +35,21 @@ pub enum CoreError {
     #[error("database schema too new: found version {found}, this build supports {supported}")]
     SchemaTooNew { found: i64, supported: i64 },
 
+    /// A migration refused to run because a precondition on the
+    /// connection it was handed did not hold. Today that is one thing:
+    /// V11 renames `publications` to `publications_all` and relies on
+    /// SQLite rewriting the five child tables' `REFERENCES` clauses, which
+    /// SQLite only does while `PRAGMA foreign_keys` is on. With it off the
+    /// rename silently leaves every child referencing what is now a view,
+    /// every later child insert fails with `foreign key mismatch`, and
+    /// `user_version` has already moved past V11 so no later open can
+    /// repair it. Refusing before the rename leaves the database exactly
+    /// as it was found, so fixing the connection setup and reopening is
+    /// the whole recovery. The detail names the precondition for logs; it
+    /// is not a user-facing string.
+    #[error("migration precondition failed: {0}")]
+    MigrationPrecondition(String),
+
     /// The zip container is damaged or uses something unsupported (a
     /// compression method, a corrupt central directory) — as distinct from
     /// a well-formed archive whose EPUB structure is wrong, which is

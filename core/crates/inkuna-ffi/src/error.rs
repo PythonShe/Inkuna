@@ -21,6 +21,11 @@ pub enum InkunaError {
     /// these numbers.
     #[error("database schema too new: found version {found}, this build supports {supported}")]
     SchemaTooNew { found: i64, supported: i64 },
+    /// A migration refused to run because a precondition on the database
+    /// connection did not hold — a build/packaging fault, not a fault in
+    /// the library. `detail` is for logs, not users.
+    #[error("migration precondition failed: {detail}")]
+    MigrationPrecondition { detail: String },
     #[error("archive error: {detail}")]
     Archive { detail: String },
     #[error("unsupported format{}", format.as_deref().map(|f| format!(": {f}")).unwrap_or_default())]
@@ -66,6 +71,7 @@ impl From<inkuna_core::CoreError> for InkunaError {
                 detail: e.to_string(),
             },
             C::SchemaTooNew { found, supported } => InkunaError::SchemaTooNew { found, supported },
+            C::MigrationPrecondition(m) => InkunaError::MigrationPrecondition { detail: m },
             C::Archive(m) => InkunaError::Archive { detail: m },
             C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat { format: f },
             C::InvalidPublication(m) => InkunaError::InvalidPublication { detail: m },

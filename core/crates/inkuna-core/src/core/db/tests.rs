@@ -669,6 +669,177 @@ fn no_sql_bypasses_the_tombstone_view() {
     );
 }
 
+/// V11 renames `publications` out from under five child tables and rests
+/// the whole rename on SQLite rewriting their `REFERENCES` clauses. If it
+/// did not, each clause would keep naming `publications` — a view since
+/// V11 — and every child insert would die with `foreign key mismatch`,
+/// unrepairably, because `user_version` is already past the step. Nothing
+/// else in the crate asserts the rewrite happened, so this does.
+#[test]
+fn child_tables_reference_the_renamed_base_table() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let mut conn = super::open_connection(&data_dir.join("inkuna.db")).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+
+    for child in [
+        "sessions",
+        "bookmarks",
+        "resources",
+        "chapters",
+        "resource_positions",
+    ] {
+        let parent: String = conn
+            .query_row(
+                &format!("SELECT \"table\" FROM pragma_foreign_key_list('{child}')"),
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            parent, "publications_all",
+            "{child} must reference the base table, not V11's view"
+        );
+    }
+
+    // And the rewrite is load-bearing at runtime, not just in the schema
+    // text: a child insert against a live book resolves its parent.
+    conn.execute(
+        "INSERT INTO publications_all
+            (id, title, authors, format, file_path, added_at, progression)
+         VALUES ('p1', 'Book', '', 'epub', 'books/p1.epub', 100, 0)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO sessions
+            (id, publication_id, started_at, updated_at,
+             start_progression, end_progression)
+         VALUES ('s1', 'p1', 1, 1, 0, 0.5)",
+        [],
+    )
+    .unwrap();
+    // A dangling parent is still refused, so the constraint is enforced
+    // rather than merely present.
+    assert!(
+        conn.execute(
+            "INSERT INTO sessions
+                (id, publication_id, started_at, updated_at,
+                 start_progression, end_progression)
+             VALUES ('s2', 'ghost', 1, 1, 0, 0.5)",
+            [],
+        )
+        .is_err(),
+        "the foreign key must still bite"
+    );
+}
+
+/// The rewrite above is a side effect of the rename that SQLite only
+/// guarantees while `PRAGMA foreign_keys` is on, and with it off the
+/// rename succeeds anyway — leaving a database no later open can repair,
+/// because the step has committed and `user_version` has moved on. (The
+/// same pragma is what lets `publications_soft_delete` clear a removed
+/// book's corpus through `resource_text`'s cascade, so it is doubly
+/// required.) `open_connection` enables it, but nothing in the schema
+/// depended on that until V11, and `deadpool-sqlite` — designated for the
+/// concurrent-DB work — would build its own connections, so the step
+/// refuses rather than rest on a setting made in another module.
+#[test]
+fn v11_refuses_the_rename_without_foreign_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, 10).unwrap();
+    }
+
+    // A connection with the pragma off — what a stock SQLite build gives
+    // by default, and what any future connection setup that forgets it
+    // would give here (`deadpool-sqlite` is already designated for the
+    // concurrent-DB work). rusqlite's bundled build defaults it on, so the
+    // fixture turns it off explicitly rather than relying on that.
+    let mut conn = Connection::open(&db_path).unwrap();
+    conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
+    let enabled: bool = conn
+        .pragma_query_value(None, "foreign_keys", |row| row.get(0))
+        .unwrap();
+    assert!(!enabled, "the fixture must have foreign keys off");
+
+    match super::migrate(&mut conn, &data_dir) {
+        Err(CoreError::MigrationPrecondition(detail)) => {
+            assert!(
+                detail.contains("foreign_keys"),
+                "the refusal must name the precondition, got {detail}"
+            );
+        }
+        other => panic!("v11 must refuse a connection without foreign keys, got {other:?}"),
+    }
+
+    // Refusing leaves the database exactly as it was found: still v10,
+    // `publications` still the real table, so reopening with a correct
+    // connection migrates it properly.
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 10);
+    let kind: String = conn
+        .query_row(
+            "SELECT type FROM sqlite_master WHERE name = 'publications'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(kind, "table", "the rename must not have happened");
+
+    drop(conn);
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, super::migrate::SCHEMA_VERSION);
+}
+
+/// The belt to that brace. The rewrite is a side effect nothing in the
+/// statement asks for — gated on pragmas and on the SQLite version, which
+/// before 3.25 did not do it at all — so V11 also checks the outcome
+/// before it is allowed to commit, and refuses rather than leave a
+/// database whose child inserts all fail with `foreign key mismatch`
+/// forever after. A v10 schema, where the children genuinely still
+/// reference `publications`, is exactly the shape a rename that did not
+/// rewrite would leave behind.
+#[test]
+fn the_v11_guard_rejects_child_references_left_behind() {
+    fn guard_at(stage: i64) -> Result<(), CoreError> {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().join("library");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let mut conn = super::open_connection(&data_dir.join("inkuna.db")).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, stage).unwrap();
+        let tx = conn.transaction().unwrap();
+        super::migrate::require_renamed_child_references(&tx)
+    }
+
+    // v11 onwards: the rename happened, so the guard passes.
+    guard_at(11).expect("a renamed schema must satisfy the guard");
+
+    // v10: the children reference `publications`, which is what a rename
+    // that did not rewrite would leave under V11's view.
+    match guard_at(10) {
+        Err(CoreError::MigrationPrecondition(detail)) => {
+            assert!(
+                detail.contains("sessions") && detail.contains("publications"),
+                "the refusal must name what was left behind, got {detail}"
+            );
+        }
+        other => panic!("the guard must reject an unrewritten schema, got {other:?}"),
+    }
+}
+
 /// A panic inside pooled work must not consume the connection. UniFFI
 /// catches panics at the boundary and keeps the app alive, so leaking one
 /// connection per panic would silently starve the pool and then block every

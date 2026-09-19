@@ -236,10 +236,12 @@ ALTER TABLE publications ADD COLUMN corpus_digest TEXT;
 
 -- RENAME TO rewrites the referencing FK clauses in `sessions`, `resources`,
 -- `chapters`, `bookmarks` and `resource_positions` and carries every index
--- over. Everything below is created *after* it, naming `publications_all`
--- outright, rather than created first and left to follow the rename — the
--- schema then says what it means without depending on how RENAME rewrites
--- a trigger body.
+-- over. That rewrite is a precondition of everything below, not a detail:
+-- `require_renamed_child_references` checks it actually happened before
+-- this step is allowed to commit. Everything below is created *after* the
+-- rename, naming `publications_all` outright, rather than created first and
+-- left to follow the rename — the schema then says what it means without
+-- depending on how RENAME rewrites a trigger body.
 ALTER TABLE publications RENAME TO publications_all;
 
 CREATE VIEW publications AS
@@ -455,7 +457,11 @@ fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(
             7 => tx.execute_batch(V8_SQL)?,
             8 => tx.execute_batch(V9_SQL)?,
             9 => tx.execute_batch(V10_SQL)?,
-            10 => tx.execute_batch(V11_SQL)?,
+            10 => {
+                require_foreign_keys(&tx)?;
+                tx.execute_batch(V11_SQL)?;
+                require_renamed_child_references(&tx)?;
+            }
             11 => {
                 tx.execute_batch(V12_SQL)?;
                 backfill_title_keys(&tx)?;
@@ -466,6 +472,94 @@ fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(
         tx.pragma_update(None, "user_version", version + 1)?;
         tx.commit()?;
     }
+}
+
+/// Child tables of `publications`, whose `REFERENCES` clauses V11's rename
+/// has to carry over to `publications_all`.
+const V11_CHILD_TABLES: [&str; 5] = [
+    "sessions",
+    "bookmarks",
+    "resources",
+    "chapters",
+    "resource_positions",
+];
+
+/// Refuses the V11 step on a connection with foreign keys disabled.
+///
+/// The rename below is the reason. SQLite rewrites the five child tables'
+/// `REFERENCES publications(id)` clauses to name `publications_all` as a
+/// side effect of `ALTER TABLE … RENAME TO`, and enabled foreign keys are
+/// what guarantee it: measured on 3.53, the rewrite survives
+/// `legacy_alter_table` being on only while this pragma is on, and
+/// SQLite's own ALTER TABLE documentation states the dependency outright.
+/// Without the rewrite all five clauses keep naming `publications`, which
+/// this step then turns into a view, and every later child insert dies
+/// with `foreign key mismatch` — unrepairably, because the step commits
+/// and `user_version` moves past it.
+///
+/// The cascade wants it too, independently: `resource_text` hangs off
+/// `resources` by `ON DELETE CASCADE` alone, and `publications_soft_delete`
+/// clears a removed book's corpus by deleting the `resources` rows and
+/// letting the cascade follow.
+///
+/// `open_connection` enables the pragma everywhere in this crate, but
+/// `deadpool-sqlite` is already designated for the concurrent-DB work and
+/// a pool builds its own connections; asserting it here puts the
+/// requirement next to the schema that depends on it rather than in
+/// another module. Refusing rolls the step back untouched, so correcting
+/// the connection and reopening is the entire recovery.
+fn require_foreign_keys(tx: &Transaction) -> Result<(), CoreError> {
+    let enabled: bool = tx.pragma_query_value(None, "foreign_keys", |row| row.get(0))?;
+    if !enabled {
+        return Err(CoreError::MigrationPrecondition(
+            "v11 needs PRAGMA foreign_keys=ON: ALTER TABLE ... RENAME TO only reliably \
+             rewrites the child tables' REFERENCES clauses while foreign keys are enabled, \
+             and the soft-delete trigger clears a removed book's corpus through \
+             resource_text's ON DELETE CASCADE"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Refuses the V11 step unless the rename actually carried the five child
+/// tables' `REFERENCES publications(id)` clauses over to
+/// `publications_all`.
+///
+/// Everything V11 builds rests on that rewrite, and nothing in the
+/// statement asks for it: `ALTER TABLE … RENAME TO` does it as a side
+/// effect, gated on pragmas (`foreign_keys`, `legacy_alter_table`) and on
+/// the SQLite version — before 3.25 it did not happen at all. A rename
+/// that does not rewrite leaves all five clauses naming `publications`,
+/// which this step then turns into a view; every later child insert dies
+/// with `foreign key mismatch` and no reopen repairs it, because the step
+/// has committed and `user_version` has moved past it.
+///
+/// So the outcome is checked rather than any pragma — `require_foreign_keys`
+/// already asserts the one that normally produces it, and this catches a
+/// rewrite that stopped happening for any other reason (an older SQLite, a
+/// future one that changes the side effect) rather than trusting it.
+/// Refusing here still rolls the whole step back: the rename and
+/// everything after it live in the migration's transaction, so the
+/// database is left at v10, exactly as it was found.
+pub(super) fn require_renamed_child_references(tx: &Transaction) -> Result<(), CoreError> {
+    for child in V11_CHILD_TABLES {
+        let parents: Vec<String> = {
+            let mut stmt = tx.prepare(&format!(
+                "SELECT \"table\" FROM pragma_foreign_key_list('{child}')"
+            ))?;
+            let rows = stmt.query_map([], |row| row.get(0))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        if !parents.iter().any(|parent| parent == "publications_all") {
+            return Err(CoreError::MigrationPrecondition(format!(
+                "v11 renamed `publications` but `{child}` still references {parents:?}: this \
+                 SQLite did not rewrite the child REFERENCES clauses (PRAGMA \
+                 legacy_alter_table must be off, and SQLite must be 3.25 or newer)"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Fills `title_key` for every existing row from the title already stored,
