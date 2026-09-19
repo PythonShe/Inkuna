@@ -23,6 +23,22 @@
 //! Tombstones are never scanned: their file is gone, so there is nothing
 //! to read, and V11 freezes them against writes anyway. They keep
 //! `edition_key` NULL and count as themselves — the safe direction.
+//!
+//! The pass also owns `title_key` repair, and that half exists because of
+//! V11's compatibility view. A shipped v10 binary writes `publications`
+//! without knowing V12 exists: its INSERT leaves `title_key` NULL, and its
+//! UPDATE rewrites `title` and leaves `title_key` describing the previous
+//! one. Neither can be fixed in the view's triggers — `title_key` is an
+//! NFKC, full-case-fold, whitespace-stripped normalization (`edition.rs`)
+//! that SQLite cannot express in SQL, and teaching v10 to call the
+//! normalizer is not on the table because v10 is already out in the world.
+//! So the repair lives on this side of the boundary instead:
+//! `repair_title_keys` recomputes the key for every live row and rewrites
+//! the ones that disagree, which closes the NULL case and the stale case
+//! with one pass and needs no signal from the writer that desynced them.
+//! It is pure normalization — no file access, no archive open — so it runs
+//! first and cheaply, ahead of the OPF scanning this module is otherwise
+//! about.
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -55,6 +71,7 @@ pub(crate) fn run(data_dir: &Path, db_path: &Path, cancel: &AtomicBool) {
 
 fn run_pass(data_dir: &Path, db_path: &Path, cancel: &AtomicBool) -> Result<(), CoreError> {
     let mut conn = open_connection(db_path)?;
+    repair_title_keys(&mut conn)?;
     let pending: Vec<(String, String)> = {
         let mut stmt = conn.prepare(
             // A tombstone has no file to read an identifier out of, so it
@@ -81,6 +98,66 @@ fn run_pass(data_dir: &Path, db_path: &Path, cancel: &AtomicBool) -> Result<(), 
             log::warn!("edition backfill of {id} failed (retries next open): {e}");
         }
     }
+    Ok(())
+}
+
+/// Brings every live row's `title_key` back in step with its `title`.
+///
+/// Recompute-and-compare rather than a worklist, because the rows that
+/// need it carry no marker: a v10 INSERT through V11's view leaves
+/// `title_key` NULL, and a v10 UPDATE through it leaves the previous
+/// title's key sitting beside the new title, indistinguishable in the row
+/// from a key that is still correct. Comparing is what finds both, and it
+/// is affordable — reading `(id, title, title_key)` for a library and
+/// normalizing each title is string work, not I/O, unlike the `edition_key`
+/// half of this pass.
+///
+/// Read and write share one IMMEDIATE transaction, which is what lets it
+/// skip the gate-recheck dance the `edition_key` half needs: there is no
+/// file to open between the two, so nothing can move the rows under the
+/// comparison and the transaction stays short. A library whose keys all
+/// agree commits nothing.
+///
+/// Tombstones are excluded, matching the rest of the pass: V11 freezes
+/// them, and a tombstone's `edition_key` is NULL forever, so it counts as
+/// itself whatever its `title_key` says. A restore rewrites both keys from
+/// the arriving file (`import/restore.rs`).
+fn repair_title_keys(conn: &mut Connection) -> Result<(), CoreError> {
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let stale: Vec<(String, String)> = {
+        let mut stmt = tx.prepare(
+            "SELECT id, title, title_key FROM publications_all WHERE removed_at IS NULL",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        })?;
+        rows.filter_map(|row| match row {
+            Ok((id, title, stored)) => {
+                let fresh = title_key(&title);
+                (stored.as_deref() != Some(fresh.as_str())).then_some(Ok((id, fresh)))
+            }
+            Err(e) => Some(Err(e)),
+        })
+        .collect::<Result<_, _>>()?
+    };
+    if stale.is_empty() {
+        return Ok(());
+    }
+    {
+        let mut update = tx.prepare(
+            "UPDATE publications_all SET title_key = ?1
+              WHERE id = ?2 AND removed_at IS NULL",
+        )?;
+        for (id, key) in &stale {
+            update.execute(rusqlite::params![key, id])?;
+        }
+    }
+    tx.commit()?;
+    log::info!("v12 title_key repair rewrote {} row(s)", stale.len());
     Ok(())
 }
 

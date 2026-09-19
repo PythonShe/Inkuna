@@ -311,3 +311,117 @@ fn the_repair_writes_the_whole_merge_key() {
     );
     assert!(scanned_at.is_some());
 }
+
+/// V11's compatibility view is a v10-shaped stand-in, and a v10 binary
+/// writing through it knows nothing about `title_key`: its INSERT leaves
+/// the column NULL, so the row's backfilled `edition_key` could never
+/// merge with anything — the stat needs both halves. The view's trigger
+/// cannot fill it either (NFKC + case fold + whitespace strip is not
+/// SQLite SQL), so the repair on this side of the boundary is what has to
+/// close it, with no cooperation from the old binary at all.
+#[test]
+fn a_v10_insert_through_the_view_gains_a_title_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    {
+        let library = Library::open(&data_dir).unwrap();
+        library.search.wait_for_reconcile();
+        let conn = library.writer.lock().unwrap();
+        // v10-view-sql: exactly what a shipped v10 build writes.
+        conn.execute(
+            "INSERT INTO publications
+                (id, title, authors, format, file_path, content_hash, added_at, progression)
+             VALUES ('v10', '　ＭＯＯＮ　書房　', '紫式部', 'epub', 'books/v10.epub',
+                     'hash-v10', 100, 0)",
+            [],
+        )
+        .unwrap();
+    }
+
+    // A current build opens the library; the pass runs off the open path.
+    let library = Library::open(&data_dir).unwrap();
+    library.search.wait_for_reconcile();
+    assert_eq!(
+        stored_title_key(&library, "v10").as_deref(),
+        Some("moon書房"),
+        "a row a v10 binary inserted must not keep a NULL title_key"
+    );
+}
+
+/// The other half: a v10 binary's UPDATE through the view rewrites `title`
+/// and leaves `title_key` describing the title before it — the desync
+/// `import/restore.rs` documents must not happen, arriving from the one
+/// writer that cannot be taught otherwise. The row is already stamped, so
+/// the `edition_key` pass has retired it and only the repair can see it.
+#[test]
+fn a_v10_retitle_through_the_view_does_not_leave_a_stale_title_key() {
+    let (_dir, library, id) = unscanned_book(UUID);
+    run(&library);
+    assert_eq!(stored_title_key(&library, &id).as_deref(), Some("月光書房"));
+    let (_, scanned_at) = edition_row(&library, &id);
+    assert!(scanned_at.is_some(), "the row is retired from the key pass");
+
+    {
+        let conn = library.writer.lock().unwrap();
+        // v10-view-sql: a v10 retitle, which writes no `title_key`.
+        conn.execute(
+            "UPDATE publications SET title = '新編　月光書房' WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        stored_title_key(&library, &id).as_deref(),
+        Some("月光書房"),
+        "the fixture must actually be stale before the repair runs"
+    );
+
+    run(&library);
+
+    assert_eq!(
+        stored_title_key(&library, &id).as_deref(),
+        Some("新編月光書房"),
+        "a title changed through the view must not leave its key behind"
+    );
+    // The repair touches the title key alone: the identity the OPF pass
+    // already parsed stays, and the row stays retired from that pass.
+    let (key, still_scanned) = edition_row(&library, &id);
+    assert_eq!(key.as_deref(), Some(KEY));
+    assert_eq!(still_scanned, scanned_at);
+}
+
+/// Tombstones are the rest of the pass's rule, and the repair keeps it:
+/// V11 freezes them, their `edition_key` is NULL forever, and a frozen row
+/// silently swallowing the write would make the repair look like it ran.
+#[test]
+fn the_repair_leaves_tombstones_alone() {
+    let (_dir, library, id) = unscanned_book(UUID);
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications_all
+                SET removed_at = 500, title = 'Retitled', title_key = NULL
+              WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+
+    run(&library);
+
+    assert_eq!(stored_title_key(&library, &id), None);
+}
+
+fn stored_title_key(library: &Library, id: &str) -> Option<String> {
+    library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT title_key FROM publications_all WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap()
+}
