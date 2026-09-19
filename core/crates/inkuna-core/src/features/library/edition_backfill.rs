@@ -21,8 +21,15 @@
 //! be newly gated behind a whole-library zip-open.
 //!
 //! Tombstones are never scanned: their file is gone, so there is nothing
-//! to read, and V11 freezes them against writes anyway. They keep
-//! `edition_key` NULL and count as themselves — the safe direction.
+//! to read, and V11 freezes them against writes anyway. They do not need
+//! this pass — `Library::remove` derives the identity while the file is
+//! still there and writes it in the statement that makes the row a
+//! tombstone, so a book removed by this build carries its merge key and
+//! merges like any other row. The one tombstone that reaches here unkeyed
+//! is one a shipped v10 binary made: its `DELETE FROM publications` lands
+//! as a tombstone through V11's trigger, which knows nothing of these
+//! columns. Such a row keeps `edition_key` NULL and counts as itself —
+//! the safe direction.
 //!
 //! The pass also owns `title_key` repair, and that half exists because of
 //! V11's compatibility view. A shipped v10 binary writes `publications`
@@ -119,9 +126,13 @@ fn run_pass(data_dir: &Path, db_path: &Path, cancel: &AtomicBool) -> Result<(), 
 /// agree commits nothing.
 ///
 /// Tombstones are excluded, matching the rest of the pass: V11 freezes
-/// them, and a tombstone's `edition_key` is NULL forever, so it counts as
-/// itself whatever its `title_key` says. A restore rewrites both keys from
-/// the arriving file (`import/restore.rs`).
+/// them, so the write would be dropped on the floor. Nothing is lost by
+/// it. `Library::remove` recomputes `title_key` from the row's own title
+/// as it tombstones, so a book removed by this build leaves here already
+/// repaired, and a restore rewrites both keys from the arriving file
+/// (`import/restore.rs`). What remains out of reach is a row a shipped v10
+/// binary retitled through the view and then deleted — stale `title_key`,
+/// frozen — and that row counts as itself, which is the safe direction.
 fn repair_title_keys(conn: &mut Connection) -> Result<(), CoreError> {
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let stale: Vec<(String, String)> = {

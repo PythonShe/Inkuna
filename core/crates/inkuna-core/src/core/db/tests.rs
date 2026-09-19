@@ -869,6 +869,73 @@ fn the_v11_guard_rejects_child_references_left_behind() {
     }
 }
 
+/// And the guard is wired into the migration, not merely tested beside it.
+///
+/// `require_foreign_keys` reaches its refusal through `migrate()` because
+/// its precondition is a pragma a test can just turn off. This one cannot:
+/// with foreign keys enabled — which the step already demands — SQLite
+/// rewrites the child clauses whatever else is set, so the failure it
+/// guards against is a *future* SQLite's, unreachable on this one. Without
+/// this test, deleting the call from `migrate_upto`'s v10 arm left the
+/// whole suite green: the guard function had its own coverage and the
+/// rewrite had its own coverage, and nothing joined them.
+///
+/// So the outcome is arranged instead of the cause. A v10 database whose
+/// `sessions` references something other than `publications` reaches v11
+/// with `sessions` still not naming `publications_all` — precisely the
+/// shape a rename that did not rewrite leaves — and the only thing that
+/// can turn that into a refusal is the call site.
+#[test]
+fn the_v11_step_runs_the_renamed_child_reference_guard() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate::migrate_to(&mut conn, &data_dir, 10).unwrap();
+    conn.execute_batch(
+        "DROP TABLE sessions;
+         CREATE TABLE sessions (
+             id                TEXT PRIMARY KEY,
+             publication_id    TEXT NOT NULL REFERENCES settings(id),
+             started_at        INTEGER NOT NULL,
+             ended_at          INTEGER,
+             updated_at        INTEGER NOT NULL,
+             start_progression REAL NOT NULL,
+             end_progression   REAL NOT NULL,
+             start_position    INTEGER,
+             end_position      INTEGER
+         );",
+    )
+    .unwrap();
+
+    match super::migrate(&mut conn, &data_dir) {
+        Err(CoreError::MigrationPrecondition(detail)) => {
+            assert!(
+                detail.contains("sessions") && detail.contains("rewrite"),
+                "the refusal must be the guard's own, got {detail}"
+            );
+        }
+        other => panic!("the v11 step must run the guard, got {other:?}"),
+    }
+
+    // And the refusal rolled the whole step back, exactly as its doc
+    // promises: still v10, `publications` still the real table.
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 10);
+    let kind: String = conn
+        .query_row(
+            "SELECT type FROM sqlite_master WHERE name = 'publications'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(kind, "table", "the rename must not have stood");
+}
+
 /// A view has no column defaults of its own, so an INSERT that omits one
 /// arrives at the base table as NULL and trips its NOT NULL check — where
 /// the same statement against the v10 table would have taken the default.

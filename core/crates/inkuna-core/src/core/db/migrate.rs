@@ -426,8 +426,13 @@ END;
 // re-open for every row, so a bounded background pass does it (chained
 // after the V8 rebaseline) and stamps every book it looked at, success or
 // failure, so an unreadable file is not retried on every open forever.
-// Tombstones have no file left and are never scanned; they keep
-// `edition_key` NULL and count as themselves.
+// Tombstones have no file left and are never on that pass's worklist, so
+// `Library::remove` derives the identity while the file is still there and
+// writes it in the same statement that tombstones the row — the last one
+// that can, since `publications_freeze_tombstone` drops every later write.
+// A tombstone therefore merges like any other row. The exception is one a
+// shipped v10 binary made, which knows nothing of these columns: it keeps
+// `edition_key` NULL and counts as itself.
 //
 // `title_key` IS backfilled here, in the migration: it is a pure function
 // of the stored title with no file access at all.
@@ -617,11 +622,13 @@ pub(super) fn require_renamed_child_references(tx: &Transaction) -> Result<(), C
 /// unlike `edition_key` it needs no background pass.
 ///
 /// V11's `publications_freeze_tombstone` trigger silently drops the write
-/// for a tombstone. That is harmless rather than a gap: a tombstone's file
-/// is gone, so its `edition_key` stays NULL forever, and the stat merges
-/// only when BOTH keys are present — a tombstone counts as itself either
-/// way. The loop still covers every row so nothing depends on that trigger
-/// staying as it is.
+/// for a tombstone. That is harmless rather than a gap. Any tombstone this
+/// migration can find was made by a shipped v10 binary — v11 and v12 ship
+/// together — so its file is gone and its `edition_key` can never be
+/// filled, and the stat merges only when BOTH keys are present: it counts
+/// as itself either way. Tombstones made from here on carry both keys,
+/// written by `Library::remove` before the row is frozen. The loop still
+/// covers every row so nothing depends on that trigger staying as it is.
 fn backfill_title_keys(tx: &Transaction) -> Result<(), CoreError> {
     let rows: Vec<(String, String)> = {
         let mut stmt = tx.prepare("SELECT id, title FROM publications_all")?;
