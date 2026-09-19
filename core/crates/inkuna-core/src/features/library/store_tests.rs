@@ -332,3 +332,52 @@ fn sweep_spares_live_files_and_clears_a_tombstones_font_cache() {
         1
     );
 }
+
+/// Two removals of one book, racing on the same row. `remove` reads the
+/// paths it is about to unlink *through* its writer transaction and acts
+/// only on a tombstone `UPDATE` that reported the row claimed, so exactly
+/// one call owns the deletion and the other finds a tombstone and says
+/// `NotFound`. Reading the row off the reader pool before the lock let
+/// both calls act on the same live snapshot and both report success —
+/// the stale read a concurrent restore could land in the middle of.
+///
+/// The writer lock is held while both threads start so the race is the
+/// real one and not two removals that happened to serialize.
+#[test]
+fn two_concurrent_removes_claim_the_row_exactly_once() {
+    let f = fixture();
+    let library = &f.library;
+    let id = f.id.as_str();
+
+    let gate = std::sync::Barrier::new(3);
+    let held = library.writer.lock().unwrap();
+    let (first, second) = std::thread::scope(|scope| {
+        let first = scope.spawn(|| {
+            gate.wait();
+            library.remove(id)
+        });
+        let second = scope.spawn(|| {
+            gate.wait();
+            library.remove(id)
+        });
+        gate.wait();
+        // Long enough for both threads to reach the writer lock (or, before
+        // the claim, to have read the live row).
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        drop(held);
+        (first.join().unwrap(), second.join().unwrap())
+    });
+
+    let loser = match (first, second) {
+        (Ok(()), Err(e)) | (Err(e), Ok(())) => e,
+        other => panic!("expected exactly one Ok and one NotFound, got {other:?}"),
+    };
+    match loser {
+        CoreError::NotFound(missing) => assert_eq!(missing, f.id),
+        other => panic!("expected NotFound, got {other:?}"),
+    }
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        0
+    );
+}

@@ -25,10 +25,19 @@ pub const PUBLISHER_FONT_DIR: &str = "pubfonts";
 
 /// The library facade: one SQLite DB plus core-owned book/cover storage
 /// under a single data dir. One writer connection (mutations only, each in
-/// a transaction; file I/O and parsing always happen outside the lock —
-/// [`remove`](Library::remove)'s unlinks are the one deliberate exception,
-/// and it says why) and a fixed reader pool so reads never queue behind an
-/// import.
+/// a transaction; copying, hashing and parsing always happen outside the
+/// lock) and a fixed reader pool so reads never queue behind an import.
+///
+/// The writer lock is also the ordering point for the files a publication
+/// owns, because a restore adopts a removed book's id and therefore writes
+/// to the very paths a removal deletes. Both sides settle that under the
+/// lock, and only after claiming the row in the same transaction:
+/// [`remove`](Library::remove) tombstones the live row and then unlinks,
+/// and the import commit renames a restored book and cover into place only
+/// once `revive` reported the tombstone claimed. The bounded file work
+/// either side does under the lock (a few renames and unlinks) is the one
+/// deliberate exception to "no I/O under the lock"; the rule is about the
+/// copy/hash/parse, which still happens outside it.
 pub struct Library {
     pub(crate) data_dir: PathBuf,
     pub(crate) writer: Mutex<Connection>,
@@ -105,16 +114,42 @@ impl Library {
     /// A tombstone is invisible to every library read, so from a shell's
     /// point of view the book is gone.
     ///
+    /// Nothing is read before the writer transaction opens: the paths to
+    /// unlink are read *through* it, and the row is only deleted from
+    /// after the tombstone `UPDATE` reports it claimed. A removed (or
+    /// concurrently removing) book is therefore `NotFound`, and two
+    /// removes of one book can never both reach the unlinks — which
+    /// matters because those paths are exactly the ones a restore of the
+    /// same content adopts.
+    ///
     /// File deletion is idempotent — missing files are not an error — and
     /// always confined to the data dir because DB paths are relative by
     /// construction (the font cache path is built from the id here).
-    /// Removing an already-removed book is `NotFound`, as before: the
-    /// lookup below cannot see a tombstone.
     pub fn remove(&self, id: &str) -> Result<(), CoreError> {
-        let publication = self.publication(id)?;
         {
             let mut conn = self.writer.lock().unwrap();
-            let tx = conn.transaction()?;
+            // Immediate: the row this reads is the row it is about to
+            // claim, so the write lock is taken up front rather than
+            // upgraded from under a snapshot read.
+            let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+
+            // Read through the transaction, never off the reader pool: a
+            // pre-lock read can go stale between the read and the claim,
+            // and these paths drive irreversible unlinks.
+            let paths = {
+                let mut stmt = tx.prepare(
+                    "SELECT file_path, cover_path FROM publications
+                      WHERE id = ?1 AND removed_at IS NULL",
+                )?;
+                let mut rows = stmt.query_map([id], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+                })?;
+                rows.next().transpose()?
+            };
+            let Some((file_path, cover_path)) = paths else {
+                return Err(CoreError::NotFound(id.to_string()));
+            };
+
             // Digested BEFORE the derived rows go: `resource_text` IS the
             // corpus these coordinates index, and in a moment it will not
             // exist. Restore digests the corpus it rebuilds and compares,
@@ -127,13 +162,19 @@ impl Library {
             // `reconciled_at` is cleared as a fail-safe: should any read
             // ever reach a tombstone, it must not be told its (now
             // deleted) corpus is canonical.
-            tx.execute(
+            let claimed = tx.execute(
                 "UPDATE publications
                     SET removed_at = ?1, corpus_digest = ?2, file_path = '',
                         cover_path = NULL, reconciled_at = NULL
                   WHERE id = ?3 AND removed_at IS NULL",
                 rusqlite::params![unix_now(), corpus_digest, id],
             )?;
+            if claimed != 1 {
+                // Unreachable: the row was read through this very
+                // transaction. Bail rather than delete the files of a row
+                // this call does not own.
+                return Err(CoreError::NotFound(id.to_string()));
+            }
             // The row stays, so these no longer cascade: drop them by hand.
             // `resource_text` still cascades from `resources`.
             for table in ["resources", "chapters", "resource_positions"] {
@@ -146,17 +187,20 @@ impl Library {
 
             // Still holding the writer lock, and deliberately so. A restore
             // of the same content claims this very id and writes its book
-            // and cover to these exact paths; if the unlinks ran after the
-            // lock was released, a restore that revived the row in between
-            // would have its files deleted out from under a live row, and
-            // nothing heals that (the sweep only removes *unreferenced*
-            // files). Reviving a tombstone needs this lock, so finishing
-            // the deletes under it orders them strictly before any restore.
-            // Three unlinks and one small directory removal is bounded,
-            // non-blocking work — not the copy/hash/parse the "no I/O under
-            // the lock" rule is about.
-            let _ = std::fs::remove_file(self.data_dir.join(&publication.file_path));
-            if let Some(cover) = &publication.cover_path {
+            // and cover to these exact paths. It renames them into place
+            // under this same lock, after its `revive` claimed the row, so
+            // holding the lock across these unlinks is what keeps them
+            // strictly before any restore's placement — and the claim
+            // above is what keeps a second remove from repeating them
+            // against files that restore has since put back. If the
+            // unlinks ran after the lock was released, a restore that
+            // revived in between would have its files deleted out from
+            // under a live row, and nothing heals that (the sweep only
+            // removes *unreferenced* files). Three unlinks and one small
+            // directory removal is bounded, non-blocking work — not the
+            // copy/hash/parse the "no I/O under the lock" rule is about.
+            let _ = std::fs::remove_file(self.data_dir.join(&file_path));
+            if let Some(cover) = &cover_path {
                 let _ = std::fs::remove_file(self.data_dir.join(cover));
             }
             let _ = std::fs::remove_dir_all(self.data_dir.join(PUBLISHER_FONT_DIR).join(id));
