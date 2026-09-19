@@ -152,6 +152,8 @@ enum ParityDigestRunner {
             return "format=\(format ?? "nil")"
         case let .NotFound(id):
             return "id=\(id)"
+        case let .SchemaTooNew(found, supported):
+            return "schema=\(found) supported=\(supported)"
         }
     }
 }

@@ -516,6 +516,53 @@ fn v12_migrates_from_v11() {
     assert_eq!(shelf[0].id, "p1");
 }
 
+/// The forward gate. Migrations are append-only and forward-only, so a
+/// `user_version` past this build's is a database written by a newer
+/// Inkuna: there is nothing to run, and reading it anyway is exactly the
+/// failure V11 had to spend a compatibility view containing. `Library::open`
+/// must refuse it rather than open a library it would misread.
+#[test]
+fn migrate_refuses_a_future_schema() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate(&mut conn, &data_dir).unwrap();
+        // A schema from a build that does not exist yet.
+        conn.pragma_update(None, "user_version", 99).unwrap();
+    }
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    match super::migrate(&mut conn, &data_dir) {
+        Err(CoreError::SchemaTooNew { found, supported }) => {
+            assert_eq!(found, 99);
+            assert_eq!(supported, super::migrate::SCHEMA_VERSION);
+            assert_eq!(supported, 12);
+        }
+        other => panic!("a future schema must be refused, got {other:?}"),
+    }
+    // Refusing changes nothing: the newer build's schema is left exactly as
+    // it was found, so the newer build still opens its own library.
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 99);
+
+    // And the refusal is what a shell sees, not a panic or an empty shelf.
+    drop(conn);
+    match Library::open(&data_dir) {
+        Err(CoreError::SchemaTooNew { found, supported }) => {
+            assert_eq!(found, 99);
+            assert_eq!(supported, 12);
+        }
+        Err(other) => panic!("`Library::open` must propagate the refusal, got {other:?}"),
+        Ok(_) => panic!("`Library::open` opened a database from a newer build"),
+    }
+}
+
 /// A panic inside pooled work must not consume the connection. UniFFI
 /// catches panics at the boundary and keeps the app alive, so leaking one
 /// connection per panic would silently starve the pool and then block every

@@ -395,7 +395,29 @@ CREATE INDEX idx_publications_edition ON publications_all(edition_key)
   WHERE edition_key IS NOT NULL;
 ";
 
+/// Brings the database up to `SCHEMA_VERSION`, or refuses it.
+///
+/// The downgrade gate lives here rather than in `migrate_upto` because
+/// only this entry point states "this build, against the whole schema it
+/// knows". `migrate_upto` is also driven with intermediate targets by the
+/// migration tests, which stage a database at a shipped version on the way
+/// somewhere else; a database standing past a *staging* target is normal
+/// and must keep falling through to the `version >= target` return.
+///
+/// Refusing is the correct outcome rather than a harsh one: migrations are
+/// append-only and forward-only, so a newer `user_version` means rows
+/// whose meaning this build does not know — v11 had to spend a whole view
+/// and four triggers containing what a shipped v10 binary does to a v11
+/// database precisely because no gate stood here. From now on the old
+/// build stops at the door instead.
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
+    let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if version > SCHEMA_VERSION {
+        return Err(CoreError::SchemaTooNew {
+            found: version,
+            supported: SCHEMA_VERSION,
+        });
+    }
     migrate_upto(conn, data_dir, SCHEMA_VERSION)
 }
 

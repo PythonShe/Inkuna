@@ -25,6 +25,16 @@ pub enum CoreError {
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
 
+    /// The database was written by a newer build than this one: its
+    /// `user_version` is past the schema this binary knows. Migrations are
+    /// append-only and forward-only, so there is nothing to run — and
+    /// opening it anyway is the failure mode this guard exists to stop, a
+    /// build reading rows whose meaning changed under a name it still
+    /// recognizes. Carries both versions so a shell can say how far ahead
+    /// the library is.
+    #[error("database schema too new: found version {found}, this build supports {supported}")]
+    SchemaTooNew { found: i64, supported: i64 },
+
     /// The zip container is damaged or uses something unsupported (a
     /// compression method, a corrupt central directory) — as distinct from
     /// a well-formed archive whose EPUB structure is wrong, which is

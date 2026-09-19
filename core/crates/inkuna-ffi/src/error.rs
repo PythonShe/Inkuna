@@ -15,6 +15,12 @@ pub enum InkunaError {
     FileTooLarge { limit: u64 },
     #[error("database error: {detail}")]
     Database { detail: String },
+    /// The library database was written by a newer build than this one, so
+    /// this build must not read it. `found` and `supported` are schema
+    /// versions, not app versions — a shell says "update Inkuna", never
+    /// these numbers.
+    #[error("database schema too new: found version {found}, this build supports {supported}")]
+    SchemaTooNew { found: i64, supported: i64 },
     #[error("archive error: {detail}")]
     Archive { detail: String },
     #[error("unsupported format{}", format.as_deref().map(|f| format!(": {f}")).unwrap_or_default())]
@@ -59,6 +65,7 @@ impl From<inkuna_core::CoreError> for InkunaError {
             C::Database(e) => InkunaError::Database {
                 detail: e.to_string(),
             },
+            C::SchemaTooNew { found, supported } => InkunaError::SchemaTooNew { found, supported },
             C::Archive(m) => InkunaError::Archive { detail: m },
             C::UnsupportedFormat(f) => InkunaError::UnsupportedFormat { format: f },
             C::InvalidPublication(m) => InkunaError::InvalidPublication { detail: m },

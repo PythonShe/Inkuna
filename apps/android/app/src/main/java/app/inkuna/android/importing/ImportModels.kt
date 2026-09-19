@@ -115,8 +115,12 @@ data class ImportFailure(
             // the book; a failure there is the library in trouble, not the
             // file — the same thing the reader needs to hear. The reader
             // engine's own errors are no part of import; if one ever
-            // surfaces here it is a core bug, reported as such.
+            // surfaces here it is a core bug, reported as such. A database
+            // from a newer build never opens at all, so import is never
+            // reached — it lands here for the same reason, not as advice
+            // to the user.
             is InkunaException.Database,
+            is InkunaException.SchemaTooNew,
             is InkunaException.NotFound,
             is InkunaException.Search,
             is InkunaException.NotReady,
