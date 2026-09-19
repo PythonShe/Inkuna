@@ -53,7 +53,8 @@ impl Library {
 
         let previous: Option<(f64, Option<i64>)> = tx
             .query_row(
-                "SELECT progression, finished_at FROM publications WHERE id = ?1",
+                "SELECT progression, finished_at FROM publications_all
+                 WHERE id = ?1 AND removed_at IS NULL",
                 [id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -82,7 +83,7 @@ impl Library {
 
         match coordinate {
             Some(coordinate) => tx.execute(
-                "UPDATE publications
+                "UPDATE publications_all
                  SET position_spine_idx = ?1, position_char_offset = ?2, progression = ?3,
                      last_opened_at = ?4, finished_at = ?5
                  WHERE id = ?6",
@@ -98,7 +99,7 @@ impl Library {
             // No coordinate to report: leave the stored one untouched
             // rather than overwriting it with a book-start placeholder.
             None => tx.execute(
-                "UPDATE publications
+                "UPDATE publications_all
                  SET progression = ?1, last_opened_at = ?2, finished_at = ?3
                  WHERE id = ?4",
                 rusqlite::params![progression, now, finished_at, id],
@@ -141,7 +142,8 @@ impl Library {
         let finished_at = finished.then(unix_now);
         let conn = self.writer.lock().unwrap();
         let changed = conn.execute(
-            "UPDATE publications SET finished_at = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET finished_at = ?1
+             WHERE id = ?2 AND removed_at IS NULL",
             rusqlite::params![finished_at, id],
         )?;
         if changed == 0 {

@@ -13,9 +13,16 @@ use std::path::Path;
 use rusqlite::{Connection, Transaction};
 
 use crate::core::files::copy_and_hash_unbounded;
+use crate::features::library::title_key;
 use crate::CoreError;
 
-pub(crate) const SCHEMA_VERSION: i64 = 10;
+pub(crate) const SCHEMA_VERSION: i64 = 12;
+
+// tombstone-guard-off:begin — V1 through V10 ran when `publications` WAS
+// the base table; V11 is what renames it. Every step below is shipped and
+// never edited, so the name stays as it was. The fence closes after V10:
+// V12 and everything after it name `publications_all` and are guarded like
+// any other code (see `no_sql_bypasses_the_tombstone_view`).
 
 // 0001: initial schema (shipped — iOS opens this DB; never edit).
 const V1_SQL: &str = "
@@ -187,8 +194,287 @@ ALTER TABLE settings ADD COLUMN haptics INTEGER NOT NULL DEFAULT 1;
 const V10_SQL: &str = "
 ALTER TABLE settings ADD COLUMN library_grid INTEGER NOT NULL DEFAULT 0;
 ";
+// tombstone-guard-off:end
 
+// 0011: tombstones. Removing a book frees its disk (file, cover, publisher
+// fonts, search docs) and drops every purely derived row — but keeps the
+// publication row itself, so the reading history hanging off it (sessions,
+// bookmarks, progression, finished state) survives and reattaches when the
+// same bytes come back. `removed_at` NULL means live; every read that means
+// "a book in the library" filters on it. The tombstone keeps its
+// `content_hash`, which is what re-import matches on.
+//
+// `corpus_digest` is what makes the reattachment safe. Every stored
+// coordinate is a `(spine_idx, char_offset)` index into the canonical text
+// projection, and `content_hash` identifies the *pre-conversion* source
+// bytes — so a re-imported MOBI/AZW3/TXT is re-converted and re-projected
+// by whatever build is running now, which may not produce the character
+// stream the coordinates were taken against. Removal therefore stamps a
+// digest of the corpus it is about to delete; restore digests the corpus it
+// just built and reattaches coordinates only on an exact match. NULL means
+// unknown provenance, which degrades exactly like a mismatch.
+//
+// In-table rather than a shelved copy on purpose: the stats overview
+// aggregates `sessions` with no join to `publications`, so moving session
+// rows anywhere would retroactively erase reading time from the weekly and
+// monthly figures.
+//
+// There is no downgrade gate, and v10 builds are already out in the world:
+// one of them opens this database and runs its own SQL against it. It knows
+// nothing about `removed_at`, so every statement it issues against
+// `publications` is written as if tombstones did not exist. Rather than
+// teach the old binary a filter it cannot learn, v11 makes the name it
+// queries mean what it always meant: the real table becomes
+// `publications_all` and `publications` becomes a v10-shaped view of the
+// live rows. A v10 build on a v11 database then behaves indistinguishably
+// from a v10 build on a v10 database — no ghost rows on the All shelf, no
+// unopenable entries, no "already in your library" for a file it cannot
+// see. Views and triggers are part of the schema, so they bind whichever
+// build opened the file.
+//
+// One case is deliberately NOT made indistinguishable: re-importing the
+// bytes of a book the user removed. v10 cannot see the tombstone, so it
+// would insert a second row for the same `content_hash`, and the only way
+// to let it is to delete the tombstone and cascade away the history the
+// tombstone exists to keep. `publications_view_insert` fails that one
+// import instead — the whole point of the containment is that a v10 build
+// can neither see nor destroy a tombstone, and a failed import is
+// recoverable where the destroyed history is not.
+//
+// Every v11+ read and write names `publications_all` directly; the view
+// exists solely for the old binary. It exposes exactly the v10 columns, in
+// v10 order, so later versions may add columns to the base table without
+// widening what v10 sees — and `rowid` explicitly, because v10's shelf
+// ordering breaks ties on it.
+//
+// tombstone-guard-off:begin — V11 is the one step that legitimately says
+// `publications` meaning something other than the base table: it renames
+// the table away from that name, creates the view under it, and hangs the
+// `INSTEAD OF` triggers off it.
+const V11_SQL: &str = "
+ALTER TABLE publications ADD COLUMN removed_at    INTEGER;
+ALTER TABLE publications ADD COLUMN corpus_digest TEXT;
+
+-- RENAME TO rewrites the referencing FK clauses in `sessions`, `resources`,
+-- `chapters`, `bookmarks` and `resource_positions` and carries every index
+-- over. That rewrite is a precondition of everything below, not a detail:
+-- `require_renamed_child_references` checks it actually happened before
+-- this step is allowed to commit. Everything below is created *after* the
+-- rename, naming `publications_all` outright, rather than created first and
+-- left to follow the rename — the schema then says what it means without
+-- depending on how RENAME rewrites a trigger body.
+ALTER TABLE publications RENAME TO publications_all;
+
+CREATE VIEW publications AS
+  SELECT rowid AS rowid,
+         id, title, authors, language, format, file_path, added_at,
+         progression, content_hash, cover_path, finished_at, last_opened_at,
+         locator, position_count, text_encoding, position_spine_idx,
+         position_char_offset, reconciled_at
+    FROM publications_all
+   WHERE removed_at IS NULL;
+
+-- A v10 `DELETE FROM publications WHERE id = ?` becomes the tombstone that
+-- v11 would have written, minus the `corpus_digest` it cannot know — NULL,
+-- which restore already treats as unknown provenance and degrades like a
+-- mismatch. The derived rows go by hand exactly as `remove` drops them
+-- (`resource_text` still cascades from `resources`), and RAISE(IGNORE)
+-- then cancels the delete itself, silently, so the old binary sees the
+-- success it expects.
+CREATE TRIGGER publications_soft_delete
+BEFORE DELETE ON publications_all
+WHEN OLD.removed_at IS NULL
+BEGIN
+  DELETE FROM resources          WHERE publication_id = OLD.id;
+  DELETE FROM chapters           WHERE publication_id = OLD.id;
+  DELETE FROM resource_positions WHERE publication_id = OLD.id;
+  UPDATE publications_all
+     SET removed_at    = CAST(strftime('%s','now') AS INTEGER),
+         file_path     = '',
+         cover_path    = NULL,
+         corpus_digest = NULL,
+         reconciled_at = NULL
+   WHERE id = OLD.id;
+  SELECT RAISE(IGNORE);
+END;
+
+-- A tombstone is frozen: any write that would leave it a tombstone is
+-- dropped on the floor. The view already keeps v10 away from tombstones
+-- entirely, so this now guards the v11+ side alone — a rebaseline or
+-- backfill pass that races a `remove` and reaches `publications_all`
+-- directly. Restore is the sole exception and identifies itself by
+-- clearing `removed_at` in the same statement.
+CREATE TRIGGER publications_freeze_tombstone
+BEFORE UPDATE ON publications_all
+WHEN OLD.removed_at IS NOT NULL AND NEW.removed_at IS NOT NULL
+BEGIN SELECT RAISE(IGNORE); END;
+
+-- A view is only writable through INSTEAD OF triggers, and v10 writes to
+-- this name. Each one forwards to the base table and then lets the
+-- triggers above have the last word: the delete below fires
+-- `publications_soft_delete`, whose RAISE(IGNORE) abandons the inner
+-- statement alone and lets this trigger program continue, so a v10 remove
+-- still lands as a tombstone.
+CREATE TRIGGER publications_view_delete
+INSTEAD OF DELETE ON publications
+BEGIN
+  DELETE FROM publications_all WHERE id = OLD.id;
+END;
+
+-- Writes back exactly the v10 columns; anything v11+ added keeps its
+-- stored value, because the old binary has no opinion about it. The view
+-- only ever yields live rows, so OLD.removed_at is NULL here and the
+-- freeze trigger never fires.
+CREATE TRIGGER publications_view_update
+INSTEAD OF UPDATE ON publications
+BEGIN
+  UPDATE publications_all
+     SET id                   = NEW.id,
+         title                = NEW.title,
+         authors              = NEW.authors,
+         language             = NEW.language,
+         format               = NEW.format,
+         file_path            = NEW.file_path,
+         added_at             = NEW.added_at,
+         progression          = NEW.progression,
+         content_hash         = NEW.content_hash,
+         cover_path           = NEW.cover_path,
+         finished_at          = NEW.finished_at,
+         last_opened_at       = NEW.last_opened_at,
+         locator              = NEW.locator,
+         position_count       = NEW.position_count,
+         text_encoding        = NEW.text_encoding,
+         position_spine_idx   = NEW.position_spine_idx,
+         position_char_offset = NEW.position_char_offset,
+         reconciled_at        = NEW.reconciled_at
+   WHERE id = OLD.id;
+END;
+
+-- `authors` and `progression` are the base table's only NOT NULL columns
+-- carrying a DEFAULT, and a view has no defaults of its own: an INSERT that
+-- omits either one arrives here with NEW.<col> NULL and would fail the
+-- base table's NOT NULL check, where against the v10 table it would have
+-- taken the default. COALESCE is what makes the view a faithful stand-in
+-- rather than a stricter one. (Today's v10 INSERT lists both columns, so
+-- this is the view keeping its promise, not a live bug being fixed.)
+--
+-- The one place the view alone is not enough. v10's dedupe reads through
+-- it, so a tombstone holding this content is invisible and the import
+-- proceeds to INSERT — straight into the base table's
+-- UNIQUE(content_hash). The import cannot be allowed to succeed: the only
+-- way to make room is to take the tombstone out, and that cascades the
+-- `sessions` and `bookmarks` the tombstone exists to keep (the row is not
+-- live, so `publications_soft_delete` does not fire and the delete is
+-- real). The v11-restores-v10-behaviour argument holds only on a v10
+-- database, where that history was never there; on a v11 database it IS
+-- there, and destroying it is exactly what the view was built to stop.
+--
+-- So the INSERT fails instead, explicitly and with a reason. v10 already
+-- has a path for it: a constraint violation rolls its transaction back,
+-- sweeps the file and cover it had staged, re-reads the view for the
+-- duplicate it lost to, finds none, and surfaces the import as failed —
+-- so the user is told the file could not be imported, retries on a
+-- current build, and gets the whole history back. A failed import is
+-- recoverable; deleted sessions and bookmarks are not.
+--
+-- RAISE(ABORT) rather than the UNIQUE index firing on its own: it says
+-- what happened in the error text, it holds if the index is ever changed,
+-- and it aborts before any row is touched. Its SQLITE_CONSTRAINT_TRIGGER
+-- is the same primary result code as the UNIQUE violation v10 already
+-- classifies as a lost dedupe race, so the old binary needs no new
+-- knowledge to take the safe path. A partial unique index — the other way
+-- to let the INSERT through — would let two rows share a hash and strand
+-- the tombstone for good.
+CREATE TRIGGER publications_view_insert
+INSTEAD OF INSERT ON publications
+BEGIN
+  SELECT RAISE(ABORT, 'publications.content_hash belongs to a removed book whose reading history is kept; re-import it with a newer build of Inkuna')
+    FROM publications_all
+   WHERE NEW.content_hash IS NOT NULL
+     AND content_hash = NEW.content_hash
+     AND removed_at IS NOT NULL;
+  INSERT INTO publications_all
+    (id, title, authors, language, format, file_path, added_at, progression,
+     content_hash, cover_path, finished_at, last_opened_at, locator,
+     position_count, text_encoding, position_spine_idx, position_char_offset,
+     reconciled_at)
+  VALUES
+    (NEW.id, NEW.title, COALESCE(NEW.authors, ''), NEW.language, NEW.format,
+     NEW.file_path, NEW.added_at, COALESCE(NEW.progression, 0),
+     NEW.content_hash, NEW.cover_path,
+     NEW.finished_at, NEW.last_opened_at, NEW.locator, NEW.position_count,
+     NEW.text_encoding, NEW.position_spine_idx, NEW.position_char_offset,
+     NEW.reconciled_at);
+END;
+";
+// tombstone-guard-off:end
+
+// 0012: edition identity, so the finished-books stat counts editions rather
+// than rows. `content_hash` cannot see that a book you finished, removed,
+// and re-imported as a differently-encoded copy is one book you finished —
+// the two files differ byte for byte — so `finished_at` counted it twice.
+//
+// `edition_key` is the normalized `dc:identifier` (UUID / checksum-valid
+// ISBN / DOI, nothing else — see `features/library/edition.rs`) and
+// `title_key` is the normalized title; the stat merges only on BOTH, so one
+// hardcoded `urn:uuid:` stamped across a publisher's whole catalogue still
+// cannot collapse a shelf. NULL in either means "no identity", and a book
+// with no identity counts as itself — the safe direction.
+//
+// `edition_scanned_at` is the backfill gate, not a timestamp anyone reads:
+// filling `edition_key` needs the book's OPF, which a migration cannot
+// re-open for every row, so a bounded background pass does it (chained
+// after the V8 rebaseline) and stamps every book it looked at, success or
+// failure, so an unreadable file is not retried on every open forever.
+// Tombstones have no file left and are never on that pass's worklist, so
+// `Library::remove` derives the identity while the file is still there and
+// writes it in the same statement that tombstones the row — the last one
+// that can, since `publications_freeze_tombstone` drops every later write.
+// A tombstone therefore merges like any other row. The exception is one a
+// shipped v10 binary made, which knows nothing of these columns: it keeps
+// `edition_key` NULL and counts as itself.
+//
+// `title_key` IS backfilled here, in the migration: it is a pure function
+// of the stored title with no file access at all.
+//
+// The partial index coexists with V11's triggers — a column add fires no
+// row trigger, and neither trigger references these columns. The columns
+// land on `publications_all` (V11 renamed the table out from under the
+// `publications` name, which is now a view); the view is deliberately
+// v10-shaped and needs no change, which is the whole point of listing its
+// columns explicitly.
+const V12_SQL: &str = "
+ALTER TABLE publications_all ADD COLUMN edition_key        TEXT;
+ALTER TABLE publications_all ADD COLUMN title_key          TEXT;
+ALTER TABLE publications_all ADD COLUMN edition_scanned_at INTEGER;
+
+CREATE INDEX idx_publications_edition ON publications_all(edition_key)
+  WHERE edition_key IS NOT NULL;
+";
+
+/// Brings the database up to `SCHEMA_VERSION`, or refuses it.
+///
+/// The downgrade gate lives here rather than in `migrate_upto` because
+/// only this entry point states "this build, against the whole schema it
+/// knows". `migrate_upto` is also driven with intermediate targets by the
+/// migration tests, which stage a database at a shipped version on the way
+/// somewhere else; a database standing past a *staging* target is normal
+/// and must keep falling through to the `version >= target` return.
+///
+/// Refusing is the correct outcome rather than a harsh one: migrations are
+/// append-only and forward-only, so a newer `user_version` means rows
+/// whose meaning this build does not know — v11 had to spend a whole view
+/// and four triggers containing what a shipped v10 binary does to a v11
+/// database precisely because no gate stood here. From now on the old
+/// build stops at the door instead.
 pub(crate) fn migrate(conn: &mut Connection, data_dir: &Path) -> Result<(), CoreError> {
+    let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if version > SCHEMA_VERSION {
+        return Err(CoreError::SchemaTooNew {
+            found: version,
+            supported: SCHEMA_VERSION,
+        });
+    }
     migrate_upto(conn, data_dir, SCHEMA_VERSION)
 }
 
@@ -226,6 +512,15 @@ fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(
             7 => tx.execute_batch(V8_SQL)?,
             8 => tx.execute_batch(V9_SQL)?,
             9 => tx.execute_batch(V10_SQL)?,
+            10 => {
+                require_foreign_keys(&tx)?;
+                tx.execute_batch(V11_SQL)?;
+                require_renamed_child_references(&tx)?;
+            }
+            11 => {
+                tx.execute_batch(V12_SQL)?;
+                backfill_title_keys(&tx)?;
+            }
             // The loop guard makes other values impossible.
             _ => return Ok(()),
         }
@@ -234,12 +529,131 @@ fn migrate_upto(conn: &mut Connection, data_dir: &Path, target: i64) -> Result<(
     }
 }
 
+/// Child tables of `publications`, whose `REFERENCES` clauses V11's rename
+/// has to carry over to `publications_all`.
+const V11_CHILD_TABLES: [&str; 5] = [
+    "sessions",
+    "bookmarks",
+    "resources",
+    "chapters",
+    "resource_positions",
+];
+
+/// Refuses the V11 step on a connection with foreign keys disabled.
+///
+/// The rename below is the reason. SQLite rewrites the five child tables'
+/// `REFERENCES publications(id)` clauses to name `publications_all` as a
+/// side effect of `ALTER TABLE … RENAME TO`, and enabled foreign keys are
+/// what guarantee it: measured on 3.53, the rewrite survives
+/// `legacy_alter_table` being on only while this pragma is on, and
+/// SQLite's own ALTER TABLE documentation states the dependency outright.
+/// Without the rewrite all five clauses keep naming `publications`, which
+/// this step then turns into a view, and every later child insert dies
+/// with `foreign key mismatch` — unrepairably, because the step commits
+/// and `user_version` moves past it.
+///
+/// The cascade wants it too, independently: `resource_text` hangs off
+/// `resources` by `ON DELETE CASCADE` alone, and `publications_soft_delete`
+/// clears a removed book's corpus by deleting the `resources` rows and
+/// letting the cascade follow.
+///
+/// `open_connection` enables the pragma everywhere in this crate, but
+/// `deadpool-sqlite` is already designated for the concurrent-DB work and
+/// a pool builds its own connections; asserting it here puts the
+/// requirement next to the schema that depends on it rather than in
+/// another module. Refusing rolls the step back untouched, so correcting
+/// the connection and reopening is the entire recovery.
+fn require_foreign_keys(tx: &Transaction) -> Result<(), CoreError> {
+    let enabled: bool = tx.pragma_query_value(None, "foreign_keys", |row| row.get(0))?;
+    if !enabled {
+        return Err(CoreError::MigrationPrecondition(
+            "v11 needs PRAGMA foreign_keys=ON: ALTER TABLE ... RENAME TO only reliably \
+             rewrites the child tables' REFERENCES clauses while foreign keys are enabled, \
+             and the soft-delete trigger clears a removed book's corpus through \
+             resource_text's ON DELETE CASCADE"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Refuses the V11 step unless the rename actually carried the five child
+/// tables' `REFERENCES publications(id)` clauses over to
+/// `publications_all`.
+///
+/// Everything V11 builds rests on that rewrite, and nothing in the
+/// statement asks for it: `ALTER TABLE … RENAME TO` does it as a side
+/// effect, gated on pragmas (`foreign_keys`, `legacy_alter_table`) and on
+/// the SQLite version — before 3.25 it did not happen at all. A rename
+/// that does not rewrite leaves all five clauses naming `publications`,
+/// which this step then turns into a view; every later child insert dies
+/// with `foreign key mismatch` and no reopen repairs it, because the step
+/// has committed and `user_version` has moved past it.
+///
+/// So the outcome is checked rather than any pragma — `require_foreign_keys`
+/// already asserts the one that normally produces it, and this catches a
+/// rewrite that stopped happening for any other reason (an older SQLite, a
+/// future one that changes the side effect) rather than trusting it.
+/// Refusing here still rolls the whole step back: the rename and
+/// everything after it live in the migration's transaction, so the
+/// database is left at v10, exactly as it was found.
+pub(super) fn require_renamed_child_references(tx: &Transaction) -> Result<(), CoreError> {
+    for child in V11_CHILD_TABLES {
+        let parents: Vec<String> = {
+            let mut stmt = tx.prepare(&format!(
+                "SELECT \"table\" FROM pragma_foreign_key_list('{child}')"
+            ))?;
+            let rows = stmt.query_map([], |row| row.get(0))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        if !parents.iter().any(|parent| parent == "publications_all") {
+            return Err(CoreError::MigrationPrecondition(format!(
+                "v11 renamed `publications` but `{child}` still references {parents:?}: this \
+                 SQLite did not rewrite the child REFERENCES clauses (PRAGMA \
+                 legacy_alter_table must be off, and SQLite must be 3.25 or newer)"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Fills `title_key` for every existing row from the title already stored,
+/// inside the V12 transaction: a pure normalization, no file access, so
+/// unlike `edition_key` it needs no background pass.
+///
+/// V11's `publications_freeze_tombstone` trigger silently drops the write
+/// for a tombstone. That is harmless rather than a gap. Any tombstone this
+/// migration can find was made by a shipped v10 binary — v11 and v12 ship
+/// together — so its file is gone and its `edition_key` can never be
+/// filled, and the stat merges only when BOTH keys are present: it counts
+/// as itself either way. Tombstones made from here on carry both keys,
+/// written by `Library::remove` before the row is frozen. The loop still
+/// covers every row so nothing depends on that trigger staying as it is.
+fn backfill_title_keys(tx: &Transaction) -> Result<(), CoreError> {
+    let rows: Vec<(String, String)> = {
+        let mut stmt = tx.prepare("SELECT id, title FROM publications_all")?;
+        let mapped = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        mapped.collect::<Result<_, _>>()?
+    };
+    let mut update = tx.prepare("UPDATE publications_all SET title_key = ?1 WHERE id = ?2")?;
+    for (id, title) in rows {
+        update.execute(rusqlite::params![title_key(&title), id])?;
+    }
+    Ok(())
+}
+
 /// Adopts every v1 row into core-owned storage: copy the external file into
 /// `books/<id>.<format>`, compute its BLAKE3 hash, rewrite `file_path`
 /// relative. Rows whose source file is missing or unreadable — or whose
 /// content duplicates an already-adopted row — are dropped. After this,
 /// every surviving row is core-owned: `remove()` is always safe and dedupe
 /// always has a hash.
+///
+/// Runs inside the V2 step, where `publications` is still the base table —
+/// V11 is what renames it to `publications_all` — so these statements name
+/// it as it was and must stay that way.
+// tombstone-guard-off:begin — same reason as the V1–V10 SQL above: this
+// body only ever executes at V2.
 fn adopt_legacy_rows(tx: &Transaction, data_dir: &Path) -> Result<(), CoreError> {
     let rows: Vec<(String, String, String)> = {
         let mut stmt = tx.prepare("SELECT id, file_path, format FROM publications")?;
@@ -275,3 +689,4 @@ fn adopt_legacy_rows(tx: &Transaction, data_dir: &Path) -> Result<(), CoreError>
     }
     Ok(())
 }
+// tombstone-guard-off:end

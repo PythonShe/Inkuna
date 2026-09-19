@@ -135,7 +135,7 @@
     <!-- Removing a book -->
     <string name="remove_action">Xóa khỏi thư viện</string>
     <string name="remove_confirm_title">Xóa “%1$s”?</string>
-    <string name="remove_confirm_body">Thao tác này xóa sách và tiến độ đọc khỏi thiết bị này. Không thể hoàn tác.</string>
+    <string name="remove_confirm_body">Chỉ tệp sách bị xóa. Tiến độ đọc và dấu trang sẽ được giữ lại.</string>
     <string name="remove_confirm_button">Xóa</string>
     <string name="remove_cancel">Hủy</string>
     <string name="remove_failed">Không thể xóa cuốn sách này.</string>

@@ -32,5 +32,5 @@ pub use model::{
 };
 pub use obfuscation::{deobfuscate, read_obfuscations, ObfuscatedResource, ObfuscationScheme};
 pub use opf::{MAX_MANIFEST_ITEMS, MAX_METADATA_VALUE_BYTES, MAX_SPINE_ITEMS};
-pub use package::read_package;
+pub use package::{read_metadata, read_package};
 pub use toc::{MAX_TOC_ENTRIES, MAX_TOC_TOTAL_BYTES};

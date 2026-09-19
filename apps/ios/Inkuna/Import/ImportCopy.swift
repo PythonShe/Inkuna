@@ -63,6 +63,21 @@ enum ImportCopy {
         return String.localizedStringWithFormat(format, Int64(count))
     }
 
+    /// A removed book, back with the place it was left at. The other half
+    /// of what the removal sheet promised, in the same words.
+    static func restoredOne(_ title: String) -> String {
+        let format = NSLocalizedString("import_toast_restored", comment: "")
+        return String.localizedStringWithFormat(format, title)
+    }
+
+    /// The same book, back with its progress but not its exact page. It
+    /// claims only what survived: never "where you left off", because the
+    /// reader will land somewhere else and know it.
+    static func restoredPartialOne(_ title: String) -> String {
+        let format = NSLocalizedString("import_toast_restored_partial", comment: "")
+        return String.localizedStringWithFormat(format, title)
+    }
+
     static func alreadyInLibrary(_ title: String) -> String {
         let format = NSLocalizedString("import_toast_already", comment: "")
         return String.localizedStringWithFormat(format, title)
@@ -88,13 +103,25 @@ enum ImportCopy {
     // MARK: Summary sheet
 
     static func summaryTitle(_ report: ImportReport) -> String {
-        let added = report.imported.count
+        // Restored books are on the shelf like any other, so they count
+        // toward the headline; what makes them different is said in their
+        // own row and in the subtitle.
+        let added = report.addedToLibrary
         return added > 0 ? addedMany(added) : nothingAdded
     }
 
     /// The line under the sheet title: what needs saying beyond the count.
     static func summarySubtitle(_ report: ImportReport) -> String? {
         var parts: [String] = []
+        // Good news first, and phrased at the level that holds for every
+        // restored book in the run: progress came back. Whether the exact
+        // page did is a per-book truth, so it stays on the book's own row.
+        if report.restored.count == 1 {
+            parts.append(String(localized: "import_subtitle_restored_one", defaultValue: "1 restored with progress"))
+        } else if report.restored.count > 1 {
+            let format = NSLocalizedString("import_subtitle_restored_many", comment: "")
+            parts.append(String.localizedStringWithFormat(format, Int64(report.restored.count)))
+        }
         if report.duplicates.count == 1 {
             parts.append(String(localized: "import_subtitle_duplicate_one", defaultValue: "1 was already in your library"))
         } else if report.duplicates.count > 1 {
@@ -120,6 +147,18 @@ enum ImportCopy {
 
     static var statusDuplicate: String {
         String(localized: "import_status_duplicate", defaultValue: "Already in your library")
+    }
+
+    /// One restored book's row detail. Said plainly in the honest case:
+    /// promising someone their place and then opening the book somewhere
+    /// else is worse than saying so up front.
+    static func statusRestored(coordinates: Bool) -> String {
+        coordinates
+            ? String(localized: "import_status_restored", defaultValue: "Back where you left off")
+            : String(
+                localized: "import_status_restored_partial",
+                defaultValue: "Progress restored, exact page unavailable"
+            )
     }
 
     // MARK: Failures

@@ -1,6 +1,6 @@
 use chrono::{DateTime, FixedOffset, TimeZone, Utc, Weekday};
 
-use crate::test_support::write_epub;
+use crate::test_support::{write_epub, write_epub_parts};
 use crate::{ImportOutcome, Library};
 
 const TOKYO_MINUTES: i32 = 9 * 60;
@@ -63,10 +63,153 @@ fn insert_session(
 fn set_finished_at(library: &Library, publication_id: &str, finished_at: i64) {
     let conn = library.writer.lock().unwrap();
     conn.execute(
-        "UPDATE publications SET finished_at = ?1 WHERE id = ?2",
+        "UPDATE publications_all SET finished_at = ?1 WHERE id = ?2",
         rusqlite::params![finished_at, publication_id],
     )
     .unwrap();
+}
+
+/// A minimal EPUB carrying a hand-written `dc:identifier` — the stock
+/// builder hardcodes its own. `filler` varies only the chapter bytes, so
+/// two calls sharing one identifier still produce two differently-hashed
+/// files: exactly the case content hashing cannot see through.
+fn write_identified_epub(path: &std::path::Path, title: &str, identifier: &str, filler: &str) {
+    let opf = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>{title}</dc:title>
+    <dc:identifier id="pub-id">{identifier}</dc:identifier>
+    <dc:creator>紫式部</dc:creator>
+    <dc:language>ja</dc:language>
+  </metadata>
+  <manifest>
+    <item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#
+    );
+    let chapter = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"><body><p>{filler}</p></body></html>"#
+    );
+    write_epub_parts(path, &opf, &[("ch01.xhtml", &chapter)]);
+}
+
+/// Imports one file and finishes it in January of the simulated year, the
+/// way `set_finished_at` does above — the machine clock is never consulted.
+fn import_and_finish(library: &Library, path: &std::path::Path) -> String {
+    let id = match library.import(path.to_str().unwrap()).unwrap() {
+        ImportOutcome::Imported(p) => p.id,
+        other => panic!("unexpected {other:?}"),
+    };
+    set_finished_at(library, &id, ts(2026, 1, 9, 23, 0));
+    id
+}
+
+/// `books_finished_this_year` for the simulated 2026 Tokyo calendar.
+fn finished_this_year(library: &Library) -> u32 {
+    library
+        .stats_overview_at(at(ts(2026, 3, 3, 22, 0)), "Asia/Tokyo", Weekday::Mon)
+        .unwrap()
+        .books_finished_this_year
+}
+
+/// Finish a book, remove it, then import a differently-encoded copy of the
+/// same edition and finish that: one book finished, not two. The tombstone
+/// keeps its `finished_at` on purpose (a book you finished stays finished),
+/// so without an edition identity the year counted both rows.
+#[test]
+fn two_copies_of_one_edition_finish_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let uuid = "urn:uuid:5c9b2f1e-8a3d-4f7b-9e2c-1d0a6b4f8e37";
+    let first = dir.path().join("first.epub");
+    let second = dir.path().join("second.epub");
+    write_identified_epub(&first, "月光書房", uuid, "初版の本文");
+    write_identified_epub(&second, "月光書房", uuid, "再版の本文、別のバイト列");
+    // The two files really are distinct content, not a re-import.
+    assert_ne!(
+        std::fs::read(&first).unwrap(),
+        std::fs::read(&second).unwrap()
+    );
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let first_id = import_and_finish(&library, &first);
+    assert_eq!(finished_this_year(&library), 1);
+
+    library.remove(&first_id).unwrap();
+    let second_id = import_and_finish(&library, &second);
+    assert_ne!(second_id, first_id, "a genuinely new row, not a restore");
+    assert_eq!(
+        finished_this_year(&library),
+        1,
+        "one edition finished once, however many copies of it were imported"
+    );
+}
+
+/// The anti-under-count guard. `calibre_id` is a real `dc:identifier`
+/// value, shared verbatim by every book one tool exports; it is not an
+/// identity, so two books carrying it stay two books.
+///
+/// The two share a title as well, which is the hard case on purpose: two
+/// years of an annual, or two volumes of "Selected Poems", are genuinely
+/// different books that agree on everything a weaker key would look at.
+/// This is also the test that fails if a title+author fallback key is ever
+/// added — it is deliberately out of scope.
+#[test]
+fn junk_identifiers_never_merge_two_books() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = dir.path().join("first.epub");
+    let second = dir.path().join("second.epub");
+    write_identified_epub(&first, "文藝年鑑", "calibre_id", "一冊目の本文");
+    write_identified_epub(&second, "文藝年鑑", "calibre_id", "二冊目の本文");
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    import_and_finish(&library, &first);
+    import_and_finish(&library, &second);
+    assert_eq!(
+        finished_this_year(&library),
+        2,
+        "a junk identifier is no identity; each book counts as itself"
+    );
+}
+
+/// The second lock: a shared strong identifier is not enough on its own.
+/// A packing toolchain that stamps one hardcoded `urn:uuid:` on every book
+/// it produces must not collapse the shelf into one.
+#[test]
+fn a_shared_identifier_with_different_titles_never_merges() {
+    let dir = tempfile::tempdir().unwrap();
+    let uuid = "urn:uuid:5c9b2f1e-8a3d-4f7b-9e2c-1d0a6b4f8e37";
+    let first = dir.path().join("first.epub");
+    let second = dir.path().join("second.epub");
+    write_identified_epub(&first, "月光書房", uuid, "一冊目の本文");
+    write_identified_epub(&second, "星影書房", uuid, "二冊目の本文");
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    import_and_finish(&library, &first);
+    import_and_finish(&library, &second);
+    assert_eq!(
+        finished_this_year(&library),
+        2,
+        "different titles are different books, whatever the identifier says"
+    );
+}
+
+/// Two printings of one edition, one stamped before 2007 and one after.
+/// The ISBN-10 converts to its ISBN-13, so both land on one key.
+#[test]
+fn an_isbn10_and_isbn13_of_one_edition_merge() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = dir.path().join("first.epub");
+    let second = dir.path().join("second.epub");
+    write_identified_epub(&first, "月光書房", "urn:isbn:0306406152", "旧版の本文");
+    write_identified_epub(&second, "月光書房", "urn:isbn:9780306406157", "新版の本文");
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    import_and_finish(&library, &first);
+    import_and_finish(&library, &second);
+    assert_eq!(finished_this_year(&library), 1);
 }
 
 #[test]

@@ -118,6 +118,7 @@ object ImportEngine {
     private suspend fun execute(context: Context, uris: List<Uri>) {
         val added = mutableListOf<ImportedBook>()
         val duplicates = mutableListOf<ImportedBook>()
+        val restored = mutableListOf<RestoredBook>()
         val failures = mutableListOf<ImportFailure>()
         var cancelled = false
         val total = uris.size
@@ -226,6 +227,13 @@ object ImportEngine {
                         when (outcome) {
                             is ImportOutcome.Imported -> added += ImportedBook.of(outcome.publication)
                             is ImportOutcome.Duplicate -> duplicates += ImportedBook.of(outcome.publication)
+                            // A tombstoned book coming home: imported in
+                            // full, with the reading history the removal
+                            // kept attached to it again.
+                            is ImportOutcome.Restored -> restored += RestoredBook(
+                                ImportedBook.of(outcome.publication),
+                                outcome.coordinatesRestored,
+                            )
                             is ImportOutcome.Failed ->
                                 failures += ImportFailure.of(outcome.path, outcome.error)
                         }
@@ -249,6 +257,7 @@ object ImportEngine {
                     ImportReport(
                         added = added.toList(),
                         duplicates = duplicates.toList(),
+                        restored = restored.toList(),
                         failures = failures.toList(),
                         cancelled = cancelled,
                     )

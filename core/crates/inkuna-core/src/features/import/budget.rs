@@ -81,6 +81,14 @@ impl PersistBudget {
         }
     }
 
+    /// A fresh meter with this one's ceilings, for an attempt that starts
+    /// over: a commit that lost the content-hash race and is retried as a
+    /// restore writes its rows again, so it must be metered again rather
+    /// than continue against a half-spent meter.
+    pub(super) fn restart(&self) -> Self {
+        Self::with_limits(self.max_rows, self.max_bytes)
+    }
+
     /// Charges one row carrying `bytes` of variable-length values.
     /// Returns `CoreError::InvalidPublication` naming the tripped limit
     /// and its value, so the failure is diagnosable from a log.

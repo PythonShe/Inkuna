@@ -20,7 +20,7 @@ impl Library {
 
         let progression: f64 = tx
             .query_row(
-                "SELECT progression FROM publications WHERE id = ?1",
+                "SELECT progression FROM publications_all WHERE id = ?1 AND removed_at IS NULL",
                 [publication_id],
                 |row| row.get(0),
             )
@@ -62,7 +62,7 @@ impl Library {
             rusqlite::params![session_id, publication_id, now, progression, start_position],
         )?;
         tx.execute(
-            "UPDATE publications SET last_opened_at = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET last_opened_at = ?1 WHERE id = ?2",
             rusqlite::params![now, publication_id],
         )?;
 

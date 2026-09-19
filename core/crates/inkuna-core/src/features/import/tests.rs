@@ -1,8 +1,8 @@
 use crate::test_support::{
-    imported, write_cbz, write_epub, write_epub_parts, write_epub_with, CoverKind, EpubBuilder,
-    Kf8FileFixture, MobiTestBuilder, TocKind,
+    CoverKind, EpubBuilder, Kf8FileFixture, MobiTestBuilder, TocKind, imported, restored,
+    write_cbz, write_epub, write_epub_parts, write_epub_with,
 };
-use crate::{CoreError, ImportOutcome, Library, Shelf, Sort};
+use crate::{CoreError, ImportOutcome, Library, Publication, Shelf, Sort};
 
 fn count(library: &Library, sql: &str, id: &str) -> i64 {
     library
@@ -532,10 +532,12 @@ fn manifest_bomb_fails_the_import_cleanly() {
         "got {err:?}"
     );
     // Nothing persisted: no publication row, no staged file left behind.
-    assert!(library
-        .list(Shelf::All, Sort::RecentlyAdded)
-        .unwrap()
-        .is_empty());
+    assert!(
+        library
+            .list(Shelf::All, Sort::RecentlyAdded)
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(
         std::fs::read_dir(data_dir.join("books")).unwrap().count(),
         0
@@ -703,10 +705,12 @@ fn rejects_non_epub_naming_the_format() {
         CoreError::UnsupportedFormat(Some(format)) => assert_eq!(format, "cbz"),
         other => panic!("expected UnsupportedFormat with name, got {other:?}"),
     }
-    assert!(library
-        .list(Shelf::All, Sort::RecentlyAdded)
-        .unwrap()
-        .is_empty());
+    assert!(
+        library
+            .list(Shelf::All, Sort::RecentlyAdded)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -862,7 +866,7 @@ fn duplicate_mobi_dedupes_before_conversion() {
         .lock()
         .unwrap()
         .execute(
-            "UPDATE publications SET content_hash = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET content_hash = ?1 WHERE id = ?2",
             [&locked_hash, &publication.id],
         )
         .unwrap();
@@ -1304,7 +1308,7 @@ fn import_positions_computed() {
         .with(|conn| {
             conn.query_row(
                 "SELECT reconciled_at, position_spine_idx, position_char_offset
-                 FROM publications WHERE id = ?1",
+                 FROM publications_all WHERE id = ?1",
                 [&publication.id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
@@ -1394,4 +1398,660 @@ fn textless_resource_still_positioned() {
         .unwrap();
     assert_eq!(rows, vec![(0, 1, 1), (1, 2, 1)]);
     assert_eq!(publication.position_count, Some(2));
+}
+
+/// Imports a book, reads part of it, bookmarks it, finishes it, then
+/// removes it — leaving a tombstone with a full reading history and the
+/// source file still on disk to re-import.
+fn removed_book(
+    dir: &std::path::Path,
+) -> (Library, std::path::PathBuf, String, std::path::PathBuf) {
+    let epub = dir.join("月光書房.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let data_dir = dir.join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let id = read_and_bookmark(&library, &epub);
+    library.remove(&id).unwrap();
+
+    (library, epub, id, data_dir)
+}
+
+/// Imports `epub` and gives it every kind of history a removal has to
+/// preserve: a closed session, a reading coordinate at 62%, a bookmark,
+/// and a finished stamp. Returns the publication id.
+fn read_and_bookmark(library: &Library, epub: &std::path::Path) -> String {
+    use inkuna_engine::Coordinate;
+
+    let publication = imported(library.import(epub.to_str().unwrap()).unwrap());
+    let id = publication.id.clone();
+
+    let session = library.session_start(&id).unwrap();
+    library
+        .update_progress(
+            &id,
+            Some(Coordinate {
+                spine_idx: 1,
+                char_offset: 5,
+            }),
+            0.62,
+            None,
+        )
+        .unwrap();
+    library.session_end(&session).unwrap();
+    library
+        .add_bookmark(
+            &id,
+            Some(Coordinate {
+                spine_idx: 0,
+                char_offset: 3,
+            }),
+            0.2,
+        )
+        .unwrap();
+    library.set_finished(&id, true).unwrap();
+    id
+}
+
+#[test]
+fn reimporting_a_removed_book_restores_its_reading_history() {
+    use inkuna_engine::Coordinate;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (library, epub, id, data_dir) = removed_book(dir.path());
+
+    let (publication, coordinates_restored) =
+        restored(library.import(epub.to_str().unwrap()).unwrap());
+
+    assert!(coordinates_restored);
+    assert_eq!(publication.id, id, "the tombstone's own id is adopted");
+    assert_eq!(publication.title, "月光書房");
+    assert_eq!(publication.authors, vec!["紫式部".to_string()]);
+
+    // The history that survived the removal is attached again.
+    assert_eq!(publication.progression, 0.62);
+    assert_eq!(
+        publication.coordinate,
+        Some(Coordinate {
+            spine_idx: 1,
+            char_offset: 5,
+        })
+    );
+    assert!(publication.finished_at.is_some(), "still finished");
+    let bookmarks = library.bookmarks(&id).unwrap();
+    assert_eq!(bookmarks.len(), 1);
+    assert_eq!(
+        bookmarks[0].coordinate,
+        Some(Coordinate {
+            spine_idx: 0,
+            char_offset: 3,
+        })
+    );
+    assert_eq!(
+        count(
+            &library,
+            "SELECT COUNT(*) FROM sessions WHERE publication_id = ?1",
+            &id
+        ),
+        1
+    );
+
+    // The derived data the removal threw away was rebuilt from the file.
+    assert!(!library.chapters(&id).unwrap().is_empty());
+    assert_eq!(library.spine(&id).unwrap().len(), 2);
+    assert_eq!(publication.position_count, Some(2));
+    assert!(
+        count(
+            &library,
+            "SELECT COUNT(*) FROM resource_positions WHERE publication_id = ?1",
+            &id
+        ) > 0
+    );
+    assert_eq!(library.search_in_book(&id, "月", 10).unwrap().total, 1);
+    assert_eq!(library.search_all_books("窓辺", 10).unwrap().len(), 1);
+
+    // The book is on the shelf again, with its file and cover back under
+    // the adopted id — and there is exactly one of each on disk.
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap(),
+        vec![publication.clone()]
+    );
+    assert_eq!(publication.file_path, format!("books/{id}.epub"));
+    assert!(data_dir.join(&publication.file_path).is_file());
+    assert!(
+        data_dir
+            .join(publication.cover_path.as_ref().unwrap())
+            .is_file()
+    );
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        1
+    );
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("covers")).unwrap().count(),
+        1
+    );
+
+    // And it is an ordinary live book again: importing it once more is a
+    // plain duplicate, not a second restore.
+    match library.import(epub.to_str().unwrap()).unwrap() {
+        ImportOutcome::Duplicate(p) => assert_eq!(p.id, id),
+        other => panic!("expected duplicate after restore, got {other:?}"),
+    }
+}
+
+/// Asserts the degraded shape: the book comes back, the coarse progress
+/// with it, and every exact coordinate is gone rather than wrong.
+fn assert_coordinates_degraded(library: &Library, id: &str, publication: &Publication) {
+    assert_eq!(publication.id, id);
+    // The coarse position survives — it is a fraction of the book, not an
+    // index into its text — but the exact coordinates do not.
+    assert_eq!(publication.progression, 0.62);
+    assert!(publication.finished_at.is_some());
+    assert_eq!(publication.coordinate, None);
+    let bookmarks = library.bookmarks(id).unwrap();
+    assert_eq!(bookmarks.len(), 1, "the bookmark itself is kept");
+    assert_eq!(bookmarks[0].coordinate, None);
+    assert_eq!(bookmarks[0].progression, 0.2, "and falls back to this");
+}
+
+/// The case the digest exists for, and the one a version constant could
+/// not catch: the build that re-imports the book projects a *different*
+/// character stream from the same source bytes — better TXT/MOBI chapter
+/// detection, a fixed entity unescape, a changed text budget. Nobody
+/// bumped anything, because there is nothing to bump.
+///
+/// Simulated at the one seam that makes it observable in-process: the
+/// corpus stored under the live book is edited before the removal, so the
+/// digest stamped at removal describes a stream that re-extracting the
+/// file does not reproduce. That is exactly the shape of a converter
+/// change, viewed from the restore.
+#[test]
+fn restore_drops_coordinates_when_the_corpus_changed() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("月光書房.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+    let id = read_and_bookmark(&library, &epub);
+
+    // The stored corpus is what the coordinates index; move one character
+    // of it and every offset past that point names something else.
+    {
+        let conn = library.writer.lock().unwrap();
+        let changed = conn
+            .execute(
+                "UPDATE resource_text SET body = '前書き。' || body
+                 WHERE resource_id IN
+                     (SELECT id FROM resources WHERE publication_id = ?1 AND spine_idx = 0)",
+                [&id],
+            )
+            .unwrap();
+        assert_eq!(changed, 1, "the fixture's first chapter has text to edit");
+    }
+    library.remove(&id).unwrap();
+
+    let (publication, coordinates_restored) =
+        restored(library.import(epub.to_str().unwrap()).unwrap());
+    assert!(
+        !coordinates_restored,
+        "a corpus that no longer matches must not have coordinates reattached"
+    );
+    assert_coordinates_degraded(&library, &id, &publication);
+}
+
+/// A tombstone with no digest at all — one taken by a build older than the
+/// column, or a row whose corpus had already gone. Unknown provenance is
+/// refused exactly like a mismatch; the guard is never "no evidence
+/// against, so reattach".
+#[test]
+fn restore_drops_coordinates_when_the_tombstone_has_no_digest() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("月光書房.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let id = read_and_bookmark(&library, &epub);
+
+    // Reached the way it really happens: the corpus is already gone when
+    // the removal runs, so there is nothing to hash and no digest is
+    // stamped. A tombstone cannot be edited into this state after the
+    // fact — v11's freeze trigger drops any write that would leave it a
+    // tombstone — which is the same reason a pre-v11 build's hard delete
+    // lands here too (its trigger-written tombstone carries no digest).
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute("DELETE FROM resources WHERE publication_id = ?1", [&id])
+            .unwrap();
+    }
+    library.remove(&id).unwrap();
+
+    let (publication, coordinates_restored) =
+        restored(library.import(epub.to_str().unwrap()).unwrap());
+    assert!(!coordinates_restored);
+    assert_coordinates_degraded(&library, &id, &publication);
+}
+
+/// The realistic timeline: the app was closed between the removal and the
+/// re-import. Reopening runs the sweep, the search reconcile, and the V8
+/// rebaseline over the tombstone before the import ever starts, so this is
+/// the only test that proves none of them disturb what restore depends on.
+#[test]
+fn a_tombstone_survives_a_close_and_reopen_and_still_restores() {
+    let dir = tempfile::tempdir().unwrap();
+    let (library, epub, id, data_dir) = removed_book(dir.path());
+    drop(library);
+
+    let library = Library::open(&data_dir).unwrap();
+    let (publication, coordinates_restored) =
+        restored(library.import(epub.to_str().unwrap()).unwrap());
+
+    assert!(
+        coordinates_restored,
+        "nothing between the two sessions may invalidate the stamped digest"
+    );
+    assert_eq!(publication.id, id);
+    assert_eq!(publication.progression, 0.62);
+    assert_eq!(
+        publication.coordinate,
+        Some(inkuna_engine::Coordinate {
+            spine_idx: 1,
+            char_offset: 5,
+        })
+    );
+    assert!(publication.finished_at.is_some());
+    assert_eq!(library.bookmarks(&id).unwrap().len(), 1);
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        1
+    );
+    assert!(data_dir.join(&publication.file_path).is_file());
+    assert!(
+        data_dir
+            .join(publication.cover_path.as_ref().unwrap())
+            .is_file()
+    );
+}
+
+#[test]
+fn batch_restoring_the_same_removed_book_twice_yields_one_restore() {
+    use crate::BatchImportOutcome;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (library, epub, id, data_dir) = removed_book(dir.path());
+    let copy = dir.path().join("renamed-copy.epub");
+    std::fs::copy(&epub, &copy).unwrap();
+
+    let outcomes = library.import_batch(&[
+        epub.to_str().unwrap().to_string(),
+        copy.to_str().unwrap().to_string(),
+    ]);
+
+    // One branch revives the tombstone; the other finds a live book and
+    // resolves to a plain duplicate — never two rows, never a lost file.
+    let (restored_pub, duplicate) = match (&outcomes[0], &outcomes[1]) {
+        (BatchImportOutcome::Restored { publication, .. }, BatchImportOutcome::Duplicate(b))
+        | (BatchImportOutcome::Duplicate(b), BatchImportOutcome::Restored { publication, .. }) => {
+            (publication, b)
+        }
+        other => panic!("expected one Restored + one Duplicate, got {other:?}"),
+    };
+    assert_eq!(restored_pub.id, id);
+    assert_eq!(duplicate.id, id);
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        1
+    );
+    let live = library.publication(&id).unwrap();
+    assert!(
+        data_dir.join(&live.file_path).is_file(),
+        "the live row's book is on disk"
+    );
+    assert_eq!(live.progression, 0.62);
+}
+
+/// The removal driven into the one window a restore cannot close from the
+/// inside: its files staged, the writer lock not yet taken. The book goes
+/// live again on the first restore, a genuine removal then tombstones it
+/// and deletes its book and cover, and only after that does this restore
+/// take the lock and claim the tombstone. Because a restore adopts the
+/// removed book's id, the removal was deleting the very paths this import
+/// targets — so the files it reports must be the ones on disk. A live
+/// publication whose EPUB is gone cannot be opened and nothing heals it:
+/// the open-time sweep collects only *unreferenced* files.
+#[test]
+fn a_restore_racing_a_removal_still_lands_its_files_on_disk() {
+    use super::budget::PersistBudget;
+    use super::pipeline::Prepared;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (library, epub, id, data_dir) = removed_book(dir.path());
+
+    let prepare = || match library.prepare_import(epub.to_str().unwrap()).unwrap() {
+        Prepared::Fresh(prepared) => *prepared,
+        Prepared::Duplicate(p) => panic!("unexpected duplicate of {}", p.id),
+    };
+    // Both are prepared while the book is still removed, so both adopt the
+    // same tombstone — the same id, the same destination paths.
+    let first = prepare();
+    let second = prepare();
+
+    let (publication, _) = restored(library.commit_import(first).unwrap());
+    assert_eq!(publication.id, id, "the first restore made the book live");
+
+    let outcome = library
+        .commit_import_hooked(second, PersistBudget::for_import(), &|| {
+            library.remove(&id).unwrap();
+        })
+        .unwrap();
+    let (publication, _) = restored(outcome);
+    assert_eq!(publication.id, id);
+    assert!(
+        data_dir.join(&publication.file_path).is_file(),
+        "a restored publication's book is on disk"
+    );
+    assert!(
+        data_dir
+            .join(publication.cover_path.as_ref().unwrap())
+            .is_file(),
+        "and so is its cover"
+    );
+}
+
+/// The losing half of two concurrent restores. Both target the *same*
+/// `books/<id>.epub` and `covers/<id>.<ext>` — the adopted tombstone's id
+/// names them — so a loser that writes there at all can truncate or unlink
+/// a live row's only cover, which nothing regenerates. Sentinel bytes stand
+/// in for the winner's files: anything the loser placed or removed shows up
+/// as a changed byte or a missing file.
+#[test]
+fn a_restore_that_loses_the_revive_race_leaves_the_winners_files_alone() {
+    use super::pipeline::Prepared;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (library, epub, id, data_dir) = removed_book(dir.path());
+
+    // Staged and prepared against the tombstone, then overtaken.
+    let loser = match library.prepare_import(epub.to_str().unwrap()).unwrap() {
+        Prepared::Fresh(prepared) => *prepared,
+        Prepared::Duplicate(p) => panic!("unexpected duplicate of {}", p.id),
+    };
+    let (winner, _) = restored(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(winner.id, id);
+
+    let book = data_dir.join(&winner.file_path);
+    let cover = data_dir.join(winner.cover_path.as_ref().unwrap());
+    std::fs::write(&book, b"winner-book").unwrap();
+    std::fs::write(&cover, b"winner-cover").unwrap();
+
+    match library.commit_import(loser).unwrap() {
+        ImportOutcome::Duplicate(existing) => assert_eq!(existing.id, id),
+        other => panic!("expected Duplicate, got {other:?}"),
+    }
+
+    assert_eq!(
+        std::fs::read(&cover).unwrap(),
+        b"winner-cover",
+        "the live row's only cover is untouched"
+    );
+    assert_eq!(
+        std::fs::read(&book).unwrap(),
+        b"winner-book",
+        "and so is its book"
+    );
+    // The loser's own staged copies go with it.
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("books")).unwrap().count(),
+        1
+    );
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("covers")).unwrap().count(),
+        1
+    );
+}
+
+/// A pre-V8 book the rebaseline never reached carries its reading position
+/// only in the legacy `locator`. Restoring it must not stamp the book
+/// reconciled, or that locator would never be converted and the position
+/// would be lost for good.
+#[test]
+fn restoring_an_unconverted_legacy_book_leaves_it_for_the_rebaseline() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let id = imported(library.import(epub.to_str().unwrap()).unwrap()).id;
+
+    // Age the row back to a legacy one: a locator, no coordinates, never
+    // reconciled — exactly what the V8 migration leaves behind.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications_all
+                SET reconciled_at = NULL, locator = '{\"progression\":0.5}',
+                    position_spine_idx = NULL, position_char_offset = NULL
+              WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+    library.remove(&id).unwrap();
+
+    let (publication, _) = restored(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(publication.id, id);
+
+    let (reconciled_at, locator): (Option<i64>, Option<String>) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT reconciled_at, locator FROM publications_all WHERE id = ?1",
+                [&id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(
+        reconciled_at, None,
+        "an unconsumed locator must keep the book on the rebaseline's list"
+    );
+    assert!(locator.is_some(), "and the locator itself is still there");
+}
+
+/// A book removed before V12 carries no edition keys — the columns were
+/// added after it was tombstoned, and the backfill can never reach a
+/// tombstone (its file is gone). Restoring it must fill them from the file
+/// that just arrived, alongside the `title` it already refreshes: the keys
+/// and the title they are derived from must never desync.
+#[test]
+fn restoring_a_book_fills_its_edition_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    let opf = r#"<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>月光書房</dc:title>
+    <dc:identifier id="pub-id">urn:uuid:5c9b2f1e-8a3d-4f7b-9e2c-1d0a6b4f8e37</dc:identifier>
+    <dc:language>ja</dc:language>
+  </metadata>
+  <manifest><item id="c1" href="ch01.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#;
+    let chapter = r#"<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"><body><p>本文</p></body></html>"#;
+    write_epub_parts(&epub, opf, &[("ch01.xhtml", chapter)]);
+
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let id = imported(library.import(epub.to_str().unwrap()).unwrap()).id;
+    // Age the row back to a pre-V12 one, while it is still live: the
+    // freeze trigger would drop this write against a tombstone.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications_all
+                SET edition_key = NULL, title_key = NULL, edition_scanned_at = NULL
+              WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+    library.remove(&id).unwrap();
+
+    let (publication, _) = restored(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(publication.id, id);
+
+    let (edition_key, title_key, scanned_at): (Option<String>, Option<String>, Option<i64>) =
+        library
+            .readers
+            .with(|conn| {
+                conn.query_row(
+                    "SELECT edition_key, title_key, edition_scanned_at
+                     FROM publications_all WHERE id = ?1",
+                    [&id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .map_err(Into::into)
+            })
+            .unwrap();
+    assert_eq!(
+        edition_key.as_deref(),
+        Some("uuid:5c9b2f1e-8a3d-4f7b-9e2c-1d0a6b4f8e37")
+    );
+    assert_eq!(title_key.as_deref(), Some("月光書房"));
+    assert!(
+        scanned_at.is_some(),
+        "this import parsed the OPF, so the backfill has nothing left to do"
+    );
+}
+
+/// The other half of the same pre-V8 state: a book bookmarked but never
+/// progress-written has a NULL publication locator while its bookmarks
+/// still carry legacy JSON. Stamping it reconciled on the publication
+/// locator alone would retire the rebaseline before step 4 converted
+/// those bookmarks, leaving them without coordinates for good.
+#[test]
+fn restoring_a_book_with_unconverted_legacy_bookmarks_leaves_it_for_the_rebaseline() {
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let library = Library::open(dir.path().join("library")).unwrap();
+    let id = imported(library.import(epub.to_str().unwrap()).unwrap()).id;
+    let bookmark = library.add_bookmark(&id, None, 0.4).unwrap();
+
+    // Age the pair back: the publication never held a locator (nothing
+    // ever wrote its progress), but the bookmark is still legacy.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications_all
+                SET reconciled_at = NULL, locator = NULL,
+                    position_spine_idx = NULL, position_char_offset = NULL
+              WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE bookmarks
+                SET locator = '{\"href\":\"chapter1.xhtml\",\"progression\":0.4}',
+                    position_spine_idx = NULL, position_char_offset = NULL
+              WHERE id = ?1",
+            [&bookmark.id],
+        )
+        .unwrap();
+    }
+    library.remove(&id).unwrap();
+
+    let (publication, _) = restored(library.import(epub.to_str().unwrap()).unwrap());
+    assert_eq!(publication.id, id);
+
+    let (reconciled_at, locator): (Option<i64>, String) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT p.reconciled_at, b.locator
+                   FROM publications_all p JOIN bookmarks b ON b.publication_id = p.id
+                  WHERE p.id = ?1",
+                [&id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(
+        reconciled_at, None,
+        "an unconsumed bookmark locator must keep the book on the rebaseline's list"
+    );
+    assert!(
+        !locator.is_empty(),
+        "and the bookmark locator itself is still there to convert"
+    );
+}
+
+/// The content-hash race whose winner is a *tombstone*. This import is
+/// prepared while nothing holds the hash, so it takes the fresh path; by
+/// the time it reaches the writer lock another import has committed the
+/// same content and that book has been removed, which leaves the hash on a
+/// row no live-only lookup can see. Resolving the lost race against live
+/// rows alone reported `NotFound(<blake3 digest>)` — a raw hash surfaced to
+/// the reader as an error, for content the library demonstrably holds.
+///
+/// The coherent answer is the one `prepare_staged` would have given had it
+/// looked one moment later: a tombstone hit is not a duplicate, it is a
+/// restore, so the attempt starts over onto the removed book's id.
+#[test]
+fn a_tombstone_taking_the_hash_mid_import_resolves_to_a_restore() {
+    use super::budget::PersistBudget;
+    use super::pipeline::Prepared;
+
+    let dir = tempfile::tempdir().unwrap();
+    let epub = dir.path().join("月光書房.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let data_dir = dir.path().join("library");
+    let library = Library::open(&data_dir).unwrap();
+
+    let prepared = match library.prepare_import(epub.to_str().unwrap()).unwrap() {
+        Prepared::Fresh(prepared) => *prepared,
+        Prepared::Duplicate(p) => panic!("unexpected duplicate of {}", p.id),
+    };
+    let loser_id = prepared.id.clone();
+
+    // Driven into the one window this stage cannot close from the inside:
+    // the staged files placed, the writer lock not yet taken.
+    let winner = std::cell::RefCell::new(String::new());
+    let outcome = library
+        .commit_import_hooked(prepared, PersistBudget::for_import(), &|| {
+            let id = imported(library.import(epub.to_str().unwrap()).unwrap()).id;
+            library.remove(&id).unwrap();
+            *winner.borrow_mut() = id;
+        })
+        .unwrap();
+    let winner = winner.into_inner();
+    assert_ne!(winner, loser_id, "the winner minted its own id");
+
+    let (publication, _) = restored(outcome);
+    assert_eq!(publication.id, winner, "restored onto the tombstone's id");
+    assert!(
+        data_dir.join(&publication.file_path).is_file(),
+        "a restored publication's book is on disk"
+    );
+    assert!(
+        data_dir
+            .join(publication.cover_path.as_ref().unwrap())
+            .is_file(),
+        "and so is its cover"
+    );
+    // Exactly one book, and nothing left over under the abandoned id.
+    assert_eq!(
+        library.list(Shelf::All, Sort::RecentlyAdded).unwrap().len(),
+        1
+    );
+    assert!(!data_dir.join(format!("books/{loser_id}.epub")).exists());
+    assert!(
+        std::fs::read_dir(data_dir.join("covers"))
+            .unwrap()
+            .all(|entry| !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(&loser_id)),
+        "the abandoned attempt's cover goes with it"
+    );
 }

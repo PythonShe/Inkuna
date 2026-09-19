@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -65,6 +66,7 @@ import app.inkuna.android.importing.ImportPhase
 import app.inkuna.android.importing.ImportReport
 import app.inkuna.android.importing.ImportState
 import app.inkuna.android.importing.ImportedBook
+import app.inkuna.android.importing.RestoredBook
 import app.inkuna.android.ui.components.InkButton
 import app.inkuna.android.ui.components.InkButtonVariant
 import app.inkuna.android.ui.main.EyebrowText
@@ -270,10 +272,12 @@ private fun ImportProgressTrack(fraction: Float?) {
 @Composable
 private fun ImportReportPane(report: ImportReport, onDismiss: () -> Unit) {
     val ink = InkTheme.colors
+    // A restored book is on the shelf like any other, so it counts toward
+    // the headline; what makes it different is said in its own section.
+    val entered = report.enteredLibrary
     val title = when {
-        report.cancelled && report.added.isEmpty() -> stringResource(R.string.import_result_cancelled)
-        report.added.isNotEmpty() ->
-            pluralStringResource(R.plurals.import_result_added, report.added.size, report.added.size)
+        report.cancelled && entered == 0 -> stringResource(R.string.import_result_cancelled)
+        entered > 0 -> pluralStringResource(R.plurals.import_result_added, entered, entered)
         report.duplicates.isNotEmpty() && report.failures.isEmpty() ->
             stringResource(R.string.import_result_already)
         else -> stringResource(R.string.import_result_nothing)
@@ -292,6 +296,14 @@ private fun ImportReportPane(report: ImportReport, onDismiss: () -> Unit) {
         if (report.added.isNotEmpty()) {
             ReportSection(stringResource(R.string.import_section_added)) {
                 report.added.forEach { BookRow(it, Icons.Outlined.Check, ink.positive) }
+            }
+        }
+        // The other half of what the removal sheet promised. Named as its
+        // own section, because a reader who was told their progress would
+        // survive is owed the moment it does.
+        if (report.restored.isNotEmpty()) {
+            ReportSection(stringResource(R.string.import_section_restored)) {
+                report.restored.forEach { RestoredRow(it) }
             }
         }
         // Duplicates are named, never swallowed: the reader picked that file
@@ -337,6 +349,40 @@ private fun BookRow(book: ImportedBook, icon: ImageVector, tint: Color) {
             // meaning in every character, and clipping one is a mistranslation.
             Text(book.title, style = InkType.ui, color = ink.textBody)
             Text(authors, style = InkType.caption, color = ink.textTertiary)
+        }
+    }
+}
+
+/**
+ * A restored book, with what came back with it on the caption line rather
+ * than its authors: the reader already knows who wrote a book they were
+ * part-way through, and whether they land on their page is the news.
+ */
+@Composable
+private fun RestoredRow(restored: RestoredBook) {
+    val ink = InkTheme.colors
+    val detail = stringResource(
+        if (restored.coordinatesRestored) {
+            R.string.import_status_restored
+        } else {
+            // Said plainly. Promising someone their place and opening the
+            // book somewhere else is worse than saying so up front.
+            R.string.import_status_restored_partial
+        }
+    )
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = InkSpace.s2),
+        horizontalArrangement = Arrangement.spacedBy(InkSpace.s3),
+    ) {
+        Icon(
+            Icons.Outlined.Bookmark,
+            contentDescription = null,
+            tint = ink.accentText,
+            modifier = Modifier.padding(top = 2.dp).size(18.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(restored.book.title, style = InkType.ui, color = ink.textBody)
+            Text(detail, style = InkType.caption, color = ink.textTertiary)
         }
     }
 }

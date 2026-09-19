@@ -12295,6 +12295,208 @@
         }
       }
     },
+    "import_toast_restored": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is back where you left off"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "《%@》已恢复，可继续阅读"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "《%@》已回復，可繼續閱讀"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」を復元しました。続きから読めます"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 복원됨 — 이어서 읽을 수 있습니다"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: continúa donde lo dejaste"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ : reprenez là où vous en étiez"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: riprendi da dove avevi interrotto"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — продолжайте с того же места"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: อ่านต่อจากที่ค้างไว้ได้เลย"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: đọc tiếp từ chỗ đọc dở"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wiederhergestellt – lesen Sie einfach weiter"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ dipulihkan, lanjutkan membaca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: continue de onde parou"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@” wraca do ostatnio czytanego miejsca"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is terug waar u gebleven was"
+          }
+        }
+      }
+    },
+    "import_toast_restored_partial": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is back with your reading progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "《%@》已添加并恢复阅读进度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "《%@》已加入並回復閱讀進度"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」を追加し、進捗を復元しました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 추가됨 — 독서 기록 복원됨"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ añadido con tu progreso de lectura"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ajouté avec votre progression de lecture"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ aggiunto con i tuoi progressi di lettura"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — прогресс чтения восстановлен"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่ม %@ แล้ว พร้อมกู้คืนความคืบหน้าการอ่าน"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã thêm %@ cùng tiến độ đọc"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ hinzugefügt – Lesefortschritt wiederhergestellt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ditambahkan beserta kemajuan baca Anda"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ adicionado com seu progresso de leitura"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodano „%@” z postępami w czytaniu"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ toegevoegd met uw leesvoortgang"
+          }
+        }
+      }
+    },
     "import_toast_could_not_add": {
       "extractionState": "manual",
       "localizations": {
@@ -12594,6 +12796,208 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld stonden al in uw bibliotheek"
+          }
+        }
+      }
+    },
+    "import_subtitle_restored_one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 restored with progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 本已恢复阅读进度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 本已回復閱讀進度"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1冊の進捗を復元"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1권의 독서 기록 복원됨"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 restaurado con progreso"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 restauré avec progression"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 ripristinato con i progressi"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 восстановлена с прогрессом"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "กู้คืนความคืบหน้า 1 เล่ม"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 cuốn đã khôi phục tiến độ"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 mit Lesefortschritt wiederhergestellt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 dipulihkan dengan kemajuan baca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 restaurado com o progresso"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 przywrócona z postępami"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 hersteld met leesvoortgang"
+          }
+        }
+      }
+    },
+    "import_subtitle_restored_many": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld restored with progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 本已恢复阅读进度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 本已回復閱讀進度"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld冊の進捗を復元"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld권의 독서 기록 복원됨"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld restaurados con progreso"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld restaurés avec progression"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ripristinati con i progressi"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld восстановлено с прогрессом"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "กู้คืนความคืบหน้า %lld เล่ม"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld cuốn đã khôi phục tiến độ"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld mit Lesefortschritt wiederhergestellt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld dipulihkan dengan kemajuan baca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld restaurados com o progresso"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld przywróconych z postępami"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld hersteld met leesvoortgang"
           }
         }
       }
@@ -13604,6 +14008,208 @@
           "stringUnit": {
             "state": "translated",
             "value": "Al in uw bibliotheek"
+          }
+        }
+      }
+    },
+    "import_status_restored": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back where you left off"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可继续上次阅读"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可繼續上次閱讀"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "続きから読めます"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이어서 읽을 수 있습니다"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continúa donde lo dejaste"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprenez là où vous en étiez"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riprendi da dove avevi interrotto"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продолжить с места остановки"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อ่านต่อจากที่ค้างไว้ได้เลย"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đọc tiếp từ chỗ đọc dở"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiterlesen, wo Sie aufgehört haben"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lanjutkan membaca"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue de onde parou"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wracasz do ostatnio czytanego miejsca"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verder lezen waar u gebleven was"
+          }
+        }
+      }
+    },
+    "import_status_restored_partial": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Progress restored, exact page unavailable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已恢复阅读进度，未能精确定位"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已回復閱讀進度，未能精確定位"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "進捗を復元（正確なページは未特定）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "진행 상황 복원됨(정확한 페이지 제외)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Progreso restaurado, página exacta no disponible"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Progression restaurée, page exacte indisponible"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Progressi ripristinati, pagina esatta non disponibile"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прогресс восстановлен, точная страница недоступна"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "กู้คืนความคืบหน้าแล้ว (ไม่ตรงหน้าเดิม)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã khôi phục tiến độ (không đúng trang cũ)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesefortschritt wiederhergestellt, genaue Seite nicht verfügbar"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kemajuan baca dipulihkan, halaman tidak persis sama"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Progresso restaurado, página exata indisponível"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postępy przywrócone, brak dokładnej strony"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leesvoortgang hersteld, exacte pagina niet beschikbaar"
           }
         }
       }
@@ -21608,7 +22214,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "책 작업"
+            "value": "도서 동작"
           }
         },
         "es": {
@@ -21668,7 +22274,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Działania dla książki"
+            "value": "Akcje książki"
           }
         },
         "nl": {
@@ -21691,19 +22297,19 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "从书库中移除"
+            "value": "从书架中移除"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "從書庫中移除"
+            "value": "從書架中移除"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ライブラリから削除"
+            "value": "本棚から削除"
           }
         },
         "ko": {
@@ -21739,7 +22345,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ลบออกจากคลังหนังสือ"
+            "value": "ลบออกจากชั้นหนังสือ"
           }
         },
         "vi": {
@@ -21751,7 +22357,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aus Bibliothek entfernen"
+            "value": "Aus der Bibliothek entfernen"
           }
         },
         "id": {
@@ -22042,7 +22648,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ลบ “%@” ไหม"
+            "value": "ลบ “%@” หรือไม่"
           }
         },
         "vi": {
@@ -22089,97 +22695,97 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This deletes the book and your reading progress from this device. It can’t be undone."
+            "value": "Only the book file will be deleted. Your reading progress and bookmarks will be kept."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这会从本设备删除这本书和你的阅读进度，且无法撤销。"
+            "value": "仅删除书籍文件。阅读进度和书签将被保留。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這會從本裝置刪除這本書和你的閱讀進度，且無法復原。"
+            "value": "僅刪除書籍檔案。閱讀進度和書籤將會保留。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "この端末から本と読書の進捗が削除されます。元に戻すことはできません。"
+            "value": "書籍ファイルのみが削除されます。読書の進捗としおりは保持されます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 기기에서 책과 읽은 진도가 삭제됩니다. 되돌릴 수 없습니다."
+            "value": "도서 파일만 삭제됩니다. 독서 진행 상황과 책갈피는 유지됩니다."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se eliminarán el libro y tu progreso de lectura de este dispositivo. No se puede deshacer."
+            "value": "Solo se eliminará el archivo del libro. Tu progreso de lectura y marcadores se conservarán."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le livre et votre progression de lecture seront supprimés de cet appareil. Cette action est irréversible."
+            "value": "Seul le fichier du livre sera supprimé. Votre progression de lecture et vos marque-pages seront conservés."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Il libro e i tuoi progressi di lettura verranno eliminati da questo dispositivo. L’operazione non è reversibile."
+            "value": "Verrà eliminato solo il file del libro. I tuoi progressi di lettura e i segnalibri verranno conservati."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Книга и ваш прогресс чтения будут удалены с этого устройства. Отменить это действие нельзя."
+            "value": "Удаляется только файл книги. Прогресс чтения и закладки сохраняются."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "การลบจะเอาหนังสือและความคืบหน้าการอ่านออกจากอุปกรณ์นี้ และย้อนกลับไม่ได้"
+            "value": "จะลบเฉพาะไฟล์หนังสือเท่านั้น ความคืบหน้าการอ่านและที่คั่นหน้าจะยังคงอยู่"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thao tác này xóa sách và tiến độ đọc khỏi thiết bị này. Không thể hoàn tác."
+            "value": "Chỉ tệp sách bị xóa. Tiến độ đọc và dấu trang sẽ được giữ lại."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Damit werden das Buch und Ihr Lesefortschritt von diesem Gerät gelöscht. Das lässt sich nicht rückgängig machen."
+            "value": "Nur die Buchdatei wird gelöscht. Ihr Lesefortschritt und Ihre Lesezeichen bleiben erhalten."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buku dan kemajuan baca Anda akan dihapus dari perangkat ini. Tindakan ini tidak dapat dibatalkan."
+            "value": "Hanya berkas buku yang akan dihapus. Kemajuan baca dan penanda Anda tetap disimpan."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Isso apaga o livro e seu progresso de leitura deste aparelho. Não dá para desfazer."
+            "value": "Apenas o arquivo do livro será excluído. Seu progresso de leitura e marcadores serão mantidos."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Książka i Twoje postępy w czytaniu zostaną usunięte z tego urządzenia. Tej operacji nie można cofnąć."
+            "value": "Usunięty zostanie tylko plik książki. Twoje postępy w czytaniu i zakładki zostaną zachowane."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hiermee verdwijnen het boek en je leesvoortgang van dit apparaat. Dit kan niet ongedaan worden gemaakt."
+            "value": "Alleen het boekbestand wordt verwijderd. Je leesvoortgang en bladwijzers blijven bewaard."
           }
         }
       }
@@ -22196,13 +22802,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法移除这本书。"
+            "value": "无法移除此书。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法移除這本書。"
+            "value": "無法移除此書。"
           }
         },
         "ja": {
@@ -22244,7 +22850,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ลบหนังสือเล่มนี้ไม่สำเร็จ"
+            "value": "ไม่สามารถลบหนังสือเล่มนี้ได้"
           }
         },
         "vi": {

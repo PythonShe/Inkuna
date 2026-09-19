@@ -42,6 +42,17 @@ enum ImportFeedback {
                 text: ImportCopy.alreadyInLibrary(ImportCopy.shortened(publication.title)),
                 in: presenter
             )
+        case .restored(let book, _):
+            // A bookmark, not a checkmark: what is worth announcing here is
+            // the history that survived the removal, not the copy.
+            let title = ImportCopy.shortened(book.publication.title)
+            toast(
+                symbol: "bookmark.circle",
+                text: book.coordinatesRestored
+                    ? ImportCopy.restoredOne(title)
+                    : ImportCopy.restoredPartialOne(title),
+                in: presenter
+            )
         case .failed(let failure):
             alert(failure, in: presenter)
         case nil:
@@ -109,7 +120,7 @@ enum ImportFeedback {
             generator.notificationOccurred(.error)
         } else if !report.duplicates.isEmpty {
             generator.notificationOccurred(.warning)
-        } else if !report.imported.isEmpty {
+        } else if report.didChangeLibrary {
             generator.notificationOccurred(.success)
         }
     }

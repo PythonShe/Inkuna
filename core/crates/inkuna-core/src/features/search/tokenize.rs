@@ -232,3 +232,67 @@ pub(super) fn analyze_query(query: &str) -> QueryTerms {
     }
     terms
 }
+
+/// A fixed probe corpus for [`analyzer_fingerprint`], wide enough that a
+/// change in how text is cut shows up: jieba search-mode segmentation over
+/// simplified and traditional Chinese and over Japanese, the compatibility
+/// and digraph folds, half-width kana, a supplementary-plane Han char, and
+/// the CJK/Latin/punctuation run boundaries.
+#[cfg(test)]
+const ANALYZER_PROBE: [&str; 8] = [
+    "月光書房",
+    "中华人民共和国万岁",
+    "北京大学生前来应聘",
+    "紫式部の源氏物語を読む",
+    "한국어 검색 테스트",
+    "ﾊﾝｶｸ ヿゟ 𠀀",
+    "Café Ünïcode MIXED case",
+    "混合Mixed文字123text",
+];
+
+/// Names the analysis an on-disk index was built with: the fingerprint
+/// this build's tokenizers produce over `ANALYZER_PROBE`. `index.rs`
+/// stamps it beside the index and discards an index carrying any other
+/// value, because terms cut by a different segmenter are terms a query
+/// can no longer ask for.
+///
+/// It is *recorded* rather than recomputed at open: comparing a string
+/// costs a file read, where recomputing would load the whole jieba
+/// dictionary on every library open for a value that cannot change
+/// without a code change. The search tests'
+/// `the_recorded_analyzer_id_is_what_the_tokenizers_produce` is what
+/// keeps the record honest — a jieba bump that moves one word boundary
+/// turns that test red, and updating this
+/// constant is exactly what rebuilds every index already on disk. A jieba
+/// bump that changes no boundary leaves it alone, so nobody pays for a
+/// rebuild they did not need.
+pub(super) const ANALYZER_ID: &str =
+    "d81e5eca486a8eaabf67457b59b12dfcbbd5080c8d621967ba926ebcb18701ae";
+
+/// What the *index side* of this build cuts [`ANALYZER_PROBE`] into,
+/// digested: both tokenizers, every token's text, position, and char
+/// range.
+#[cfg(test)]
+pub(super) fn analyzer_fingerprint() -> String {
+    fn digest(hasher: &mut blake3::Hasher, label: &str, mut stream: VecTokenStream) {
+        hasher.update(label.as_bytes());
+        while stream.advance() {
+            let token = stream.token();
+            hasher.update(
+                format!(
+                    "{}\u{1}{}\u{1}{}\u{1}{}\u{2}",
+                    token.text, token.position, token.offset_from, token.offset_to
+                )
+                .as_bytes(),
+            );
+        }
+    }
+
+    let mut hasher = blake3::Hasher::new();
+    for probe in ANALYZER_PROBE {
+        hasher.update(probe.as_bytes());
+        digest(&mut hasher, "word", WordTokenizer.token_stream(probe));
+        digest(&mut hasher, "uni", CjkUnigramTokenizer.token_stream(probe));
+    }
+    hasher.finalize().to_hex().to_string()
+}

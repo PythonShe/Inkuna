@@ -177,6 +177,21 @@ fn indexed_docs(library: &Library, publication_id: &str) -> usize {
         .unwrap()
 }
 
+/// A publication id with no row of any kind behind it — not a tombstone,
+/// which is still a row and which reconcile must honour rather than heal
+/// (`reconcile_never_resurrects_a_removed_book` pins that case).
+///
+/// From v11 on, nothing in the crate and nothing a shipped v10 binary can
+/// issue takes a publication row out: `publications_soft_delete` turns a
+/// `DELETE` into a tombstone, and `publications_view_insert` refuses a v10
+/// re-import rather than clearing the tombstone away. The absent row is a
+/// *v10-era* state — a v10 install whose `DELETE FROM publications` really
+/// did delete, on a database that had no trigger to intercept it, and
+/// whose search index (which no migration touches) carried the orphaned
+/// docs across the upgrade. Every currently shipped install is that
+/// population, so the case is reached here by taking the trigger out of
+/// the way exactly as v10 did not have it, and putting it back — leaving a
+/// genuine v11+ schema for the reopen below to reconcile.
 #[test]
 fn reconcile_drops_docs_whose_publication_left_the_database() {
     let dir = tempfile::tempdir().unwrap();
@@ -191,11 +206,34 @@ fn reconcile_drops_docs_whose_publication_left_the_database() {
         id
     };
 
-    // Drop the row behind the core's back — what a crash mid-remove, or an
-    // older build, leaves behind. Only reconcile can heal it.
     let conn = rusqlite::Connection::open(data_dir.join("inkuna.db")).unwrap();
-    conn.execute("DELETE FROM publications WHERE id = ?1", [&id])
+    conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+    let trigger: String = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE name = 'publications_soft_delete'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
+    conn.execute_batch("DROP TRIGGER publications_soft_delete")
+        .unwrap();
+    // v10's `Library::remove`, verbatim, against a table that behaves as
+    // v10's did — the cascade takes the whole book with it.
+    conn.execute("DELETE FROM publications_all WHERE id = ?1", [&id])
+        .unwrap();
+    conn.execute_batch(&trigger).unwrap();
+
+    let rows_left: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM publications_all WHERE id = ?1",
+            [&id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        rows_left, 0,
+        "the premise: no row at all, not even a tombstone"
+    );
     drop(conn);
 
     let library = Library::open(&data_dir).unwrap();
@@ -446,7 +484,7 @@ fn in_book_results_report_canonicality() {
         {
             let conn = library.writer.lock().unwrap();
             conn.execute(
-                "UPDATE publications SET reconciled_at = NULL WHERE id = ?1",
+                "UPDATE publications_all SET reconciled_at = NULL WHERE id = ?1",
                 [&id],
             )
             .unwrap();
@@ -465,4 +503,199 @@ fn in_book_results_report_canonicality() {
     let results = library.search_in_book(&id, "月", 50).unwrap();
     assert_eq!(results.total, 1);
     assert!(results.canonical);
+}
+
+/// A tombstoned book must be invisible to the reconcile pass in BOTH
+/// directions. It is not "missing" (it has no corpus left, so it would be
+/// re-added with zero docs on every open, forever), and its leftover docs
+/// ARE stale — `remove`'s index delete is best-effort, so healing them is
+/// the only thing that keeps a removed book out of library search.
+#[test]
+fn reconcile_never_resurrects_a_removed_book() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let other = dir.path().join("other.epub");
+    write_epub(&other, "生きてる本", "著者", "ja");
+
+    let library = Library::open(&data_dir).unwrap();
+    let id = imported_id(&library, &epub);
+    let live = imported_id(&library, &other);
+    library.search.wait_for_reconcile();
+
+    library.remove(&id).unwrap();
+    // Simulate the best-effort index delete having failed — a crash, or a
+    // locked writer — so reconcile is the only thing left to heal it.
+    library
+        .search
+        .index_publication(&id, [(0u32, "月の光が窓辺に落ちていた。")].into_iter())
+        .unwrap();
+    assert!(indexed_docs(&library, &id) > 0);
+    drop(library);
+
+    // Two opens, because a tombstone counted as "missing" would be re-added
+    // on every single one.
+    for open in 0..2 {
+        let library = Library::open(&data_dir).unwrap();
+        library.search.wait_for_reconcile();
+        assert_eq!(
+            indexed_docs(&library, &id),
+            0,
+            "open {open}: a removed book's docs must be dropped, not restored"
+        );
+        assert!(
+            indexed_docs(&library, &live) > 0,
+            "open {open}: the live book keeps its docs"
+        );
+        // The live book still matches the shared fixture text; the
+        // removed one must not appear among the hits at all.
+        let hits = library.search_all_books("窓辺", 10).unwrap();
+        assert_eq!(hits.len(), 1, "open {open}");
+        assert_eq!(hits[0].publication.id, live, "open {open}");
+    }
+}
+
+/// The chain the reconcile thread runs is `pre` → reconcile body → `post`,
+/// and the V12 edition backfill rides `post` on purpose: on a V11→V12
+/// upgrade its pending set is the whole library, so running it ahead of the
+/// reconcile would newly gate library search behind a whole-library
+/// zip-open and OPF parse.
+///
+/// Pinned by consequence rather than by a recorded order: `post` re-indexes
+/// the book with no resources at all, which drops its docs. Reached last,
+/// that leaves the index empty for the book; chained as `pre` (or anywhere
+/// before the body) the reconcile that follows would find the book missing
+/// and index it right back.
+#[test]
+fn the_post_pass_runs_after_the_reconcile_body() {
+    use super::SearchIndex;
+
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    let id = {
+        let library = Library::open(&data_dir).unwrap();
+        let id = imported_id(&library, &epub);
+        library.search.wait_for_reconcile();
+        id
+    };
+
+    // A missing index is what makes the reconcile body do visible work.
+    std::fs::remove_dir_all(data_dir.join("index")).unwrap();
+    let search = SearchIndex::open(&data_dir).unwrap();
+    let handle = search.write_handle();
+    let target = id.clone();
+    search.spawn_reconcile(
+        data_dir.join("inkuna.db"),
+        |_| {},
+        move |_| {
+            handle
+                .index_publication(&target, std::iter::empty())
+                .unwrap()
+        },
+    );
+    search.wait_for_reconcile();
+
+    let searcher = search.searcher().unwrap();
+    let docs = searcher
+        .search(
+            &tantivy::query::TermQuery::new(
+                tantivy::Term::from_field_text(search.fields().publication_id, &id),
+                tantivy::schema::IndexRecordOption::Basic,
+            ),
+            &tantivy::collector::Count,
+        )
+        .unwrap();
+    assert_eq!(
+        docs, 0,
+        "the post pass must be the last thing the thread does"
+    );
+}
+
+/// The recorded `ANALYZER_ID` is what makes a stale index rebuild, and a
+/// recorded value nothing checks is a value that quietly stops being
+/// true. This is the check: bump jieba (or touch the folding, or a script
+/// range) in a way that moves one token and this test goes red, naming the
+/// value to write back — which is what discards every index already on
+/// disk. A jieba bump that moves nothing leaves it green and costs no
+/// reader a rebuild.
+#[test]
+fn the_recorded_analyzer_id_is_what_the_tokenizers_produce() {
+    let live = super::tokenize::analyzer_fingerprint();
+    assert_eq!(
+        live,
+        super::tokenize::ANALYZER_ID,
+        "the tokenizers no longer cut the probe corpus the way the recorded \
+         ANALYZER_ID says they do — segmentation changed, so every search \
+         index on disk is stale. Set ANALYZER_ID to {live:?} (in \
+         features/search/tokenize.rs); that is what makes those indexes \
+         rebuild on the next open."
+    );
+}
+
+/// The index's segment files, which are named after random segment ids —
+/// so a rebuilt index shares none of them. Tantivy's fixed bookkeeping
+/// names (`meta.json`, `.managed.json`, the lock files) are left out
+/// because they survive any rebuild and would make every set overlap.
+fn index_files(data_dir: &std::path::Path) -> std::collections::BTreeSet<String> {
+    let files: std::collections::BTreeSet<String> = std::fs::read_dir(data_dir.join("index"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| !name.starts_with('.') && name != "meta.json")
+        .collect();
+    assert!(!files.is_empty(), "the index has segments to compare");
+    files
+}
+
+/// An index built by a different segmenter is not stale data to be healed
+/// — every term in it was cut by rules this build no longer speaks — so it
+/// is discarded whole and rebuilt from `resource_text`.
+#[test]
+fn an_index_from_another_segmenter_is_discarded_and_rebuilt() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    let epub = dir.path().join("book.epub");
+    write_epub(&epub, "月光書房", "紫式部", "ja");
+    {
+        let library = Library::open(&data_dir).unwrap();
+        imported_id(&library, &epub);
+        library.search.wait_for_reconcile();
+    }
+    let marker = data_dir.join("index.analyzer");
+    assert_eq!(
+        std::fs::read_to_string(&marker).unwrap(),
+        super::tokenize::ANALYZER_ID,
+        "the index is stamped with the analysis that built it"
+    );
+    let built = index_files(&data_dir);
+
+    // Control: the same build reopening its own index keeps it, segment
+    // files and all. Without this the assertion below would pass for an
+    // implementation that simply rebuilt every time.
+    {
+        let library = Library::open(&data_dir).unwrap();
+        library.search.wait_for_reconcile();
+        assert_eq!(index_files(&data_dir), built, "an index of ours is kept");
+    }
+
+    // Now the same index, stamped by some other segmenter.
+    std::fs::write(&marker, "some-other-segmenter").unwrap();
+    let library = Library::open(&data_dir).unwrap();
+    library.search.wait_for_reconcile();
+    assert!(
+        index_files(&data_dir).is_disjoint(&built),
+        "nothing of the old index survived: it was discarded, not reconciled"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&marker).unwrap(),
+        super::tokenize::ANALYZER_ID,
+        "and restamped, so the next open keeps it"
+    );
+
+    // And it really was rebuilt, not merely emptied.
+    let hits = library.search_all_books("窓辺", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].publication.title, "月光書房");
 }

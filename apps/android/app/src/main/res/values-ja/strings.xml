@@ -133,9 +133,9 @@
     <string name="reader_fixed_layout_unsupported">この本は固定レイアウトを使用しているため、Inkunaではまだ表示できません。</string>
 
     <!-- Removing a book -->
-    <string name="remove_action">ライブラリから削除</string>
+    <string name="remove_action">本棚から削除</string>
     <string name="remove_confirm_title">「%1$s」を削除しますか？</string>
-    <string name="remove_confirm_body">この端末から本と読書の進捗が削除されます。元に戻すことはできません。</string>
+    <string name="remove_confirm_body">書籍ファイルのみが削除されます。読書の進捗としおりは保持されます。</string>
     <string name="remove_confirm_button">削除</string>
     <string name="remove_cancel">キャンセル</string>
     <string name="remove_failed">この本を削除できませんでした。</string>

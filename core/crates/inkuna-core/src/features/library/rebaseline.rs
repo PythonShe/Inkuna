@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use inkuna_content::{MAX_TOTAL_TEXT_BYTES, resolve_href, split_fragment};
 use inkuna_engine::extract_corpus;
-use rusqlite::{Connection, TransactionBehavior};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 
 use crate::CoreError;
 use crate::core::db::open_connection;
@@ -60,8 +60,11 @@ fn run_with_hook(
     let mut conn = open_connection(db_path)?;
     let pending: Vec<(String, String)> = {
         let mut stmt = conn.prepare(
-            "SELECT id, file_path FROM publications
-             WHERE reconciled_at IS NULL
+            // A tombstone has no file to extract a corpus from and its
+            // `reconciled_at` is deliberately NULL, so it would otherwise
+            // be retried on every open, forever.
+            "SELECT id, file_path FROM publications_all
+             WHERE reconciled_at IS NULL AND removed_at IS NULL
              ORDER BY last_opened_at DESC NULLS LAST",
         )?;
         let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
@@ -79,8 +82,14 @@ fn run_with_hook(
         // transaction alone; the book retries at the next open because
         // `reconciled_at` was never stamped.
         match rebaseline_book(&mut conn, data_dir, &id, &file_path, cancel, &mut hook) {
-            Ok(true) => reindex_book(&conn, index, &id),
-            Ok(false) => {
+            Ok(BookOutcome::Reconciled) => reindex_book(&conn, index, &id),
+            // Removed after this snapshot was taken: nothing was written,
+            // and re-indexing would only put a zero-document tombstone
+            // into the index. Move on to the next book.
+            Ok(BookOutcome::Removed) => {
+                log::info!("rebaseline of {id} skipped: the row is no longer this pass's to write");
+            }
+            Ok(BookOutcome::Cancelled) => {
                 log::info!("v8 rebaseline cancelled; remaining books resume at the next open");
                 return Ok(());
             }
@@ -90,6 +99,22 @@ fn run_with_hook(
     Ok(())
 }
 
+/// What one book's attempt did, as the pass needs to tell the three
+/// apart: only a reconciled book is re-indexed, and only cancellation
+/// stops the pass.
+enum BookOutcome {
+    /// Written and committed; the caller re-indexes it.
+    Reconciled,
+    /// The row stopped being this pass's between the pending snapshot and
+    /// the write transaction — removed, or removed and re-imported, which
+    /// stamps `reconciled_at` on the way back in: nothing was written, and
+    /// the pass continues.
+    Removed,
+    /// Cancellation bailed out after extraction, before anything was
+    /// written; the caller stops the pass.
+    Cancelled,
+}
+
 /// One book: corpus extraction first, OUTSIDE any transaction, then all
 /// writes inside one IMMEDIATE transaction — a crash retries the whole
 /// book at the next open. Extraction is a whole book's parse + style +
@@ -97,8 +122,6 @@ fn run_with_hook(
 /// writers against the 5s busy_timeout; running it first changes nothing
 /// about idempotency (`reconciled_at` still gates, and a crash between
 /// extraction and the transaction just re-extracts at the next open).
-/// Returns `false` when cancellation bailed out after extraction, before
-/// anything was written.
 fn rebaseline_book(
     conn: &mut Connection,
     data_dir: &Path,
@@ -106,10 +129,10 @@ fn rebaseline_book(
     file_path: &str,
     cancel: &AtomicBool,
     hook: &mut impl FnMut(&str) -> Result<(), CoreError>,
-) -> Result<bool, CoreError> {
-    // Read outside the transaction too: a book deleted concurrently just
-    // makes this book's writes affect nothing — per-book fault isolation
-    // already covers that shape.
+) -> Result<BookOutcome, CoreError> {
+    // Read outside the transaction: a book removed concurrently is caught
+    // by the liveness recheck inside the write transaction below, before
+    // anything is written.
     let resources: Vec<ResourceRow> = {
         let mut stmt = conn.prepare_cached(
             "SELECT id, spine_idx, href FROM resources
@@ -152,10 +175,44 @@ fn rebaseline_book(
         None
     };
     if cancel.load(Ordering::Relaxed) {
-        return Ok(false);
+        return Ok(BookOutcome::Cancelled);
     }
 
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    // The pass's own gate, rechecked under the write lock — both halves of
+    // it, not `removed_at` alone. `reconciled_at IS NULL AND removed_at IS
+    // NULL` held when the pending snapshot was taken, and either half can
+    // have moved since.
+    //
+    // A `remove` leaves the row alive as a tombstone — file and resources
+    // gone, `reconciled_at` deliberately NULL. Rebaselining it would
+    // convert the preserved legacy locators against an empty resource list,
+    // overwrite the coordinates the tombstone is keeping, and stamp it
+    // reconciled.
+    //
+    // A remove *plus a re-import* reads live again, which is why
+    // `removed_at` on its own is not the gate: the restore already stamped
+    // `reconciled_at` and wrote a fresh corpus, while this book's
+    // `resources` snapshot and its `None` corpus (the file was gone at
+    // extraction time) are both pre-removal. Proceeding would convert the
+    // restored book's locators with `(0, 0)` defaults and stamp it a second
+    // time. A vanished row counts as removed for the same reason.
+    let gate = tx
+        .query_row(
+            "SELECT removed_at, reconciled_at FROM publications_all WHERE id = ?1",
+            [id],
+            |row| {
+                Ok((
+                    row.get::<_, Option<i64>>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                ))
+            },
+        )
+        .optional()?;
+    if !matches!(gate, Some((None, None))) {
+        drop(tx);
+        return Ok(BookOutcome::Removed);
+    }
     hook(id)?;
 
     let char_lens: Vec<Option<u64>> = if let Some(corpus) = &corpus {
@@ -204,7 +261,7 @@ fn rebaseline_book(
         // stamped reconciled — the read-time fallbacks (1/1 when no
         // position rows exist) already cover the degenerate case.
         tx.execute(
-            "UPDATE publications SET position_count = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET position_count = ?1 WHERE id = ?2",
             rusqlite::params![total, id],
         )?;
         counts.into_iter().map(Some).collect()
@@ -221,20 +278,20 @@ fn rebaseline_book(
     // stale legacy locator must never overwrite: then the conversion is
     // skipped and only the consumed locator is NULLed.
     let locator: Option<String> = tx.query_row(
-        "SELECT locator FROM publications WHERE id = ?1",
+        "SELECT locator FROM publications_all WHERE id = ?1",
         [id],
         |row| row.get(0),
     )?;
     if let Some(locator) = locator {
         let (spine_idx, char_offset) = convert_locator(&locator, &resources, &char_lens);
         let converted = tx.execute(
-            "UPDATE publications
+            "UPDATE publications_all
              SET position_spine_idx = ?1, position_char_offset = ?2, locator = NULL
              WHERE id = ?3 AND position_spine_idx IS NULL",
             rusqlite::params![spine_idx, char_offset as i64, id],
         )?;
         if converted == 0 {
-            tx.execute("UPDATE publications SET locator = NULL WHERE id = ?1", [id])?;
+            tx.execute("UPDATE publications_all SET locator = NULL WHERE id = ?1", [id])?;
         }
     }
 
@@ -266,11 +323,11 @@ fn rebaseline_book(
 
     // 5. Stamp: the gate that makes the pass idempotent.
     tx.execute(
-        "UPDATE publications SET reconciled_at = ?1 WHERE id = ?2",
+        "UPDATE publications_all SET reconciled_at = ?1 WHERE id = ?2",
         rusqlite::params![unix_now(), id],
     )?;
     tx.commit()?;
-    Ok(true)
+    Ok(BookOutcome::Reconciled)
 }
 
 /// Legacy locator JSON → content coordinate, never failing:
@@ -333,7 +390,7 @@ fn reindex_book(conn: &Connection, index: &IndexWriteHandle, id: &str) {
     if let Err(e) = outcome {
         log::warn!("post-rebaseline reindex of {id} failed: {e}");
         if let Err(clear_error) = conn.execute(
-            "UPDATE publications SET reconciled_at = NULL WHERE id = ?1",
+            "UPDATE publications_all SET reconciled_at = NULL WHERE id = ?1",
             [id],
         ) {
             log::warn!(

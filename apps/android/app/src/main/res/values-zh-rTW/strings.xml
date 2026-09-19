@@ -133,12 +133,12 @@
     <string name="reader_fixed_layout_unsupported">此書使用固定版式，Inkuna 暫時無法顯示。</string>
 
     <!-- Removing a book -->
-    <string name="remove_action">從書庫中移除</string>
+    <string name="remove_action">從書架中移除</string>
     <string name="remove_confirm_title">移除《%1$s》？</string>
-    <string name="remove_confirm_body">這會從本裝置刪除這本書和你的閱讀進度，且無法復原。</string>
+    <string name="remove_confirm_body">僅刪除書籍檔案。閱讀進度和書籤將會保留。</string>
     <string name="remove_confirm_button">移除</string>
     <string name="remove_cancel">取消</string>
-    <string name="remove_failed">無法移除這本書。</string>
+    <string name="remove_failed">無法移除此書。</string>
     <string name="remove_dismiss">確定</string>
     <string name="a11y_book_actions">圖書操作</string>
 </resources>

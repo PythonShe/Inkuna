@@ -51,6 +51,9 @@
     <string name="import_progress_title_one">Dodawanie do biblioteki</string>
     <string name="import_status_added">Dodano do biblioteki</string>
     <string name="import_status_duplicate">Już w bibliotece</string>
+    <string name="import_section_restored">Przywrócone</string>
+    <string name="import_status_restored">Wracasz do ostatnio czytanego miejsca</string>
+    <string name="import_status_restored_partial">Postępy przywrócone, brak dokładnej strony</string>
     <string name="import_subtitle_cancelled">pozostałe zostały anulowane</string>
     <string name="import_subtitle_duplicate_many">%1$d znajdowało się już w bibliotece</string>
     <string name="import_subtitle_duplicate_one">1 znajdowała się już w bibliotece</string>

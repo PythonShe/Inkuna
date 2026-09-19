@@ -1,0 +1,261 @@
+//! The V12 edition backfill: a background pass that fills `edition_key`
+//! for every book imported before the column existed, one book per
+//! transaction, most recently read books first. `edition_scanned_at` gates
+//! it — idempotent, crash-resumable, and skipped entirely for books
+//! imported after V12 (import stamps them itself).
+//!
+//! The migration cannot do this work: the key comes out of the book's OPF,
+//! and re-opening every archive in a library is not something a migration
+//! may do on the open path. Leaving the column NULL forever was the other
+//! option and is worse than it looks — every library already installed
+//! would keep counting a finished book and a post-V12 re-import of the
+//! same edition as two, which is exactly the case the column was added
+//! for.
+//!
+//! Runs on the search reconcile thread, chained *last* — after the V8
+//! rebaseline and after the search reconcile body — because these writes
+//! touch no corpus and nothing downstream waits on them; a book whose key
+//! is not filled yet simply counts as itself. Ahead of the reconcile it
+//! would be worse than pointless: on a V11→V12 upgrade the rebaseline has
+//! nothing pending while this pass has the entire library, so search would
+//! be newly gated behind a whole-library zip-open.
+//!
+//! Tombstones are never scanned: their file is gone, so there is nothing
+//! to read, and V11 freezes them against writes anyway. They do not need
+//! this pass — `Library::remove` derives the identity while the file is
+//! still there and writes it in the statement that makes the row a
+//! tombstone, so a book removed by this build carries its merge key and
+//! merges like any other row. The one tombstone that reaches here unkeyed
+//! is one a shipped v10 binary made: its `DELETE FROM publications` lands
+//! as a tombstone through V11's trigger, which knows nothing of these
+//! columns. Such a row keeps `edition_key` NULL and counts as itself —
+//! the safe direction.
+//!
+//! The pass also owns `title_key` repair, and that half exists because of
+//! V11's compatibility view. A shipped v10 binary writes `publications`
+//! without knowing V12 exists: its INSERT leaves `title_key` NULL, and its
+//! UPDATE rewrites `title` and leaves `title_key` describing the previous
+//! one. Neither can be fixed in the view's triggers — `title_key` is an
+//! NFKC, full-case-fold, whitespace-stripped normalization (`edition.rs`)
+//! that SQLite cannot express in SQL, and teaching v10 to call the
+//! normalizer is not on the table because v10 is already out in the world.
+//! So the repair lives on this side of the boundary instead:
+//! `repair_title_keys` recomputes the key for every live row and rewrites
+//! the ones that disagree, which closes the NULL case and the stale case
+//! with one pass and needs no signal from the writer that desynced them.
+//! It is pure normalization — no file access, no archive open — so it runs
+//! first and cheaply, ahead of the OPF scanning this module is otherwise
+//! about.
+
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
+
+use super::edition::{edition_key, title_key};
+use crate::CoreError;
+use crate::core::db::open_connection;
+use crate::core::time::unix_now;
+use crate::formats::epub;
+
+#[cfg(test)]
+#[path = "edition_backfill_tests.rs"]
+mod tests;
+
+/// Runs the whole pass; a failure opening the connection logs and
+/// returns. Opens its OWN writer connection, exactly as the rebaseline
+/// does — WAL plus `busy_timeout` make a second writer safe, and each
+/// book's transaction is one small UPDATE.
+///
+/// `cancel` is the `SearchIndex`'s drop-time flag: a dropped `Library`
+/// sets it before joining the reconcile thread, and the pass bails at the
+/// next check, leaving the remaining books unstamped for the next open.
+pub(crate) fn run(data_dir: &Path, db_path: &Path, cancel: &AtomicBool) {
+    if let Err(e) = run_pass(data_dir, db_path, cancel) {
+        log::warn!("v12 edition backfill could not run: {e}");
+    }
+}
+
+fn run_pass(data_dir: &Path, db_path: &Path, cancel: &AtomicBool) -> Result<(), CoreError> {
+    let mut conn = open_connection(db_path)?;
+    repair_title_keys(&mut conn)?;
+    let pending: Vec<(String, String)> = {
+        let mut stmt = conn.prepare(
+            // A tombstone has no file to read an identifier out of, so it
+            // is excluded here rather than stamped — it would otherwise be
+            // retried on every open, forever.
+            "SELECT id, file_path FROM publications_all
+             WHERE edition_scanned_at IS NULL AND removed_at IS NULL
+             ORDER BY last_opened_at DESC NULLS LAST",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect::<Result<_, _>>()?
+    };
+    for (id, file_path) in pending {
+        // Checked between books: whatever is not yet stamped resumes at
+        // the next open.
+        if cancel.load(Ordering::Relaxed) {
+            log::info!("v12 edition backfill cancelled; remaining books resume at the next open");
+            return Ok(());
+        }
+        // Per-book fault isolation: an error rolls back that book's
+        // transaction alone, and the book retries at the next open because
+        // `edition_scanned_at` was never stamped.
+        if let Err(e) = backfill_book(&mut conn, data_dir, &id, &file_path) {
+            log::warn!("edition backfill of {id} failed (retries next open): {e}");
+        }
+    }
+    Ok(())
+}
+
+/// Brings every live row's `title_key` back in step with its `title`.
+///
+/// Recompute-and-compare rather than a worklist, because the rows that
+/// need it carry no marker: a v10 INSERT through V11's view leaves
+/// `title_key` NULL, and a v10 UPDATE through it leaves the previous
+/// title's key sitting beside the new title, indistinguishable in the row
+/// from a key that is still correct. Comparing is what finds both, and it
+/// is affordable — reading `(id, title, title_key)` for a library and
+/// normalizing each title is string work, not I/O, unlike the `edition_key`
+/// half of this pass.
+///
+/// Read and write share one IMMEDIATE transaction, which is what lets it
+/// skip the gate-recheck dance the `edition_key` half needs: there is no
+/// file to open between the two, so nothing can move the rows under the
+/// comparison and the transaction stays short. A library whose keys all
+/// agree commits nothing.
+///
+/// Tombstones are excluded, matching the rest of the pass: V11 freezes
+/// them, so the write would be dropped on the floor. Nothing is lost by
+/// it. `Library::remove` recomputes `title_key` from the row's own title
+/// as it tombstones, so a book removed by this build leaves here already
+/// repaired, and a restore rewrites both keys from the arriving file
+/// (`import/restore.rs`). What remains out of reach is a row a shipped v10
+/// binary retitled through the view and then deleted — stale `title_key`,
+/// frozen — and that row counts as itself, which is the safe direction.
+fn repair_title_keys(conn: &mut Connection) -> Result<(), CoreError> {
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let stale: Vec<(String, String)> = {
+        let mut stmt = tx.prepare(
+            "SELECT id, title, title_key FROM publications_all WHERE removed_at IS NULL",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        })?;
+        rows.filter_map(|row| match row {
+            Ok((id, title, stored)) => {
+                let fresh = title_key(&title);
+                (stored.as_deref() != Some(fresh.as_str())).then_some(Ok((id, fresh)))
+            }
+            Err(e) => Some(Err(e)),
+        })
+        .collect::<Result<_, _>>()?
+    };
+    if stale.is_empty() {
+        return Ok(());
+    }
+    {
+        let mut update = tx.prepare(
+            "UPDATE publications_all SET title_key = ?1
+              WHERE id = ?2 AND removed_at IS NULL",
+        )?;
+        for (id, key) in &stale {
+            update.execute(rusqlite::params![key, id])?;
+        }
+    }
+    tx.commit()?;
+    log::info!("v12 title_key repair rewrote {} row(s)", stale.len());
+    Ok(())
+}
+
+/// One book: read its OPF metadata first, OUTSIDE any transaction, then
+/// one short IMMEDIATE transaction for the write. Holding the write lock
+/// across an archive open would starve other writers against the 5s
+/// `busy_timeout` for no reason.
+///
+/// An unreadable, missing, or identifier-less file is NOT an error: it
+/// records no identity and is stamped all the same. Without the stamp the
+/// same unreadable file would be re-opened on every launch for the life of
+/// the install.
+fn backfill_book(
+    conn: &mut Connection,
+    data_dir: &Path,
+    id: &str,
+    file_path: &str,
+) -> Result<(), CoreError> {
+    let key = read_identity(data_dir, id, file_path);
+    write_identity(conn, id, key)
+}
+
+/// The read half, outside every transaction and every lock: the book's
+/// OPF identifier, normalized, or `None` when the file is missing,
+/// unreadable, or carries nothing allowlisted.
+fn read_identity(data_dir: &Path, id: &str, file_path: &str) -> Option<String> {
+    let file = data_dir.join(file_path);
+    match epub::read_metadata(&file) {
+        Ok(metadata) => metadata.unique_identifier.as_deref().and_then(edition_key),
+        Err(e) => {
+            log::warn!(
+                "edition backfill of {id}: {} could not be read ({e}); recording no identity",
+                file.display()
+            );
+            None
+        }
+    }
+}
+
+/// The write half: one short IMMEDIATE transaction that rechecks the
+/// pass's gate before it writes anything.
+fn write_identity(conn: &mut Connection, id: &str, key: Option<String>) -> Result<(), CoreError> {
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    // The pass's own gate, rechecked under the write lock — both halves of
+    // it. `removed_at IS NULL AND edition_scanned_at IS NULL` held when the
+    // pending snapshot was taken, and either half can have moved since:
+    // a `remove` leaves the row a tombstone (V11's freeze trigger would
+    // silently drop the write anyway; checking explicitly is what keeps the
+    // stamp from appearing to have been written when it was not), and a
+    // remove *plus a re-import* leaves it live again with the real
+    // `edition_key` the restore parsed out of the arriving file. Writing
+    // then would overwrite that key with the `None` this pass's failed read
+    // produced, permanently — the stamp blocks every retry. A vanished row
+    // counts as removed for the same reason.
+    //
+    // `title` comes back with it because the repair writes the whole merge
+    // key: the stat merges only on `edition_key` AND `title_key`, so
+    // stamping a row whose `title_key` is NULL would retire it from the one
+    // pass that could ever fill it.
+    let row = tx
+        .query_row(
+            "SELECT removed_at, edition_scanned_at, title
+               FROM publications_all WHERE id = ?1",
+            [id],
+            |row| {
+                Ok((
+                    row.get::<_, Option<i64>>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some((None, None, title)) = row else {
+        drop(tx);
+        log::info!("edition backfill of {id} skipped: the row is no longer this pass's to write");
+        return Ok(());
+    };
+
+    // The gate is repeated in SQL so the write can only ever land on a row
+    // this pass still owns, whatever else reaches the row first.
+    tx.execute(
+        "UPDATE publications_all
+            SET edition_key = ?1, title_key = ?2, edition_scanned_at = ?3
+          WHERE id = ?4 AND removed_at IS NULL AND edition_scanned_at IS NULL",
+        rusqlite::params![key, title_key(&title), unix_now(), id],
+    )?;
+    tx.commit()?;
+    Ok(())
+}

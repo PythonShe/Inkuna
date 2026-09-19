@@ -13,7 +13,7 @@
 //! fragment. Chapter→resource mapping is `href`-minus-fragment matched
 //! against the spine — derivable at query time, never stored.
 
-pub use inkuna_content::{read_package, Cover, TocEntry};
+pub use inkuna_content::{read_metadata, read_package, Cover, TocEntry};
 #[cfg(test)]
 pub(crate) use inkuna_format::EpubWriter;
 

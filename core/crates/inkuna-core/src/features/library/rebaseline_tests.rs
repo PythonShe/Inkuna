@@ -25,7 +25,7 @@ fn unreconciled_book(locator: Option<&str>) -> (tempfile::TempDir, Library, Stri
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications SET reconciled_at = NULL, locator = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET reconciled_at = NULL, locator = ?1 WHERE id = ?2",
             rusqlite::params![locator, id],
         )
         .unwrap();
@@ -51,7 +51,7 @@ fn publication_row(
         .with(|conn| {
             conn.query_row(
                 "SELECT position_spine_idx, position_char_offset, locator, reconciled_at
-                 FROM publications WHERE id = ?1",
+                 FROM publications_all WHERE id = ?1",
                 [id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
@@ -203,7 +203,7 @@ fn two_unreconciled_books() -> (tempfile::TempDir, Library, String, String) {
         };
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications SET reconciled_at = NULL, last_opened_at = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET reconciled_at = NULL, last_opened_at = ?1 WHERE id = ?2",
             rusqlite::params![last_opened, id],
         )
         .unwrap();
@@ -386,7 +386,7 @@ fn book_start_coordinates_survive_legacy_locators() {
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications SET position_spine_idx = 0, position_char_offset = 0 WHERE id = ?1",
+            "UPDATE publications_all SET position_spine_idx = 0, position_char_offset = 0 WHERE id = ?1",
             [&id],
         )
         .unwrap();
@@ -500,7 +500,7 @@ fn fresh_coordinate_survives_stale_locator() {
     {
         let conn = library.writer.lock().unwrap();
         conn.execute(
-            "UPDATE publications SET position_spine_idx = 0, position_char_offset = 7
+            "UPDATE publications_all SET position_spine_idx = 0, position_char_offset = 7
              WHERE id = ?1",
             [&id],
         )
@@ -570,7 +570,7 @@ fn position_count_recomputed_even_to_zero() {
         conn.execute("DELETE FROM resources WHERE publication_id = ?1", [&id])
             .unwrap();
         conn.execute(
-            "UPDATE publications SET position_count = 999 WHERE id = ?1",
+            "UPDATE publications_all SET position_count = 999 WHERE id = ?1",
             [&id],
         )
         .unwrap();
@@ -583,7 +583,7 @@ fn position_count_recomputed_even_to_zero() {
         .readers
         .with(|conn| {
             conn.query_row(
-                "SELECT position_count FROM publications WHERE id = ?1",
+                "SELECT position_count FROM publications_all WHERE id = ?1",
                 [&id],
                 |row| row.get(0),
             )
@@ -647,4 +647,122 @@ fn drop_mid_pass_terminates_and_resumes() {
     let library = Library::open(dir.path().join("library")).unwrap();
     library.search.wait_for_reconcile();
     assert!(publication_row(&library, &id).3.is_some());
+}
+
+/// A book removed between the pending snapshot and its write transaction
+/// is a tombstone by the time `rebaseline_book` runs: its file and
+/// `resources` rows are gone, so converting its preserved legacy locators
+/// would land them at book start and stamp the tombstone reconciled,
+/// destroying the very history the tombstone exists to keep. The liveness
+/// recheck inside the transaction must leave every row untouched.
+#[test]
+fn book_removed_mid_pass_is_left_untouched() {
+    let locator = r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":0.5}}"#;
+    let (_dir, library, id) = unreconciled_book(Some(locator));
+    let bookmark_locator = r#"{"href":"OEBPS/text/ch02.xhtml","locations":{"progression":0.25}}"#;
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "INSERT INTO bookmarks
+                 (id, publication_id, locator, position_spine_idx, position_char_offset,
+                  progression, created_at)
+             VALUES ('bm-legacy', ?1, ?2, NULL, NULL, 0.25, 100)",
+            rusqlite::params![&id, bookmark_locator],
+        )
+        .unwrap();
+    }
+    // The path the pending snapshot captured, before `remove` blanks it.
+    let file_path = library.publication(&id).unwrap().file_path;
+    library.remove(&id).unwrap();
+
+    let outcome = {
+        let mut conn = library.writer.lock().unwrap();
+        super::rebaseline_book(
+            &mut conn,
+            &library.data_dir,
+            &id,
+            &file_path,
+            &AtomicBool::new(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap()
+    };
+    assert!(matches!(outcome, super::BookOutcome::Removed));
+
+    // The preserved position, its legacy locator, and the fail-safe NULL
+    // `reconciled_at` all survive exactly as `remove` left them.
+    assert_eq!(
+        publication_row(&library, &id),
+        (None, None, Some(locator.to_string()), None)
+    );
+    let bookmark: (String, Option<i64>, Option<i64>) = library
+        .readers
+        .with(|conn| {
+            conn.query_row(
+                "SELECT locator, position_spine_idx, position_char_offset FROM bookmarks WHERE id = 'bm-legacy'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(bookmark, (bookmark_locator.to_string(), None, None));
+}
+
+/// The other half of the same gate. `removed_at` alone is a proxy for the
+/// pass's gate, not the gate: a book removed **and re-imported** between
+/// the pending snapshot and the write transaction reads live again, and
+/// the restore that brought it back already stamped `reconciled_at` —
+/// its corpus, its `resources` rows and its positions are all freshly
+/// written and canonical. The pass is holding a pre-removal snapshot of
+/// none of that, so proceeding would rewrite a book it no longer owns and
+/// re-stamp the gate that says the work is done. Rechecking
+/// `reconciled_at IS NULL` beside `removed_at IS NULL` is what stops it.
+#[test]
+fn book_restored_mid_pass_is_left_untouched() {
+    let (dir, library, id) = unreconciled_book(None);
+    // The path the pending snapshot captured, before `remove` blanks it.
+    let file_path = library.publication(&id).unwrap().file_path;
+
+    library.remove(&id).unwrap();
+    match library
+        .import(dir.path().join("book.epub").to_str().unwrap())
+        .unwrap()
+    {
+        ImportOutcome::Restored { publication, .. } => assert_eq!(publication.id, id),
+        other => panic!("unexpected {other:?}"),
+    }
+    // The restore's own stamp, pinned to a value a re-stamp cannot
+    // coincide with — `unix_now()` has one-second granularity, so the
+    // rewrite would otherwise be invisible.
+    {
+        let conn = library.writer.lock().unwrap();
+        conn.execute(
+            "UPDATE publications_all SET reconciled_at = 1 WHERE id = ?1",
+            [&id],
+        )
+        .unwrap();
+    }
+
+    let outcome = {
+        let mut conn = library.writer.lock().unwrap();
+        super::rebaseline_book(
+            &mut conn,
+            &library.data_dir,
+            &id,
+            &file_path,
+            &AtomicBool::new(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap()
+    };
+    assert!(
+        matches!(outcome, super::BookOutcome::Removed),
+        "the row stopped being this pass's the moment the restore stamped it"
+    );
+    assert_eq!(
+        publication_row(&library, &id).3,
+        Some(1),
+        "and the restore's stamp is not overwritten"
+    );
 }

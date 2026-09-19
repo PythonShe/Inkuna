@@ -144,7 +144,7 @@
     <!-- Removing a book -->
     <string name="remove_action">Удалить из библиотеки</string>
     <string name="remove_confirm_title">Удалить «%1$s»?</string>
-    <string name="remove_confirm_body">Книга и ваш прогресс чтения будут удалены с этого устройства. Отменить это действие нельзя.</string>
+    <string name="remove_confirm_body">Удаляется только файл книги. Прогресс чтения и закладки сохраняются.</string>
     <string name="remove_confirm_button">Удалить</string>
     <string name="remove_cancel">Отмена</string>
     <string name="remove_failed">Не удалось удалить эту книгу.</string>

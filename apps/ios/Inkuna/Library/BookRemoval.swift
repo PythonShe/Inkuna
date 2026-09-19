@@ -24,7 +24,7 @@ enum BookRemoval {
             title: String.localizedStringWithFormat(format, publication.title),
             message: String(
                 localized: "remove_confirm_body",
-                defaultValue: "This deletes the book and your reading progress from this device. It can't be undone."
+                defaultValue: "Only the book file will be deleted. Your reading progress and bookmarks will be kept."
             ),
             preferredStyle: .alert
         )

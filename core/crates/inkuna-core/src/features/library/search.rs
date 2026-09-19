@@ -16,6 +16,7 @@ impl Library {
         if needle.is_empty() {
             return Ok(Vec::new());
         }
+        // Sourced from `list`, so tombstoned books are already excluded.
         let all = self.list(Shelf::All, Sort::RecentlyAdded)?;
         Ok(all
             .into_iter()

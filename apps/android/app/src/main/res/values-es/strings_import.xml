@@ -58,6 +58,9 @@
     <string name="import_progress_title_one">Añadiendo a la biblioteca</string>
     <string name="import_status_added">Añadido a tu biblioteca</string>
     <string name="import_status_duplicate">Ya en tu biblioteca</string>
+    <string name="import_section_restored">Restaurados</string>
+    <string name="import_status_restored">Continúa donde lo dejaste</string>
+    <string name="import_status_restored_partial">Progreso restaurado, página exacta no disponible</string>
     <string name="import_subtitle_cancelled">detuviste el resto</string>
     <string name="import_subtitle_duplicate_many">%1$d ya estaban en tu biblioteca</string>
     <string name="import_subtitle_duplicate_one">1 ya estaba en tu biblioteca</string>

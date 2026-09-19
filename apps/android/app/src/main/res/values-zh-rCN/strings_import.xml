@@ -57,6 +57,9 @@
     <string name="import_progress_title_one">正在添加至书架</string>
     <string name="import_status_added">已添加至书架</string>
     <string name="import_status_duplicate">已存在于书架中</string>
+    <string name="import_section_restored">已恢复</string>
+    <string name="import_status_restored">可继续上次阅读</string>
+    <string name="import_status_restored_partial">已恢复阅读进度，未能精确定位</string>
     <string name="import_subtitle_cancelled">已取消其余书籍的导入</string>
     <string name="import_subtitle_duplicate_many">%1$d 本已在书架中</string>
     <string name="import_subtitle_duplicate_one">1 本已在书架中</string>

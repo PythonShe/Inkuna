@@ -81,11 +81,13 @@ fn migration_adopts_live_rows_and_drops_dead_ones() {
         )
         .unwrap();
         conn.execute(
+            // v10-view-sql: a v1 fixture — `publications` is still the table here.
             "INSERT INTO publications VALUES ('live-id', '生きてる本', '著者', 'ja', 'epub', ?1, 100, 0.5)",
             [alive.to_str().unwrap()],
         )
         .unwrap();
         conn.execute(
+            // v10-view-sql: same v1 fixture, the row the adoption pass drops.
             "INSERT INTO publications VALUES ('dead-id', 'Gone', '', NULL, 'epub', '/no/such/file.epub', 200, 0.0)",
             [],
         )
@@ -122,6 +124,7 @@ fn v8_migrates_from_v7() {
         let mut conn = super::open_connection(&db_path).unwrap();
         super::migrate::migrate_to(&mut conn, &data_dir, 7).unwrap();
         conn.execute(
+            // v10-view-sql: a v7 fixture, written before the view existed.
             "INSERT INTO publications
                 (id, title, authors, format, file_path, added_at, progression, locator)
              VALUES ('p1', '月光書房', '紫式部', 'epub', 'books/p1.epub', 100, 0.5,
@@ -157,6 +160,7 @@ fn v8_migrates_from_v7() {
         Option<i64>,
     ) = conn
         .query_row(
+            // v10-view-sql: read at v8, where `publications` is the table.
             "SELECT title, locator, position_spine_idx, position_char_offset, reconciled_at
              FROM publications WHERE id = 'p1'",
             [],
@@ -204,7 +208,7 @@ fn fresh_install_reaches_latest_schema() {
     assert_eq!(version, super::migrate::SCHEMA_VERSION);
     // The coordinate columns are queryable on a fresh install.
     conn.query_row(
-        "SELECT COUNT(position_spine_idx) FROM publications",
+        "SELECT COUNT(position_spine_idx) FROM publications_all",
         [],
         |row| row.get::<_, i64>(0),
     )
@@ -267,6 +271,790 @@ fn v10_migrates_from_v9() {
         .unwrap();
     assert_eq!(theme, "moon");
     assert!(!library_grid);
+}
+
+/// The one migration where a wrong default is catastrophic rather than
+/// cosmetic: `removed_at` is what every library read now filters on, so a
+/// non-NULL default would tombstone an existing user's entire library —
+/// every book gone from every shelf, from search, from the reader — behind
+/// a migration they cannot undo. A populated v10 database must come
+/// through it with its books, its history, and its shelves untouched.
+#[test]
+fn v11_migrates_from_v10() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, 10).unwrap();
+        conn.execute(
+            // v10-view-sql: a v10 fixture — the row this migration renames.
+            "INSERT INTO publications
+                (id, title, authors, format, file_path, content_hash, added_at,
+                 progression, position_spine_idx, position_char_offset, finished_at)
+             VALUES ('p1', '月光書房', '紫式部', 'epub', 'books/p1.epub', 'hash-1', 100,
+                     0.5, 1, 7, 900)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            // `bookmarks.locator` is still NOT NULL at v10; a rebaselined
+            // bookmark carries both it and its coordinates.
+            "INSERT INTO bookmarks
+                (id, publication_id, locator, progression, created_at,
+                 position_spine_idx, position_char_offset)
+             VALUES ('b1', 'p1', '{\"href\":\"OEBPS/ch01.xhtml\"}', 0.25, 200, 0, 3)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sessions
+                (id, publication_id, started_at, ended_at, updated_at,
+                 start_progression, end_progression)
+             VALUES ('s1', 'p1', 300, 900, 900, 0.1, 0.5)",
+            [],
+        )
+        .unwrap();
+    }
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    // Stopped at 11: this test is about the v10→v11 step alone, and the
+    // `Library::open` at the end still runs the chain out to the latest.
+    super::migrate::migrate_to(&mut conn, &data_dir, 11).unwrap();
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 11);
+
+    // Both new columns default to NULL. `removed_at` NULL is what "live"
+    // means, and `corpus_digest` NULL is unknown provenance — a book that
+    // was never removed has no coordinates frozen across a removal.
+    let (removed_at, corpus_digest): (Option<i64>, Option<String>) = conn
+        .query_row(
+            "SELECT removed_at, corpus_digest FROM publications_all WHERE id = 'p1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(removed_at, None, "an existing book is LIVE, not removed");
+    assert_eq!(corpus_digest, None);
+
+    // And nothing the migration ran over moved.
+    let (title, spine_idx, char_offset, finished_at): (
+        String,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+    ) = conn
+        .query_row(
+            "SELECT title, position_spine_idx, position_char_offset, finished_at
+             FROM publications_all WHERE id = 'p1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .unwrap();
+    assert_eq!(title, "月光書房");
+    assert_eq!(spine_idx, Some(1), "the reading position is untouched");
+    assert_eq!(char_offset, Some(7));
+    assert_eq!(finished_at, Some(900));
+
+    // The history hanging off it survives the migration whole.
+    let (bm_spine_idx, bm_progression): (Option<i64>, f64) = conn
+        .query_row(
+            "SELECT position_spine_idx, progression FROM bookmarks WHERE id = 'b1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(bm_spine_idx, Some(0));
+    assert_eq!(bm_progression, 0.25);
+    let sessions: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sessions WHERE publication_id = 'p1'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(sessions, 1);
+
+    // And the book is still on the shelf — the assertion that would have
+    // caught a bad default from the user's side of the screen.
+    drop(conn);
+    let library = Library::open(&data_dir).unwrap();
+    let shelf = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
+    assert_eq!(shelf.len(), 1, "migrating must not empty the library");
+    assert_eq!(shelf[0].id, "p1");
+    assert_eq!(shelf[0].progression, 0.5);
+    assert_eq!(library.bookmarks("p1").unwrap().len(), 1);
+}
+
+/// V12 adds the edition-identity columns and backfills `title_key` for
+/// every row it can — a pure normalization of the stored title. The two
+/// columns that need a file (`edition_key`) or a pass (`edition_scanned_at`)
+/// stay NULL, which is what leaves the background backfill work to do.
+#[test]
+fn v12_migrates_from_v11() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, 11).unwrap();
+        conn.execute(
+            // The tombstone below goes to `publications_all` on purpose;
+            // v10-view-sql: this one is LIVE, inserted through the view.
+            "INSERT INTO publications
+                (id, title, authors, format, file_path, content_hash, added_at,
+                 progression, finished_at)
+             VALUES ('p1', '　月光　書房　', '紫式部', 'epub', 'books/p1.epub', 'hash-1',
+                     100, 0.5, 900)",
+            [],
+        )
+        .unwrap();
+        // A tombstone, whose title V11's freeze trigger protects from any
+        // write that leaves it a tombstone — the backfill included.
+        conn.execute(
+            "INSERT INTO publications_all
+                (id, title, authors, format, file_path, content_hash, added_at,
+                 progression, removed_at)
+             VALUES ('p2', 'Gone', '', 'epub', '', 'hash-2', 100, 0.5, 500)",
+            [],
+        )
+        .unwrap();
+    }
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 12);
+    assert_eq!(version, super::migrate::SCHEMA_VERSION);
+
+    let (edition_key, title_key, scanned_at, title, finished_at): (
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+        String,
+        Option<i64>,
+    ) = conn
+        .query_row(
+            "SELECT edition_key, title_key, edition_scanned_at, title, finished_at
+             FROM publications_all WHERE id = 'p1'",
+            [],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .unwrap();
+    // Backfilled in the migration: NFKC folds the ideographic spaces to
+    // ASCII ones, which the key then strips.
+    assert_eq!(title_key.as_deref(), Some("月光書房"));
+    // Not backfilled: filling it needs the book's OPF.
+    assert_eq!(edition_key, None);
+    assert_eq!(scanned_at, None, "the background pass still has work to do");
+    // And nothing the migration ran over moved.
+    assert_eq!(title, "　月光　書房　");
+    assert_eq!(finished_at, Some(900));
+
+    // The tombstone comes through frozen, which is harmless: its
+    // `edition_key` can never be filled either, so it counts as itself.
+    let (tomb_title_key, removed_at): (Option<String>, Option<i64>) = conn
+        .query_row(
+            "SELECT title_key, removed_at FROM publications_all WHERE id = 'p2'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(tomb_title_key, None);
+    assert_eq!(removed_at, Some(500), "the tombstone is still a tombstone");
+
+    // The partial index is live alongside V11's triggers.
+    let indexes: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_publications_edition'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(indexes, 1);
+    let triggers: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        triggers, 5,
+        "V11's two base-table triggers and three INSTEAD OF ones all survive the column adds"
+    );
+
+    // The compatibility view stays v10-shaped: V12's columns land on the
+    // base table and must not widen what an old binary sees.
+    let view_columns: Vec<String> = {
+        let mut stmt = conn.prepare("PRAGMA table_info(publications)").unwrap();
+        let rows = stmt.query_map([], |row| row.get::<_, String>(1)).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    for added in ["edition_key", "title_key", "edition_scanned_at"] {
+        assert!(
+            !view_columns.contains(&added.to_string()),
+            "{added} must not reach the v10 view"
+        );
+    }
+
+    // And the library still opens on the live book.
+    drop(conn);
+    let library = Library::open(&data_dir).unwrap();
+    let shelf = library.list(Shelf::All, Sort::RecentlyAdded).unwrap();
+    assert_eq!(shelf.len(), 1);
+    assert_eq!(shelf[0].id, "p1");
+}
+
+/// The forward gate. Migrations are append-only and forward-only, so a
+/// `user_version` past this build's is a database written by a newer
+/// Inkuna: there is nothing to run, and reading it anyway is exactly the
+/// failure V11 had to spend a compatibility view containing. `Library::open`
+/// must refuse it rather than open a library it would misread.
+#[test]
+fn migrate_refuses_a_future_schema() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate(&mut conn, &data_dir).unwrap();
+        // A schema from a build that does not exist yet.
+        conn.pragma_update(None, "user_version", 99).unwrap();
+    }
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    match super::migrate(&mut conn, &data_dir) {
+        Err(CoreError::SchemaTooNew { found, supported }) => {
+            assert_eq!(found, 99);
+            assert_eq!(supported, super::migrate::SCHEMA_VERSION);
+            assert_eq!(supported, 12);
+        }
+        other => panic!("a future schema must be refused, got {other:?}"),
+    }
+    // Refusing changes nothing: the newer build's schema is left exactly as
+    // it was found, so the newer build still opens its own library.
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 99);
+
+    // And the refusal is what a shell sees, not a panic or an empty shelf.
+    drop(conn);
+    match Library::open(&data_dir) {
+        Err(CoreError::SchemaTooNew { found, supported }) => {
+            assert_eq!(found, 99);
+            assert_eq!(supported, 12);
+        }
+        Err(other) => panic!("`Library::open` must propagate the refusal, got {other:?}"),
+        Ok(_) => panic!("`Library::open` opened a database from a newer build"),
+    }
+}
+
+/// Since V11 the real table is `publications_all` and `publications` is a
+/// v10-shaped view over the live rows — so SQL that names `publications`
+/// compiles, passes, and silently skips every tombstone. Nothing in the
+/// language stops that, so this walks the crate's own source and stops it
+/// here.
+///
+/// The opt-out is deliberate and per-statement: a test that means to speak
+/// v10 through the view says so with a `v10-view-sql` marker on the line or
+/// the line above it. Skipping test files wholesale would cost the guard
+/// its teeth exactly where the footgun is easiest to fire — and so would
+/// skipping `migrate.rs`, which is where V13 and everything after it gets
+/// written. The historical SQL there is fenced by name instead, between a
+/// `tombstone-guard-off:begin` / `:end` pair, so new migration steps sit
+/// outside the fence and are guarded like any other code.
+///
+/// Matching is over a token stream for the whole file, not line by line:
+/// SQL in this crate is written as multi-line string literals, and a
+/// `FROM` that ends one line with `publications` opening the next is the
+/// same statement and the same bug.
+#[test]
+fn no_sql_bypasses_the_tombstone_view() {
+    /// The word that excuses a match, for SQL that means the view.
+    const MARKER: &str = "v10-view-sql";
+    /// How far above the start of a match the marker may sit.
+    const MARKER_LOOKBACK: usize = 3;
+    /// Opens/closes a fenced region where `publications` is not the view —
+    /// only the pre-V11 migration SQL, where it is still the base table,
+    /// and V11 itself, which creates the view and its `INSTEAD OF` triggers.
+    const FENCE_BEGIN: &str = "tombstone-guard-off:begin";
+    const FENCE_END: &str = "tombstone-guard-off:end";
+    /// A bare `publications` after one of these is a statement against the
+    /// view, whatever the author meant. `references` and `on` catch the
+    /// schema-level names — a child table's FK clause, an index, a trigger.
+    const KEYWORDS: [&str; 6] = ["from", "into", "update", "join", "references", "on"];
+
+    fn rs_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                rs_files(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+
+    /// Splits on everything SQL and Rust use as punctuation, so `publications`
+    /// is a token of its own while `publications_all` stays one word.
+    fn words(line: &str) -> Vec<String> {
+        line.split(|c: char| !c.is_alphanumeric() && c != '_')
+            .filter(|w| !w.is_empty())
+            .map(|w| w.to_ascii_lowercase())
+            .collect()
+    }
+
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    rs_files(&src, &mut files);
+    files.sort();
+
+    let mut offenders = Vec::new();
+    for file in files {
+        let text = std::fs::read_to_string(&file).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+
+        // One flat token stream, each token tagged with the line it came
+        // from, so an adjacent pair may straddle a newline. Comment lines
+        // never enter it: prose may name the view freely.
+        let mut fenced = false;
+        let mut tokens: Vec<(String, usize)> = Vec::new();
+        let mut fence: Vec<bool> = Vec::with_capacity(lines.len());
+        for (idx, line) in lines.iter().enumerate() {
+            if line.contains(FENCE_BEGIN) {
+                fenced = true;
+            } else if line.contains(FENCE_END) {
+                fenced = false;
+            }
+            fence.push(fenced);
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("//") || trimmed.starts_with("--") {
+                continue;
+            }
+            tokens.extend(words(line).into_iter().map(|w| (w, idx)));
+        }
+        assert!(!fenced, "unclosed {FENCE_BEGIN} in {}", file.display());
+
+        for pair in tokens.windows(2) {
+            let (keyword, keyword_line) = &pair[0];
+            let (name, name_line) = &pair[1];
+            if !KEYWORDS.contains(&keyword.as_str()) || name != "publications" {
+                continue;
+            }
+            if fence[*name_line] {
+                continue;
+            }
+            // The marker may sit anywhere from a little above where the
+            // statement starts down to the line the name itself lands on.
+            let from = keyword_line.saturating_sub(MARKER_LOOKBACK);
+            if lines[from..=*name_line]
+                .iter()
+                .any(|line| line.contains(MARKER))
+            {
+                continue;
+            }
+            let relative = file.strip_prefix(&src).unwrap_or(&file);
+            offenders.push(format!(
+                "  {}:{}: {}",
+                relative.display(),
+                name_line + 1,
+                lines[*name_line].trim()
+            ));
+        }
+    }
+    offenders.dedup();
+
+    assert!(
+        offenders.is_empty(),
+        "SQL naming the bare table `publications`:\n{}\n\n\
+         Since V11 `publications` is a v10 compatibility VIEW over the live \
+         rows only — it hides every tombstone (`removed_at IS NOT NULL`), so \
+         this SQL silently skips removed books and a removed book can never \
+         be found, counted, or restored. Name `publications_all` instead. If \
+         the statement really does mean the v10 view, put a `{MARKER}` \
+         comment on that line or the line above it.",
+        offenders.join("\n")
+    );
+}
+
+/// V11 renames `publications` out from under five child tables and rests
+/// the whole rename on SQLite rewriting their `REFERENCES` clauses. If it
+/// did not, each clause would keep naming `publications` — a view since
+/// V11 — and every child insert would die with `foreign key mismatch`,
+/// unrepairably, because `user_version` is already past the step. Nothing
+/// else in the crate asserts the rewrite happened, so this does.
+#[test]
+fn child_tables_reference_the_renamed_base_table() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let mut conn = super::open_connection(&data_dir.join("inkuna.db")).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+
+    for child in [
+        "sessions",
+        "bookmarks",
+        "resources",
+        "chapters",
+        "resource_positions",
+    ] {
+        let parent: String = conn
+            .query_row(
+                &format!("SELECT \"table\" FROM pragma_foreign_key_list('{child}')"),
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            parent, "publications_all",
+            "{child} must reference the base table, not V11's view"
+        );
+    }
+
+    // And the rewrite is load-bearing at runtime, not just in the schema
+    // text: a child insert against a live book resolves its parent.
+    conn.execute(
+        "INSERT INTO publications_all
+            (id, title, authors, format, file_path, added_at, progression)
+         VALUES ('p1', 'Book', '', 'epub', 'books/p1.epub', 100, 0)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO sessions
+            (id, publication_id, started_at, updated_at,
+             start_progression, end_progression)
+         VALUES ('s1', 'p1', 1, 1, 0, 0.5)",
+        [],
+    )
+    .unwrap();
+    // A dangling parent is still refused, so the constraint is enforced
+    // rather than merely present.
+    assert!(
+        conn.execute(
+            "INSERT INTO sessions
+                (id, publication_id, started_at, updated_at,
+                 start_progression, end_progression)
+             VALUES ('s2', 'ghost', 1, 1, 0, 0.5)",
+            [],
+        )
+        .is_err(),
+        "the foreign key must still bite"
+    );
+}
+
+/// The rewrite above is a side effect of the rename that SQLite only
+/// guarantees while `PRAGMA foreign_keys` is on, and with it off the
+/// rename succeeds anyway — leaving a database no later open can repair,
+/// because the step has committed and `user_version` has moved on. (The
+/// same pragma is what lets `publications_soft_delete` clear a removed
+/// book's corpus through `resource_text`'s cascade, so it is doubly
+/// required.) `open_connection` enables it, but nothing in the schema
+/// depended on that until V11, and `deadpool-sqlite` — designated for the
+/// concurrent-DB work — would build its own connections, so the step
+/// refuses rather than rest on a setting made in another module.
+#[test]
+fn v11_refuses_the_rename_without_foreign_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    {
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, 10).unwrap();
+    }
+
+    // A connection with the pragma off — what a stock SQLite build gives
+    // by default, and what any future connection setup that forgets it
+    // would give here (`deadpool-sqlite` is already designated for the
+    // concurrent-DB work). rusqlite's bundled build defaults it on, so the
+    // fixture turns it off explicitly rather than relying on that.
+    let mut conn = Connection::open(&db_path).unwrap();
+    conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
+    let enabled: bool = conn
+        .pragma_query_value(None, "foreign_keys", |row| row.get(0))
+        .unwrap();
+    assert!(!enabled, "the fixture must have foreign keys off");
+
+    match super::migrate(&mut conn, &data_dir) {
+        Err(CoreError::MigrationPrecondition(detail)) => {
+            assert!(
+                detail.contains("foreign_keys"),
+                "the refusal must name the precondition, got {detail}"
+            );
+        }
+        other => panic!("v11 must refuse a connection without foreign keys, got {other:?}"),
+    }
+
+    // Refusing leaves the database exactly as it was found: still v10,
+    // `publications` still the real table, so reopening with a correct
+    // connection migrates it properly.
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 10);
+    let kind: String = conn
+        .query_row(
+            "SELECT type FROM sqlite_master WHERE name = 'publications'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(kind, "table", "the rename must not have happened");
+
+    drop(conn);
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, super::migrate::SCHEMA_VERSION);
+}
+
+/// The belt to that brace. The rewrite is a side effect nothing in the
+/// statement asks for — gated on pragmas and on the SQLite version, which
+/// before 3.25 did not do it at all — so V11 also checks the outcome
+/// before it is allowed to commit, and refuses rather than leave a
+/// database whose child inserts all fail with `foreign key mismatch`
+/// forever after. A v10 schema, where the children genuinely still
+/// reference `publications`, is exactly the shape a rename that did not
+/// rewrite would leave behind.
+#[test]
+fn the_v11_guard_rejects_child_references_left_behind() {
+    fn guard_at(stage: i64) -> Result<(), CoreError> {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().join("library");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let mut conn = super::open_connection(&data_dir.join("inkuna.db")).unwrap();
+        super::migrate::migrate_to(&mut conn, &data_dir, stage).unwrap();
+        let tx = conn.transaction().unwrap();
+        super::migrate::require_renamed_child_references(&tx)
+    }
+
+    // v11 onwards: the rename happened, so the guard passes.
+    guard_at(11).expect("a renamed schema must satisfy the guard");
+
+    // v10: the children reference `publications`, which is what a rename
+    // that did not rewrite would leave under V11's view.
+    match guard_at(10) {
+        Err(CoreError::MigrationPrecondition(detail)) => {
+            assert!(
+                detail.contains("sessions") && detail.contains("publications"),
+                "the refusal must name what was left behind, got {detail}"
+            );
+        }
+        other => panic!("the guard must reject an unrewritten schema, got {other:?}"),
+    }
+}
+
+/// And the guard is wired into the migration, not merely tested beside it.
+///
+/// `require_foreign_keys` reaches its refusal through `migrate()` because
+/// its precondition is a pragma a test can just turn off. This one cannot:
+/// with foreign keys enabled — which the step already demands — SQLite
+/// rewrites the child clauses whatever else is set, so the failure it
+/// guards against is a *future* SQLite's, unreachable on this one. Without
+/// this test, deleting the call from `migrate_upto`'s v10 arm left the
+/// whole suite green: the guard function had its own coverage and the
+/// rewrite had its own coverage, and nothing joined them.
+///
+/// So the outcome is arranged instead of the cause. A v10 database whose
+/// `sessions` references something other than `publications` reaches v11
+/// with `sessions` still not naming `publications_all` — precisely the
+/// shape a rename that did not rewrite leaves — and the only thing that
+/// can turn that into a refusal is the call site.
+#[test]
+fn the_v11_step_runs_the_renamed_child_reference_guard() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let db_path = data_dir.join("inkuna.db");
+
+    let mut conn = super::open_connection(&db_path).unwrap();
+    super::migrate::migrate_to(&mut conn, &data_dir, 10).unwrap();
+    conn.execute_batch(
+        "DROP TABLE sessions;
+         CREATE TABLE sessions (
+             id                TEXT PRIMARY KEY,
+             publication_id    TEXT NOT NULL REFERENCES settings(id),
+             started_at        INTEGER NOT NULL,
+             ended_at          INTEGER,
+             updated_at        INTEGER NOT NULL,
+             start_progression REAL NOT NULL,
+             end_progression   REAL NOT NULL,
+             start_position    INTEGER,
+             end_position      INTEGER
+         );",
+    )
+    .unwrap();
+
+    match super::migrate(&mut conn, &data_dir) {
+        Err(CoreError::MigrationPrecondition(detail)) => {
+            assert!(
+                detail.contains("sessions") && detail.contains("rewrite"),
+                "the refusal must be the guard's own, got {detail}"
+            );
+        }
+        other => panic!("the v11 step must run the guard, got {other:?}"),
+    }
+
+    // And the refusal rolled the whole step back, exactly as its doc
+    // promises: still v10, `publications` still the real table.
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 10);
+    let kind: String = conn
+        .query_row(
+            "SELECT type FROM sqlite_master WHERE name = 'publications'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(kind, "table", "the rename must not have stood");
+}
+
+/// A view has no column defaults of its own, so an INSERT that omits one
+/// arrives at the base table as NULL and trips its NOT NULL check — where
+/// the same statement against the v10 table would have taken the default.
+/// V11's view is a stand-in for that table, not a stricter version of it,
+/// so its INSERT trigger supplies the defaults itself.
+#[test]
+fn the_view_supplies_the_base_tables_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("library");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let mut conn = super::open_connection(&data_dir.join("inkuna.db")).unwrap();
+    super::migrate(&mut conn, &data_dir).unwrap();
+
+    // Every NOT NULL column of the base table that carries a DEFAULT — so
+    // a future defaulted column cannot be added without this noticing.
+    let defaulted: Vec<String> = {
+        let mut stmt = conn.prepare("PRAGMA table_info(publications_all)").unwrap();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })
+            .unwrap();
+        rows.filter_map(|row| {
+            let (name, not_null, default) = row.unwrap();
+            (not_null == 1 && default.is_some()).then_some(name)
+        })
+        .collect()
+    };
+    assert_eq!(
+        defaulted,
+        vec!["authors".to_string(), "progression".to_string()]
+    );
+
+    // v10-view-sql: the shipped v10 shape, minus the defaulted columns.
+    conn.execute(
+        "INSERT INTO publications (id, title, format, file_path, added_at)
+         VALUES ('through-view', 'Book', 'epub', 'books/v.epub', 100)",
+        [],
+    )
+    .expect("a v10 INSERT omitting a defaulted column must go through the view");
+    // The control: the same statement against the real table.
+    conn.execute(
+        "INSERT INTO publications_all (id, title, format, file_path, added_at)
+         VALUES ('direct', 'Book', 'epub', 'books/d.epub', 100)",
+        [],
+    )
+    .unwrap();
+
+    let row = |id: &str| -> (String, f64) {
+        conn.query_row(
+            "SELECT authors, progression FROM publications_all WHERE id = ?1",
+            [id],
+            |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())),
+        )
+        .unwrap()
+    };
+    assert_eq!(row("through-view"), row("direct"));
+    assert_eq!(row("through-view"), (String::new(), 0.0));
+}
+
+/// Every route to v12 must land on one schema. A staged upgrade that
+/// diverges from a fresh install by so much as a trigger body gives two
+/// populations of installs whose behaviour differs where nothing says it
+/// should — and V11's view and triggers are exactly the kind of thing a
+/// chain edit desynchronizes silently. `sqlite_master` compared verbatim
+/// is the strongest statement available: it is the schema, text and all.
+#[test]
+fn the_schema_is_identical_across_fresh_and_staged_upgrades() {
+    fn schema_at(stage: Option<i64>) -> (i64, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().join("library");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let db_path = data_dir.join("inkuna.db");
+        if let Some(stage) = stage {
+            let mut conn = super::open_connection(&db_path).unwrap();
+            super::migrate::migrate_to(&mut conn, &data_dir, stage).unwrap();
+        }
+        let mut conn = super::open_connection(&db_path).unwrap();
+        super::migrate(&mut conn, &data_dir).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        let mut stmt = conn
+            .prepare(
+                "SELECT type, name, tbl_name, COALESCE(sql, '')
+                   FROM sqlite_master ORDER BY type, name",
+            )
+            .unwrap();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(format!(
+                    "{}\t{}\t{}\n{}\n",
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .unwrap();
+        let schema: String = rows.map(|row| row.unwrap()).collect();
+        (version, schema)
+    }
+
+    let fresh = schema_at(None);
+    assert_eq!(fresh.0, super::migrate::SCHEMA_VERSION);
+    // The view and its triggers must be in the fresh schema at all, or the
+    // comparisons below would agree on nothing.
+    assert!(fresh.1.contains("CREATE VIEW publications"));
+    for stage in [2, 7, 10, 11] {
+        let staged = schema_at(Some(stage));
+        assert_eq!(
+            staged, fresh,
+            "a database staged at v{stage} must reach the same schema as a fresh install"
+        );
+    }
 }
 
 /// A panic inside pooled work must not consume the connection. UniFFI

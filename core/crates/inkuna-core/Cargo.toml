@@ -30,7 +30,7 @@ icu_normalizer = "2"
 # Library-wide full-text search: tantivy index under <data_dir>/index/,
 # jieba word segmentation for ranked Chinese queries (see core/CLAUDE.md §4).
 tantivy = "0.26"
-jieba-rs = "0.10"
+jieba-rs = "0.11"
 
 [dev-dependencies]
 inkuna-content = { path = "../inkuna-content", features = ["test-support"] }

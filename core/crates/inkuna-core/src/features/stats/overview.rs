@@ -80,6 +80,13 @@ impl Library {
 
         let horizon = week_start_ts.min(month_start);
         let (sessions, finished): (Vec<SessionRow>, u32) = self.readers.with(|conn| {
+            // DELIBERATELY unfiltered by `publications.removed_at`: this
+            // aggregates sessions with no join to publications at all, and
+            // that is the whole reason removal keeps the publication row in
+            // place instead of moving history aside. Time you actually
+            // spent reading is time you spent reading — deleting the book
+            // afterwards must never retroactively erase it from this week
+            // or this month. Do not "fix" this by adding a join.
             let mut stmt = conn.prepare_cached(
                 "SELECT started_at, ended_at, updated_at, start_position, end_position
                  FROM sessions WHERE started_at >= ?1",
@@ -95,8 +102,36 @@ impl Library {
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
+            // DELIBERATELY unfiltered by `removed_at`: a book you finished
+            // and then deleted is still a book you finished this year, so a
+            // tombstone keeps counting here. This is the one read in the
+            // crate that is meant to see through a tombstone.
+            //
+            // The de-duplication below is about EDITIONS, not liveness.
+            // Because the tombstone keeps counting, finishing a book,
+            // removing it, and finishing a differently-encoded copy of the
+            // same edition counted two books — `content_hash` cannot see
+            // that the two files are one book. Rows therefore collapse on
+            // `edition_key` (a normalized `dc:identifier`: UUID, ISBN, or
+            // DOI — see `features/library/edition.rs`) AND `title_key`,
+            // both required: a false merge would need a checksum-valid
+            // shared strong identifier *and* a byte-identical normalized
+            // title, which is what defends against a packing toolchain
+            // stamping one hardcoded `urn:uuid:` across a catalogue. A row
+            // missing either key falls back to its own id and counts as
+            // itself — deliberately, since merging two genuinely distinct
+            // books is a worse error than the double count this fixes.
+            // U+001F is the unit separator, so a title ending in the
+            // key's own characters cannot forge a collision.
             let finished: u32 = conn.query_row(
-                "SELECT COUNT(*) FROM publications WHERE finished_at >= ?1",
+                "SELECT COUNT(*) FROM (
+                     SELECT DISTINCT CASE
+                       WHEN edition_key IS NOT NULL AND title_key IS NOT NULL
+                         THEN 'e:' || edition_key || CHAR(31) || title_key
+                         ELSE 'i:' || id
+                     END
+                     FROM publications_all WHERE finished_at >= ?1
+                 )",
                 [year_start],
                 |row| row.get(0),
             )?;

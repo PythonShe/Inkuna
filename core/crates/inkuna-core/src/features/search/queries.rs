@@ -54,7 +54,7 @@ impl Library {
         let (canonical, rows): (bool, Vec<(u32, String, String)>) = self.readers.with(|conn| {
             let canonical: bool = conn
                 .query_row(
-                    "SELECT reconciled_at IS NOT NULL FROM publications WHERE id = ?1",
+                    "SELECT reconciled_at IS NOT NULL FROM publications_all WHERE id = ?1",
                     [id],
                     |row| row.get(0),
                 )

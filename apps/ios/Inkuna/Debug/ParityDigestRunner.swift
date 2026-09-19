@@ -73,6 +73,10 @@ enum ParityDigestRunner {
             switch imported {
             case let .imported(publication), let .duplicate(publication):
                 publicationID = publication.id
+            // A corpus book an earlier run tombstoned is the same
+            // publication, digested the same way.
+            case let .restored(publication, _):
+                publicationID = publication.id
             case let .failed(_, error):
                 return .string("ERROR: \(errorMessage(error))")
             }
@@ -140,7 +144,7 @@ enum ParityDigestRunner {
              let .InvalidPublication(detail), let .NotReady(detail),
              let .UnsupportedContent(detail), let .LayoutBudgetExceeded(detail),
              let .AnchorNotFound(detail), let .Search(detail),
-             let .InvalidState(detail):
+             let .MigrationPrecondition(detail), let .InvalidState(detail):
             return detail
         case let .FileTooLarge(limit):
             return "limit=\(limit)"
@@ -148,6 +152,8 @@ enum ParityDigestRunner {
             return "format=\(format ?? "nil")"
         case let .NotFound(id):
             return "id=\(id)"
+        case let .SchemaTooNew(found, supported):
+            return "schema=\(found) supported=\(supported)"
         }
     }
 }

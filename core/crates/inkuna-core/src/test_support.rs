@@ -34,6 +34,17 @@ pub(crate) fn write_mobi(path: &Path, version: u32) {
 pub(crate) fn imported(outcome: ImportOutcome) -> Publication {
     match outcome {
         ImportOutcome::Imported(p) => p,
-        ImportOutcome::Duplicate(p) => panic!("expected fresh import, got duplicate of {}", p.id),
+        other => panic!("expected fresh import, got {other:?}"),
+    }
+}
+
+/// The restored publication plus whether its exact coordinates survived.
+pub(crate) fn restored(outcome: ImportOutcome) -> (Publication, bool) {
+    match outcome {
+        ImportOutcome::Restored {
+            publication,
+            coordinates_restored,
+        } => (publication, coordinates_restored),
+        other => panic!("expected a restore, got {other:?}"),
     }
 }

@@ -1,10 +1,11 @@
-use std::io::Cursor;
+use std::io::{Cursor, Write};
+use std::path::Path;
 
 use image::{DynamicImage, ImageFormat, ImageReader, RgbaImage};
 
 use super::{normalize_cover, normalized};
 use crate::formats::epub::Cover;
-use crate::test_support::{imported, write_epub};
+use crate::test_support::{imported, restored, write_epub};
 use crate::Library;
 
 /// A gradient PNG — compressible but photographic enough that lossy WebP
@@ -19,6 +20,58 @@ fn png_bytes(width: u32, height: u32) -> Vec<u8> {
         .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
         .unwrap();
     bytes
+}
+
+/// The stock fixture's cover art is deliberately undecodable, so import
+/// stores it verbatim and its path keeps the source extension. A book whose
+/// cover *survives* normalization — and is therefore stored as
+/// `covers/<id>.webp` — needs its own fixture: the stock structure with
+/// real pixels in place of the placeholder bytes.
+fn write_epub_with_real_cover(path: &Path, cover: &[u8]) {
+    let file = std::fs::File::create(path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+    zip.start_file("mimetype", stored).unwrap();
+    zip.write_all(b"application/epub+zip").unwrap();
+    zip.start_file("META-INF/container.xml", stored).unwrap();
+    zip.write_all(
+        br#"<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>"#,
+    )
+    .unwrap();
+    zip.start_file("OEBPS/content.opf", stored).unwrap();
+    zip.write_all(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="uid">cover-fixture</dc:identifier>
+    <dc:title>書影のある本</dc:title>
+    <dc:creator>作者</dc:creator>
+    <dc:language>zh</dc:language>
+  </metadata>
+  <manifest>
+    <item id="c1" href="text/ch01.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover-img" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+  </manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#
+            .as_bytes(),
+    )
+    .unwrap();
+    zip.start_file("OEBPS/text/ch01.xhtml", stored).unwrap();
+    zip.write_all(
+        r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>ch01</title></head>
+<body><h1>第一章</h1><p>月の光が窓辺に落ちていた。</p></body></html>"#
+            .as_bytes(),
+    )
+    .unwrap();
+    zip.start_file("OEBPS/images/cover.png", stored).unwrap();
+    zip.write_all(cover).unwrap();
+    zip.finish().unwrap();
 }
 
 fn dimensions(bytes: &[u8]) -> (u32, u32) {
@@ -129,7 +182,7 @@ fn optimize_covers_reencodes_legacy_rows_once() {
         .lock()
         .unwrap()
         .execute(
-            "UPDATE publications SET cover_path = ?1 WHERE id = ?2",
+            "UPDATE publications_all SET cover_path = ?1 WHERE id = ?2",
             rusqlite::params![legacy_rel, publication.id],
         )
         .unwrap();
@@ -144,5 +197,232 @@ fn optimize_covers_reencodes_legacy_rows_once() {
     assert_eq!(dimensions(&stored), (600, 900));
 
     // Idempotent: the normalized cover is a fixed point.
+    assert_eq!(library.optimize_covers().unwrap(), 0);
+}
+
+/// What a removal actually leaves for the cover pass: no `cover_path` and
+/// no file. This is the invariant the pass's `removed_at IS NULL` filter
+/// sits on top of, reached the only way it can be reached — a real
+/// `remove`.
+///
+/// There is deliberately no test for that filter *itself*, because no
+/// reachable state can tell it apart from the `cover_path IS NOT NULL`
+/// clause beside it. Every tombstone producer nulls `cover_path` in the
+/// same statement that stamps `removed_at` (`Library::remove`, and V11's
+/// `publications_soft_delete` trigger for an old binary's hard delete),
+/// and restore is the reverse: `revive` sets `cover_path` and clears
+/// `removed_at` together, so the row is live again the instant it has a
+/// cover. Nor can the state be forced after the fact — V11's
+/// `publications_freeze_tombstone` trigger drops any UPDATE that would
+/// leave a tombstone a tombstone, and the `publications` view hides
+/// tombstones from the other direction. A tombstone carrying a
+/// `cover_path` is therefore unreachable, the filter is defense in depth,
+/// and a test that manufactured that row would only be testing itself.
+/// Should a future writer ever be able to leave a cover on a tombstone,
+/// that is when the filter becomes observable and wants its own test.
+///
+/// Re-checked when the pass learned to re-extract a missing cover, since
+/// that gave a row with a `cover_path` and no file real work to do rather
+/// than an error to log: the answer is unchanged, because a tombstone has
+/// no `cover_path` to reach that work with. What the re-extraction *did*
+/// add is a row that goes stale mid-pass — read live, removed before its
+/// turn comes — and that is not this filter's business either: the pass
+/// reads its worklist before the removal exists, so only the guarded
+/// claim under the writer lock can catch it, and that is what does.
+#[test]
+fn a_removal_leaves_the_cover_pass_nothing_to_do() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let library = Library::open(&data_dir).unwrap();
+
+    let book = dir.path().join("book.epub");
+    write_epub(&book, "书名", "作者", "zh");
+    let publication = imported(library.import(book.to_str().unwrap()).unwrap());
+    let id = publication.id.clone();
+
+    // A full-resolution cover the pass would certainly re-encode, planted
+    // while the book is still live — so "nothing to do" below cannot come
+    // from the cover being uninteresting.
+    let legacy_rel = format!("covers/{id}.png");
+    std::fs::write(data_dir.join(&legacy_rel), png_bytes(1200, 1800)).unwrap();
+    library
+        .writer
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE publications_all SET cover_path = ?1 WHERE id = ?2",
+            rusqlite::params![legacy_rel, id],
+        )
+        .unwrap();
+
+    library.remove(&id).unwrap();
+
+    let (cover_path, removed_at): (Option<String>, Option<i64>) = library
+        .writer
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT cover_path, removed_at FROM publications_all WHERE id = ?1",
+            [&id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert!(removed_at.is_some(), "the row is a tombstone, not deleted");
+    assert_eq!(
+        cover_path, None,
+        "and a tombstone never keeps a cover to optimize"
+    );
+    assert!(!data_dir.join(&legacy_rel).exists(), "its file went too");
+
+    assert_eq!(
+        library.optimize_covers().unwrap(),
+        0,
+        "a removed book is not the cover pass's business"
+    );
+    assert!(!data_dir.join(format!("covers/{id}.webp")).exists());
+}
+
+/// The cover pass losing its book to a removal and a restore mid-flight:
+/// the re-encode is staged, and only then is the book removed and
+/// re-imported onto the very same id — which is what makes
+/// `covers/<id>.webp`, the path this pass was about to write, the restored
+/// row's own cover.
+///
+/// The pass must notice that the row it read is no longer the row it found
+/// and touch nothing. Placing the file before claiming the row (as it did)
+/// either overwrites that cover or, when the guarded update then misses,
+/// *deletes* it — leaving a live publication whose only cover is gone, with
+/// nothing to heal it: the open-time sweep collects only *unreferenced*
+/// files.
+#[test]
+fn a_cover_pass_that_loses_its_book_to_a_restore_leaves_the_new_cover_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let library = Library::open(&data_dir).unwrap();
+
+    let book = dir.path().join("book.epub");
+    write_epub_with_real_cover(&book, &png_bytes(120, 180));
+    let publication = imported(library.import(book.to_str().unwrap()).unwrap());
+    let id = publication.id.clone();
+    // Its cover decodes, so import normalized it — and a restore of this
+    // same file will write that same path again.
+    let restored_rel = format!("covers/{id}.webp");
+    assert_eq!(
+        publication.cover_path.as_deref(),
+        Some(restored_rel.as_str())
+    );
+
+    // Plant a pre-normalization row: a full-resolution PNG under its own
+    // name. That is what gives the pass something to re-encode, and what
+    // makes its output land on `covers/<id>.webp` rather than in place.
+    let legacy_rel = format!("covers/{id}.png");
+    std::fs::write(data_dir.join(&legacy_rel), png_bytes(1200, 1800)).unwrap();
+    library
+        .writer
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE publications_all SET cover_path = ?1 WHERE id = ?2",
+            rusqlite::params![legacy_rel, id],
+        )
+        .unwrap();
+
+    let changed = library
+        .optimize_covers_hooked(&|| {
+            library.remove(&id).unwrap();
+            let (back, _) = restored(library.import(book.to_str().unwrap()).unwrap());
+            assert_eq!(back.id, id, "the re-import adopted the removed book's id");
+        })
+        .unwrap();
+
+    assert_eq!(changed, 0, "the row it read is not the row it found");
+    let live = library.publication(&id).unwrap();
+    assert_eq!(
+        live.cover_path.as_deref(),
+        Some(restored_rel.as_str()),
+        "the restore's row is untouched"
+    );
+    let stored = std::fs::read(data_dir.join(&restored_rel)).unwrap();
+    assert_eq!(
+        dimensions(&stored),
+        (120, 180),
+        "and so is its cover — neither deleted nor overwritten with the stale re-encode"
+    );
+    // The staged re-encode went with the losing pass; nothing is left
+    // behind for the sweep either.
+    assert_eq!(
+        std::fs::read_dir(data_dir.join("covers")).unwrap().count(),
+        1
+    );
+}
+
+/// A live row whose cover *file* is gone — the shape a crash between the
+/// rename and the commit leaves, and the shape an older build's cover loss
+/// leaves. Nothing used to heal it: the pass read the missing file, failed,
+/// logged, and skipped it forever, and a re-import of the same book is
+/// refused as a duplicate before it ever parses. So the cover is rebuilt
+/// from the one source that still has it — the stored book.
+#[test]
+fn a_missing_cover_file_is_re_extracted_from_the_book() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let library = Library::open(&data_dir).unwrap();
+
+    let book = dir.path().join("book.epub");
+    write_epub_with_real_cover(&book, &png_bytes(1200, 1800));
+    let publication = imported(library.import(book.to_str().unwrap()).unwrap());
+    let rel = publication.cover_path.clone().unwrap();
+    assert!(data_dir.join(&rel).is_file());
+
+    std::fs::remove_file(data_dir.join(&rel)).unwrap();
+    assert_eq!(library.optimize_covers().unwrap(), 1);
+
+    let live = library.publication(&publication.id).unwrap();
+    let healed = live.cover_path.clone().unwrap();
+    assert!(
+        data_dir.join(&healed).is_file(),
+        "the row points at a cover that exists again"
+    );
+    assert_eq!(
+        dimensions(&std::fs::read(data_dir.join(&healed)).unwrap()),
+        (600, 900)
+    );
+    // And it is a fixed point again: a healed cover is a normalized one.
+    assert_eq!(library.optimize_covers().unwrap(), 0);
+}
+
+/// The other half of the re-extraction: a book that cannot yield a cover,
+/// because its file is gone or is not a readable EPUB. The row must stop
+/// claiming a cover it does not have — otherwise every library open would
+/// pay for the same failed parse again, forever.
+#[test]
+fn a_book_that_cannot_yield_a_cover_stops_claiming_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let library = Library::open(&data_dir).unwrap();
+
+    let gone = dir.path().join("gone.epub");
+    write_epub(&gone, "失われた本", "作者", "zh");
+    let gone = imported(library.import(gone.to_str().unwrap()).unwrap());
+    let damaged = dir.path().join("damaged.epub");
+    write_epub(&damaged, "壊れた本", "作者", "zh");
+    let damaged = imported(library.import(damaged.to_str().unwrap()).unwrap());
+
+    for publication in [&gone, &damaged] {
+        std::fs::remove_file(data_dir.join(publication.cover_path.as_ref().unwrap())).unwrap();
+    }
+    std::fs::remove_file(data_dir.join(&gone.file_path)).unwrap();
+    std::fs::write(data_dir.join(&damaged.file_path), b"not an archive").unwrap();
+
+    assert_eq!(library.optimize_covers().unwrap(), 2);
+    for publication in [&gone, &damaged] {
+        assert_eq!(
+            library.publication(&publication.id).unwrap().cover_path,
+            None,
+            "a row stops pointing at a cover nothing can rebuild"
+        );
+    }
+    // Which is exactly what keeps the next open from retrying the parse:
+    // neither row is the pass's business any more.
     assert_eq!(library.optimize_covers().unwrap(), 0);
 }
