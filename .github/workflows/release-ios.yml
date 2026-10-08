@@ -27,7 +27,7 @@ name: Release iOS
 #       (matched in ExportOptions.plist and the archive step).
 #       base64 -i Inkuna_App_Store.mobileprovision | pbcopy
 #   APPLE_TEAM_ID                       Apple Developer team id.
-#   GEMINI_API_KEY                         for release-notes.yml.
+#   ANTHROPIC_API_KEY                   for release-notes.yml.
 
 on:
   push:
@@ -371,7 +371,7 @@ jobs:
       paths: core apps/ios
       platform: iOS
     secrets:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
   # Push the same notes into TestFlight as the build's "What to Test" —
   # English on en-US (the app's primary locale, so it is also what testers

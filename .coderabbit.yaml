@@ -329,7 +329,7 @@ reviews:
     - path: '.github/workflows/**'
       instructions: |
         Release and CI workflows handling Apple, Google Play, Cloudflare, and
-        OpenAI secrets. Enforce:
+        Anthropic API secrets. Enforce:
         - Pin third-party actions to a commit SHA, not a mutable tag.
         - Secrets must never be echoed, written to logs, or interpolated into a
           `run:` line where they could surface in output. Signing material

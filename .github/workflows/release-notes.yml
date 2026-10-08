@@ -14,13 +14,11 @@ name: Release Notes
 # plus per-language slices of it: release_notes.md (en, TestFlight's "What
 # to Test"), release_notes.zh.md, and release_notes.ja.md.
 #
-# The call goes to the Gemini API's OpenAI-compatible chat-completions
-# endpoint with gemini-3.8-flash at high reasoning effort (the compatibility
-# layer maps reasoning_effort "high" to Gemini's thinking_level "high"). The
-# repository variables LLM_BASE_URL / LLM_MODEL can override the endpoint and
-# model without a workflow edit.
+# The call goes to the Anthropic Messages API with claude-opus-5-5 at medium
+# effort. The repository variables LLM_MODEL / LLM_EFFORT can override the
+# model and effort without a workflow edit.
 #
-# Required repository secret: GEMINI_API_KEY (Google AI Studio API key).
+# Required repository secret: ANTHROPIC_API_KEY (Anthropic Console API key).
 
 on:
   workflow_call:
@@ -42,7 +40,7 @@ on:
         required: true
         type: string
     secrets:
-      GEMINI_API_KEY:
+      ANTHROPIC_API_KEY:
         required: true
   workflow_dispatch:
     inputs:
@@ -80,17 +78,17 @@ jobs:
       - name: Generate release notes
         shell: bash
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
-          LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-3.8-flash' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-opus-5-5' }}
+          LLM_EFFORT: ${{ vars.LLM_EFFORT || 'medium' }}
           TAG: ${{ inputs.tag }}
           TAG_PATTERN: ${{ inputs.tag_pattern }}
           PATHS: ${{ inputs.paths }}
           PLATFORM: ${{ inputs.platform }}
         run: |
           set -euo pipefail
-          if [ -z "${GEMINI_API_KEY:-}" ]; then
-            echo "::error::secrets.GEMINI_API_KEY is unset. Set it in Settings → Secrets and variables → Actions." >&2
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "::error::secrets.ANTHROPIC_API_KEY is unset. Set it in Settings → Secrets and variables → Actions." >&2
             exit 1
           fi
 
@@ -198,26 +196,27 @@ jobs:
           SYSTEM_EOF
           )
 
-          # High reasoning effort: the notes are the release's public face and
-          # the rule set above rewards deliberation. Gemini's OpenAI-compat
-          # layer maps reasoning_effort "high" to thinking_level "high". The
-          # completion cap is shared between thinking and the answer; Gemini
-          # 3.8 Flash tops out at 64k output tokens and even the trilingual
-          # notes stay under 3k, so it is pure thinking headroom.
+          # Anthropic Messages API. Claude Opus 5.5 always thinks adaptively;
+          # `output_config.effort` steers how much. The notes are the release's
+          # public face and the rule set above rewards deliberation, so effort
+          # stays explicit. max_tokens caps thinking plus text; even the
+          # trilingual notes stay under 3k, so the rest is thinking headroom.
           request_notes() {
-            curl -s --max-time 600 "${LLM_BASE_URL%/}/chat/completions" \
-              -H "Content-Type: application/json" \
-              -H "Authorization: Bearer $GEMINI_API_KEY" \
+            curl -s --max-time 600 "https://api.anthropic.com/v1/messages" \
+              -H "content-type: application/json" \
+              -H "anthropic-version: 2023-06-01" \
+              -H "x-api-key: $ANTHROPIC_API_KEY" \
               -d "$(jq -n \
                 --arg model "$LLM_MODEL" \
+                --arg effort "$LLM_EFFORT" \
                 --arg system "$SYSTEM_PROMPT" \
                 --arg commits "$COMMITS" \
                 '{
                   model: $model,
-                  reasoning_effort: "high",
-                  max_completion_tokens: 65536,
+                  max_tokens: 64000,
+                  output_config: {effort: $effort},
+                  system: $system,
                   messages: [
-                    {role: "system", content: $system},
                     {role: "user", content: $commits}
                   ]
                 }')" || true
@@ -230,9 +229,9 @@ jobs:
           CHANGELOG=""
           for ATTEMPT in 1 2; do
             RESPONSE=$(request_notes)
-            CANDIDATE=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty' 2>/dev/null || true)
-            FINISH=$(echo "$RESPONSE" | jq -r '.choices[0].finish_reason // empty' 2>/dev/null || true)
-            if [ -n "$CANDIDATE" ] && [ "$FINISH" != "length" ] \
+            CANDIDATE=$(echo "$RESPONSE" | jq -r '[.content[]? | select(.type == "text") | .text] | join("")' 2>/dev/null || true)
+            FINISH=$(echo "$RESPONSE" | jq -r '.stop_reason // empty' 2>/dev/null || true)
+            if [ -n "$CANDIDATE" ] && [ "$FINISH" = "end_turn" ] \
               && grep -q '^<!-- inkuna:lang:en -->' <<<"$CANDIDATE" \
               && grep -q '^<!-- inkuna:lang:zh -->' <<<"$CANDIDATE" \
               && grep -q '^<!-- inkuna:lang:ja -->' <<<"$CANDIDATE" \
@@ -243,7 +242,7 @@ jobs:
               break
             fi
             API_ERROR=$(echo "$RESPONSE" | jq -r '.error.message // empty' 2>/dev/null || true)
-            echo "::warning::Release notes attempt $ATTEMPT failed (finish_reason='${FINISH:-none}'${API_ERROR:+, error: $API_ERROR})"
+            echo "::warning::Release notes attempt $ATTEMPT failed (stop_reason='${FINISH:-none}'${API_ERROR:+, error: $API_ERROR})"
           done
 
           if [ -z "$CHANGELOG" ]; then
