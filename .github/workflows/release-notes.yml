@@ -204,7 +204,7 @@ jobs:
           request_notes() {
             curl -s --max-time 600 "https://api.anthropic.com/v1/messages" \
               -H "content-type: application/json" \
-              -H "anthropic-version: 2023-06-01" \
+              -H "anthropic-version: 2026-10-21" \
               -H "x-api-key: $ANTHROPIC_API_KEY" \
               -d "$(jq -n \
                 --arg model "$LLM_MODEL" \
