@@ -71,8 +71,8 @@ reviews:
       instructions: |
         Apply only when the PR changes nothing outside `docs/`, `*.md`, or doc
         comments. A code change with incidental doc updates is not
-        documentation. Note that every `AGENTS.md` is a generated copy of its
-        sibling `CLAUDE.md` — a PR that only re-syncs those is documentation.
+        documentation. Every `AGENTS.md` is a symlink to its sibling
+        `CLAUDE.md`.
     - label: accessibility
       instructions: |
         Apply when the PR affects Dynamic Type, VoiceOver/TalkBack, contrast,
@@ -110,8 +110,8 @@ reviews:
   #
   # CAVEAT — these patterns also drive CodeRabbit's `git sparse-checkout`, so
   # an excluded file is not merely unreviewed, it is not cloned. That is why
-  # CLAUDE.md and AGENTS.md are deliberately NOT excluded despite AGENTS.md
-  # being duplicated churn: excluding them would starve
+  # CLAUDE.md and AGENTS.md (a symlink to CLAUDE.md) are deliberately NOT
+  # excluded: excluding them would starve
   # `knowledge_base.code_guidelines` of the very files it is pointed at.
   #
   # Generated trees (`apps/ios/Generated/`, `apps/ios/Frameworks/`,
@@ -358,13 +358,6 @@ reviews:
           the FFI surface they generate — flag a change to one that has no
           counterpart in the other.
 
-    - path: '**/AGENTS.md'
-      instructions: |
-        Every `AGENTS.md` is a VERBATIM copy of its sibling `CLAUDE.md`, kept in
-        the same commit. Diff the two: if this file's content does not match the
-        `CLAUDE.md` beside it, flag it as an out-of-sync copy and say which
-        direction the fix goes. Do not review the content itself here — review
-        it on the `CLAUDE.md`.
 
     - path: 'core/**/*.rs'
       instructions: |

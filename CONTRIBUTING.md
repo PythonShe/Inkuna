@@ -145,8 +145,8 @@ to run it: **pnpm**, never npm or yarn — `corepack enable pnpm` once, then
 Each component carries its own `CLAUDE.md` with rules specific to it — read the
 one for the directory you're touching, plus the root `CLAUDE.md` for repo-wide
 constraints. They are reference, not something to patch: like the rest of the
-repository root they are maintained directly, and `AGENTS.md` files are just
-verbatim copies of them for other tooling.
+repository root they are maintained directly, and each `AGENTS.md` is a
+symlink to the `CLAUDE.md` beside it, for other tooling.
 
 Changes to `core/crates/inkuna-ffi` require regenerating bindings with **both**
 `scripts/build-core-ios.sh` and `scripts/build-core-android.sh` before the
