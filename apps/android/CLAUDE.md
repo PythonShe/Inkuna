@@ -1,59 +1,38 @@
-# Inkuna Android Rules
+# Inkuna Android
 
-You are working inside `apps/android/`, the native Android shell. Follow the
-rules below; they capture project-specific conventions and override common
-defaults.
-
-## 0. Tech Stack & Dev Commands
-
-| Layer | Technology | Notes |
-|------|------|------|
-| UI | Jetpack Compose + Material 3, latest BOM | single-activity |
-| Language | Kotlin (built into AGP 9+ — no standalone kotlin.android plugin) | latest stable AGP + Gradle wrapper |
+| Layer | Choice | Notes |
+|---|---|---|
+| UI | Jetpack Compose + Material 3 | single activity |
+| Language | Kotlin built into AGP 9+ | no standalone `kotlin.android` plugin |
 | Core | UniFFI Kotlin bindings + JNA | generated into `app/src/generated/kotlin` by `../../scripts/build-core-android.sh`; core methods are `suspend` |
-| Rendering | Core engine display lists drawn natively | `PageView` draws per-page glyph runs via `Canvas.drawGlyphs` (API 31+) |
-| Targets | minSdk 33, compile/target = latest SDK | application id `app.inkuna.android` |
-| ABIs | local: `arm64-v8a` + `x86_64`; CI release: `arm64-v8a` | never armeabi-v7a; overridden by `ANDROID_ABIS` (core script) + `-PinkunaAbis` (Gradle), which must agree |
+| Rendering | `ui/reader/engine/PageView.kt` | draws core display-list glyph runs via `Canvas.drawGlyphs` (API 31+) |
+| ABIs | local `arm64-v8a` + `x86_64`; CI release `arm64-v8a` | never armeabi-v7a; `ANDROID_ABIS` (core script) and `-PinkunaAbis` (Gradle) must agree |
 
 ```bash
 ../../scripts/build-core-android.sh   # after any core/FFI change
 ./gradlew assembleDebug               # must pass
 ```
 
-`gradle.properties` pins `org.gradle.java.home` to the latest Homebrew
-OpenJDK (CI strips that line and uses its own JDK); `local.properties` is
-machine-local and gitignored.
+- `gradle.properties` pins `org.gradle.java.home` to Homebrew OpenJDK (CI
+  strips that line); if Gradle lags the newest JDK, use Android Studio's JBR.
+  `local.properties` is machine-local.
+- Release signing reads `key.properties` + `app/upload-keystore.jks`
+  (gitignored; CI writes them from `ANDROID_*` secrets). Without them
+  `assembleRelease` falls back to debug signing.
 
-Release signing reads `key.properties` + `app/upload-keystore.jks` (both
-gitignored; CI materializes them from `ANDROID_*` secrets, local copies live
-in `~/Documents/Dev/inkuna/`). Without them `assembleRelease` falls back to debug
-signing.
+## Architecture
 
-## 1. Architecture
+- Thin shell: all domain logic goes through the Rust core
+  (`app.inkuna.core.Bookshelf`). Never duplicate parsing, DB access, or
+  progress math in Kotlin.
+- Package root `app.inkuna.android`; screens under `ui/<feature>/`.
+- State flows down, events flow up. Core calls belong in ViewModels or
+  stores, never in composables or `remember` blocks.
 
-- The shell is thin: all domain logic goes through the Rust core
-  (`app.inkuna.core.Bookshelf`). Never duplicate core logic (parsing, DB
-  access, progress math) in Kotlin.
-- Never edit generated bindings (`app/src/generated/`); regenerate via the
-  script instead.
-- Package root `app.inkuna.android`; feature packages per screen (`library`,
-  later `reader`, `settings`).
+## Conventions
 
-## 2. Compose Conventions
-
-- Material 3 with dynamic color eventually; the reader's ink/moonlight themes
-  come later — system dark mode correctness comes now.
-- State flows down, events flow up; no business logic in composables. Core
-  calls belong in a store/repository layer, not inside `remember` blocks
-  (the current `MainActivity` scaffold is a placeholder to be replaced by a
-  ViewModel when the shelf becomes real).
-- Design for Android idiom (predictive back, edge-to-edge) — this shell is a
-  first-class Android app, not an iOS port.
-
-## 3. Quality Bar
-
-- CJK audiences are primary: the app ships 16 languages and per-app language
-  selection is wired (`res/xml/locales_config.xml`, referenced by
-  `android:localeConfig` in the manifest). All user-visible strings go to
-  `strings.xml` resources, with each translation in a sibling
-  `values-<locale>/` — never a hardcoded literal in a composable.
+- Android idiom (predictive back, edge-to-edge); this is not an iOS port.
+- Correct in light and dark.
+- User-visible strings go in `strings.xml` with translations in
+  `values-<locale>/` (16 languages, per-app language via
+  `res/xml/locales_config.xml`); never a hardcoded literal in a composable.

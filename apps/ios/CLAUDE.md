@@ -1,18 +1,12 @@
-# Inkuna iOS Rules
+# Inkuna iOS
 
-You are working inside `apps/ios/`, the native iOS shell. Follow the rules
-below; they capture project-specific conventions and override common defaults.
-
-## 0. Tech Stack & Dev Commands
-
-| Layer | Technology | Notes |
-|------|------|------|
-| UI | **UIKit** (owner preference — no SwiftUI) | view controllers + programmatic layout, no storyboards |
-| Project | XcodeGen | `project.yml` is the source of truth; `Inkuna.xcodeproj` is generated and gitignored |
-| Language | Swift, **Swift 6 language mode** (strict concurrency) | latest Xcode/SDK |
-| Core | `InkunaCore.xcframework` + generated Swift bindings | produced by `../../scripts/build-core-ios.sh`; core methods are `async` |
-| Rendering | Core engine display lists drawn natively | `PageView` draws per-page glyph runs via Core Text (`CTFontDrawGlyphs`) |
-| Targets | min iOS 18, built with latest SDK | bundle id `app.inkuna.ios` |
+| Layer | Choice | Notes |
+|---|---|---|
+| UI | UIKit, programmatic layout | no storyboards or Interface Builder artifacts |
+| Project | XcodeGen | `project.yml` is the source of truth; `Inkuna.xcodeproj` is generated |
+| Language | Swift 6 language mode (strict concurrency) | latest Xcode/SDK |
+| Core | `InkunaCore.xcframework` + `Generated/InkunaCore.swift` | built by `../../scripts/build-core-ios.sh`; core methods are `async` |
+| Rendering | `Reader/Engine/PageView.swift` | draws core display-list glyph runs via `CTFontDrawGlyphs` |
 
 ```bash
 ../../scripts/build-core-ios.sh   # after any core/FFI change
@@ -21,34 +15,26 @@ xcodebuild -project Inkuna.xcodeproj -scheme Inkuna \
   -destination 'generic/platform=iOS Simulator' build   # must pass
 ```
 
-## 1. Architecture
+## Architecture
 
-- The shell is thin: all domain logic goes through the Rust core
-  (`try await LibraryStore.shared.library()`, a `Bookshelf`). Never
-  duplicate core logic (parsing, DB access, progress math) in Swift.
-- The generated bindings (`Generated/InkunaCore.swift`) are compiled into the
-  app target — do **not** `import InkunaCore` in app code; types are directly
-  visible. Never edit generated files.
-- Feature folders under `Inkuna/` (e.g. `Library/`, later `Reader/`,
-  `Settings/`), one primary view controller per screen.
+- Thin shell: all domain logic goes through the Rust core
+  (`try await LibraryStore.shared.library()`, a `Bookshelf`). Never duplicate
+  parsing, DB access, or progress math in Swift.
+- The generated bindings are compiled into the app target: do not
+  `import InkunaCore`; the types are directly visible.
+- One feature folder per area under `Inkuna/` (`Library/`, `Reader/`,
+  `Settings/`, ...), one primary view controller per screen.
 
-## 2. UIKit Conventions
+## Conventions
 
-- Programmatic Auto Layout (or manual layout in performance-critical reader
-  views); no Interface Builder artifacts.
-- Modern APIs at min-18 baseline: `UIContentConfiguration`, diffable data
-  sources for nontrivial lists, `UIButton.Configuration`.
-- iOS 26 Liquid Glass adoption is welcome but always gated:
-  `if #available(iOS 26.0, *)` with a dignified material fallback — never
-  raise the deployment target for it.
-- Respect Dynamic Type and dark mode from the first commit; the reader's
-  ink/moonlight themes come later, system appearance correctness comes now.
-
-## 3. Quality Bar
-
-- Apple Books is the reference for feel: interruptible transitions, spring
-  physics, haptics. Nothing user-facing ships janky-but-works.
-- User-visible strings are localized into 16 languages via the
-  `Inkuna/Localizable.xcstrings` catalog (CJK audiences are primary). Never
-  hard-code a user-facing literal; add the key to the catalog and keep the call
-  site at view-controller level.
+- Modern APIs at the iOS 18 baseline: `UIContentConfiguration`, diffable data
+  sources for nontrivial lists, `UIButton.Configuration`. Manual layout is
+  fine in performance-critical reader views.
+- Liquid Glass only behind `if #available(iOS 26.0, *)` with a material
+  fallback; never raise the deployment target for it.
+- Support Dynamic Type and light/dark appearance.
+- Feel matches Apple Books: interruptible transitions, spring physics,
+  haptics.
+- User-visible strings live in `Inkuna/Localizable.xcstrings` (16
+  languages); never hard-code a user-facing literal. Resolve strings at
+  view-controller level.

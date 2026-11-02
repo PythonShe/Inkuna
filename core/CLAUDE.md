@@ -1,135 +1,107 @@
-# Inkuna Core Rules
+# Inkuna Core
 
-You are working inside `core/`, the Rust workspace that owns all non-UI logic.
-Follow the rules below; they capture project-specific conventions and override
-common defaults.
+Rust workspace that owns all non-UI logic. Section numbers are referenced
+from code comments and `.coderabbit.yaml`; keep them stable.
 
-## 0. Tech Stack & Dev Commands
+## 0. Stack and commands
 
-| Layer | Technology | Notes |
-|------|------|------|
-| Language | Rust, edition 2024; channel from `core/rust-toolchain.toml` (`stable`) | `rust-version` is a minimum, not a pin — CI's `rustup update stable` is what tracks latest; never the Homebrew rustc, which ignores rust-toolchain.toml (see root CLAUDE.md) |
-| Storage | rusqlite (bundled SQLite, WAL) | one DB per install, owned by `Library`; append-only `user_version` migrations (refinery once it supports latest rusqlite) |
-| Async | tokio, at the FFI layer only | core stays sync; `inkuna-ffi` wraps calls in `spawn_blocking` so shells get `await`/`suspend` |
-| Time | chrono | unix-seconds `i64` in the DB |
-| Archives | `zip` (EPUB/CBZ); `unrar` planned for CBR | format detection is magic-byte based (TXT is the documented extension-gated exception) |
-| XML | quick-xml | streaming events; entity unescape via `quick_xml::escape::unescape`; the reader engine builds a compact arena DOM on top |
-| Layout engine | rustybuzz + unicode-* crates + cssparser (`inkuna-engine`) | core owns parse → style → shape → break → paginate; fixed-point (1/64 pt) math; per-page glyph-run display lists; canonical text projection defines all char offsets |
-| FFI | UniFFI proc-macros, latest | Swift + Kotlin bindings from one surface; async methods use `#[uniffi::export(async_runtime = "tokio")]`; reader interaction path is synchronous cache-only |
+| Layer | Choice | Notes |
+|---|---|---|
+| Language | Rust 2024, channel `stable` via `rust-toolchain.toml` | `rust-version` is a minimum, not a pin; CI's `rustup update stable` tracks latest |
+| Storage | rusqlite (bundled, WAL) | one DB per install owned by `Library`; append-only `user_version` migrations |
+| Async | tokio in `inkuna-ffi` only | core stays sync; FFI wraps calls in `spawn_blocking` and exports with `#[uniffi::export(async_runtime = "tokio")]`; the reader interaction path is synchronous and cache-only |
+| Archives / XML | `zip`; quick-xml | format detection is magic-byte based (TXT is the extension-gated exception); `unrar` planned for CBR |
+| Layout engine | `inkuna-engine`: harfrust + read-fonts, icu_segmenter, unicode-bidi/script, cssparser | fixed-point (1/64 pt) math; per-page glyph-run display lists; the canonical text projection defines all char offsets |
+| FFI | UniFFI proc-macros | one surface for Swift and Kotlin |
 
-Formats: EPUB (full metadata; parsing in `crates/inkuna-content`), MOBI/AZW3
-(hand-rolled clean-room Palm/KF8 readers in `crates/inkuna-format/src/mobi` +
-`src/azw3`; DRM-free only), TXT (chardetng/encoding_rs charset detection, CJK
-chapter auto-detection; `crates/inkuna-format/src/txt`) — all reflowables
-normalize to EPUB at import through `crates/inkuna-format/src/epub_write.rs`.
-PDF and CBZ/CBR are detected but not yet importable; see root CLAUDE.md.
+Formats: EPUB (`inkuna-content`); MOBI/AZW3 (clean-room readers in
+`inkuna-format/src/mobi`, `src/azw3`; DRM-free only); TXT (chardetng
+charset detection, CJK chapter detection; `inkuna-format/src/txt`). All
+normalize to EPUB at import via `inkuna-format/src/epub_write.rs`. PDF and
+CBZ/CBR are detected but not yet importable.
 
 ```bash
-cargo test                      # full workspace tests — must pass before commit
-../scripts/build-core-ios.sh    # rebuild iOS xcframework + Swift bindings
-../scripts/build-core-android.sh# rebuild Android .so + Kotlin bindings
+cargo test                        # full workspace; must pass before commit
+../scripts/build-core-ios.sh      # xcframework + Swift bindings
+../scripts/build-core-android.sh  # .so + Kotlin bindings
 ```
 
-`Cargo.lock` is committed; never hand-edit it.
+## 1. Crate layering (hard boundary)
 
-## 1. Crate Layering (hard boundary)
+- `inkuna-content`: EPUB container layer (bounded archive reads, OPF, spine,
+  TOC, href normalization). No FFI, no DB.
+- `inkuna-format`: import-side conversion (MOBI/AZW3/TXT to EPUB, EPUB 3
+  writer).
+- `inkuna-engine`: reader layout engine. Deterministic, no DB access.
+- `inkuna-core`: domain services (library, DB, import, features). No UniFFI
+  types or FFI concerns.
+- `inkuna-ffi`: the only UniFFI surface (bindgen runs in `--library` mode, so
+  all exports stay in this crate). Root `Bookshelf` object plus per-feature
+  facades; mirrors core types as `uniffi::Record`/`Enum`/`Object` with `From`
+  conversions; owned values only; coarse-grained calls.
+- New capability: implement and test in `inkuna-core`, then add a minimal
+  wrapper in `inkuna-ffi`.
 
-Target layout per the 2026-08-21 engine-swap ADR (five crates; the
-restructure from two is in flight — see
-`docs/repertoire/specs/2026-08-21-reader-engine-swap-spec.md`):
-
-- `crates/inkuna-content` — EPUB container layer: bounded archive reads,
-  OPF/spine/manifest, TOC, href normalization. No FFI, no DB.
-- `crates/inkuna-format` — import-side conversion (MOBI/AZW3/TXT→EPUB, the
-  EPUB 3 writer).
-- `crates/inkuna-engine` — the reader layout engine (dom/style/shape/layout/
-  paginate/display/session). Deterministic; no DB access.
-- `crates/inkuna-core` — domain services (library, DB, import orchestration,
-  features). **No UniFFI types, no FFI concerns.** Free to use borrows, rich
-  enums, `&str` parameters.
-- `crates/inkuna-ffi` — the only UniFFI surface (all exports must stay in
-  this one crate — bindgen is `--library`-mode). Root `Bookshelf` object plus
-  per-feature facade objects; mirrors core types as
-  `uniffi::Record`/`Enum`/`Object` with `From` conversions; owned values only;
-  keep the boundary coarse-grained (no chatty per-field calls).
-- New capability = implement in `inkuna-core` first with tests, then expose a
-  minimal wrapper in `inkuna-ffi`.
-- After ANY `inkuna-ffi` change, regenerate bindings with both build scripts
-  before touching the shells.
-
-## 2. Module Layout (`inkuna-core`)
+## 2. Module layout (`inkuna-core`)
 
 | Path | Holds |
-|------|------|
-| `src/lib.rs` | crate root: module declarations plus the public `pub use` re-exports — keep it thin |
-| `src/core/` | infrastructure leaves: `error`, `db/` (connection setup, reader pool, migrations), `files`, `time`. No business logic |
-| `src/formats/` | detection (`format.rs`) plus thin re-export modules keeping the import pipeline's `epub::` / `mobi::` / `txt::` call shape — parsing lives in `inkuna-content`, conversion in `inkuna-format` (CBZ/CBR land beside them) |
-| `src/features/` | vertical slices — `library/`, `import/`, `progress/`, `stats/`, `settings/` — each owning its types, reads, and writes |
-| `src/test_support.rs` | shared `#[cfg(test)]` fixtures: the `write_cbz` / `write_mobi` builders, plus re-exports of the EPUB builders (`write_epub`, from `inkuna-content/src/test_support.rs`) and the MOBI/KF8 kit (`MobiTestBuilder` etc., from `inkuna-format/src/test_support.rs`) |
+|---|---|
+| `src/lib.rs` | module declarations and public `pub use` re-exports; keep thin |
+| `src/core/` | infrastructure leaves: `error`, `db/` (connection, reader pool, migrations), `files`, `time`; no business logic |
+| `src/formats/` | detection (`format.rs`) plus thin re-exports keeping the `epub::` / `mobi::` / `txt::` call shape |
+| `src/features/` | vertical slices: `library`, `import`, `progress`, `search`, `settings`, `stats` |
+| `src/test_support.rs` | shared `#[cfg(test)]` builders, re-exporting those of `inkuna-content` and `inkuna-format` |
 
-- **`mod.rs` is declarations only**: module doc comments, `mod`/`pub mod`,
-  `use`/`pub use`, and module-level constants. Never a `fn`, `struct`, `enum`,
-  `impl`, or `trait`. Canonical order: `//!` doc → `mod` declarations
-  (alphabetical) → `#[cfg(test)] mod tests;` → re-exports.
-- Group by domain, not by technical layer; files that change together live
-  together. A new capability starts in `features/` and only moves down into
-  `core/` once a second feature needs it.
-- Every module directory carries its own `mod.rs` — never the `foo.rs` +
-  `foo/` sibling style. Domain folders are singular (`library`, `import`),
-  role folders plural (`queries`, `writes`), with `model`/`store` singular.
-- Target ≤400 lines per source file, 500 as the hard ceiling; `tests.rs` /
-  `*_tests.rs` are exempt. Split along domain seams, not arbitrary ones.
-- `Library` is the shared facade: each feature contributes its own
-  `impl Library` block from its own module — inherent impls may live in any
-  module of the crate.
-- Everything public reaches consumers from the crate root: `inkuna-ffi`
-  imports `inkuna_core::Foo`, never a module path. A new public type means a
-  new `pub use` in `lib.rs`.
+- `mod.rs` is declarations only: `//!` doc, `mod` lines (alphabetical),
+  `#[cfg(test)] mod tests;`, then `use`/`pub use` and module constants. Never
+  a `fn`, `struct`, `enum`, `impl`, or `trait`.
+- Every module directory has its own `mod.rs`; never `foo.rs` beside `foo/`.
+  Domain folders singular (`library`), role folders plural (`queries`,
+  `writes`), `model`/`store` singular.
+- Group by domain. A capability starts in `features/` and moves into `core/`
+  only when a second feature needs it.
+- Source files target 400 lines, hard ceiling 500; test files are exempt.
+  Split along domain seams.
+- Each feature adds its own `impl Library` block in its own module.
+- Consumers import from the crate root (`inkuna_core::Foo`); a new public
+  type needs a `pub use` in `lib.rs`.
 
-## 3. Code Quality & Robustness
+## 3. Errors and robustness
 
-- Every fallible function returns `Result<T, CoreError>`; `.unwrap()` /
-  `.expect()` outside tests and lock poisoning is forbidden.
-- New error cases get a `CoreError` variant and a mirrored `InkunaError`
-  variant + `From` arm in `inkuna-ffi` — never stringly-typed errors.
-- Prefer borrowing over moving; comment any required `clone()`.
-- `Library` guards its connection with a `Mutex` because UniFFI objects must
-  be `Send + Sync`; keep lock scopes minimal.
+- Fallible functions return `Result<T, CoreError>`. No `.unwrap()` /
+  `.expect()` outside tests and lock poisoning.
+- A new error case gets a `CoreError` variant plus a mirrored `InkunaError`
+  variant and `From` arm in `inkuna-ffi`; never stringly-typed errors.
+- Prefer borrowing; comment any required `clone()`.
+- `Library` holds its writer connection in a `Mutex` (UniFFI objects must be
+  `Send + Sync`); keep lock scopes minimal.
 
-## 4. CJK Correctness (product-critical)
+## 4. CJK correctness (product-critical)
 
-- All text handling is UTF-8-safe; never index strings by byte offset in user
-  data. Tests must include CJK fixtures (see `features/library/tests.rs` as
-  the pattern).
-- Search is two engines over one corpus (`resource_text`), never SQLite
-  FTS5: library-wide ranked search is tantivy + jieba (`features/search/`,
-  index under `<data_dir>/index/`, reconciled against the DB on open) with
-  a CJK-unigram field so single-char and substring CJK queries match;
-  in-book search is an exact per-char NFKC+case-fold scan, because only a
-  scan can return every occurrence with char offsets and partial-word
-  Latin matches. The index is derived data — always rebuildable, never
-  the truth.
+- Never index user text by byte offset. Tests include CJK fixtures.
+- Search is two engines over one corpus (`resource_text`), never SQLite FTS5:
+  - library-wide ranked search: tantivy + jieba (`features/search/`, index
+    under `<data_dir>/index/`, reconciled against the DB on open) with a CJK
+    unigram field so single-char and substring queries match. The index is
+    derived data, always rebuildable.
+  - in-book search: exact per-char NFKC + case-fold scan, the only way to
+    return every occurrence with char offsets and partial-word Latin matches.
 
-## 5. Naming & FFI Conventions
+## 5. Naming and FFI
 
-- Rust standard casing; files snake_case.
-- The FFI library object is `Bookshelf`, not `Library` — UniFFI's Kotlin
-  output imports JNA's `com.sun.jna.Library` and the names collide. Check
-  generated-code collisions before naming new exported types.
-- Bindings config lives in `crates/inkuna-ffi/uniffi.toml` (Swift module
+- The FFI library object is `Bookshelf`, not `Library`: UniFFI's Kotlin
+  output imports JNA's `com.sun.jna.Library`. Check generated-code name
+  collisions before naming new exported types.
+- Bindings config: `crates/inkuna-ffi/uniffi.toml` (Swift module
   `InkunaCore`, Kotlin package `app.inkuna.core`).
 
 ## 6. Testing
 
-- Unit tests live beside the code but never inline: extract every
-  `#[cfg(test)]` module into its own file. A leaf module `foo.rs` gets a
-  sibling `foo_tests.rs`, wired as
+- Never inline test modules. Leaf `foo.rs` gets `foo_tests.rs`, wired as
   `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`; a folder module gets
-  `tests.rs` inside it, declared from `mod.rs` as `#[cfg(test)] mod tests;`.
-- Tests build their own fixtures in `tempfile` dirs; shared builders live in
-  each crate's `src/test_support.rs` — the EPUB builders (`write_epub`) in
-  `inkuna-content`, the MOBI/KF8 kit (`MobiTestBuilder`, INDX/KF8 fixtures,
-  `palmdoc_compress`) in `inkuna-format`, both re-exported from
-  `inkuna-core/src/test_support.rs` alongside its own `write_cbz` /
-  `write_mobi` — no binary fixtures in git.
-- Format detection, metadata parsing, and DB roundtrips must stay covered.
+  `tests.rs` declared from `mod.rs`.
+- Tests build fixtures in `tempfile` dirs from the `test_support.rs`
+  builders (`write_epub` in `inkuna-content`, `MobiTestBuilder` and KF8
+  fixtures in `inkuna-format`, `write_cbz` / `write_mobi` in `inkuna-core`).
+  No binary fixtures in git.
+- Format detection, metadata parsing, and DB roundtrips stay covered.
