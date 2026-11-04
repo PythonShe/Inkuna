@@ -11,7 +11,7 @@ test-support = []
 
 [dependencies]
 inkuna-content = { path = "../inkuna-content" }
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 quick-xml = { version = "0.41", features = ["escape-html"] }
 chardetng = "1"
 encoding_rs = "0.8"
